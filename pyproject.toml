@@ -1,0 +1,13 @@
+[project]
+name = "trace-backed-memory"
+version = "0.1.0"
+description = "Trace-backed, commit-aware, gated memory for LLM/agent harness engineering."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

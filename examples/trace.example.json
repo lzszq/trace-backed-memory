@@ -1,0 +1,19 @@
+{
+  "trace_id": "trace_001",
+  "run_id": "run_20260708_001",
+  "commit_sha": "abc123",
+  "branch": "main",
+  "prompt_version": "planner_v4",
+  "tool_schema_version": "search_docs_v2",
+  "model": "gpt-5.5-pro",
+  "eval_result": "fail",
+  "tool_calls": [
+    {
+      "name": "search_docs",
+      "arguments": {"query": null},
+      "error": "Invalid argument: query is required"
+    }
+  ],
+  "trace_uri": "s3://harness-traces/run_20260708_001.jsonl",
+  "created_at": "2026-07-08T00:00:00Z"
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MemoryContext",
+  "type": "object",
+  "required": ["mode", "repo", "commit_sha"],
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": ["debug", "repair", "regression", "planning", "eval", "production"]
+    },
+    "repo": {"type": "string"},
+    "branch": {"type": "string"},
+    "commit_sha": {"type": "string"},
+    "prompt_version": {"type": "string"},
+    "prompt_family": {"type": "string"},
+    "tool": {"type": "string"},
+    "tool_schema_version": {"type": "string"},
+    "model": {"type": "string"},
+    "model_family": {"type": "string"},
+    "eval_suite": {"type": "string"},
+    "task_type": {"type": "string"},
+    "failure_type": {"type": "string"}
+  },
+  "additionalProperties": true
+}

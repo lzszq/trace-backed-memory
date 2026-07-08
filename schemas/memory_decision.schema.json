@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MemoryUsageDecision",
+  "type": "object",
+  "required": ["use_memory", "allowed_memory_ids", "blocked_memory_ids", "reason", "risk", "recommended_injection"],
+  "properties": {
+    "use_memory": {"type": "boolean"},
+    "allowed_memory_ids": {"type": "array", "items": {"type": "string"}},
+    "blocked_memory_ids": {"type": "array", "items": {"type": "string"}},
+    "reason": {"type": "string"},
+    "risk": {"type": "string", "enum": ["none", "low", "medium", "high"]},
+    "recommended_injection": {
+      "type": "string",
+      "enum": ["none", "short_summary", "full_case_summary", "pointer_only"]
+    }
+  },
+  "additionalProperties": false
+}

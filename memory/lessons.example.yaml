@@ -1,0 +1,13 @@
+lessons:
+  - lesson_id: lesson_001
+    source_case_id: case_001
+    memory_type: procedural
+    status: active
+    confidence: 0.92
+    scope:
+      tool: search_docs
+      prompt_family: planner
+      tool_schema_version: search_docs_v2
+    lesson_text: >
+      When calling search_docs, always provide a non-empty natural-language query.
+      Never pass null or an empty string.

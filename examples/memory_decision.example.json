@@ -1,0 +1,8 @@
+{
+  "use_memory": true,
+  "allowed_memory_ids": ["lesson_001"],
+  "blocked_memory_ids": [],
+  "reason": "The lesson directly matches the current tool, prompt family, schema version, and failure type.",
+  "risk": "low",
+  "recommended_injection": "short_summary"
+}

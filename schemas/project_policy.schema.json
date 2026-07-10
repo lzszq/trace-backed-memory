@@ -24,11 +24,11 @@
           "failure_type"
         ]
       },
-      "additionalProperties": {"type": "string", "minLength": 1}
+      "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 512}
     }
   },
   "properties": {
-    "policy_id": {"type": "string", "minLength": 1},
+    "policy_id": {"type": "string", "minLength": 1, "maxLength": 128},
     "policy_text": {"type": "string", "pattern": "\\S"},
     "scope": {"$ref": "#/$defs/scope"},
     "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0, "default": 1.0},

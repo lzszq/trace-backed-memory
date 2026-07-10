@@ -140,6 +140,17 @@ prompt's own rules.
 Runtime snippets require the final parsed `MemoryDecision`; callers should not
 render non-empty memory snippets directly from retrieved candidates.
 
+## Fixed runtime budgets
+
+The runtime fails closed at these fixed boundaries:
+
+- `MEMORY_ID_MAX_CHARS`: 128 characters for memory and provenance IDs.
+- `METADATA_VALUE_MAX_CHARS`: 512 characters for context and scope values.
+- `LLM_GATE_MAX_CANDIDATES`: 50 candidates per gate request.
+- `LLM_GATE_PROMPT_MAX_CHARS`: 32,000 characters in the final gate prompt.
+- `INJECTION_MAX_MEMORIES`: 20 memories per injection.
+- `INJECTION_SNIPPET_MAX_CHARS`: 12,000 characters in the final snippet.
+
 Recommended:
 
 ```text

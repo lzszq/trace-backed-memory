@@ -19,8 +19,8 @@
     "system_blocked_reasons"
   ],
   "properties": {
-    "decision_id": {"type": "string", "minLength": 1},
-    "run_id": {"type": "string", "minLength": 1},
+    "decision_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "run_id": {"type": "string", "minLength": 1, "maxLength": 128},
     "mode": {
       "type": "string",
       "enum": ["debug", "repair", "regression", "planning", "eval", "production"]
@@ -28,7 +28,7 @@
     "candidate_memory_ids": {"$ref": "#/$defs/memory_id_list"},
     "used_memory_ids": {"$ref": "#/$defs/memory_id_list"},
     "blocked_memory_ids": {"$ref": "#/$defs/memory_id_list"},
-    "reason": {"type": "string"},
+    "reason": {"type": "string", "pattern": "\\S"},
     "risk": {
       "type": "string",
       "enum": ["none", "low", "medium", "high"]
@@ -43,14 +43,15 @@
       "default": null
     },
     "memory_caused_failure": {"type": "boolean", "default": false},
-    "trace_id": {"type": "string", "minLength": 1},
+    "trace_id": {"type": "string", "minLength": 1, "maxLength": 128},
     "context": {
       "type": "object",
-      "additionalProperties": {"type": "string", "minLength": 1},
+      "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 512},
       "default": {}
     },
     "candidate_memory_statuses": {
       "type": "object",
+      "propertyNames": {"maxLength": 128},
       "additionalProperties": {
         "type": "string",
         "enum": ["draft", "verified", "active", "obsolete"]
@@ -59,6 +60,7 @@
     },
     "system_blocked_reasons": {
       "type": "object",
+      "propertyNames": {"maxLength": 128},
       "additionalProperties": {"type": "string", "minLength": 1},
       "default": {}
     },
@@ -108,7 +110,7 @@
   "$defs": {
     "memory_id_list": {
       "type": "array",
-      "items": {"type": "string", "minLength": 1},
+      "items": {"type": "string", "minLength": 1, "maxLength": 128},
       "uniqueItems": true
     }
   },

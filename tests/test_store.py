@@ -1,5 +1,7 @@
 import json
 import os
+import threading
+import time
 from copy import deepcopy
 from pathlib import Path
 
@@ -67,6 +69,53 @@ def store_with_records_in_order(trace_ids: list[str]) -> TraceBackedMemoryStore:
                 commit_sha=f"commit_{trace_id}",
                 repo="repo",
                 eval_result="unknown",
+            )
+        )
+    return store
+
+
+def store_with_retrieval_records_in_order(
+    suffixes: list[str],
+) -> TraceBackedMemoryStore:
+    store = TraceBackedMemoryStore()
+    for suffix in suffixes:
+        trace = store.record_trace(
+            Trace(
+                trace_id=f"trace_{suffix}",
+                run_id=f"run_{suffix}",
+                commit_sha=f"commit_{suffix}",
+                repo="repo",
+                tenant="tenant",
+                eval_result="fail",
+            )
+        )
+        case = store.add_failure_case(
+            FailureCase(
+                case_id=f"case_{suffix}",
+                source_trace_id=trace.trace_id,
+                commit_sha=trace.commit_sha,
+                failure_type="invalid_tool_argument",
+                symptom=f"symptom {suffix}",
+                fix=f"fix {suffix}",
+                fix_commit_sha=f"fix_commit_{suffix}",
+                regression_passed=True,
+                status="verified",
+            )
+        )
+        store.add_lesson(
+            Lesson(
+                lesson_id=f"lesson_{suffix}",
+                source_case_id=case.case_id,
+                lesson_text=f"lesson {suffix}",
+                memory_type="procedural",
+                scope={"repo": "repo", "tenant": "tenant"},
+            )
+        )
+        store.add_project_policy(
+            ProjectPolicy(
+                policy_id=f"policy_{suffix}",
+                policy_text=f"policy {suffix}",
+                scope={"repo": "repo", "tenant": "tenant"},
             )
         )
     return store
@@ -141,6 +190,22 @@ def test_prepare_and_finalize_memory_is_trace_linked_and_audited():
     assert log.created_at.endswith("Z")
 
 
+def test_prepare_memory_validates_context_before_empty_candidate_registration():
+    store = TraceBackedMemoryStore()
+    invalid_context = MemoryContext(
+        mode="repair", repo="", commit_sha="abc"
+    )
+
+    with pytest.raises(ValueError, match="context repo"):
+        store.prepare_memory(invalid_context, task="repair")
+
+    request = store.prepare_memory(
+        MemoryContext(mode="repair", repo="repo", commit_sha="abc"),
+        task="repair",
+    )
+    assert request.request_id == "gate_request_000001"
+
+
 def test_gate_request_cannot_cross_stores_or_be_replayed():
     first, trace, _case, lesson = store_with_active_lesson()
     second = TraceBackedMemoryStore.from_snapshot(first.to_snapshot())
@@ -173,6 +238,64 @@ def test_failed_finalize_does_not_consume_request_or_append_log():
     with pytest.raises(ValueError, match="unknown trace_id"):
         store.finalize_memory(request, allow_decision(lesson.lesson_id), trace_id="wrong")
     assert store.usage_logs == before
+    result = store.finalize_memory(
+        request, allow_decision(lesson.lesson_id), trace_id=trace.trace_id
+    )
+    assert result.use_memory is True
+
+
+def test_concurrent_finalization_consumes_request_exactly_once(monkeypatch):
+    store, trace, _case, lesson = store_with_active_lesson()
+    request = store.prepare_memory(matching_context(trace), task="repair")
+    payload = allow_decision(lesson.lesson_id)
+    original_parser = store_module.parse_memory_decision
+
+    def sleeping_parser(decision_payload):
+        time.sleep(0.05)
+        return original_parser(decision_payload)
+
+    monkeypatch.setattr(store_module, "parse_memory_decision", sleeping_parser)
+    start = threading.Barrier(3)
+    outcomes: list[object] = []
+
+    def finalize() -> None:
+        start.wait()
+        try:
+            outcomes.append(
+                store.finalize_memory(
+                    request, payload, trace_id=trace.trace_id
+                )
+            )
+        except ValueError as exc:
+            outcomes.append(exc)
+
+    threads = [threading.Thread(target=finalize) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    start.wait()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert all(not thread.is_alive() for thread in threads)
+    successes = [outcome for outcome in outcomes if not isinstance(outcome, ValueError)]
+    failures = [outcome for outcome in outcomes if isinstance(outcome, ValueError)]
+    assert len(successes) == 1
+    assert [str(failure) for failure in failures] == [
+        f"gate request already finalized: {request.request_id}"
+    ]
+    assert len(store.usage_logs) == 1
+    with pytest.raises(ValueError, match="already finalized"):
+        store.finalize_memory(request, payload, trace_id=trace.trace_id)
+
+
+def test_decision_validation_failure_leaves_gate_request_pending():
+    store, trace, _case, lesson = store_with_active_lesson()
+    request = store.prepare_memory(matching_context(trace), task="repair")
+
+    with pytest.raises(ValueError, match="memory decision"):
+        store.finalize_memory(request, {}, trace_id=trace.trace_id)
+
+    assert store.usage_logs == []
     result = store.finalize_memory(
         request, allow_decision(lesson.lesson_id), trace_id=trace.trace_id
     )
@@ -270,6 +393,40 @@ def test_store_can_review_and_verify_a_persisted_draft():
     assert reviewed.reviewed_by == "reviewer"
     assert verified.status == "verified"
     assert store.failure_cases["case_001"] == verified
+
+
+@pytest.mark.parametrize(
+    ("operation", "record_type", "missing_id"),
+    [
+        ("review_failure_case", "failure case", "missing_case"),
+        ("verify_failure_case", "failure case", "missing_case"),
+        ("obsolete_failure_case", "failure case", "missing_case"),
+        ("obsolete_lesson", "lesson", "missing_lesson"),
+        ("obsolete_project_policy", "project policy", "missing_policy"),
+    ],
+)
+def test_store_lifecycle_unknown_ids_raise_stable_value_errors(
+    operation: str, record_type: str, missing_id: str
+):
+    store = TraceBackedMemoryStore()
+    if operation == "review_failure_case":
+        call = lambda: store.review_failure_case(
+            missing_id, reviewed_by="reviewer", root_cause="cause"
+        )
+    elif operation == "verify_failure_case":
+        call = lambda: store.verify_failure_case(
+            missing_id,
+            fix="fix",
+            fix_commit_sha="def",
+            regression_passed=True,
+        )
+    else:
+        call = lambda: getattr(store, operation)(missing_id)
+
+    with pytest.raises(
+        ValueError, match=rf"unknown {record_type} ID: {missing_id}"
+    ):
+        call()
 
 
 @pytest.mark.parametrize("invalid_boolean", ["true", 1])
@@ -619,6 +776,311 @@ def v2_snapshot_with_usage_log() -> dict[str, object]:
     return store.to_snapshot()
 
 
+def _snapshot_record(
+    snapshot: dict[str, object], collection_name: str, index: int = 0
+) -> dict[str, object]:
+    collection = snapshot[collection_name]
+    assert isinstance(collection, list)
+    record = collection[index]
+    assert isinstance(record, dict)
+    return record
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("trace_id", 1),
+        ("run_id", []),
+        ("commit_sha", {}),
+        ("repo", 1),
+        ("eval_result", []),
+        ("dirty", 1),
+        ("latency_ms", True),
+        ("latency_ms", 1.5),
+        ("cost_usd", False),
+        ("created_at", "2026-07-10T12:00:00"),
+    ],
+)
+def test_runtime_trace_validation_matches_schema_types(
+    field_name: str, invalid_value: object
+):
+    values: dict[str, object] = {
+        "trace_id": "trace_invalid",
+        "run_id": "run_invalid",
+        "commit_sha": "abc",
+        "repo": "repo",
+        "eval_result": "unknown",
+    }
+    values[field_name] = invalid_value
+
+    with pytest.raises(ValueError, match=field_name):
+        TraceBackedMemoryStore().record_trace(Trace(**values))  # type: ignore[arg-type]
+
+
+def test_runtime_trace_error_text_is_not_treated_as_bounded_metadata():
+    error_text = "failure detail " * 100
+    trace = TraceBackedMemoryStore().record_trace(
+        Trace(
+            trace_id="trace_error_text",
+            run_id="run_error_text",
+            commit_sha="abc",
+            error=error_text,
+        )
+    )
+
+    assert trace.error == error_text
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("case_id", 1),
+        ("source_trace_id", []),
+        ("failure_type", {}),
+        ("symptom", 7),
+        ("root_cause", 1),
+        ("regression_passed", 1),
+        ("status", []),
+        ("reviewed_at", "2026-07-10T12:00:00"),
+        ("created_at", 0),
+    ],
+)
+def test_runtime_failure_case_validation_matches_schema_types(
+    field_name: str, invalid_value: object
+):
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(trace_id="trace_source", run_id="run_source", commit_sha="abc")
+    )
+    values: dict[str, object] = {
+        "case_id": "case_invalid",
+        "source_trace_id": "trace_source",
+        "commit_sha": "abc",
+        "failure_type": "invalid_tool_argument",
+        "symptom": "bad input",
+    }
+    values[field_name] = invalid_value
+
+    with pytest.raises(ValueError, match=field_name):
+        store.add_failure_case(FailureCase(**values))  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("record_kind", "field_name", "invalid_value"),
+    [
+        ("lesson", "lesson_id", 1),
+        ("lesson", "source_case_id", []),
+        ("lesson", "lesson_text", 7),
+        ("lesson", "memory_type", {}),
+        ("lesson", "confidence", True),
+        ("lesson", "sensitive", 1),
+        ("lesson", "created_at", "2026-07-10T12:00:00"),
+        ("policy", "policy_id", 1),
+        ("policy", "policy_text", []),
+        ("policy", "confidence", False),
+        ("policy", "eval_leaking", 1),
+        ("policy", "status", {}),
+        ("policy", "created_at", "not-a-date"),
+    ],
+)
+def test_runtime_memory_record_validation_matches_schema_types(
+    record_kind: str, field_name: str, invalid_value: object
+):
+    store, _trace, case = store_with_verified_case()
+    if record_kind == "lesson":
+        values: dict[str, object] = {
+            "lesson_id": "lesson_invalid",
+            "source_case_id": case.case_id,
+            "lesson_text": "rule",
+            "memory_type": "procedural",
+            "scope": {"repo": "repo", "tenant": "tenant_a"},
+        }
+        values[field_name] = invalid_value
+        record = Lesson(**values)  # type: ignore[arg-type]
+        insertion = lambda: store.add_lesson(record)
+    else:
+        values = {
+            "policy_id": "policy_invalid",
+            "policy_text": "rule",
+            "scope": {"repo": "repo"},
+        }
+        values[field_name] = invalid_value
+        record = ProjectPolicy(**values)  # type: ignore[arg-type]
+        insertion = lambda: store.add_project_policy(record)
+
+    with pytest.raises(ValueError, match=field_name):
+        insertion()
+
+
+@pytest.mark.parametrize(
+    "record_kind",
+    [
+        "trace_id",
+        "failure_case_id",
+        "failure_source_id",
+        "lesson_id",
+        "lesson_source_id",
+        "policy_id",
+        "usage_memory_id",
+    ],
+)
+def test_store_rejects_oversized_memory_and_source_identifiers(record_kind: str):
+    oversized = "x" * 129
+    if record_kind == "trace_id":
+        with pytest.raises(ValueError, match="at most 128 characters"):
+            TraceBackedMemoryStore().record_trace(
+                Trace(trace_id=oversized, run_id="run", commit_sha="abc")
+            )
+        return
+
+    store, trace, case = store_with_verified_case()
+    if record_kind == "failure_case_id":
+        record = FailureCase(
+            case_id=oversized,
+            source_trace_id=trace.trace_id,
+            commit_sha=trace.commit_sha,
+            failure_type="invalid_tool_argument",
+            symptom="bad input",
+        )
+        insertion = lambda: store.add_failure_case(record)
+    elif record_kind == "failure_source_id":
+        record = FailureCase(
+            case_id="case_invalid",
+            source_trace_id=oversized,
+            commit_sha=trace.commit_sha,
+            failure_type="invalid_tool_argument",
+            symptom="bad input",
+        )
+        insertion = lambda: store.add_failure_case(record)
+    elif record_kind in {"lesson_id", "lesson_source_id"}:
+        record = Lesson(
+            lesson_id=oversized if record_kind == "lesson_id" else "lesson_invalid",
+            source_case_id=oversized if record_kind == "lesson_source_id" else case.case_id,
+            lesson_text="rule",
+            memory_type="procedural",
+            scope={"repo": "repo", "tenant": "tenant_a"},
+        )
+        insertion = lambda: store.add_lesson(record)
+    elif record_kind == "policy_id":
+        record = ProjectPolicy(
+            policy_id=oversized,
+            policy_text="rule",
+            scope={"repo": "repo"},
+        )
+        insertion = lambda: store.add_project_policy(record)
+    else:
+        insertion = lambda: store.log_decision(
+            trace.run_id,
+            matching_context(trace),
+            [oversized],
+            MemoryDecision(
+                use_memory=False,
+                allowed_memory_ids=[],
+                blocked_memory_ids=[oversized],
+                reason="blocked",
+                risk="low",
+                recommended_injection="none",
+            ),
+        )
+
+    with pytest.raises(ValueError, match="at most 128 characters"):
+        insertion()
+
+
+@pytest.mark.parametrize("record_kind", ["lesson", "policy"])
+def test_store_rejects_scope_values_over_metadata_budget(record_kind: str):
+    store, _trace, case = store_with_verified_case()
+    scope = {"repo": "r" * 513, "tenant": "tenant_a"}
+    if record_kind == "lesson":
+        insertion = lambda: store.add_lesson(
+            Lesson(
+                lesson_id="lesson_oversized_scope",
+                source_case_id=case.case_id,
+                lesson_text="rule",
+                memory_type="procedural",
+                scope=scope,
+            )
+        )
+    else:
+        insertion = lambda: store.add_project_policy(
+            ProjectPolicy(
+                policy_id="policy_oversized_scope",
+                policy_text="rule",
+                scope=scope,
+            )
+        )
+
+    with pytest.raises(ValueError, match="at most 512 characters"):
+        insertion()
+
+
+@pytest.mark.parametrize(
+    ("collection_name", "field_name", "invalid_value"),
+    [
+        ("traces", "latency_ms", True),
+        ("traces", "cost_usd", False),
+        ("failure_cases", "reviewed_by", 1),
+        ("failure_cases", "status", []),
+        ("lessons", "lesson_text", 1),
+        ("lessons", "created_at", "2026-07-10T12:00:00"),
+        ("project_policies", "policy_text", {}),
+        ("project_policies", "confidence", True),
+        ("usage_logs", "mode", []),
+        ("usage_logs", "eval_result", True),
+        ("usage_logs", "created_at", "2026-07-10T12:00:00"),
+    ],
+)
+def test_v2_snapshot_record_validation_matches_schema_types(
+    collection_name: str, field_name: str, invalid_value: object
+):
+    snapshot = fully_populated_snapshot()
+    _snapshot_record(snapshot, collection_name)[field_name] = invalid_value
+
+    with pytest.raises(ValueError, match=field_name):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+@pytest.mark.parametrize(
+    ("collection_name", "required_field", "record_label"),
+    [
+        ("traces", "trace_id", "trace"),
+        ("failure_cases", "case_id", "failure case"),
+        ("lessons", "lesson_id", "lesson"),
+        ("project_policies", "policy_id", "project policy"),
+        ("usage_logs", "decision_id", "usage log"),
+    ],
+)
+def test_v2_snapshot_normalizes_record_constructor_type_errors(
+    collection_name: str, required_field: str, record_label: str
+):
+    snapshot = fully_populated_snapshot()
+    _snapshot_record(snapshot, collection_name).pop(required_field)
+
+    with pytest.raises(ValueError, match=rf"invalid {record_label} record"):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+def test_v2_snapshot_accepts_rfc3339_z_and_offset_timestamps():
+    snapshot = fully_populated_snapshot()
+    _snapshot_record(snapshot, "traces")["created_at"] = "2026-07-10T12:00:00Z"
+    failure_case = _snapshot_record(snapshot, "failure_cases")
+    failure_case["reviewed_at"] = "2026-07-10T20:00:00+08:00"
+    failure_case["created_at"] = "2026-07-10T12:00:00.123Z"
+    _snapshot_record(snapshot, "lessons")["created_at"] = (
+        "2026-07-10T20:00:00+08:00"
+    )
+    _snapshot_record(snapshot, "project_policies")["created_at"] = (
+        "2026-07-10T12:00:00Z"
+    )
+    _snapshot_record(snapshot, "usage_logs")["created_at"] = (
+        "2026-07-10T20:00:00+08:00"
+    )
+
+    restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+
+    assert restored.to_snapshot()["usage_logs"]
+
+
 def test_snapshot_v2_has_exact_versioned_envelope():
     snapshot = TraceBackedMemoryStore().to_snapshot()
 
@@ -860,6 +1322,40 @@ def test_reversed_v2_collections_emit_identical_snapshot_json(tmp_path):
     ]
 
 
+def test_retrieval_prompts_and_reports_are_independent_of_insertion_order():
+    first = store_with_retrieval_records_in_order(["b", "a"])
+    second = store_with_retrieval_records_in_order(["a", "b"])
+    context = MemoryContext(
+        mode="debug",
+        repo="repo",
+        commit_sha="current",
+        tenant="tenant",
+        failure_type="invalid_tool_argument",
+    )
+
+    first_candidates = first.candidate_memories(context)
+    second_candidates = second.candidate_memories(context)
+    first_ids = [memory.memory_id for memory in first_candidates]
+    second_ids = [memory.memory_id for memory in second_candidates]
+
+    assert first_ids == second_ids == sorted(first_ids)
+    assert first.prepare_memory(context, task="repair").prompt == second.prepare_memory(
+        context, task="repair"
+    ).prompt
+
+    first_report = first.pr_memory_report(
+        context, changed_fields=["model", "prompt_version"]
+    )
+    second_report = second.pr_memory_report(
+        context, changed_fields=["model", "prompt_version"]
+    )
+    assert first_report == second_report
+    assert first_report.related_case_ids == ["case_a", "case_b"]
+    assert [
+        provenance.case_id for provenance in first_report.related_case_provenance
+    ] == ["case_a", "case_b"]
+
+
 def test_save_json_uses_sibling_replace(monkeypatch, tmp_path):
     calls = []
     real_replace = os.replace
@@ -1056,6 +1552,78 @@ def test_store_retrieves_by_metadata_then_logs_usage_decision():
     assert log.used_memory_ids == ["lesson_001"]
     assert log.candidate_memory_ids == ["lesson_001"]
     assert store.usage_logs == [log]
+
+
+def test_low_level_logging_reapplies_system_gate_before_persisting_usage():
+    store, trace, case = store_with_verified_case()
+    lesson = store.add_lesson(
+        Lesson(
+            lesson_id="lesson_sensitive",
+            source_case_id=case.case_id,
+            lesson_text="private rule",
+            memory_type="procedural",
+            scope={"repo": "repo", "tenant": "tenant_a"},
+            sensitive=True,
+        )
+    )
+    context = matching_context(trace)
+
+    log = store.log_decision(
+        trace.run_id,
+        context,
+        [lesson.lesson_id],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=[lesson.lesson_id],
+            blocked_memory_ids=[],
+            reason="caller attempted use",
+            risk="low",
+            recommended_injection="short_summary",
+        ),
+    )
+
+    assert log.used_memory_ids == []
+    assert log.blocked_memory_ids == [lesson.lesson_id]
+    assert log.recommended_injection == "none"
+    assert log.system_blocked_reasons == {
+        lesson.lesson_id: "memory is marked sensitive"
+    }
+
+
+def test_low_level_logging_requires_nonblank_audit_reason():
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_reason",
+            run_id="run_reason",
+            commit_sha="abc",
+            repo="repo",
+        )
+    )
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(ValueError, match="reason must be nonblank"):
+        store.log_decision(
+            trace.run_id,
+            context,
+            [],
+            MemoryDecision(
+                use_memory=False,
+                allowed_memory_ids=[],
+                blocked_memory_ids=[],
+                reason="   ",
+                risk="none",
+                recommended_injection="none",
+            ),
+        )
+
+
+def test_v2_snapshot_rejects_blank_usage_log_reason():
+    snapshot = v2_snapshot_with_usage_log()
+    _snapshot_record(snapshot, "usage_logs")["reason"] = "\t \n"
+
+    with pytest.raises(ValueError, match="reason must be nonblank"):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
 
 
 def test_store_rejects_duplicate_trace_ids():

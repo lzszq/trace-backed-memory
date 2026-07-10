@@ -5,9 +5,9 @@
   "required": ["use_memory", "allowed_memory_ids", "blocked_memory_ids", "reason", "risk", "recommended_injection"],
   "properties": {
     "use_memory": {"type": "boolean"},
-    "allowed_memory_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
-    "blocked_memory_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
-    "reason": {"type": "string"},
+    "allowed_memory_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "uniqueItems": true},
+    "blocked_memory_ids": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 128}, "uniqueItems": true},
+    "reason": {"type": "string", "pattern": "\\S"},
     "risk": {"type": "string", "enum": ["none", "low", "medium", "high"]},
     "recommended_injection": {
       "type": "string",

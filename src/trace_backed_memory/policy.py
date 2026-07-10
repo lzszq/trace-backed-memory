@@ -31,6 +31,12 @@ EVAL_ALLOWED_TYPES = {"policy"}
 DECISION_RISKS = {"none", "low", "medium", "high"}
 RECOMMENDED_INJECTIONS = {"none", "short_summary", "full_case_summary", "pointer_only"}
 INJECTION_TEXT_MAX_CHARS = 500
+MEMORY_ID_MAX_CHARS = 128
+METADATA_VALUE_MAX_CHARS = 512
+LLM_GATE_MAX_CANDIDATES = 50
+LLM_GATE_PROMPT_MAX_CHARS = 32_000
+INJECTION_MAX_MEMORIES = 20
+INJECTION_SNIPPET_MAX_CHARS = 12_000
 DECISION_REQUIRED_FIELDS = {
     "use_memory",
     "allowed_memory_ids",
@@ -99,6 +105,8 @@ def _blocked_reason(context: MemoryContext, memory: MemoryItem) -> str | None:
 def _memory_item_contract_error(memory: MemoryItem) -> str | None:
     if not isinstance(memory.memory_id, str) or not memory.memory_id:
         return "memory_id must be a non-empty string"
+    if len(memory.memory_id) > MEMORY_ID_MAX_CHARS:
+        return f"memory_id must be at most {MEMORY_ID_MAX_CHARS} characters"
     if not isinstance(memory.scope, dict):
         return "scope must be a mapping of known non-empty string fields"
     for key, value in memory.scope.items():
@@ -106,10 +114,20 @@ def _memory_item_contract_error(memory: MemoryItem) -> str | None:
             return f"scope field {key!r} is not allowed"
         if not isinstance(value, str) or not value:
             return f"scope field {key!r} must be a non-empty string"
+        if len(value) > METADATA_VALUE_MAX_CHARS:
+            return (
+                f"scope field {key!r} must be at most "
+                f"{METADATA_VALUE_MAX_CHARS} characters"
+            )
     source_values = [memory.source_case_id, memory.source_trace_id, memory.source_policy_id]
     for source in source_values:
         if source is not None and (not isinstance(source, str) or not source):
             return "source identifiers must be non-empty strings"
+        if source is not None and len(source) > MEMORY_ID_MAX_CHARS:
+            return (
+                f"source identifiers must be at most "
+                f"{MEMORY_ID_MAX_CHARS} characters"
+            )
     if type(memory.sensitive) is not bool:
         return "sensitive must be a boolean"
     if type(memory.eval_leaking) is not bool:
@@ -124,13 +142,31 @@ def _context_contract_error(context: MemoryContext) -> str | None:
         value = getattr(context, field_name)
         if not isinstance(value, str) or not value:
             return f"context {field_name} must be a non-empty string"
+        if len(value) > METADATA_VALUE_MAX_CHARS:
+            return (
+                f"context {field_name} must be at most "
+                f"{METADATA_VALUE_MAX_CHARS} characters"
+            )
     for field_name in CONTEXT_STRING_FIELDS - CONTEXT_REQUIRED_FIELDS:
         value = getattr(context, field_name)
         if value is not None and (not isinstance(value, str) or not value):
             return f"context {field_name} must be a non-empty string"
+        if value is not None and len(value) > METADATA_VALUE_MAX_CHARS:
+            return (
+                f"context {field_name} must be at most "
+                f"{METADATA_VALUE_MAX_CHARS} characters"
+            )
     if context.mode not in CONTEXT_MODES:
         return "context mode must be one of: debug, eval, planning, production, regression, repair"
     return None
+
+
+def validate_memory_context(context: MemoryContext) -> None:
+    if not isinstance(context, MemoryContext):
+        raise ValueError("context must be a MemoryContext")
+    contract_error = _context_contract_error(context)
+    if contract_error is not None:
+        raise ValueError(contract_error)
 
 
 def system_gate(context: MemoryContext, candidates: list[MemoryItem]) -> tuple[list[MemoryItem], dict[str, str]]:
@@ -161,6 +197,10 @@ def build_llm_gate_prompt(
     context_summary: str = "",
 ) -> str:
     """Build the semantic applicability prompt for system-approved memory."""
+    if len(candidates) > LLM_GATE_MAX_CANDIDATES:
+        raise ValueError(
+            f"LLM gate accepts at most {LLM_GATE_MAX_CANDIDATES} candidates"
+        )
     _system_allowed, system_blocked = system_gate(context, candidates)
     if system_blocked:
         blocked_details = ", ".join(
@@ -186,7 +226,7 @@ def build_llm_gate_prompt(
     context_lines = [f"- {key}: {_json_scalar(value)}" for key, value in context_fields.items() if value is not None]
 
     memory_lines: list[str] = []
-    for memory in candidates:
+    for memory in sorted(candidates, key=lambda item: item.memory_id):
         source = memory.source_case_id or memory.source_trace_id or memory.source_policy_id or "unknown"
         scope = json.dumps(dict(sorted(memory.scope.items())), sort_keys=True)
         memory_lines.extend(
@@ -201,7 +241,7 @@ def build_llm_gate_prompt(
             ]
         )
 
-    return "\n".join(
+    prompt = "\n".join(
         [
             "You are deciding whether retrieved memory should be used for the current LLM/agent task.",
             "",
@@ -228,6 +268,11 @@ def build_llm_gate_prompt(
             "Return only JSON with use_memory, allowed_memory_ids, blocked_memory_ids, reason, risk, and recommended_injection.",
         ]
     )
+    if len(prompt) > LLM_GATE_PROMPT_MAX_CHARS:
+        raise ValueError(
+            f"LLM gate prompt exceeds {LLM_GATE_PROMPT_MAX_CHARS} characters"
+        )
+    return prompt
 
 
 def apply_llm_gate_decision(
@@ -287,6 +332,10 @@ def parse_memory_context(payload: str | Mapping[str, Any]) -> MemoryContext:
             raise ValueError(f"{field_name} must be a string")
         if not value:
             raise ValueError(f"{field_name} must be a non-empty string")
+        if len(value) > METADATA_VALUE_MAX_CHARS:
+            raise ValueError(
+                f"{field_name} must be at most {METADATA_VALUE_MAX_CHARS} characters"
+            )
         context_values[field_name] = value
 
     if context_values["mode"] not in CONTEXT_MODES:
@@ -316,6 +365,8 @@ def parse_memory_decision(payload: str | Mapping[str, Any]) -> MemoryDecision:
     reason = data["reason"]
     if not isinstance(reason, str):
         raise ValueError("reason must be a string")
+    if not reason.strip():
+        raise ValueError("reason must be nonblank")
 
     risk = data["risk"]
     if risk not in DECISION_RISKS:
@@ -351,6 +402,10 @@ def build_injection_snippet(
     decision: MemoryDecision | None = None,
 ) -> str:
     """Build a short prompt-safe memory snippet from approved memory items."""
+    if len(memories) > INJECTION_MAX_MEMORIES:
+        raise ValueError(
+            f"injection accepts at most {INJECTION_MAX_MEMORIES} memories"
+        )
     injection_mode = recommended_injection or (decision.recommended_injection if decision else "short_summary")
     if injection_mode not in RECOMMENDED_INJECTIONS:
         raise ValueError(
@@ -372,7 +427,12 @@ def build_injection_snippet(
         lines.append(f"Scope: {scope}")
         if injection_mode != "pointer_only":
             lines.append(f"Rule: {json.dumps(_cap_injected_text(memory.text))}")
-    return "\n".join(lines)
+    snippet = "\n".join(lines)
+    if len(snippet) > INJECTION_SNIPPET_MAX_CHARS:
+        raise ValueError(
+            f"injection snippet exceeds {INJECTION_SNIPPET_MAX_CHARS} characters"
+        )
+    return snippet
 
 
 def _validate_injection_inputs(
@@ -463,6 +523,10 @@ def _json_scalar(value: str) -> str:
 def _string_list(value: Any, field_name: str) -> list[str]:
     if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
         raise ValueError(f"{field_name} must be a list of non-empty strings")
+    if any(len(item) > MEMORY_ID_MAX_CHARS for item in value):
+        raise ValueError(
+            f"{field_name} entries must be at most {MEMORY_ID_MAX_CHARS} characters"
+        )
     if len(set(value)) != len(value):
         raise ValueError(f"{field_name} must not contain duplicate memory IDs")
     return list(value)

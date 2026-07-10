@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 from dataclasses import replace
 from typing import get_args
 
 from .models import FailureCase, Lesson, LessonStatus, MemoryItem, MemoryType, ProjectPolicy, Trace
+from .policy import METADATA_VALUE_MAX_CHARS
 
 SCOPE_FIELDS = {
     "repo",
@@ -30,23 +32,28 @@ def _require_non_empty_string(value: str, field_name: str) -> None:
 
 
 def _require_supported_value(value: str, field_name: str, supported_values: set[str]) -> None:
-    if value not in supported_values:
+    if not isinstance(value, str) or value not in supported_values:
         raise ValueError(f"{field_name} is not supported: {value}")
 
 
 def validate_lesson_contract(*, lesson_text: str, scope: dict[str, str], confidence: float) -> None:
-    if not scope:
+    if not isinstance(scope, dict) or not scope:
         raise ValueError("lessons require non-empty scope")
     for key, value in scope.items():
         if key not in SCOPE_FIELDS:
             raise ValueError(f"lesson scope field is not supported: {key}")
         if not isinstance(value, str) or not value:
             raise ValueError(f"lesson scope field {key!r} must be a non-empty string")
-    if not lesson_text.strip():
+        if len(value) > METADATA_VALUE_MAX_CHARS:
+            raise ValueError(
+                f"lesson scope field {key!r} must be at most "
+                f"{METADATA_VALUE_MAX_CHARS} characters"
+            )
+    if not isinstance(lesson_text, str) or not lesson_text.strip():
         raise ValueError("lessons require lesson_text")
     if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
         raise ValueError("lesson confidence must be a number between 0 and 1")
-    if confidence < 0.0 or confidence > 1.0:
+    if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0:
         raise ValueError("lesson confidence must be between 0 and 1")
 
 

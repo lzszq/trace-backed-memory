@@ -16,7 +16,6 @@ class MemoryContext:
     mode: Mode
     repo: str
     commit_sha: str
-    tenant: str | None = None
     branch: str | None = None
     prompt_version: str | None = None
     prompt_family: str | None = None
@@ -27,6 +26,7 @@ class MemoryContext:
     eval_suite: str | None = None
     task_type: str | None = None
     failure_type: str | None = None
+    tenant: str | None = None
 
 
 @dataclass(frozen=True)
@@ -117,10 +117,10 @@ class MemoryItem:
     text: str = ""
     source_trace_id: str | None = None
     source_case_id: str | None = None
-    source_policy_id: str | None = None
     confidence: float = 1.0
     sensitive: bool = False
     eval_leaking: bool = False
+    source_policy_id: str | None = None
 
 
 @dataclass(frozen=True)

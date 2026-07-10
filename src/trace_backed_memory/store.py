@@ -8,7 +8,9 @@ from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
+from threading import RLock
 from types import MappingProxyType
 from typing import Any
 
@@ -40,11 +42,14 @@ from .models import (
     Trace,
 )
 from .policy import (
+    MEMORY_ID_MAX_CHARS,
+    METADATA_VALUE_MAX_CHARS,
     apply_llm_gate_decision,
     build_injection_snippet,
     build_llm_gate_prompt,
     parse_memory_decision,
     system_gate,
+    validate_memory_context,
 )
 
 Snapshot = dict[str, Any]
@@ -62,10 +67,20 @@ SNAPSHOT_COLLECTION_KEYS = frozenset(
 SNAPSHOT_V2_KEYS = SNAPSHOT_COLLECTION_KEYS.union({"snapshot_version"})
 
 
+def _synchronized(method):
+    @wraps(method)
+    def synchronized(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return synchronized
+
+
 class TraceBackedMemoryStore:
     """Small in-memory MVP store for trace-backed memory workflows."""
 
     def __init__(self) -> None:
+        self._lock = RLock()
         self._traces: dict[str, Trace] = {}
         self._failure_cases: dict[str, FailureCase] = {}
         self._lessons: dict[str, Lesson] = {}
@@ -77,25 +92,31 @@ class TraceBackedMemoryStore:
         self._next_gate_request_number = 1
 
     @property
+    @_synchronized
     def traces(self) -> Mapping[str, Trace]:
         return MappingProxyType(deepcopy(self._traces))
 
     @property
+    @_synchronized
     def failure_cases(self) -> Mapping[str, FailureCase]:
         return MappingProxyType(deepcopy(self._failure_cases))
 
     @property
+    @_synchronized
     def lessons(self) -> Mapping[str, Lesson]:
         return MappingProxyType(deepcopy(self._lessons))
 
     @property
+    @_synchronized
     def project_policies(self) -> Mapping[str, ProjectPolicy]:
         return MappingProxyType(deepcopy(self._project_policies))
 
     @property
+    @_synchronized
     def usage_logs(self) -> list[MemoryUsageLog]:
         return deepcopy(self._usage_logs)
 
+    @_synchronized
     def to_snapshot(self) -> Snapshot:
         return {
             "snapshot_version": SNAPSHOT_VERSION,
@@ -118,19 +139,27 @@ class TraceBackedMemoryStore:
         is_v2 = _validate_snapshot_envelope(data)
         store = cls()
         for trace_data in _snapshot_records(data, "traces"):
-            store.record_trace(Trace(**trace_data))
+            store.record_trace(_snapshot_record_instance(Trace, trace_data, "trace"))
         for case_data in _snapshot_records(data, "failure_cases"):
-            store.add_failure_case(FailureCase(**case_data))
+            store.add_failure_case(
+                _snapshot_record_instance(FailureCase, case_data, "failure case")
+            )
         for lesson_data in _snapshot_records(data, "lessons"):
-            store.add_lesson(Lesson(**lesson_data))
+            store.add_lesson(_snapshot_record_instance(Lesson, lesson_data, "lesson"))
         for policy_data in _snapshot_records(data, "project_policies"):
-            store.add_project_policy(ProjectPolicy(**policy_data))
+            store.add_project_policy(
+                _snapshot_record_instance(
+                    ProjectPolicy, policy_data, "project policy"
+                )
+            )
         for log_data in _snapshot_records(data, "usage_logs"):
             if is_v2:
                 _validate_v2_usage_log_record(log_data)
             else:
                 log_data = store._migrate_legacy_usage_log(log_data)
-            log = MemoryUsageLog(**log_data)
+            log = _snapshot_record_instance(
+                MemoryUsageLog, log_data, "usage log"
+            )
             _validate_usage_log(log)
             store._validate_usage_log_memory_ids(log)
             store._validate_usage_log_trace(log)
@@ -139,6 +168,7 @@ class TraceBackedMemoryStore:
             store._usage_logs.append(deepcopy(log))
         return store
 
+    @_synchronized
     def save_json(self, path: str | Path) -> None:
         target = Path(path)
         temp_path: Path | None = None
@@ -171,14 +201,17 @@ class TraceBackedMemoryStore:
             raise ValueError("memory store snapshot must be a JSON object")
         return cls.from_snapshot(data)
 
+    @_synchronized
     def save_lessons_yaml(self, path: str | Path) -> None:
         active_lessons = [lesson for lesson in self._lessons.values() if lesson.status == "active"]
         Path(path).write_text(_lessons_to_yaml(active_lessons), encoding="utf-8")
 
+    @_synchronized
     def load_lessons_yaml(self, path: str | Path) -> list[Lesson]:
         lesson_records = _lessons_from_yaml(Path(path).read_text(encoding="utf-8"))
         return [self.add_lesson(Lesson(**record)) for record in lesson_records]
 
+    @_synchronized
     def record_trace(self, trace: Trace) -> Trace:
         stored_trace = deepcopy(trace)
         _validate_trace(stored_trace)
@@ -187,6 +220,7 @@ class TraceBackedMemoryStore:
         self._traces[stored_trace.trace_id] = stored_trace
         return deepcopy(stored_trace)
 
+    @_synchronized
     def add_failure_case(self, case: FailureCase) -> FailureCase:
         stored_case = deepcopy(case)
         _validate_failure_case(stored_case)
@@ -204,6 +238,7 @@ class TraceBackedMemoryStore:
         self._failure_cases[stored_case.case_id] = stored_case
         return deepcopy(stored_case)
 
+    @_synchronized
     def review_failure_case(
         self,
         case_id: str,
@@ -215,8 +250,11 @@ class TraceBackedMemoryStore:
         review_notes: str | None = None,
         reviewed_at: str | None = None,
     ) -> FailureCase:
+        current = _stored_record(
+            self._failure_cases, case_id, "failure case"
+        )
         reviewed = transition_review_failure_case(
-            self._failure_cases[case_id],
+            current,
             reviewed_by=reviewed_by,
             root_cause=root_cause,
             failure_type=failure_type,
@@ -228,6 +266,7 @@ class TraceBackedMemoryStore:
         self._failure_cases[case_id] = reviewed
         return deepcopy(reviewed)
 
+    @_synchronized
     def verify_failure_case(
         self,
         case_id: str,
@@ -236,8 +275,11 @@ class TraceBackedMemoryStore:
         fix_commit_sha: str,
         regression_passed: bool,
     ) -> FailureCase:
+        current = _stored_record(
+            self._failure_cases, case_id, "failure case"
+        )
         verified = transition_verify_failure_case(
-            self._failure_cases[case_id],
+            current,
             fix=fix,
             fix_commit_sha=fix_commit_sha,
             regression_passed=regression_passed,
@@ -246,8 +288,11 @@ class TraceBackedMemoryStore:
         self._failure_cases[case_id] = verified
         return deepcopy(verified)
 
+    @_synchronized
     def obsolete_failure_case(self, case_id: str) -> FailureCase:
-        current = self._failure_cases[case_id]
+        current = _stored_record(
+            self._failure_cases, case_id, "failure case"
+        )
         if current.status == "obsolete":
             return deepcopy(current)
 
@@ -270,6 +315,7 @@ class TraceBackedMemoryStore:
         self._lessons.update(obsolete_lessons)
         return deepcopy(obsolete_case)
 
+    @_synchronized
     def add_lesson(self, lesson: Lesson) -> Lesson:
         stored_lesson = deepcopy(lesson)
         _validate_lesson_record(stored_lesson)
@@ -310,8 +356,9 @@ class TraceBackedMemoryStore:
         self._lessons[stored_lesson.lesson_id] = stored_lesson
         return deepcopy(stored_lesson)
 
+    @_synchronized
     def obsolete_lesson(self, lesson_id: str) -> Lesson:
-        current = self._lessons[lesson_id]
+        current = _stored_record(self._lessons, lesson_id, "lesson")
         if current.status == "obsolete":
             return deepcopy(current)
 
@@ -325,6 +372,7 @@ class TraceBackedMemoryStore:
         self._lessons[lesson_id] = obsolete
         return deepcopy(obsolete)
 
+    @_synchronized
     def add_project_policy(self, policy: ProjectPolicy) -> ProjectPolicy:
         stored_policy = deepcopy(policy)
         _validate_project_policy(stored_policy)
@@ -342,8 +390,11 @@ class TraceBackedMemoryStore:
         self._project_policies[stored_policy.policy_id] = stored_policy
         return deepcopy(stored_policy)
 
+    @_synchronized
     def obsolete_project_policy(self, policy_id: str) -> ProjectPolicy:
-        current = self._project_policies[policy_id]
+        current = _stored_record(
+            self._project_policies, policy_id, "project policy"
+        )
         if current.status == "obsolete":
             return deepcopy(current)
 
@@ -357,7 +408,9 @@ class TraceBackedMemoryStore:
         self._project_policies[policy_id] = obsolete
         return deepcopy(obsolete)
 
+    @_synchronized
     def candidate_memories(self, context: MemoryContext, *, query: str | None = None) -> list[MemoryItem]:
+        validate_memory_context(context)
         context_values = _context_values(context)
         candidates: list[MemoryItem] = []
 
@@ -387,8 +440,9 @@ class TraceBackedMemoryStore:
                 if query_tokens.intersection(_memory_tokens(memory))
             ]
 
-        return candidates
+        return sorted(candidates, key=lambda memory: memory.memory_id)
 
+    @_synchronized
     def prepare_memory(
         self,
         context: MemoryContext,
@@ -397,6 +451,7 @@ class TraceBackedMemoryStore:
         query: str | None = None,
         context_summary: str = "",
     ) -> MemoryGateRequest:
+        validate_memory_context(context)
         candidates = self.candidate_memories(context, query=query)
         system_allowed, system_blocked = system_gate(context, candidates)
         request = MemoryGateRequest(
@@ -421,6 +476,7 @@ class TraceBackedMemoryStore:
         )
         return request
 
+    @_synchronized
     def finalize_memory(
         self,
         request: MemoryGateRequest,
@@ -476,6 +532,7 @@ class TraceBackedMemoryStore:
             snippet=snippet,
         )
 
+    @_synchronized
     def log_decision(
         self,
         run_id: str,
@@ -490,12 +547,26 @@ class TraceBackedMemoryStore:
         trace = self._trace_for_run_id(run_id)
         _validate_trace_context(trace, context)
         candidates = self._memory_items(candidate_memory_ids)
-        _system_allowed, system_blocked = system_gate(context, candidates)
+        system_allowed, system_blocked = system_gate(context, candidates)
+        validated_decision = parse_memory_decision(asdict(decision))
+        overlapping_ids = sorted(
+            set(validated_decision.allowed_memory_ids).intersection(
+                validated_decision.blocked_memory_ids
+            )
+        )
+        if overlapping_ids:
+            raise ValueError(
+                "memory ids cannot be both allowed and blocked: "
+                + ", ".join(overlapping_ids)
+            )
+        _final_allowed, final_decision = apply_llm_gate_decision(
+            system_allowed, system_blocked, validated_decision
+        )
         log = self._new_usage_log(
             trace=trace,
             context=context,
             candidates=candidates,
-            decision=decision,
+            decision=final_decision,
             system_blocked=system_blocked,
             eval_result=eval_result,
             memory_caused_failure=memory_caused_failure,
@@ -617,7 +688,9 @@ class TraceBackedMemoryStore:
             )
 
     def _migrate_legacy_usage_log(self, log_data: dict[str, Any]) -> dict[str, Any]:
-        legacy_log = MemoryUsageLog(**log_data)
+        legacy_log = _snapshot_record_instance(
+            MemoryUsageLog, log_data, "usage log"
+        )
         _validate_memory_id_list(
             legacy_log.candidate_memory_ids, "candidate_memory_ids"
         )
@@ -679,6 +752,7 @@ class TraceBackedMemoryStore:
         )
         return migrated
 
+    @_synchronized
     def metrics(self) -> MemoryMetrics:
         candidate_memory_count = sum(len(log.candidate_memory_ids) for log in self._usage_logs)
         used_memory_count = sum(len(log.used_memory_ids) for log in self._usage_logs)
@@ -720,12 +794,14 @@ class TraceBackedMemoryStore:
             ),
         )
 
+    @_synchronized
     def pr_memory_report(self, context: MemoryContext, *, changed_fields: list[str]) -> PRMemoryReport:
         related_case_records: list[tuple[FailureCase, Trace]] = []
         for case in self._failure_cases.values():
             trace = self._traces.get(case.source_trace_id)
             if trace and _case_matches_context(case, trace, context):
                 related_case_records.append((case, trace))
+        related_case_records.sort(key=lambda record: record[0].case_id)
 
         related_cases = [case for case, _trace in related_case_records]
         related_case_ids = [case.case_id for case in related_cases]
@@ -746,6 +822,13 @@ class TraceBackedMemoryStore:
                 _case_provenance(case, trace) for case, trace in related_case_records
             ],
         )
+
+
+def _stored_record(records: Mapping[str, Any], record_id: str, record_label: str) -> Any:
+    record = records.get(record_id)
+    if record is None:
+        raise ValueError(f"unknown {record_label} ID: {record_id}")
+    return record
 
 
 def _context_values(context: MemoryContext) -> dict[str, str | None]:
@@ -790,6 +873,15 @@ def _snapshot_records(data: Mapping[str, Any], key: str) -> list[dict[str, Any]]
     return [dict(record) for record in value]
 
 
+def _snapshot_record_instance(
+    record_type: type[Any], data: dict[str, Any], record_label: str
+) -> Any:
+    try:
+        return record_type(**data)
+    except TypeError as exc:
+        raise ValueError(f"invalid {record_label} record: {exc}") from exc
+
+
 def _validate_snapshot_envelope(data: Mapping[str, Any]) -> bool:
     keys = set(data)
     if keys == SNAPSHOT_COLLECTION_KEYS:
@@ -825,87 +917,171 @@ def _next_decision_id(logs: list[MemoryUsageLog]) -> str:
 
 
 def _validate_trace(trace: Trace) -> None:
-    if not trace.trace_id:
-        raise ValueError("trace records require trace_id")
-    if not trace.run_id:
-        raise ValueError("trace records require run_id")
-    if not trace.commit_sha:
-        raise ValueError("trace records require commit_sha")
-    if trace.eval_result not in EVAL_RESULTS:
+    for field_name in ("trace_id", "run_id"):
+        _validate_required_string(
+            getattr(trace, field_name),
+            field_name,
+            "trace records require",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+    _validate_required_string(
+        trace.commit_sha,
+        "commit_sha",
+        "trace records require",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
+    for field_name in (
+        "repo",
+        "tenant",
+        "branch",
+        "prompt_version",
+        "prompt_family",
+        "tool_schema_version",
+        "model",
+        "eval_suite",
+        "input_hash",
+        "output_hash",
+        "error",
+        "trace_uri",
+    ):
+        _validate_optional_string(
+            getattr(trace, field_name),
+            field_name,
+            "trace",
+            max_chars=(
+                None if field_name == "error" else METADATA_VALUE_MAX_CHARS
+            ),
+        )
+    if not isinstance(trace.eval_result, str) or trace.eval_result not in EVAL_RESULTS:
         raise ValueError("eval_result must be one of: error, fail, pass, unknown")
     if type(trace.dirty) is not bool:
         raise ValueError("dirty must be a boolean")
+    if trace.latency_ms is not None and type(trace.latency_ms) is not int:
+        raise ValueError("latency_ms must be an integer or None")
+    if trace.cost_usd is not None and (
+        isinstance(trace.cost_usd, bool)
+        or not isinstance(trace.cost_usd, (int, float))
+    ):
+        raise ValueError("cost_usd must be a number or None")
     _validate_json_object_list(trace.retrieved_context, "retrieved_context")
     _validate_json_object_list(trace.tool_calls, "tool_calls")
     _validate_json_object_list(trace.tool_outputs, "tool_outputs")
+    _validate_optional_rfc3339(trace.created_at, "created_at", "trace")
 
 
 def _validate_failure_case(case: FailureCase) -> None:
-    if not case.case_id:
-        raise ValueError("failure case records require case_id")
-    if not case.source_trace_id:
-        raise ValueError("failure case records require source_trace_id")
-    if not case.commit_sha:
-        raise ValueError("failure case records require commit_sha")
-    if not case.failure_type:
-        raise ValueError("failure case records require failure_type")
-    if not case.symptom:
-        raise ValueError("failure case records require symptom")
-    if case.status not in FAILURE_CASE_STATUSES:
+    for field_name in ("case_id", "source_trace_id"):
+        _validate_required_string(
+            getattr(case, field_name),
+            field_name,
+            "failure case records require",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+    for field_name in ("commit_sha", "failure_type"):
+        _validate_required_string(
+            getattr(case, field_name),
+            field_name,
+            "failure case records require",
+            max_chars=METADATA_VALUE_MAX_CHARS,
+        )
+    _validate_required_string(
+        case.symptom, "symptom", "failure case records require"
+    )
+    for field_name in (
+        "root_cause",
+        "fix",
+        "fix_commit_sha",
+        "reviewed_by",
+        "review_notes",
+    ):
+        _validate_optional_string(
+            getattr(case, field_name),
+            field_name,
+            "failure case",
+            max_chars=(
+                METADATA_VALUE_MAX_CHARS
+                if field_name in {"fix_commit_sha", "reviewed_by"}
+                else None
+            ),
+        )
+    if not isinstance(case.status, str) or case.status not in FAILURE_CASE_STATUSES:
         raise ValueError("failure case status must be one of: draft, obsolete, verified")
     if type(case.regression_passed) is not bool:
         raise ValueError("regression_passed must be a boolean")
     if case.status == "verified" and (not case.fix or not case.fix_commit_sha or not case.regression_passed):
         raise ValueError("verified failure cases require fix, fix_commit_sha, and passing regression")
+    _validate_optional_rfc3339(case.reviewed_at, "reviewed_at", "failure case")
+    _validate_optional_rfc3339(case.created_at, "created_at", "failure case")
 
 
 def _validate_lesson_record(lesson: Lesson) -> None:
-    if not lesson.lesson_id:
-        raise ValueError("lesson records require lesson_id")
-    if not lesson.source_case_id:
-        raise ValueError("lesson records require source_case_id")
-    if lesson.memory_type not in MEMORY_TYPES:
+    for field_name in ("lesson_id", "source_case_id"):
+        _validate_required_string(
+            getattr(lesson, field_name),
+            field_name,
+            "lesson records require",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+    if not isinstance(lesson.lesson_text, str) or not lesson.lesson_text.strip():
+        raise ValueError("lesson records require lesson_text")
+    if not isinstance(lesson.memory_type, str) or lesson.memory_type not in MEMORY_TYPES:
         raise ValueError("lesson memory_type must be one of: episodic, policy, procedural, semantic")
-    if lesson.status not in LESSON_STATUSES:
+    if not isinstance(lesson.status, str) or lesson.status not in LESSON_STATUSES:
         raise ValueError("lesson status must be one of: active, obsolete")
     if type(lesson.sensitive) is not bool:
         raise ValueError("sensitive must be a boolean")
     if type(lesson.eval_leaking) is not bool:
         raise ValueError("eval_leaking must be a boolean")
+    _validate_optional_rfc3339(lesson.created_at, "created_at", "lesson")
 
 
 def _validate_project_policy(policy: ProjectPolicy) -> None:
-    if not policy.policy_id:
-        raise ValueError("project policy records require policy_id")
-    if not policy.policy_text.strip():
+    _validate_required_string(
+        policy.policy_id,
+        "policy_id",
+        "project policy records require",
+        max_chars=MEMORY_ID_MAX_CHARS,
+    )
+    if not isinstance(policy.policy_text, str) or not policy.policy_text.strip():
         raise ValueError("project policy records require policy_text")
-    if policy.status not in LESSON_STATUSES:
+    if not isinstance(policy.status, str) or policy.status not in LESSON_STATUSES:
         raise ValueError("project policy status must be one of: active, obsolete")
     if type(policy.sensitive) is not bool:
         raise ValueError("sensitive must be a boolean")
     if type(policy.eval_leaking) is not bool:
         raise ValueError("eval_leaking must be a boolean")
+    _validate_optional_rfc3339(policy.created_at, "created_at", "project policy")
 
 
 def _validate_usage_log(log: MemoryUsageLog) -> None:
-    if not log.decision_id:
-        raise ValueError("usage log records require decision_id")
-    if not log.run_id:
-        raise ValueError("usage log records require run_id")
-    if log.mode not in MODES:
+    for field_name in ("decision_id", "run_id"):
+        _validate_required_string(
+            getattr(log, field_name),
+            field_name,
+            "usage log records require",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+    if not isinstance(log.mode, str) or log.mode not in MODES:
         raise ValueError("usage log mode must be one of: debug, eval, planning, production, regression, repair")
     _validate_memory_id_list(log.candidate_memory_ids, "candidate_memory_ids")
     _validate_memory_id_list(log.used_memory_ids, "used_memory_ids")
     _validate_memory_id_list(log.blocked_memory_ids, "blocked_memory_ids")
     if not isinstance(log.reason, str):
         raise ValueError("usage log reason must be a string")
-    if log.risk not in DECISION_RISKS:
+    if not log.reason.strip():
+        raise ValueError("usage log reason must be nonblank")
+    if not isinstance(log.risk, str) or log.risk not in DECISION_RISKS:
         raise ValueError("usage log risk must be one of: high, low, medium, none")
-    if log.recommended_injection not in RECOMMENDED_INJECTIONS:
+    if (
+        not isinstance(log.recommended_injection, str)
+        or log.recommended_injection not in RECOMMENDED_INJECTIONS
+    ):
         raise ValueError(
             "usage log recommended_injection must be one of: full_case_summary, none, pointer_only, short_summary"
         )
-    if log.eval_result is not None and log.eval_result not in EVAL_RESULTS:
+    if log.eval_result is not None and (
+        not isinstance(log.eval_result, str) or log.eval_result not in EVAL_RESULTS
+    ):
         raise ValueError("usage log eval_result must be one of: error, fail, pass, unknown")
     if type(log.memory_caused_failure) is not bool:
         raise ValueError("memory_caused_failure must be a boolean")
@@ -913,6 +1089,10 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
         not isinstance(log.trace_id, str) or not log.trace_id
     ):
         raise ValueError("usage log trace_id must be a non-empty string")
+    if log.trace_id is not None and len(log.trace_id) > MEMORY_ID_MAX_CHARS:
+        raise ValueError(
+            f"usage log trace_id must be at most {MEMORY_ID_MAX_CHARS} characters"
+        )
     _validate_string_mapping(log.context, "context")
     _validate_status_mapping(
         log.candidate_memory_statuses, log.candidate_memory_ids
@@ -947,6 +1127,61 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
     ]
     if used_and_blocked:
         raise ValueError(f"memory ids cannot be both used and blocked: {', '.join(used_and_blocked)}")
+    _validate_optional_rfc3339(log.created_at, "created_at", "usage log")
+
+
+def _validate_required_string(
+    value: Any,
+    field_name: str,
+    message_prefix: str,
+    *,
+    max_chars: int | None = None,
+) -> None:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{message_prefix} {field_name}")
+    if max_chars is not None and len(value) > max_chars:
+        raise ValueError(f"{field_name} must be at most {max_chars} characters")
+
+
+def _validate_optional_string(
+    value: Any,
+    field_name: str,
+    record_label: str,
+    *,
+    max_chars: int | None = None,
+) -> None:
+    if value is not None and (not isinstance(value, str) or not value):
+        raise ValueError(
+            f"{record_label} {field_name} must be None or a non-empty string"
+        )
+    if value is not None and max_chars is not None and len(value) > max_chars:
+        raise ValueError(
+            f"{record_label} {field_name} must be at most {max_chars} characters"
+        )
+
+
+def _validate_optional_rfc3339(
+    value: Any, field_name: str, record_label: str
+) -> None:
+    if value is None:
+        return
+    if not isinstance(value, str) or re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})",
+        value,
+    ) is None:
+        raise ValueError(
+            f"{record_label} {field_name} must be None or a timezone-aware RFC 3339 date-time string"
+        )
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(
+            f"{record_label} {field_name} must be None or a timezone-aware RFC 3339 date-time string"
+        ) from exc
+    if parsed.utcoffset() is None:
+        raise ValueError(
+            f"{record_label} {field_name} must be None or a timezone-aware RFC 3339 date-time string"
+        )
 
 
 def _validate_json_object_list(value: Any, field_name: str) -> None:
@@ -959,6 +1194,11 @@ def _validate_memory_id_list(value: Any, field_name: str) -> None:
         raise ValueError(f"usage log {field_name} must be a list of non-empty strings")
     if len(set(value)) != len(value):
         raise ValueError(f"usage log {field_name} must not contain duplicate memory IDs")
+    if any(len(item) > MEMORY_ID_MAX_CHARS for item in value):
+        raise ValueError(
+            f"usage log {field_name} entries must be at most "
+            f"{MEMORY_ID_MAX_CHARS} characters"
+        )
 
 
 def _validate_string_mapping(value: Any, field_name: str) -> None:
@@ -972,6 +1212,20 @@ def _validate_string_mapping(value: Any, field_name: str) -> None:
         raise ValueError(
             f"usage log {field_name} must map non-empty strings to non-empty strings"
         )
+    if field_name == "context" and any(
+        len(item) > METADATA_VALUE_MAX_CHARS for item in value.values()
+    ):
+        raise ValueError(
+            f"usage log context values must be at most "
+            f"{METADATA_VALUE_MAX_CHARS} characters"
+        )
+    if field_name == "system_blocked_reasons" and any(
+        len(key) > MEMORY_ID_MAX_CHARS for key in value
+    ):
+        raise ValueError(
+            f"usage log system_blocked_reasons keys must be at most "
+            f"{MEMORY_ID_MAX_CHARS} characters"
+        )
 
 
 def _validate_status_mapping(value: Any, candidate_memory_ids: list[str]) -> None:
@@ -983,6 +1237,11 @@ def _validate_status_mapping(value: Any, candidate_memory_ids: list[str]) -> Non
         for memory_id, status in value.items()
     ):
         raise ValueError("usage log candidate_memory_statuses contains an invalid status")
+    if any(len(memory_id) > MEMORY_ID_MAX_CHARS for memory_id in value):
+        raise ValueError(
+            f"usage log candidate_memory_statuses keys must be at most "
+            f"{MEMORY_ID_MAX_CHARS} characters"
+        )
     if set(value) != set(candidate_memory_ids):
         missing_statuses = sorted(set(candidate_memory_ids).difference(value))
         extra_statuses = sorted(set(value).difference(candidate_memory_ids))

@@ -202,6 +202,46 @@ def test_memory_decision_schema_requires_non_empty_unique_memory_ids():
         assert items.get("minLength") == 1
 
 
+def test_schemas_and_docs_publish_aggregate_and_field_budgets():
+    context_properties = _schema_properties(_json_schema("memory_context.schema.json"))
+    for field_name, field_schema in context_properties.items():
+        if field_name == "mode":
+            continue
+        assert field_schema["maxLength"] == 512
+
+    trace_properties = _schema_properties(_json_schema("trace.schema.json"))
+    assert trace_properties["trace_id"]["maxLength"] == 128
+    failure_properties = _schema_properties(_json_schema("failure_case.schema.json"))
+    assert failure_properties["case_id"]["maxLength"] == 128
+    assert failure_properties["source_trace_id"]["maxLength"] == 128
+    lesson_schema = _json_schema("lesson.schema.json")
+    lesson_properties = _schema_properties(lesson_schema)
+    assert lesson_properties["lesson_id"]["maxLength"] == 128
+    assert lesson_properties["source_case_id"]["maxLength"] == 128
+    assert lesson_schema["$defs"]["scope"]["additionalProperties"]["maxLength"] == 512
+    policy_schema = _json_schema("project_policy.schema.json")
+    assert _schema_properties(policy_schema)["policy_id"]["maxLength"] == 128
+    assert policy_schema["$defs"]["scope"]["additionalProperties"]["maxLength"] == 512
+    usage_schema = _json_schema("memory_usage_log.schema.json")
+    assert usage_schema["$defs"]["memory_id_list"]["items"]["maxLength"] == 128
+    decision_schema = _json_schema("memory_decision.schema.json")
+    assert _schema_properties(decision_schema)["allowed_memory_ids"]["items"]["maxLength"] == 128
+
+    expected_limits = {
+        "MEMORY_ID_MAX_CHARS": "128",
+        "METADATA_VALUE_MAX_CHARS": "512",
+        "LLM_GATE_MAX_CANDIDATES": "50",
+        "LLM_GATE_PROMPT_MAX_CHARS": "32,000",
+        "INJECTION_MAX_MEMORIES": "20",
+        "INJECTION_SNIPPET_MAX_CHARS": "12,000",
+    }
+    for doc_name in ["usage-policy.md", "architecture.md"]:
+        document = _doc(doc_name)
+        for constant_name, value in expected_limits.items():
+            assert constant_name in document
+            assert value in document
+
+
 def test_memory_decision_schema_encodes_use_memory_consistency_rules():
     schema = _json_schema("memory_decision.schema.json")
     all_of = schema.get("allOf")
@@ -209,6 +249,19 @@ def test_memory_decision_schema_encodes_use_memory_consistency_rules():
     assert isinstance(all_of, list)
     assert any("use_memory" in json.dumps(rule) and "allowed_memory_ids" in json.dumps(rule) for rule in all_of)
     assert any("use_memory" in json.dumps(rule) and "recommended_injection" in json.dumps(rule) for rule in all_of)
+
+
+def test_decision_and_usage_schemas_require_nonblank_reasons():
+    decision_reason = _schema_properties(
+        _json_schema("memory_decision.schema.json")
+    )["reason"]
+    usage_reason = _schema_properties(
+        _json_schema("memory_usage_log.schema.json")
+    )["reason"]
+
+    assert decision_reason["pattern"] == r"\S"
+    assert usage_reason["pattern"] == r"\S"
+    assert "CHECK (btrim(reason) <> '')" in _postgres_schema()
 
 
 def test_memory_usage_log_schema_encodes_decision_consistency_rules():
@@ -437,6 +490,58 @@ def test_postgres_usage_logs_reference_known_runtime_memory_ids():
     assert "FROM memory_ids" in schema
     assert "used memory ids must be present in candidates" in schema
     assert "blocked memory ids must be present in candidates" in schema
+
+
+def test_postgres_usage_logs_bind_trace_and_run_with_composite_foreign_key():
+    schema = _postgres_schema()
+    traces = _table_definition(schema, "traces")
+    decisions = _table_definition(schema, "memory_usage_decisions")
+
+    assert "UNIQUE (trace_id, run_id)" in traces
+    assert (
+        "FOREIGN KEY (trace_id, run_id) REFERENCES traces(trace_id, run_id)"
+        in decisions
+    )
+    assert "trace_id TEXT NOT NULL REFERENCES traces(trace_id)" not in decisions
+
+
+def test_postgres_usage_logs_require_matching_context_and_tenant_evidence():
+    schema = _postgres_schema()
+
+    assert "CREATE FUNCTION require_usage_trace_context()" in schema
+    for required_key in ["mode", "repo", "commit_sha"]:
+        assert f"NEW.context ? '{required_key}'" in schema
+        assert f"NEW.context ->> '{required_key}'" in schema
+    assert "trace_record.repo" in schema
+    assert "trace_record.commit_sha" in schema
+    assert "trace_record.tenant" in schema
+    assert "usage context tenant conflicts with trace" in schema
+
+    trigger_match = re.search(
+        r"CREATE TRIGGER memory_usage_decisions_require_trace_context\s+"
+        r"BEFORE INSERT OR UPDATE OF (.*?)\s+ON memory_usage_decisions",
+        schema,
+        re.DOTALL,
+    )
+    assert trigger_match is not None
+    trigger_columns = trigger_match.group(1)
+    for column_name in ["trace_id", "run_id", "mode", "context"]:
+        assert column_name in trigger_columns
+
+
+def test_postgres_system_block_reasons_must_reference_candidates():
+    schema = _postgres_schema()
+
+    assert "jsonb_object_keys(NEW.system_blocked_reasons)" in schema
+    assert "system block reason must reference a candidate" in schema
+    trigger_match = re.search(
+        r"CREATE TRIGGER memory_usage_decisions_require_known_memory_ids\s+"
+        r"BEFORE INSERT OR UPDATE OF (.*?)\s+ON memory_usage_decisions",
+        schema,
+        re.DOTALL,
+    )
+    assert trigger_match is not None
+    assert "system_blocked_reasons" in trigger_match.group(1)
 
 
 def test_postgres_usage_logs_require_complete_candidate_status_evidence():

@@ -1,6 +1,7 @@
 import json
 
 import pytest
+import trace_backed_memory as tbm
 
 from trace_backed_memory import (
     MemoryContext,
@@ -20,6 +21,232 @@ def test_package_exports_gate_boundary_models():
 
     assert MemoryGateRequest.__name__ == "MemoryGateRequest"
     assert GatedMemoryResult.__name__ == "GatedMemoryResult"
+
+
+def _budget_memory(
+    memory_id: str, *, scope: dict[str, str] | None = None, text: str = "rule"
+) -> MemoryItem:
+    return MemoryItem(
+        memory_id=memory_id,
+        status="active",
+        memory_type="procedural",
+        scope=scope or {"repo": "repo"},
+        text=text,
+        source_case_id=f"source_{memory_id}",
+    )
+
+
+def test_budget_constants_are_exported_with_published_values():
+    assert tbm.MEMORY_ID_MAX_CHARS == 128
+    assert tbm.METADATA_VALUE_MAX_CHARS == 512
+    assert tbm.LLM_GATE_MAX_CANDIDATES == 50
+    assert tbm.LLM_GATE_PROMPT_MAX_CHARS == 32_000
+    assert tbm.INJECTION_MAX_MEMORIES == 20
+    assert tbm.INJECTION_SNIPPET_MAX_CHARS == 12_000
+
+
+@pytest.mark.parametrize(
+    "field_name", ["memory_id", "source_trace_id", "source_case_id", "source_policy_id"]
+)
+def test_memory_and_source_identifiers_enforce_maximum_length(field_name: str):
+    values: dict[str, object] = {
+        "memory_id": "m" * 128,
+        "status": "active",
+        "memory_type": "procedural",
+        "scope": {"repo": "repo"},
+        "text": "rule",
+        "source_case_id": "s" * 128,
+    }
+    if field_name != "source_case_id":
+        values["source_case_id"] = None
+    values[field_name] = "x" * 129
+    memory = MemoryItem(**values)  # type: ignore[arg-type]
+
+    _allowed, blocked = system_gate(
+        MemoryContext(mode="repair", repo="repo", commit_sha="abc"), [memory]
+    )
+
+    assert "at most 128 characters" in next(iter(blocked.values()))
+
+
+def test_identifier_and_metadata_exact_boundaries_are_accepted():
+    context = parse_memory_context(
+        {
+            "mode": "repair",
+            "repo": "r" * 512,
+            "commit_sha": "c" * 512,
+        }
+    )
+    memory = MemoryItem(
+        memory_id="m" * 128,
+        status="active",
+        memory_type="procedural",
+        scope={"repo": "r" * 512},
+        text="rule",
+        source_case_id="s" * 128,
+    )
+
+    allowed, blocked = system_gate(context, [memory])
+
+    assert allowed == [memory]
+    assert blocked == {}
+
+
+def test_context_and_scope_values_reject_more_than_metadata_budget():
+    with pytest.raises(ValueError, match="at most 512 characters"):
+        parse_memory_context(
+            {"mode": "repair", "repo": "r" * 513, "commit_sha": "abc"}
+        )
+
+    memory = _budget_memory("lesson_001", scope={"repo": "r" * 513})
+    _allowed, blocked = system_gate(
+        MemoryContext(mode="repair", repo="r" * 513, commit_sha="abc"), [memory]
+    )
+    assert "at most 512 characters" in blocked[memory.memory_id]
+
+
+def test_llm_gate_candidate_count_accepts_limit_and_rejects_limit_plus_one():
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+    candidates = [_budget_memory(f"memory_{index:03d}") for index in range(51)]
+
+    prompt = build_llm_gate_prompt(context, candidates[:50], task="repair")
+    assert len(prompt) <= 32_000
+    with pytest.raises(ValueError, match="at most 50 candidates"):
+        build_llm_gate_prompt(context, candidates, task="repair")
+
+
+def test_llm_gate_rejects_aggregate_prompt_over_budget():
+    metadata = "m" * 512
+    context = MemoryContext(
+        mode="repair",
+        repo=metadata,
+        commit_sha="abc",
+        tenant=metadata,
+        branch=metadata,
+        prompt_version=metadata,
+        prompt_family=metadata,
+        tool=metadata,
+        tool_schema_version=metadata,
+        model=metadata,
+        model_family=metadata,
+        eval_suite=metadata,
+        task_type=metadata,
+        failure_type=metadata,
+    )
+    scope = {
+        field_name: metadata
+        for field_name in (
+            "repo",
+            "tenant",
+            "branch",
+            "prompt_version",
+            "prompt_family",
+            "tool",
+            "tool_schema_version",
+            "model",
+            "model_family",
+            "eval_suite",
+            "task_type",
+            "failure_type",
+        )
+    }
+    candidates = [
+        _budget_memory(f"memory_{index:03d}", scope=scope) for index in range(6)
+    ]
+
+    with pytest.raises(ValueError, match="prompt exceeds 32000 characters"):
+        build_llm_gate_prompt(context, candidates, task="repair")
+
+
+def test_injection_count_accepts_limit_and_rejects_limit_plus_one():
+    memories = [_budget_memory(f"memory_{index:03d}") for index in range(21)]
+    decision = MemoryDecision(
+        use_memory=True,
+        allowed_memory_ids=[memory.memory_id for memory in memories],
+        blocked_memory_ids=[],
+        reason="relevant",
+        risk="low",
+        recommended_injection="short_summary",
+    )
+
+    snippet = build_injection_snippet(memories[:20], decision=decision)
+    assert len(snippet) <= 12_000
+    with pytest.raises(ValueError, match="at most 20 memories"):
+        build_injection_snippet(memories, decision=decision)
+
+
+def test_injection_rejects_aggregate_snippet_over_budget():
+    memories = [
+        _budget_memory(
+            f"memory_{index:03d}",
+            scope={"repo": "r" * 512},
+            text="t" * 500,
+        )
+        for index in range(20)
+    ]
+    decision = MemoryDecision(
+        use_memory=True,
+        allowed_memory_ids=[memory.memory_id for memory in memories],
+        blocked_memory_ids=[],
+        reason="relevant",
+        risk="low",
+        recommended_injection="short_summary",
+    )
+
+    with pytest.raises(ValueError, match="snippet exceeds 12000 characters"):
+        build_injection_snippet(memories, decision=decision)
+
+
+def test_memory_context_preserves_original_positional_argument_order():
+    context = MemoryContext(
+        "repair",
+        "repo",
+        "abc",
+        "branch",
+        "prompt-v1",
+        "prompt-family",
+        "search_docs",
+        "tool-v1",
+        "model",
+        "model-family",
+        "eval-suite",
+        "task-type",
+        "failure-type",
+    )
+
+    assert context.branch == "branch"
+    assert context.prompt_version == "prompt-v1"
+    assert context.prompt_family == "prompt-family"
+    assert context.tool == "search_docs"
+    assert context.tool_schema_version == "tool-v1"
+    assert context.model == "model"
+    assert context.model_family == "model-family"
+    assert context.eval_suite == "eval-suite"
+    assert context.task_type == "task-type"
+    assert context.failure_type == "failure-type"
+    assert context.tenant is None
+
+
+def test_memory_item_preserves_original_positional_argument_order():
+    memory = MemoryItem(
+        "lesson_001",
+        "active",
+        "procedural",
+        {"repo": "repo"},
+        "rule",
+        "trace_001",
+        "case_001",
+        0.75,
+        True,
+        False,
+    )
+
+    assert memory.source_trace_id == "trace_001"
+    assert memory.source_case_id == "case_001"
+    assert memory.confidence == 0.75
+    assert memory.sensitive is True
+    assert memory.eval_leaking is False
+    assert memory.source_policy_id is None
 
 
 def test_system_gate_rejects_non_boolean_safety_flags():
@@ -947,6 +1174,21 @@ def test_parse_memory_decision_rejects_non_mapping_payloads():
         assert "JSON object" in str(exc)
     else:
         raise AssertionError("memory decision payloads must be JSON strings or mappings")
+
+
+@pytest.mark.parametrize("reason", ["", "   ", "\t\r\n"])
+def test_parse_memory_decision_requires_nonblank_reason(reason: str):
+    with pytest.raises(ValueError, match="reason must be nonblank"):
+        parse_memory_decision(
+            {
+                "use_memory": False,
+                "allowed_memory_ids": [],
+                "blocked_memory_ids": [],
+                "reason": reason,
+                "risk": "none",
+                "recommended_injection": "none",
+            }
+        )
 
 
 def test_parse_memory_context_accepts_json_string_and_known_fields():

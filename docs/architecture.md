@@ -200,6 +200,13 @@ Runtime injection honors the parsed `recommended_injection` mode: `none` emits
 no snippet, `pointer_only` emits IDs/source/scope without lesson text, and
 summary modes JSON-quote and cap injected text.
 
+Runtime output is bounded by fixed contract constants:
+`MEMORY_ID_MAX_CHARS` is 128, `METADATA_VALUE_MAX_CHARS` is 512,
+`LLM_GATE_MAX_CANDIDATES` is 50, `LLM_GATE_PROMPT_MAX_CHARS` is 32,000,
+`INJECTION_MAX_MEMORIES` is 20, and `INJECTION_SNIPPET_MAX_CHARS` is
+12,000. Identifier and metadata limits are enforced before rendering; total
+prompt and snippet limits are checked before either value is returned.
+
 Candidate retrieval is metadata-first. The in-memory MVP retrieves lessons and
 project policies when every declared scope metadata field matches the current
 context. In debug and repair modes, it also exposes verified,

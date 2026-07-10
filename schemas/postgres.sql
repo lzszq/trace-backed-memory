@@ -36,6 +36,7 @@ CREATE TABLE traces (
   CHECK (btrim(run_id) <> ''),
   CHECK (btrim(commit_sha) <> ''),
   UNIQUE (trace_id, commit_sha),
+  UNIQUE (trace_id, run_id),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -228,7 +229,7 @@ $$ LANGUAGE SQL IMMUTABLE;
 CREATE TABLE memory_usage_decisions (
   decision_id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,
-  trace_id TEXT NOT NULL REFERENCES traces(trace_id),
+  trace_id TEXT NOT NULL,
   mode TEXT NOT NULL CHECK (mode IN ('debug', 'repair', 'regression', 'planning', 'eval', 'production')),
   candidate_memory_ids JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (
     jsonb_typeof(candidate_memory_ids) = 'array'
@@ -274,8 +275,57 @@ CREATE TABLE memory_usage_decisions (
       AND eval_result IN ('fail', 'error')
     )
   ),
+  FOREIGN KEY (trace_id, run_id) REFERENCES traces(trace_id, run_id),
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE FUNCTION require_usage_trace_context() RETURNS trigger AS $$
+DECLARE
+  trace_record traces%ROWTYPE;
+BEGIN
+  SELECT * INTO trace_record
+  FROM traces
+  WHERE trace_id = NEW.trace_id
+    AND run_id = NEW.run_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'usage trace_id and run_id must reference one trace: %, %',
+      NEW.trace_id, NEW.run_id;
+  END IF;
+
+  IF NOT (NEW.context ? 'mode')
+    OR NOT (NEW.context ? 'repo')
+    OR NOT (NEW.context ? 'commit_sha') THEN
+    RAISE EXCEPTION 'usage context requires mode, repo, and commit_sha evidence';
+  END IF;
+
+  IF NEW.context ->> 'mode' IS DISTINCT FROM NEW.mode THEN
+    RAISE EXCEPTION 'usage context mode conflicts with decision mode';
+  END IF;
+  IF NEW.context ->> 'repo' IS DISTINCT FROM trace_record.repo THEN
+    RAISE EXCEPTION 'usage context repo conflicts with trace';
+  END IF;
+  IF NEW.context ->> 'commit_sha' IS DISTINCT FROM trace_record.commit_sha THEN
+    RAISE EXCEPTION 'usage context commit_sha conflicts with trace';
+  END IF;
+
+  IF trace_record.tenant IS NOT NULL THEN
+    IF NOT (NEW.context ? 'tenant')
+      OR NEW.context ->> 'tenant' IS DISTINCT FROM trace_record.tenant THEN
+      RAISE EXCEPTION 'usage context tenant conflicts with trace';
+    END IF;
+  ELSIF NEW.context ? 'tenant' THEN
+    RAISE EXCEPTION 'usage context tenant conflicts with trace';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER memory_usage_decisions_require_trace_context
+BEFORE INSERT OR UPDATE OF trace_id, run_id, mode, context
+ON memory_usage_decisions
+FOR EACH ROW EXECUTE FUNCTION require_usage_trace_context();
 
 CREATE FUNCTION require_known_usage_memory_ids() RETURNS trigger AS $$
 DECLARE
@@ -284,6 +334,7 @@ DECLARE
   missing_blocked_id TEXT;
   missing_status_id TEXT;
   extra_status_id TEXT;
+  extra_block_reason_id TEXT;
   overlapping_id TEXT;
 BEGIN
   SELECT refs.memory_id INTO unknown_id
@@ -350,6 +401,18 @@ BEGIN
     RAISE EXCEPTION 'candidate status evidence must not include non-candidates: %', extra_status_id;
   END IF;
 
+  SELECT blocked_reason_ids.memory_id INTO extra_block_reason_id
+  FROM jsonb_object_keys(NEW.system_blocked_reasons) AS blocked_reason_ids(memory_id)
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements_text(NEW.candidate_memory_ids) AS candidate_ids(memory_id)
+    WHERE candidate_ids.memory_id = blocked_reason_ids.memory_id
+  )
+  LIMIT 1;
+  IF extra_block_reason_id IS NOT NULL THEN
+    RAISE EXCEPTION 'system block reason must reference a candidate: %', extra_block_reason_id;
+  END IF;
+
   SELECT used_ids.memory_id INTO overlapping_id
   FROM jsonb_array_elements_text(NEW.used_memory_ids) AS used_ids(memory_id)
   JOIN jsonb_array_elements_text(NEW.blocked_memory_ids) AS blocked_ids(memory_id)
@@ -364,7 +427,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER memory_usage_decisions_require_known_memory_ids
-BEFORE INSERT OR UPDATE OF candidate_memory_ids, used_memory_ids, blocked_memory_ids, candidate_memory_statuses
+BEFORE INSERT OR UPDATE OF candidate_memory_ids, used_memory_ids, blocked_memory_ids, candidate_memory_statuses, system_blocked_reasons
 ON memory_usage_decisions
 FOR EACH ROW EXECUTE FUNCTION require_known_usage_memory_ids();
 

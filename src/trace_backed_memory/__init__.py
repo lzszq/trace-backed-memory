@@ -13,9 +13,11 @@ from .lifecycle import (
 )
 from .models import (
     FailureCase,
+    GatedMemoryResult,
     Lesson,
     MemoryContext,
     MemoryDecision,
+    MemoryGateRequest,
     MemoryItem,
     MemoryMetrics,
     MemoryUsageLog,
@@ -37,9 +39,11 @@ from .store import TraceBackedMemoryStore
 
 __all__ = [
     "FailureCase",
+    "GatedMemoryResult",
     "Lesson",
     "MemoryContext",
     "MemoryDecision",
+    "MemoryGateRequest",
     "MemoryItem",
     "MemoryMetrics",
     "MemoryUsageLog",

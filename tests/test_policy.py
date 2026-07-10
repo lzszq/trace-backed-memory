@@ -15,6 +15,13 @@ from trace_backed_memory import (
 )
 
 
+def test_package_exports_gate_boundary_models():
+    from trace_backed_memory import GatedMemoryResult, MemoryGateRequest
+
+    assert MemoryGateRequest.__name__ == "MemoryGateRequest"
+    assert GatedMemoryResult.__name__ == "GatedMemoryResult"
+
+
 def test_system_gate_rejects_non_boolean_safety_flags():
     context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", tenant="tenant_a")
     malformed = MemoryItem(
@@ -44,6 +51,25 @@ def test_llm_gate_prompt_rejects_system_blocked_candidates():
     )
     with pytest.raises(ValueError, match="must pass System Gate"):
         build_llm_gate_prompt(context, [sensitive], task="repair")
+
+
+@pytest.mark.parametrize("invalid_boolean", ["false", 1])
+def test_system_gate_rejects_non_boolean_eval_leaking_exact_boolean(invalid_boolean: object):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", tenant="tenant_a")
+    malformed = MemoryItem(
+        memory_id="lesson_001",
+        status="active",
+        memory_type="procedural",
+        scope={"repo": "repo", "tenant": "tenant_a"},
+        text="rule",
+        source_case_id="case_001",
+        eval_leaking=invalid_boolean,  # type: ignore[arg-type]
+    )
+
+    allowed, blocked = system_gate(context, [malformed])
+
+    assert allowed == []
+    assert blocked == {"lesson_001": "eval_leaking must be a boolean"}
 
 
 def test_system_gate_allows_matching_active_lesson():

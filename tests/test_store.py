@@ -8,6 +8,7 @@ from trace_backed_memory import (
     Lesson,
     MemoryContext,
     MemoryDecision,
+    MemoryUsageLog,
     PRCaseProvenance,
     ProjectPolicy,
     Trace,
@@ -85,6 +86,120 @@ def test_store_rejects_lesson_that_omits_source_tenant_scope():
     )
     with pytest.raises(ValueError, match="source tenant"):
         store.add_lesson(lesson)
+
+
+@pytest.mark.parametrize(
+    "scope",
+    [
+        {"tenant": "tenant_a"},
+        {"repo": "other_repo", "tenant": "tenant_a"},
+    ],
+    ids=["omits_source_repo", "mismatches_source_repo"],
+)
+def test_store_rejects_lesson_with_invalid_source_repo_scope(scope: dict[str, str]):
+    store, _trace, case = store_with_verified_case(repo="repo", tenant="tenant_a")
+    lesson = lesson_from_failure_case(
+        case,
+        lesson_id="lesson_001",
+        lesson_text="rule",
+        memory_type="procedural",
+        scope=scope,
+    )
+
+    with pytest.raises(ValueError, match="source repo"):
+        store.add_lesson(lesson)
+
+
+@pytest.mark.parametrize("invalid_boolean", ["false", 1])
+def test_store_rejects_non_boolean_trace_dirty_exact_boolean(invalid_boolean: object):
+    store = TraceBackedMemoryStore()
+
+    with pytest.raises(ValueError, match="dirty must be a boolean"):
+        store.record_trace(
+            Trace(
+                trace_id="trace_001",
+                run_id="run_001",
+                commit_sha="abc",
+                dirty=invalid_boolean,  # type: ignore[arg-type]
+            )
+        )
+
+
+@pytest.mark.parametrize("invalid_boolean", ["false", 1])
+def test_store_rejects_non_boolean_regression_passed_exact_boolean(invalid_boolean: object):
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc"))
+    case = FailureCase(
+        case_id="case_001",
+        source_trace_id=trace.trace_id,
+        commit_sha=trace.commit_sha,
+        failure_type="invalid_tool_argument",
+        symptom="bad query",
+        regression_passed=invalid_boolean,  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ValueError, match="regression_passed must be a boolean"):
+        store.add_failure_case(case)
+
+
+@pytest.mark.parametrize("invalid_boolean", ["false", 1])
+def test_store_rejects_non_boolean_lesson_eval_leaking_exact_boolean(invalid_boolean: object):
+    store, _trace, case = store_with_verified_case()
+    lesson = Lesson(
+        lesson_id="lesson_001",
+        source_case_id=case.case_id,
+        lesson_text="rule",
+        memory_type="procedural",
+        scope={"repo": "repo", "tenant": "tenant_a", "tool": "search_docs"},
+        eval_leaking=invalid_boolean,  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ValueError, match="eval_leaking must be a boolean"):
+        store.add_lesson(lesson)
+
+
+@pytest.mark.parametrize("field_name", ["sensitive", "eval_leaking"])
+@pytest.mark.parametrize("invalid_boolean", ["false", 1])
+def test_store_rejects_non_boolean_project_policy_safety_flags_exact_boolean(
+    field_name: str, invalid_boolean: object
+):
+    store = TraceBackedMemoryStore()
+    policy = ProjectPolicy(
+        policy_id="policy_001",
+        policy_text="rule",
+        scope={"tool": "search_docs"},
+        **{field_name: invalid_boolean},  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ValueError, match=f"{field_name} must be a boolean"):
+        store.add_project_policy(policy)
+
+
+@pytest.mark.parametrize("invalid_boolean", ["false", 1])
+def test_store_rejects_non_boolean_memory_caused_failure_exact_boolean(invalid_boolean: object):
+    snapshot = {
+        "traces": [],
+        "failure_cases": [],
+        "lessons": [],
+        "project_policies": [],
+        "usage_logs": [
+            MemoryUsageLog(
+                decision_id="decision_001",
+                run_id="run_001",
+                mode="repair",
+                candidate_memory_ids=[],
+                used_memory_ids=[],
+                blocked_memory_ids=[],
+                reason="no memory",
+                risk="none",
+                recommended_injection="none",
+                memory_caused_failure=invalid_boolean,  # type: ignore[arg-type]
+            ).__dict__
+        ],
+    }
+
+    with pytest.raises(ValueError, match="memory_caused_failure must be a boolean"):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
 
 
 def test_store_retrieves_by_metadata_then_logs_usage_decision():

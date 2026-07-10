@@ -600,6 +600,25 @@ def fully_populated_snapshot() -> dict[str, object]:
     return store.to_snapshot()
 
 
+def v2_snapshot_with_usage_log() -> dict[str, object]:
+    store, trace, _case, lesson = store_with_active_lesson()
+    store.log_decision(
+        trace.run_id,
+        matching_context(trace),
+        [lesson.lesson_id],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=[lesson.lesson_id],
+            blocked_memory_ids=[],
+            reason="use matching lesson",
+            risk="low",
+            recommended_injection="short_summary",
+        ),
+        eval_result="pass",
+    )
+    return store.to_snapshot()
+
+
 def test_snapshot_v2_has_exact_versioned_envelope():
     snapshot = TraceBackedMemoryStore().to_snapshot()
 
@@ -638,6 +657,105 @@ def test_exact_legacy_snapshot_is_migrated():
     }
 
     assert TraceBackedMemoryStore.from_snapshot(legacy).to_snapshot()["snapshot_version"] == 2
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "trace_id",
+        "context",
+        "candidate_memory_statuses",
+        "system_blocked_reasons",
+    ],
+)
+def test_v2_snapshot_rejects_usage_logs_missing_safe_workflow_audit_fields(
+    field_name: str,
+):
+    snapshot = v2_snapshot_with_usage_log()
+    usage_logs = snapshot["usage_logs"]
+    assert isinstance(usage_logs, list)
+    usage_logs[0].pop(field_name)
+
+    with pytest.raises(ValueError, match=field_name):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_message"),
+    [
+        ({"trace_id": ""}, "trace_id"),
+        ({"trace_id": "missing_trace"}, "unknown trace_id"),
+        ({"run_id": "wrong_run"}, "run_id"),
+        ({"context": {"mode": "repair", "repo": "wrong", "commit_sha": "abc"}}, "context repo"),
+    ],
+)
+def test_v2_snapshot_requires_trace_linked_usage_log_evidence(
+    mutation: dict[str, object], expected_message: str,
+):
+    snapshot = v2_snapshot_with_usage_log()
+    usage_logs = snapshot["usage_logs"]
+    assert isinstance(usage_logs, list)
+    usage_logs[0].update(mutation)
+
+    with pytest.raises(ValueError, match=expected_message):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+def test_legacy_usage_log_is_migrated_to_complete_audit_evidence():
+    legacy = v2_snapshot_with_usage_log()
+    legacy.pop("snapshot_version")
+    usage_logs = legacy["usage_logs"]
+    assert isinstance(usage_logs, list)
+    legacy_log = usage_logs[0]
+    for field_name in [
+        "trace_id",
+        "context",
+        "candidate_memory_statuses",
+        "system_blocked_reasons",
+    ]:
+        legacy_log.pop(field_name)
+
+    restored = TraceBackedMemoryStore.from_snapshot(legacy)
+    migrated_log = restored.usage_logs[0]
+
+    assert migrated_log.trace_id == "trace_contract"
+    assert migrated_log.context == {
+        "mode": "repair",
+        "repo": "repo",
+        "tenant": "tenant_a",
+        "commit_sha": "abc",
+    }
+    assert migrated_log.candidate_memory_statuses == {"lesson_001": "active"}
+    assert migrated_log.system_blocked_reasons == {}
+
+
+@pytest.mark.parametrize("ambiguous", [False, True], ids=["missing", "ambiguous"])
+def test_legacy_usage_log_migration_rejects_unresolvable_run_id(ambiguous: bool):
+    legacy = v2_snapshot_with_usage_log()
+    legacy.pop("snapshot_version")
+    usage_logs = legacy["usage_logs"]
+    assert isinstance(usage_logs, list)
+    for field_name in [
+        "trace_id",
+        "context",
+        "candidate_memory_statuses",
+        "system_blocked_reasons",
+    ]:
+        usage_logs[0].pop(field_name)
+
+    traces = legacy["traces"]
+    assert isinstance(traces, list)
+    if ambiguous:
+        duplicate_trace = deepcopy(traces[0])
+        duplicate_trace["trace_id"] = "trace_duplicate"
+        traces.append(duplicate_trace)
+    else:
+        legacy["traces"] = []
+        legacy["failure_cases"] = []
+        legacy["lessons"] = []
+
+    with pytest.raises(ValueError, match="run_id"):
+        TraceBackedMemoryStore.from_snapshot(legacy)
 
 
 def test_equivalent_stores_emit_identical_snapshot_json(tmp_path):
@@ -826,26 +944,10 @@ def test_store_rejects_non_boolean_project_policy_safety_flags_exact_boolean(
 
 @pytest.mark.parametrize("invalid_boolean", ["false", 1])
 def test_store_rejects_non_boolean_memory_caused_failure_exact_boolean(invalid_boolean: object):
-    snapshot = {
-        "traces": [],
-        "failure_cases": [],
-        "lessons": [],
-        "project_policies": [],
-        "usage_logs": [
-            MemoryUsageLog(
-                decision_id="decision_001",
-                run_id="run_001",
-                mode="repair",
-                candidate_memory_ids=[],
-                used_memory_ids=[],
-                blocked_memory_ids=[],
-                reason="no memory",
-                risk="none",
-                recommended_injection="none",
-                memory_caused_failure=invalid_boolean,  # type: ignore[arg-type]
-            ).__dict__
-        ],
-    }
+    snapshot = v2_snapshot_with_usage_log()
+    usage_logs = snapshot["usage_logs"]
+    assert isinstance(usage_logs, list)
+    usage_logs[0]["memory_caused_failure"] = invalid_boolean
 
     with pytest.raises(ValueError, match="memory_caused_failure must be a boolean"):
         TraceBackedMemoryStore.from_snapshot(snapshot)
@@ -2920,31 +3022,11 @@ def test_store_json_snapshot_rejects_failure_case_without_stored_source_trace(tm
 
 def test_store_json_snapshot_rejects_inconsistent_usage_logs(tmp_path):
     snapshot_path = tmp_path / "bad-usage-log-store.json"
-    snapshot_path.write_text(
-        """
-        {
-          "traces": [],
-          "failure_cases": [],
-          "lessons": [],
-          "project_policies": [],
-          "usage_logs": [
-            {
-              "decision_id": "decision_000001",
-              "run_id": "run_001",
-              "mode": "repair",
-              "candidate_memory_ids": ["lesson_001"],
-              "used_memory_ids": ["lesson_missing"],
-              "blocked_memory_ids": [],
-              "reason": "inconsistent imported log",
-              "risk": "medium",
-              "recommended_injection": "short_summary",
-              "eval_result": "pass"
-            }
-          ]
-        }
-        """,
-        encoding="utf-8",
-    )
+    snapshot = v2_snapshot_with_usage_log()
+    usage_logs = snapshot["usage_logs"]
+    assert isinstance(usage_logs, list)
+    usage_logs[0]["used_memory_ids"] = ["lesson_missing"]
+    snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
 
     try:
         TraceBackedMemoryStore.load_json(snapshot_path)
@@ -2956,31 +3038,19 @@ def test_store_json_snapshot_rejects_inconsistent_usage_logs(tmp_path):
 
 def test_store_json_snapshot_rejects_usage_logs_with_unknown_candidate_memory_ids(tmp_path):
     snapshot_path = tmp_path / "ghost-usage-log-store.json"
-    snapshot_path.write_text(
-        """
+    snapshot = v2_snapshot_with_usage_log()
+    usage_logs = snapshot["usage_logs"]
+    assert isinstance(usage_logs, list)
+    usage_logs[0].update(
         {
-          "traces": [],
-          "failure_cases": [],
-          "lessons": [],
-          "project_policies": [],
-          "usage_logs": [
-            {
-              "decision_id": "decision_000001",
-              "run_id": "run_001",
-              "mode": "repair",
-              "candidate_memory_ids": ["missing_memory"],
-              "used_memory_ids": [],
-              "blocked_memory_ids": [],
-              "reason": "ghost candidate",
-              "risk": "none",
-              "recommended_injection": "none",
-              "eval_result": "unknown"
-            }
-          ]
+            "candidate_memory_ids": ["missing_memory"],
+            "used_memory_ids": [],
+            "risk": "none",
+            "recommended_injection": "none",
+            "candidate_memory_statuses": {"missing_memory": "active"},
         }
-        """,
-        encoding="utf-8",
     )
+    snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
 
     try:
         TraceBackedMemoryStore.load_json(snapshot_path)
@@ -2991,18 +3061,6 @@ def test_store_json_snapshot_rejects_usage_logs_with_unknown_candidate_memory_id
 
 
 def test_store_json_snapshot_rejects_invalid_usage_log_contract(tmp_path):
-    valid_log = {
-        "decision_id": "decision_000001",
-        "run_id": "run_001",
-        "mode": "repair",
-        "candidate_memory_ids": ["lesson_001"],
-        "used_memory_ids": [],
-        "blocked_memory_ids": [],
-        "reason": "imported log",
-        "risk": "low",
-        "recommended_injection": "none",
-        "eval_result": "unknown",
-    }
     invalid_cases = [
         ("empty-decision-id", {"decision_id": ""}, "decision_id"),
         ("invalid-mode", {"mode": "sandbox"}, "mode"),
@@ -3013,19 +3071,11 @@ def test_store_json_snapshot_rejects_invalid_usage_log_contract(tmp_path):
 
     for name, mutation, expected_message in invalid_cases:
         snapshot_path = tmp_path / f"{name}.json"
-        invalid_log = {**valid_log, **mutation}
-        snapshot_path.write_text(
-            json.dumps(
-                {
-                    "traces": [],
-                    "failure_cases": [],
-                    "lessons": [],
-                    "project_policies": [],
-                    "usage_logs": [invalid_log],
-                }
-            ),
-            encoding="utf-8",
-        )
+        snapshot = v2_snapshot_with_usage_log()
+        usage_logs = snapshot["usage_logs"]
+        assert isinstance(usage_logs, list)
+        usage_logs[0].update(mutation)
+        snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
 
         try:
             TraceBackedMemoryStore.load_json(snapshot_path)
@@ -3036,26 +3086,10 @@ def test_store_json_snapshot_rejects_invalid_usage_log_contract(tmp_path):
 
 
 def test_store_snapshot_rejects_unhashable_candidate_memory_status():
-    snapshot = {
-        "traces": [],
-        "failure_cases": [],
-        "lessons": [],
-        "project_policies": [],
-        "usage_logs": [
-            {
-                "decision_id": "decision_000001",
-                "run_id": "run_001",
-                "mode": "repair",
-                "candidate_memory_ids": ["lesson_001"],
-                "used_memory_ids": [],
-                "blocked_memory_ids": [],
-                "reason": "malformed imported status evidence",
-                "risk": "low",
-                "recommended_injection": "none",
-                "candidate_memory_statuses": {"lesson_001": ["active"]},
-            }
-        ],
-    }
+    snapshot = v2_snapshot_with_usage_log()
+    usage_logs = snapshot["usage_logs"]
+    assert isinstance(usage_logs, list)
+    usage_logs[0]["candidate_memory_statuses"] = {"lesson_001": ["active"]}
 
     with pytest.raises(
         ValueError, match="candidate_memory_statuses.*status"
@@ -3063,29 +3097,51 @@ def test_store_snapshot_rejects_unhashable_candidate_memory_status():
         TraceBackedMemoryStore.from_snapshot(snapshot)
 
 
+@pytest.mark.parametrize(
+    "statuses",
+    [
+        {},
+        {"lesson_001": "active", "extra_memory": "active"},
+    ],
+    ids=["missing", "extra"],
+)
+def test_usage_log_candidate_statuses_must_exactly_match_candidates(
+    statuses: dict[str, str],
+):
+    log = MemoryUsageLog(
+        decision_id="decision_000001",
+        run_id="run_001",
+        mode="repair",
+        candidate_memory_ids=["lesson_001"],
+        used_memory_ids=[],
+        blocked_memory_ids=[],
+        reason="imported log",
+        risk="none",
+        recommended_injection="none",
+        candidate_memory_statuses=statuses,
+    )
+
+    with pytest.raises(ValueError, match="candidate_memory_statuses must match candidates"):
+        store_module._validate_usage_log(log)
+
+
+def test_v2_snapshot_rejects_incomplete_candidate_status_evidence():
+    snapshot = v2_snapshot_with_usage_log()
+    usage_logs = snapshot["usage_logs"]
+    assert isinstance(usage_logs, list)
+    usage_logs[0]["candidate_memory_statuses"] = {}
+
+    with pytest.raises(ValueError, match="candidate_memory_statuses must match candidates"):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
 def test_store_json_snapshot_rejects_duplicate_usage_log_decision_ids(tmp_path):
-    usage_log = {
-        "decision_id": "decision_000001",
-        "run_id": "run_001",
-        "mode": "repair",
-        "candidate_memory_ids": [],
-        "used_memory_ids": [],
-        "blocked_memory_ids": [],
-        "reason": "imported log",
-        "risk": "none",
-        "recommended_injection": "none",
-    }
+    snapshot = v2_snapshot_with_usage_log()
+    usage_logs = snapshot["usage_logs"]
+    assert isinstance(usage_logs, list)
     snapshot_path = tmp_path / "duplicate-usage-log-ids.json"
     snapshot_path.write_text(
-        json.dumps(
-            {
-                "traces": [],
-                "failure_cases": [],
-                "lessons": [],
-                "project_policies": [],
-                "usage_logs": [usage_log, usage_log],
-            }
-        ),
+        json.dumps({**snapshot, "usage_logs": [usage_logs[0], usage_logs[0]]}),
         encoding="utf-8",
     )
 
@@ -3133,6 +3189,7 @@ def test_log_decision_avoids_duplicate_decision_ids_after_sparse_snapshot_import
         )
     )
     snapshot = seed.to_snapshot()
+    snapshot.pop("snapshot_version")
     snapshot["usage_logs"] = [
         {
             "decision_id": "decision_000001",
@@ -3147,7 +3204,7 @@ def test_log_decision_avoids_duplicate_decision_ids_after_sparse_snapshot_import
         },
         {
             "decision_id": "decision_000003",
-            "run_id": "run_003",
+            "run_id": "run_004",
             "mode": "repair",
             "candidate_memory_ids": ["lesson_001"],
             "used_memory_ids": [],

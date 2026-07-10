@@ -220,16 +220,16 @@ lesson = lesson_from_failure_case(
     lesson_id="lesson_001",
     lesson_text="When calling search_docs, always provide a non-empty query.",
     memory_type="procedural",
-    scope={"tenant": "tenant_a", "tool": "search_docs"},
+    scope={"repo": metadata.repo, "tenant": "tenant_a", "tool": "search_docs"},
 )
 store.add_lesson(lesson)
 
 context = parse_memory_context(
     {
         "mode": "repair",
-        "repo": "agent-harness",
+        "repo": metadata.repo,
         "tenant": "tenant_a",
-        "commit_sha": "abc123",
+        "commit_sha": metadata.commit_sha,
         "tool": "search_docs",
         "failure_type": failure_type,
         "eval_suite": "tool_calling_regression",

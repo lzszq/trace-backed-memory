@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from trace_backed_memory import (
     FailureCase,
     Lesson,
@@ -177,16 +179,16 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
         lesson_id="lesson_001",
         lesson_text="When calling search_docs, always provide a non-empty query.",
         memory_type="procedural",
-        scope={"repo": "agent-harness", "tenant": "tenant_a", "tool": "search_docs"},
+        scope={"repo": metadata.repo, "tenant": "tenant_a", "tool": "search_docs"},
     )
     store.add_lesson(lesson)
 
     context = parse_memory_context(
         {
             "mode": "repair",
-            "repo": "agent-harness",
+            "repo": metadata.repo,
             "tenant": "tenant_a",
-            "commit_sha": "abc123",
+            "commit_sha": metadata.commit_sha,
             "tool": "search_docs",
             "failure_type": failure_type,
             "eval_suite": "tool_calling_regression",
@@ -253,6 +255,16 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
     ]
     assert "eval_suite change touches known failure case case_001 for search_docs." in pr_report.warnings
     assert issubclass(TraceMetadataCaptureError, RuntimeError)
+
+
+def test_readme_primary_pipeline_uses_captured_metadata_values():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'scope={"repo": metadata.repo, "tenant": "tenant_a", "tool": "search_docs"}' in readme
+    assert '"repo": metadata.repo' in readme
+    assert '"commit_sha": metadata.commit_sha' in readme
 
 
 def test_readme_additional_public_helpers_still_work():

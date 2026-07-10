@@ -248,13 +248,17 @@ def test_json_examples_match_current_models_and_parsers():
     store.record_trace(trace)
     store.add_failure_case(case)
     store.add_lesson(lesson)
+    restored_usage_log = MemoryUsageLog(
+        **{**usage_log.__dict__, "run_id": trace.run_id}
+    )
     restored = TraceBackedMemoryStore.from_snapshot(
         {
+            "snapshot_version": 2,
             "traces": [store.to_snapshot()["traces"][0]],
             "failure_cases": [store.to_snapshot()["failure_cases"][0]],
             "lessons": [store.to_snapshot()["lessons"][0]],
             "project_policies": [],
-            "usage_logs": [usage_log.__dict__],
+            "usage_logs": [restored_usage_log.__dict__],
         }
     )
 
@@ -274,7 +278,7 @@ def test_json_examples_match_current_models_and_parsers():
     assert lesson.source_case_id == case.case_id
     assert memory_item_from_project_policy(project_policy).source_policy_id == "project_policy_001"
     assert decision.allowed_memory_ids == ["lesson_001"]
-    assert restored.usage_logs == [usage_log]
+    assert restored.usage_logs == [restored_usage_log]
     assert [memory.memory_id for memory in candidates] == ["lesson_001"]
 
 
@@ -433,6 +437,21 @@ def test_postgres_usage_logs_reference_known_runtime_memory_ids():
     assert "FROM memory_ids" in schema
     assert "used memory ids must be present in candidates" in schema
     assert "blocked memory ids must be present in candidates" in schema
+
+
+def test_postgres_usage_logs_require_complete_candidate_status_evidence():
+    schema = _postgres_schema()
+
+    assert "jsonb_object_keys(NEW.candidate_memory_statuses)" in schema
+    assert "candidate status evidence must include every candidate" in schema
+    assert "candidate status evidence must not include non-candidates" in schema
+    trigger_match = re.search(
+        r"BEFORE INSERT OR UPDATE OF (.*?)\nON memory_usage_decisions",
+        schema,
+        re.DOTALL,
+    )
+    assert trigger_match is not None
+    assert "candidate_memory_statuses" in trigger_match.group(1)
 
 
 def test_postgres_usage_logs_enforce_decision_consistency_rules():

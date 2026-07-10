@@ -282,6 +282,8 @@ DECLARE
   unknown_id TEXT;
   missing_used_id TEXT;
   missing_blocked_id TEXT;
+  missing_status_id TEXT;
+  extra_status_id TEXT;
   overlapping_id TEXT;
 BEGIN
   SELECT refs.memory_id INTO unknown_id
@@ -324,6 +326,30 @@ BEGIN
     RAISE EXCEPTION 'blocked memory ids must be present in candidates: %', missing_blocked_id;
   END IF;
 
+  SELECT candidate_ids.memory_id INTO missing_status_id
+  FROM jsonb_array_elements_text(NEW.candidate_memory_ids) AS candidate_ids(memory_id)
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM jsonb_object_keys(NEW.candidate_memory_statuses) AS status_ids(memory_id)
+    WHERE status_ids.memory_id = candidate_ids.memory_id
+  )
+  LIMIT 1;
+  IF missing_status_id IS NOT NULL THEN
+    RAISE EXCEPTION 'candidate status evidence must include every candidate: %', missing_status_id;
+  END IF;
+
+  SELECT status_ids.memory_id INTO extra_status_id
+  FROM jsonb_object_keys(NEW.candidate_memory_statuses) AS status_ids(memory_id)
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements_text(NEW.candidate_memory_ids) AS candidate_ids(memory_id)
+    WHERE candidate_ids.memory_id = status_ids.memory_id
+  )
+  LIMIT 1;
+  IF extra_status_id IS NOT NULL THEN
+    RAISE EXCEPTION 'candidate status evidence must not include non-candidates: %', extra_status_id;
+  END IF;
+
   SELECT used_ids.memory_id INTO overlapping_id
   FROM jsonb_array_elements_text(NEW.used_memory_ids) AS used_ids(memory_id)
   JOIN jsonb_array_elements_text(NEW.blocked_memory_ids) AS blocked_ids(memory_id)
@@ -338,7 +364,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER memory_usage_decisions_require_known_memory_ids
-BEFORE INSERT OR UPDATE OF candidate_memory_ids, used_memory_ids, blocked_memory_ids
+BEFORE INSERT OR UPDATE OF candidate_memory_ids, used_memory_ids, blocked_memory_ids, candidate_memory_statuses
 ON memory_usage_decisions
 FOR EACH ROW EXECUTE FUNCTION require_known_usage_memory_ids();
 

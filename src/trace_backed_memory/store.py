@@ -115,7 +115,7 @@ class TraceBackedMemoryStore:
 
     @classmethod
     def from_snapshot(cls, data: Mapping[str, Any]) -> "TraceBackedMemoryStore":
-        _validate_snapshot_envelope(data)
+        is_v2 = _validate_snapshot_envelope(data)
         store = cls()
         for trace_data in _snapshot_records(data, "traces"):
             store.record_trace(Trace(**trace_data))
@@ -126,9 +126,14 @@ class TraceBackedMemoryStore:
         for policy_data in _snapshot_records(data, "project_policies"):
             store.add_project_policy(ProjectPolicy(**policy_data))
         for log_data in _snapshot_records(data, "usage_logs"):
+            if is_v2:
+                _validate_v2_usage_log_record(log_data)
+            else:
+                log_data = store._migrate_legacy_usage_log(log_data)
             log = MemoryUsageLog(**log_data)
             _validate_usage_log(log)
             store._validate_usage_log_memory_ids(log)
+            store._validate_usage_log_trace(log)
             if any(existing.decision_id == log.decision_id for existing in store._usage_logs):
                 raise ValueError(f"duplicate usage log decision_id: {log.decision_id}")
             store._usage_logs.append(deepcopy(log))
@@ -578,6 +583,71 @@ class TraceBackedMemoryStore:
         if unknown_ids:
             raise ValueError(f"usage log references unknown memory IDs: {', '.join(unknown_ids)}")
 
+    def _validate_usage_log_trace(self, log: MemoryUsageLog) -> None:
+        if not isinstance(log.trace_id, str) or not log.trace_id:
+            raise ValueError("usage log records require trace_id")
+        trace = self._traces.get(log.trace_id)
+        if trace is None:
+            raise ValueError(f"unknown trace_id: {log.trace_id}")
+        if log.run_id != trace.run_id:
+            raise ValueError(
+                f"usage log run_id does not match trace: {log.trace_id}"
+            )
+        if trace.repo is None:
+            raise ValueError(
+                f"usage log trace repo is required for context evidence: {log.trace_id}"
+            )
+
+        expected_context = {
+            "mode": log.mode,
+            "repo": trace.repo,
+            "commit_sha": trace.commit_sha,
+        }
+        if trace.tenant is not None:
+            expected_context["tenant"] = trace.tenant
+
+        for field_name, expected_value in expected_context.items():
+            if log.context.get(field_name) != expected_value:
+                raise ValueError(
+                    f"usage log context {field_name} does not match trace or mode: {log.trace_id}"
+                )
+        if trace.tenant is None and "tenant" in log.context:
+            raise ValueError(
+                f"usage log context tenant does not match trace or mode: {log.trace_id}"
+            )
+
+    def _migrate_legacy_usage_log(self, log_data: dict[str, Any]) -> dict[str, Any]:
+        legacy_log = MemoryUsageLog(**log_data)
+        _validate_memory_id_list(
+            legacy_log.candidate_memory_ids, "candidate_memory_ids"
+        )
+        trace = self._trace_for_run_id(legacy_log.run_id)
+        if trace.repo is None:
+            raise ValueError(
+                f"legacy usage log trace repo is required for context evidence: {trace.trace_id}"
+            )
+        candidates = self._memory_items(legacy_log.candidate_memory_ids)
+        context = {
+            "mode": legacy_log.mode,
+            "repo": trace.repo,
+            "commit_sha": trace.commit_sha,
+        }
+        if trace.tenant is not None:
+            context["tenant"] = trace.tenant
+
+        migrated = dict(log_data)
+        migrated.update(
+            {
+                "trace_id": trace.trace_id,
+                "context": context,
+                "candidate_memory_statuses": {
+                    memory.memory_id: memory.status for memory in candidates
+                },
+                "system_blocked_reasons": {},
+            }
+        )
+        return migrated
+
     def metrics(self) -> MemoryMetrics:
         candidate_memory_count = sum(len(log.candidate_memory_ids) for log in self._usage_logs)
         used_memory_count = sum(len(log.used_memory_ids) for log in self._usage_logs)
@@ -689,14 +759,29 @@ def _snapshot_records(data: Mapping[str, Any], key: str) -> list[dict[str, Any]]
     return [dict(record) for record in value]
 
 
-def _validate_snapshot_envelope(data: Mapping[str, Any]) -> None:
+def _validate_snapshot_envelope(data: Mapping[str, Any]) -> bool:
     keys = set(data)
     if keys == SNAPSHOT_COLLECTION_KEYS:
-        return
+        return False
     if keys != SNAPSHOT_V2_KEYS:
         raise ValueError("snapshot envelope must be exact legacy v1 or version 2")
     if type(data["snapshot_version"]) is not int or data["snapshot_version"] != SNAPSHOT_VERSION:
         raise ValueError("snapshot envelope requires snapshot_version 2")
+    return True
+
+
+def _validate_v2_usage_log_record(log_data: dict[str, Any]) -> None:
+    required_audit_fields = {
+        "trace_id",
+        "context",
+        "candidate_memory_statuses",
+        "system_blocked_reasons",
+    }
+    missing_fields = sorted(required_audit_fields.difference(log_data))
+    if missing_fields:
+        raise ValueError(
+            "v2 usage log requires audit fields: " + ", ".join(missing_fields)
+        )
 
 
 def _next_decision_id(logs: list[MemoryUsageLog]) -> str:
@@ -867,11 +952,13 @@ def _validate_status_mapping(value: Any, candidate_memory_ids: list[str]) -> Non
         for memory_id, status in value.items()
     ):
         raise ValueError("usage log candidate_memory_statuses contains an invalid status")
-    unknown_statuses = sorted(set(value).difference(candidate_memory_ids))
-    if unknown_statuses:
+    if set(value) != set(candidate_memory_ids):
+        missing_statuses = sorted(set(candidate_memory_ids).difference(value))
+        extra_statuses = sorted(set(value).difference(candidate_memory_ids))
         raise ValueError(
-            "usage log candidate_memory_statuses must reference candidates: "
-            + ", ".join(unknown_statuses)
+            "usage log candidate_memory_statuses must match candidates"
+            + (f"; missing: {', '.join(missing_statuses)}" if missing_statuses else "")
+            + (f"; extra: {', '.join(extra_statuses)}" if extra_statuses else "")
         )
 
 

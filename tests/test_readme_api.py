@@ -111,7 +111,7 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
         lesson_id="lesson_001",
         lesson_text="When calling search_docs, always provide a non-empty query.",
         memory_type="procedural",
-        scope={"tenant": "tenant_a", "tool": "search_docs"},
+        scope={"repo": "agent-harness", "tenant": "tenant_a", "tool": "search_docs"},
     )
     store.add_lesson(lesson)
 

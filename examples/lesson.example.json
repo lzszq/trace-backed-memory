@@ -4,6 +4,7 @@
   "memory_type": "procedural",
   "lesson_text": "When calling search_docs, always provide a non-empty natural-language query. Never pass null or an empty string.",
   "scope": {
+    "repo": "agent-harness",
     "tenant": "tenant_a",
     "tool": "search_docs",
     "prompt_family": "planner",

@@ -3,8 +3,12 @@
   "$id": "memory_store_snapshot.schema.json",
   "title": "MemoryStoreSnapshot",
   "type": "object",
-  "required": ["traces", "failure_cases", "lessons", "project_policies", "usage_logs"],
+  "required": ["snapshot_version", "traces", "failure_cases", "lessons", "project_policies", "usage_logs"],
   "properties": {
+    "snapshot_version": {
+      "type": "integer",
+      "const": 2
+    },
     "traces": {
       "type": "array",
       "items": {"$ref": "trace.schema.json"}

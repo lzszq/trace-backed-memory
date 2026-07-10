@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import asdict, replace
@@ -45,7 +47,7 @@ from .policy import (
     system_gate,
 )
 
-Snapshot = dict[str, list[dict[str, Any]]]
+Snapshot = dict[str, Any]
 EVAL_RESULTS = {"pass", "fail", "error", "unknown"}
 FAILURE_CASE_STATUSES = {"draft", "verified", "obsolete"}
 LESSON_STATUSES = {"active", "obsolete"}
@@ -53,6 +55,11 @@ MEMORY_TYPES = {"procedural", "semantic", "episodic", "policy"}
 MODES = {"debug", "repair", "regression", "planning", "eval", "production"}
 DECISION_RISKS = {"none", "low", "medium", "high"}
 RECOMMENDED_INJECTIONS = {"none", "short_summary", "full_case_summary", "pointer_only"}
+SNAPSHOT_VERSION = 2
+SNAPSHOT_COLLECTION_KEYS = frozenset(
+    {"traces", "failure_cases", "lessons", "project_policies", "usage_logs"}
+)
+SNAPSHOT_V2_KEYS = SNAPSHOT_COLLECTION_KEYS.union({"snapshot_version"})
 
 
 class TraceBackedMemoryStore:
@@ -91,15 +98,24 @@ class TraceBackedMemoryStore:
 
     def to_snapshot(self) -> Snapshot:
         return {
-            "traces": [asdict(trace) for trace in self._traces.values()],
-            "failure_cases": [asdict(case) for case in self._failure_cases.values()],
-            "lessons": [asdict(lesson) for lesson in self._lessons.values()],
-            "project_policies": [asdict(policy) for policy in self._project_policies.values()],
-            "usage_logs": [asdict(log) for log in self._usage_logs],
+            "snapshot_version": SNAPSHOT_VERSION,
+            "traces": [asdict(self._traces[trace_id]) for trace_id in sorted(self._traces)],
+            "failure_cases": [
+                asdict(self._failure_cases[case_id]) for case_id in sorted(self._failure_cases)
+            ],
+            "lessons": [asdict(self._lessons[lesson_id]) for lesson_id in sorted(self._lessons)],
+            "project_policies": [
+                asdict(self._project_policies[policy_id])
+                for policy_id in sorted(self._project_policies)
+            ],
+            "usage_logs": [
+                asdict(log) for log in sorted(self._usage_logs, key=lambda log: log.decision_id)
+            ],
         }
 
     @classmethod
     def from_snapshot(cls, data: Mapping[str, Any]) -> "TraceBackedMemoryStore":
+        _validate_snapshot_envelope(data)
         store = cls()
         for trace_data in _snapshot_records(data, "traces"):
             store.record_trace(Trace(**trace_data))
@@ -119,10 +135,29 @@ class TraceBackedMemoryStore:
         return store
 
     def save_json(self, path: str | Path) -> None:
-        Path(path).write_text(
-            json.dumps(self.to_snapshot(), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        target = Path(path)
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                delete=False,
+                dir=target.parent,
+                prefix=f".{target.name}.",
+                suffix=".tmp",
+            ) as temporary_file:
+                temp_path = Path(temporary_file.name)
+                json.dump(self.to_snapshot(), temporary_file, indent=2, sort_keys=True)
+                temporary_file.write("\n")
+                temporary_file.flush()
+            os.replace(temp_path, target)
+        except BaseException:
+            if temp_path is not None:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            raise
 
     @classmethod
     def load_json(cls, path: str | Path) -> "TraceBackedMemoryStore":
@@ -646,12 +681,22 @@ def _validate_trace_context(trace: Trace, context: MemoryContext) -> None:
 
 
 def _snapshot_records(data: Mapping[str, Any], key: str) -> list[dict[str, Any]]:
-    value = data.get(key, [])
+    value = data[key]
     if not isinstance(value, list):
         raise ValueError(f"snapshot field {key!r} must be a list")
     if any(not isinstance(record, dict) for record in value):
         raise ValueError(f"snapshot field {key!r} must contain JSON objects")
     return [dict(record) for record in value]
+
+
+def _validate_snapshot_envelope(data: Mapping[str, Any]) -> None:
+    keys = set(data)
+    if keys == SNAPSHOT_COLLECTION_KEYS:
+        return
+    if keys != SNAPSHOT_V2_KEYS:
+        raise ValueError("snapshot envelope must be exact legacy v1 or version 2")
+    if type(data["snapshot_version"]) is not int or data["snapshot_version"] != SNAPSHOT_VERSION:
+        raise ValueError("snapshot envelope requires snapshot_version 2")
 
 
 def _next_decision_id(logs: list[MemoryUsageLog]) -> str:

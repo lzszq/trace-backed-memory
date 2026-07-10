@@ -144,7 +144,7 @@ def test_stored_record_json_schemas_exist_are_draft_2020_12_and_cover_dataclass_
             assert _schema_enum_values(properties[field_name]) == expected_values
 
 
-def test_memory_store_snapshot_schema_includes_arrays_for_all_record_collections():
+def test_memory_store_snapshot_schema_requires_versioned_record_collections():
     schema = _json_schema("memory_store_snapshot.schema.json")
     properties = _schema_properties(schema)
     expected_arrays = {
@@ -157,7 +157,9 @@ def test_memory_store_snapshot_schema_includes_arrays_for_all_record_collections
 
     assert schema.get("$schema") == DRAFT_2020_12
     assert schema.get("type") == "object"
-    assert set(schema.get("required", [])) == set(expected_arrays)
+    assert set(schema.get("required", [])) == {"snapshot_version", *expected_arrays}
+    assert properties["snapshot_version"] == {"type": "integer", "const": 2}
+    assert schema.get("additionalProperties") is False
 
     for field_name, schema_ref in expected_arrays.items():
         collection_schema = properties[field_name]

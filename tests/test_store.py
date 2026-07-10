@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -53,6 +54,21 @@ def store_with_verified_case(
     )
     store.add_failure_case(case)
     return store, trace, case
+
+
+def store_with_records_in_order(trace_ids: list[str]) -> TraceBackedMemoryStore:
+    store = TraceBackedMemoryStore()
+    for trace_id in trace_ids:
+        store.record_trace(
+            Trace(
+                trace_id=trace_id,
+                run_id=f"run_{trace_id}",
+                commit_sha=f"commit_{trace_id}",
+                repo="repo",
+                eval_result="unknown",
+            )
+        )
+    return store
 
 
 def store_with_active_lesson() -> tuple[
@@ -517,6 +533,91 @@ def valid_snapshot_dict() -> dict[str, object]:
         )
     )
     return store.to_snapshot()
+
+
+def test_snapshot_v2_has_exact_versioned_envelope():
+    snapshot = TraceBackedMemoryStore().to_snapshot()
+
+    assert snapshot == {
+        "snapshot_version": 2,
+        "traces": [],
+        "failure_cases": [],
+        "lessons": [],
+        "project_policies": [],
+        "usage_logs": [],
+    }
+
+
+@pytest.mark.parametrize("payload", [{}, {"unknown": []}, {"snapshot_version": 2}])
+def test_snapshot_rejects_truncated_or_unknown_envelopes(payload):
+    with pytest.raises(ValueError, match="snapshot envelope"):
+        TraceBackedMemoryStore.from_snapshot(payload)
+
+
+@pytest.mark.parametrize("snapshot_version", [True, 2.0, 3])
+def test_snapshot_rejects_unsupported_version_values(snapshot_version):
+    payload = TraceBackedMemoryStore().to_snapshot()
+    payload["snapshot_version"] = snapshot_version
+
+    with pytest.raises(ValueError, match="snapshot envelope"):
+        TraceBackedMemoryStore.from_snapshot(payload)
+
+
+def test_exact_legacy_snapshot_is_migrated():
+    legacy = {
+        "traces": [],
+        "failure_cases": [],
+        "lessons": [],
+        "project_policies": [],
+        "usage_logs": [],
+    }
+
+    assert TraceBackedMemoryStore.from_snapshot(legacy).to_snapshot()["snapshot_version"] == 2
+
+
+def test_equivalent_stores_emit_identical_snapshot_json(tmp_path):
+    first = store_with_records_in_order(["trace_b", "trace_a"])
+    second = store_with_records_in_order(["trace_a", "trace_b"])
+    first_path = tmp_path / "first.json"
+    second_path = tmp_path / "second.json"
+
+    first.save_json(first_path)
+    second.save_json(second_path)
+
+    assert first_path.read_bytes() == second_path.read_bytes()
+
+
+def test_save_json_uses_sibling_replace(monkeypatch, tmp_path):
+    calls = []
+    real_replace = os.replace
+
+    def recording_replace(source, target):
+        calls.append((Path(source), Path(target)))
+        real_replace(source, target)
+
+    monkeypatch.setattr(os, "replace", recording_replace)
+    target = tmp_path / "snapshot.json"
+
+    TraceBackedMemoryStore().save_json(target)
+
+    assert calls[0][1] == target
+    assert calls[0][0].parent == target.parent
+
+
+def test_save_json_cleans_temporary_sibling_when_replace_fails(monkeypatch, tmp_path):
+    target = tmp_path / "snapshot.json"
+    target.write_text("existing snapshot\n", encoding="utf-8")
+
+    def failing_replace(_source, _target):
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(os, "replace", failing_replace)
+
+    with pytest.raises(OSError, match="replace failed"):
+        TraceBackedMemoryStore().save_json(target)
+
+    assert target.read_text(encoding="utf-8") == "existing snapshot\n"
+    assert list(tmp_path.glob(".snapshot.json.*.tmp")) == []
 
 
 def test_snapshot_rejects_string_boolean_safety_fields():
@@ -2674,6 +2775,7 @@ def test_store_json_snapshot_rejects_lessons_without_stored_source_cases(tmp_pat
               "scope": {"tool": "search_docs"}
             }
           ],
+          "project_policies": [],
           "usage_logs": []
         }
         """,
@@ -2704,6 +2806,7 @@ def test_store_json_snapshot_rejects_failure_case_without_stored_source_trace(tm
             }
           ],
           "lessons": [],
+          "project_policies": [],
           "usage_logs": []
         }
         """,

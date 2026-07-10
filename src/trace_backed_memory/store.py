@@ -3,15 +3,22 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import asdict
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from .lifecycle import (
     memory_item_from_failure_case,
     memory_item_from_lesson,
     memory_item_from_project_policy,
+    obsolete_failure_case as transition_failure_case_to_obsolete,
+    obsolete_lesson as transition_lesson_to_obsolete,
+    obsolete_project_policy as transition_project_policy_to_obsolete,
+    review_failure_case as transition_review_failure_case,
     validate_lesson_contract,
+    verify_failure_case as transition_verify_failure_case,
 )
 from .models import (
     EvalResult,
@@ -42,19 +49,39 @@ class TraceBackedMemoryStore:
     """Small in-memory MVP store for trace-backed memory workflows."""
 
     def __init__(self) -> None:
-        self.traces: dict[str, Trace] = {}
-        self.failure_cases: dict[str, FailureCase] = {}
-        self.lessons: dict[str, Lesson] = {}
-        self.project_policies: dict[str, ProjectPolicy] = {}
-        self.usage_logs: list[MemoryUsageLog] = []
+        self._traces: dict[str, Trace] = {}
+        self._failure_cases: dict[str, FailureCase] = {}
+        self._lessons: dict[str, Lesson] = {}
+        self._project_policies: dict[str, ProjectPolicy] = {}
+        self._usage_logs: list[MemoryUsageLog] = []
+
+    @property
+    def traces(self) -> Mapping[str, Trace]:
+        return MappingProxyType(deepcopy(self._traces))
+
+    @property
+    def failure_cases(self) -> Mapping[str, FailureCase]:
+        return MappingProxyType(deepcopy(self._failure_cases))
+
+    @property
+    def lessons(self) -> Mapping[str, Lesson]:
+        return MappingProxyType(deepcopy(self._lessons))
+
+    @property
+    def project_policies(self) -> Mapping[str, ProjectPolicy]:
+        return MappingProxyType(deepcopy(self._project_policies))
+
+    @property
+    def usage_logs(self) -> list[MemoryUsageLog]:
+        return deepcopy(self._usage_logs)
 
     def to_snapshot(self) -> Snapshot:
         return {
-            "traces": [asdict(trace) for trace in self.traces.values()],
-            "failure_cases": [asdict(case) for case in self.failure_cases.values()],
-            "lessons": [asdict(lesson) for lesson in self.lessons.values()],
-            "project_policies": [asdict(policy) for policy in self.project_policies.values()],
-            "usage_logs": [asdict(log) for log in self.usage_logs],
+            "traces": [asdict(trace) for trace in self._traces.values()],
+            "failure_cases": [asdict(case) for case in self._failure_cases.values()],
+            "lessons": [asdict(lesson) for lesson in self._lessons.values()],
+            "project_policies": [asdict(policy) for policy in self._project_policies.values()],
+            "usage_logs": [asdict(log) for log in self._usage_logs],
         }
 
     @classmethod
@@ -72,9 +99,9 @@ class TraceBackedMemoryStore:
             log = MemoryUsageLog(**log_data)
             _validate_usage_log(log)
             store._validate_usage_log_memory_ids(log)
-            if any(existing.decision_id == log.decision_id for existing in store.usage_logs):
+            if any(existing.decision_id == log.decision_id for existing in store._usage_logs):
                 raise ValueError(f"duplicate usage log decision_id: {log.decision_id}")
-            store.usage_logs.append(log)
+            store._usage_logs.append(deepcopy(log))
         return store
 
     def save_json(self, path: str | Path) -> None:
@@ -91,7 +118,7 @@ class TraceBackedMemoryStore:
         return cls.from_snapshot(data)
 
     def save_lessons_yaml(self, path: str | Path) -> None:
-        active_lessons = [lesson for lesson in self.lessons.values() if lesson.status == "active"]
+        active_lessons = [lesson for lesson in self._lessons.values() if lesson.status == "active"]
         Path(path).write_text(_lessons_to_yaml(active_lessons), encoding="utf-8")
 
     def load_lessons_yaml(self, path: str | Path) -> list[Lesson]:
@@ -99,81 +126,196 @@ class TraceBackedMemoryStore:
         return [self.add_lesson(Lesson(**record)) for record in lesson_records]
 
     def record_trace(self, trace: Trace) -> Trace:
-        _validate_trace(trace)
-        if trace.trace_id in self.traces:
-            raise ValueError(f"duplicate trace_id: {trace.trace_id}")
-        self.traces[trace.trace_id] = trace
-        return trace
+        stored_trace = deepcopy(trace)
+        _validate_trace(stored_trace)
+        if stored_trace.trace_id in self._traces:
+            raise ValueError(f"duplicate trace_id: {stored_trace.trace_id}")
+        self._traces[stored_trace.trace_id] = stored_trace
+        return deepcopy(stored_trace)
 
     def add_failure_case(self, case: FailureCase) -> FailureCase:
-        _validate_failure_case(case)
-        if case.case_id in self.failure_cases:
-            raise ValueError(f"duplicate case_id: {case.case_id}")
-        if case.case_id in self.lessons or case.case_id in self.project_policies:
-            raise ValueError(f"duplicate memory_id across memory types: {case.case_id}")
-        source_trace = self.traces.get(case.source_trace_id)
+        stored_case = deepcopy(case)
+        _validate_failure_case(stored_case)
+        if stored_case.case_id in self._failure_cases:
+            raise ValueError(f"duplicate case_id: {stored_case.case_id}")
+        if stored_case.case_id in self._lessons or stored_case.case_id in self._project_policies:
+            raise ValueError(f"duplicate memory_id across memory types: {stored_case.case_id}")
+        source_trace = self._traces.get(stored_case.source_trace_id)
         if source_trace is None:
-            raise ValueError(f"missing source_trace_id: {case.source_trace_id}")
-        if case.commit_sha != source_trace.commit_sha:
-            raise ValueError(f"failure case commit_sha does not match source trace: {case.case_id}")
-        self.failure_cases[case.case_id] = case
-        return case
+            raise ValueError(f"missing source_trace_id: {stored_case.source_trace_id}")
+        if stored_case.commit_sha != source_trace.commit_sha:
+            raise ValueError(
+                f"failure case commit_sha does not match source trace: {stored_case.case_id}"
+            )
+        self._failure_cases[stored_case.case_id] = stored_case
+        return deepcopy(stored_case)
+
+    def review_failure_case(
+        self,
+        case_id: str,
+        *,
+        reviewed_by: str,
+        root_cause: str,
+        failure_type: str | None = None,
+        symptom: str | None = None,
+        review_notes: str | None = None,
+        reviewed_at: str | None = None,
+    ) -> FailureCase:
+        reviewed = transition_review_failure_case(
+            self._failure_cases[case_id],
+            reviewed_by=reviewed_by,
+            root_cause=root_cause,
+            failure_type=failure_type,
+            symptom=symptom,
+            review_notes=review_notes,
+            reviewed_at=reviewed_at,
+        )
+        _validate_failure_case(reviewed)
+        self._failure_cases[case_id] = reviewed
+        return deepcopy(reviewed)
+
+    def verify_failure_case(
+        self,
+        case_id: str,
+        *,
+        fix: str,
+        fix_commit_sha: str,
+        regression_passed: bool,
+    ) -> FailureCase:
+        verified = transition_verify_failure_case(
+            self._failure_cases[case_id],
+            fix=fix,
+            fix_commit_sha=fix_commit_sha,
+            regression_passed=regression_passed,
+        )
+        _validate_failure_case(verified)
+        self._failure_cases[case_id] = verified
+        return deepcopy(verified)
+
+    def obsolete_failure_case(self, case_id: str) -> FailureCase:
+        current = self._failure_cases[case_id]
+        if current.status == "obsolete":
+            return deepcopy(current)
+
+        obsolete_case = transition_failure_case_to_obsolete(current)
+        obsolete_lessons = {
+            lesson_id: transition_lesson_to_obsolete(lesson)
+            for lesson_id, lesson in self._lessons.items()
+            if lesson.source_case_id == case_id and lesson.status == "active"
+        }
+        _validate_failure_case(obsolete_case)
+        for lesson in obsolete_lessons.values():
+            _validate_lesson_record(lesson)
+            validate_lesson_contract(
+                lesson_text=lesson.lesson_text,
+                scope=lesson.scope,
+                confidence=lesson.confidence,
+            )
+
+        self._failure_cases[case_id] = obsolete_case
+        self._lessons.update(obsolete_lessons)
+        return deepcopy(obsolete_case)
 
     def add_lesson(self, lesson: Lesson) -> Lesson:
-        _validate_lesson_record(lesson)
-        if lesson.lesson_id in self.lessons:
-            raise ValueError(f"duplicate lesson_id: {lesson.lesson_id}")
-        if lesson.lesson_id in self.failure_cases or lesson.lesson_id in self.project_policies:
-            raise ValueError(f"duplicate memory_id across memory types: {lesson.lesson_id}")
+        stored_lesson = deepcopy(lesson)
+        _validate_lesson_record(stored_lesson)
+        if stored_lesson.lesson_id in self._lessons:
+            raise ValueError(f"duplicate lesson_id: {stored_lesson.lesson_id}")
+        if (
+            stored_lesson.lesson_id in self._failure_cases
+            or stored_lesson.lesson_id in self._project_policies
+        ):
+            raise ValueError(
+                f"duplicate memory_id across memory types: {stored_lesson.lesson_id}"
+            )
         validate_lesson_contract(
-            lesson_text=lesson.lesson_text,
-            scope=lesson.scope,
-            confidence=lesson.confidence,
+            lesson_text=stored_lesson.lesson_text,
+            scope=stored_lesson.scope,
+            confidence=stored_lesson.confidence,
         )
-        source_case = self.failure_cases.get(lesson.source_case_id)
+        source_case = self._failure_cases.get(stored_lesson.source_case_id)
         if source_case is None:
-            raise ValueError(f"missing source_case_id: {lesson.source_case_id}")
-        if source_case.status != "verified" or not source_case.regression_passed:
-            raise ValueError(f"lesson requires verified source case: {lesson.source_case_id}")
-        source_trace = self.traces.get(source_case.source_trace_id)
+            raise ValueError(f"missing source_case_id: {stored_lesson.source_case_id}")
+        if (
+            source_case.status == "draft"
+            or not source_case.regression_passed
+            or (stored_lesson.status == "active" and source_case.status != "verified")
+        ):
+            raise ValueError(
+                f"lesson requires verified source case: {stored_lesson.source_case_id}"
+            )
+        source_trace = self._traces.get(source_case.source_trace_id)
         if source_trace is None:
             raise ValueError(f"missing source_trace_id: {source_case.source_trace_id}")
         for field_name in ("repo", "tenant"):
             source_value = getattr(source_trace, field_name)
-            if source_value is not None and lesson.scope.get(field_name) != source_value:
+            if source_value is not None and stored_lesson.scope.get(field_name) != source_value:
                 raise ValueError(
                     f"lesson scope must preserve source {field_name}: {source_value}"
                 )
-        self.lessons[lesson.lesson_id] = lesson
-        return lesson
+        self._lessons[stored_lesson.lesson_id] = stored_lesson
+        return deepcopy(stored_lesson)
+
+    def obsolete_lesson(self, lesson_id: str) -> Lesson:
+        current = self._lessons[lesson_id]
+        if current.status == "obsolete":
+            return deepcopy(current)
+
+        obsolete = transition_lesson_to_obsolete(current)
+        _validate_lesson_record(obsolete)
+        validate_lesson_contract(
+            lesson_text=obsolete.lesson_text,
+            scope=obsolete.scope,
+            confidence=obsolete.confidence,
+        )
+        self._lessons[lesson_id] = obsolete
+        return deepcopy(obsolete)
 
     def add_project_policy(self, policy: ProjectPolicy) -> ProjectPolicy:
-        _validate_project_policy(policy)
-        if policy.policy_id in self.project_policies:
-            raise ValueError(f"duplicate policy_id: {policy.policy_id}")
-        if policy.policy_id in self.failure_cases or policy.policy_id in self.lessons:
-            raise ValueError(f"duplicate memory_id across memory types: {policy.policy_id}")
+        stored_policy = deepcopy(policy)
+        _validate_project_policy(stored_policy)
+        if stored_policy.policy_id in self._project_policies:
+            raise ValueError(f"duplicate policy_id: {stored_policy.policy_id}")
+        if stored_policy.policy_id in self._failure_cases or stored_policy.policy_id in self._lessons:
+            raise ValueError(
+                f"duplicate memory_id across memory types: {stored_policy.policy_id}"
+            )
         validate_lesson_contract(
-            lesson_text=policy.policy_text,
-            scope=policy.scope,
-            confidence=policy.confidence,
+            lesson_text=stored_policy.policy_text,
+            scope=stored_policy.scope,
+            confidence=stored_policy.confidence,
         )
-        self.project_policies[policy.policy_id] = policy
-        return policy
+        self._project_policies[stored_policy.policy_id] = stored_policy
+        return deepcopy(stored_policy)
+
+    def obsolete_project_policy(self, policy_id: str) -> ProjectPolicy:
+        current = self._project_policies[policy_id]
+        if current.status == "obsolete":
+            return deepcopy(current)
+
+        obsolete = transition_project_policy_to_obsolete(current)
+        _validate_project_policy(obsolete)
+        validate_lesson_contract(
+            lesson_text=obsolete.policy_text,
+            scope=obsolete.scope,
+            confidence=obsolete.confidence,
+        )
+        self._project_policies[policy_id] = obsolete
+        return deepcopy(obsolete)
 
     def candidate_memories(self, context: MemoryContext, *, query: str | None = None) -> list[MemoryItem]:
         context_values = _context_values(context)
         candidates: list[MemoryItem] = []
 
-        for lesson in self.lessons.values():
+        for lesson in self._lessons.values():
             if _has_metadata_match(lesson.scope, context_values):
                 candidates.append(memory_item_from_lesson(lesson))
-        for policy in self.project_policies.values():
+        for policy in self._project_policies.values():
             if _has_metadata_match(policy.scope, context_values):
                 candidates.append(memory_item_from_project_policy(policy))
         if context.mode in {"debug", "repair"}:
-            for case in self.failure_cases.values():
-                trace = self.traces.get(case.source_trace_id)
+            for case in self._failure_cases.values():
+                trace = self._traces.get(case.source_trace_id)
                 if trace is None or case.status != "verified" or not case.regression_passed:
                     continue
                 memory = memory_item_from_failure_case(case, trace)
@@ -205,7 +347,7 @@ class TraceBackedMemoryStore:
     ) -> MemoryUsageLog:
         used_memory_ids = list(decision.allowed_memory_ids if decision.use_memory else [])
         log = MemoryUsageLog(
-            decision_id=_next_decision_id(self.usage_logs),
+            decision_id=_next_decision_id(self._usage_logs),
             run_id=run_id,
             mode=context.mode,
             candidate_memory_ids=list(candidate_memory_ids),
@@ -219,39 +361,54 @@ class TraceBackedMemoryStore:
         )
         _validate_usage_log(log)
         self._validate_usage_log_memory_ids(log)
-        if any(existing.decision_id == log.decision_id for existing in self.usage_logs):
+        if any(existing.decision_id == log.decision_id for existing in self._usage_logs):
             raise ValueError(f"duplicate usage log decision_id: {log.decision_id}")
-        self.usage_logs.append(log)
-        return log
+        self._usage_logs.append(log)
+        return deepcopy(log)
 
     def _validate_usage_log_memory_ids(self, log: MemoryUsageLog) -> None:
-        known_memory_ids = set(self.failure_cases).union(self.lessons, self.project_policies)
+        known_memory_ids = set(self._failure_cases).union(
+            self._lessons, self._project_policies
+        )
         referenced_ids = set(log.candidate_memory_ids).union(log.used_memory_ids, log.blocked_memory_ids)
         unknown_ids = sorted(referenced_ids.difference(known_memory_ids))
         if unknown_ids:
             raise ValueError(f"usage log references unknown memory IDs: {', '.join(unknown_ids)}")
 
     def metrics(self) -> MemoryMetrics:
-        candidate_memory_count = sum(len(log.candidate_memory_ids) for log in self.usage_logs)
-        used_memory_count = sum(len(log.used_memory_ids) for log in self.usage_logs)
-        blocked_memory_count = sum(len(log.blocked_memory_ids) for log in self.usage_logs)
+        candidate_memory_count = sum(len(log.candidate_memory_ids) for log in self._usage_logs)
+        used_memory_count = sum(len(log.used_memory_ids) for log in self._usage_logs)
+        blocked_memory_count = sum(len(log.blocked_memory_ids) for log in self._usage_logs)
         obsolete_attempts = sum(
             1
-            for log in self.usage_logs
+            for log in self._usage_logs
             for memory_id in log.candidate_memory_ids
-            if _is_obsolete_memory(memory_id, self.failure_cases, self.lessons, self.project_policies)
+            if _is_obsolete_memory(
+                memory_id,
+                self._failure_cases,
+                self._lessons,
+                self._project_policies,
+            )
         )
         average_confidence = 0.0
-        if self.lessons:
-            average_confidence = sum(lesson.confidence for lesson in self.lessons.values()) / len(self.lessons)
+        if self._lessons:
+            average_confidence = sum(
+                lesson.confidence for lesson in self._lessons.values()
+            ) / len(self._lessons)
 
-        with_memory_results = [log.eval_result for log in self.usage_logs if log.used_memory_ids and log.eval_result]
+        with_memory_results = [
+            log.eval_result
+            for log in self._usage_logs
+            if log.used_memory_ids and log.eval_result
+        ]
         without_memory_results = [
-            log.eval_result for log in self.usage_logs if not log.used_memory_ids and log.eval_result
+            log.eval_result
+            for log in self._usage_logs
+            if not log.used_memory_ids and log.eval_result
         ]
 
         return MemoryMetrics(
-            decision_count=len(self.usage_logs),
+            decision_count=len(self._usage_logs),
             candidate_memory_count=candidate_memory_count,
             used_memory_count=used_memory_count,
             blocked_memory_count=blocked_memory_count,
@@ -259,13 +416,15 @@ class TraceBackedMemoryStore:
             average_lesson_confidence=average_confidence,
             pass_rate_with_memory=_pass_rate(with_memory_results),
             pass_rate_without_memory=_pass_rate(without_memory_results),
-            wrong_memory_failure_count=sum(1 for log in self.usage_logs if log.memory_caused_failure),
+            wrong_memory_failure_count=sum(
+                1 for log in self._usage_logs if log.memory_caused_failure
+            ),
         )
 
     def pr_memory_report(self, context: MemoryContext, *, changed_fields: list[str]) -> PRMemoryReport:
         related_case_records: list[tuple[FailureCase, Trace]] = []
-        for case in self.failure_cases.values():
-            trace = self.traces.get(case.source_trace_id)
+        for case in self._failure_cases.values():
+            trace = self._traces.get(case.source_trace_id)
             if trace and _case_matches_context(case, trace, context):
                 related_case_records.append((case, trace))
 

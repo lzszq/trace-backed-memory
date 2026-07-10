@@ -54,6 +54,205 @@ def store_with_verified_case(
     return store, trace, case
 
 
+def store_with_active_lesson() -> tuple[
+    TraceBackedMemoryStore, Trace, FailureCase, Lesson
+]:
+    store, trace, case = store_with_verified_case()
+    lesson = lesson_from_failure_case(
+        case,
+        lesson_id="lesson_001",
+        lesson_text="Always pass a non-empty query to search_docs.",
+        memory_type="procedural",
+        scope={"repo": "repo", "tenant": "tenant_a", "tool": "search_docs"},
+    )
+    store.add_lesson(lesson)
+    return store, trace, case, lesson
+
+
+def test_store_can_review_and_verify_a_persisted_draft():
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc",
+            repo="repo",
+            tenant="tenant_a",
+            eval_result="fail",
+        )
+    )
+    store.add_failure_case(
+        draft_failure_case(
+            trace,
+            case_id="case_001",
+            failure_type="bad_tool",
+            symptom="bad call",
+        )
+    )
+
+    reviewed = store.review_failure_case(
+        "case_001", reviewed_by="reviewer", root_cause="missing contract"
+    )
+    verified = store.verify_failure_case(
+        "case_001",
+        fix="add contract",
+        fix_commit_sha="def",
+        regression_passed=True,
+    )
+
+    assert reviewed.reviewed_by == "reviewer"
+    assert verified.status == "verified"
+    assert store.failure_cases["case_001"] == verified
+
+
+@pytest.mark.parametrize("invalid_boolean", ["true", 1])
+def test_store_verify_rejects_non_boolean_regression_result(invalid_boolean: object):
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc",
+            eval_result="fail",
+        )
+    )
+    store.add_failure_case(
+        draft_failure_case(
+            trace,
+            case_id="case_001",
+            failure_type="bad_tool",
+            symptom="bad call",
+        )
+    )
+
+    with pytest.raises(ValueError, match="passing regression"):
+        store.verify_failure_case(
+            "case_001",
+            fix="add contract",
+            fix_commit_sha="def",
+            regression_passed=invalid_boolean,  # type: ignore[arg-type]
+        )
+
+
+def test_obsoleting_source_case_cascades_to_active_lessons():
+    store, _trace, case, lesson = store_with_active_lesson()
+
+    obsolete = store.obsolete_failure_case(case.case_id)
+
+    assert obsolete.status == "obsolete"
+    assert store.lessons[lesson.lesson_id].status == "obsolete"
+
+
+def test_obsolete_case_cascade_round_trips_through_snapshot():
+    store, _trace, case, lesson = store_with_active_lesson()
+
+    store.obsolete_failure_case(case.case_id)
+    loaded = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+
+    assert loaded.failure_cases[case.case_id].status == "obsolete"
+    assert loaded.lessons[lesson.lesson_id].status == "obsolete"
+
+
+def test_recorded_trace_is_isolated_from_caller_nested_mutation():
+    calls = [{"name": "search_docs", "arguments": {"query": "before"}}]
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc",
+        repo="repo",
+        eval_result="fail",
+        tool_calls=calls,
+    )
+    store = TraceBackedMemoryStore()
+    store.record_trace(trace)
+
+    calls[0]["arguments"]["query"] = "after"
+
+    assert store.traces["trace_001"].tool_calls[0]["arguments"]["query"] == "before"
+
+
+def test_mutating_public_collection_copy_does_not_change_store():
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc",
+            eval_result="fail",
+        )
+    )
+    public = dict(store.traces)
+
+    public["trace_001"].tool_calls.append({"name": "mutated"})
+
+    assert store.traces["trace_001"].tool_calls == []
+
+
+def test_mutating_public_usage_logs_copy_does_not_change_store():
+    store, _trace, _case, lesson = store_with_active_lesson()
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        tenant="tenant_a",
+        commit_sha="abc",
+        tool="search_docs",
+    )
+    store.log_decision(
+        "run_contract",
+        context,
+        [lesson.lesson_id],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=[lesson.lesson_id],
+            blocked_memory_ids=[],
+            reason="relevant",
+            risk="low",
+            recommended_injection="short_summary",
+        ),
+    )
+    public = store.usage_logs
+
+    public[0].candidate_memory_ids.append("mutated")
+
+    assert store.usage_logs[0].candidate_memory_ids == [lesson.lesson_id]
+
+
+def test_store_can_obsolete_lesson_and_project_policy_idempotently():
+    store, _trace, _case, lesson = store_with_active_lesson()
+    policy = store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_001",
+            policy_text="Always provide a search query.",
+            scope={"repo": "repo", "tool": "search_docs"},
+        )
+    )
+
+    obsolete_lesson_record = store.obsolete_lesson(lesson.lesson_id)
+    obsolete_policy = store.obsolete_project_policy(policy.policy_id)
+
+    assert obsolete_lesson_record.status == "obsolete"
+    assert obsolete_policy.status == "obsolete"
+    assert store.obsolete_lesson(lesson.lesson_id) == obsolete_lesson_record
+    assert store.obsolete_project_policy(policy.policy_id) == obsolete_policy
+
+
+def test_returned_records_are_isolated_from_store_nested_mutation():
+    store, _trace, case, _lesson = store_with_active_lesson()
+    returned_lesson = store.add_lesson(
+        lesson_from_failure_case(
+            case,
+            lesson_id="lesson_returned",
+            lesson_text="Use the stored query contract.",
+            memory_type="procedural",
+            scope={"repo": "repo", "tenant": "tenant_a", "tool": "search_docs"},
+        )
+    )
+
+    returned_lesson.scope["tool"] = "mutated"
+
+    assert store.lessons["lesson_returned"].scope["tool"] == "search_docs"
+
+
 def valid_snapshot_dict() -> dict[str, object]:
     store, _trace, case = store_with_verified_case()
     store.add_lesson(

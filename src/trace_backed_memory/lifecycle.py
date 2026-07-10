@@ -90,7 +90,7 @@ def verify_failure_case(
         raise ValueError("verified failure cases require a fix")
     if not fix_commit_sha:
         raise ValueError("verified failure cases require fix_commit_sha")
-    if not regression_passed:
+    if type(regression_passed) is not bool or not regression_passed:
         raise ValueError("verified failure cases require a passing regression")
 
     return replace(
@@ -219,6 +219,10 @@ def memory_item_from_project_policy(policy: ProjectPolicy) -> MemoryItem:
 
 def obsolete_lesson(lesson: Lesson) -> Lesson:
     return replace(lesson, status="obsolete")
+
+
+def obsolete_project_policy(policy: ProjectPolicy) -> ProjectPolicy:
+    return replace(policy, status="obsolete")
 
 
 def _utc_timestamp() -> str:

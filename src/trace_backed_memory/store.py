@@ -4,7 +4,8 @@ import json
 import re
 from collections.abc import Mapping
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, replace
+from datetime import datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -23,9 +24,11 @@ from .lifecycle import (
 from .models import (
     EvalResult,
     FailureCase,
+    GatedMemoryResult,
     Lesson,
     MemoryContext,
     MemoryDecision,
+    MemoryGateRequest,
     MemoryItem,
     MemoryMetrics,
     PRCaseProvenance,
@@ -33,6 +36,13 @@ from .models import (
     PRMemoryReport,
     ProjectPolicy,
     Trace,
+)
+from .policy import (
+    apply_llm_gate_decision,
+    build_injection_snippet,
+    build_llm_gate_prompt,
+    parse_memory_decision,
+    system_gate,
 )
 
 Snapshot = dict[str, list[dict[str, Any]]]
@@ -54,6 +64,10 @@ class TraceBackedMemoryStore:
         self._lessons: dict[str, Lesson] = {}
         self._project_policies: dict[str, ProjectPolicy] = {}
         self._usage_logs: list[MemoryUsageLog] = []
+        self._pending_gate_requests: dict[str, MemoryGateRequest] = {}
+        self._finalized_gate_request_ids: set[str] = set()
+        self._store_token = object()
+        self._next_gate_request_number = 1
 
     @property
     def traces(self) -> Mapping[str, Trace]:
@@ -335,6 +349,93 @@ class TraceBackedMemoryStore:
 
         return candidates
 
+    def prepare_memory(
+        self,
+        context: MemoryContext,
+        *,
+        task: str,
+        query: str | None = None,
+        context_summary: str = "",
+    ) -> MemoryGateRequest:
+        candidates = self.candidate_memories(context, query=query)
+        system_allowed, system_blocked = system_gate(context, candidates)
+        request = MemoryGateRequest(
+            request_id=f"gate_request_{self._next_gate_request_number:06d}",
+            context=context,
+            candidate_memory_ids=tuple(memory.memory_id for memory in candidates),
+            system_allowed_memory_ids=tuple(
+                memory.memory_id for memory in system_allowed
+            ),
+            system_blocked=tuple(system_blocked.items()),
+            prompt=build_llm_gate_prompt(
+                context,
+                system_allowed,
+                task=task,
+                context_summary=context_summary,
+            ),
+            _store_token=self._store_token,
+        )
+        self._next_gate_request_number += 1
+        self._pending_gate_requests[request.request_id] = deepcopy(
+            request, {id(self._store_token): self._store_token}
+        )
+        return request
+
+    def finalize_memory(
+        self,
+        request: MemoryGateRequest,
+        decision_payload: str | Mapping[str, Any],
+        *,
+        trace_id: str,
+        eval_result: EvalResult | None = None,
+        memory_caused_failure: bool = False,
+    ) -> GatedMemoryResult:
+        if not isinstance(request, MemoryGateRequest) or request._store_token is not self._store_token:
+            raise ValueError("gate request does not belong to this store")
+        if request.request_id in self._finalized_gate_request_ids:
+            raise ValueError(f"gate request already finalized: {request.request_id}")
+        pending = self._pending_gate_requests.get(request.request_id)
+        if pending is None or request != pending:
+            raise ValueError("gate request does not belong to this store")
+
+        trace = self._traces.get(trace_id)
+        if trace is None:
+            raise ValueError(f"unknown trace_id: {trace_id}")
+        _validate_trace_context(trace, request.context)
+
+        candidates = self._memory_items(request.candidate_memory_ids)
+        system_allowed, system_blocked = system_gate(request.context, candidates)
+        decision = parse_memory_decision(decision_payload)
+        final_allowed, final_decision = apply_llm_gate_decision(
+            system_allowed, system_blocked, decision
+        )
+        snippet = build_injection_snippet(final_allowed, decision=final_decision)
+        log = self._new_usage_log(
+            trace=trace,
+            context=request.context,
+            candidates=candidates,
+            decision=final_decision,
+            system_blocked=system_blocked,
+            eval_result=eval_result,
+            memory_caused_failure=memory_caused_failure,
+        )
+
+        self._usage_logs.append(log)
+        self._pending_gate_requests.pop(request.request_id)
+        self._finalized_gate_request_ids.add(request.request_id)
+        return GatedMemoryResult(
+            request_id=request.request_id,
+            trace_id=trace.trace_id,
+            decision_id=log.decision_id,
+            use_memory=final_decision.use_memory,
+            allowed_memory_ids=tuple(final_decision.allowed_memory_ids),
+            blocked_memory_ids=tuple(final_decision.blocked_memory_ids),
+            reason=final_decision.reason,
+            risk=final_decision.risk,
+            recommended_injection=final_decision.recommended_injection,
+            snippet=snippet,
+        )
+
     def log_decision(
         self,
         run_id: str,
@@ -345,26 +446,93 @@ class TraceBackedMemoryStore:
         eval_result: EvalResult | None = None,
         memory_caused_failure: bool = False,
     ) -> MemoryUsageLog:
-        used_memory_ids = list(decision.allowed_memory_ids if decision.use_memory else [])
+        _validate_memory_id_list(candidate_memory_ids, "candidate_memory_ids")
+        trace = self._trace_for_run_id(run_id)
+        _validate_trace_context(trace, context)
+        candidates = self._memory_items(candidate_memory_ids)
+        _system_allowed, system_blocked = system_gate(context, candidates)
+        log = self._new_usage_log(
+            trace=trace,
+            context=context,
+            candidates=candidates,
+            decision=decision,
+            system_blocked=system_blocked,
+            eval_result=eval_result,
+            memory_caused_failure=memory_caused_failure,
+        )
+        self._usage_logs.append(log)
+        return deepcopy(log)
+
+    def _trace_for_run_id(self, run_id: str) -> Trace:
+        matches = [trace for trace in self._traces.values() if trace.run_id == run_id]
+        if not matches:
+            raise ValueError(f"unknown run_id: {run_id}")
+        if len(matches) > 1:
+            raise ValueError(f"run_id does not resolve to one trace: {run_id}")
+        return matches[0]
+
+    def _memory_items(self, memory_ids: tuple[str, ...] | list[str]) -> list[MemoryItem]:
+        items: list[MemoryItem] = []
+        unknown_ids: list[str] = []
+        for memory_id in memory_ids:
+            if memory_id in self._lessons:
+                items.append(memory_item_from_lesson(self._lessons[memory_id]))
+            elif memory_id in self._project_policies:
+                items.append(memory_item_from_project_policy(self._project_policies[memory_id]))
+            elif memory_id in self._failure_cases:
+                case = self._failure_cases[memory_id]
+                trace = self._traces[case.source_trace_id]
+                memory = memory_item_from_failure_case(
+                    replace(case, status="verified", regression_passed=True), trace
+                )
+                items.append(replace(memory, status=case.status))
+            else:
+                unknown_ids.append(memory_id)
+        if unknown_ids:
+            raise ValueError(
+                f"usage log references unknown memory IDs: {', '.join(sorted(unknown_ids))}"
+            )
+        return items
+
+    def _new_usage_log(
+        self,
+        *,
+        trace: Trace,
+        context: MemoryContext,
+        candidates: list[MemoryItem],
+        decision: MemoryDecision,
+        system_blocked: dict[str, str],
+        eval_result: EvalResult | None,
+        memory_caused_failure: bool,
+    ) -> MemoryUsageLog:
+        candidate_memory_ids = [memory.memory_id for memory in candidates]
         log = MemoryUsageLog(
             decision_id=_next_decision_id(self._usage_logs),
-            run_id=run_id,
+            run_id=trace.run_id,
             mode=context.mode,
-            candidate_memory_ids=list(candidate_memory_ids),
-            used_memory_ids=used_memory_ids,
+            candidate_memory_ids=candidate_memory_ids,
+            used_memory_ids=list(
+                decision.allowed_memory_ids if decision.use_memory else []
+            ),
             blocked_memory_ids=list(decision.blocked_memory_ids),
             reason=decision.reason,
             risk=decision.risk,
             recommended_injection=decision.recommended_injection,
             eval_result=eval_result,
             memory_caused_failure=memory_caused_failure,
+            trace_id=trace.trace_id,
+            context=_context_evidence(context),
+            candidate_memory_statuses={
+                memory.memory_id: memory.status for memory in candidates
+            },
+            system_blocked_reasons=dict(system_blocked),
+            created_at=_utc_timestamp(),
         )
         _validate_usage_log(log)
         self._validate_usage_log_memory_ids(log)
         if any(existing.decision_id == log.decision_id for existing in self._usage_logs):
             raise ValueError(f"duplicate usage log decision_id: {log.decision_id}")
-        self._usage_logs.append(log)
-        return deepcopy(log)
+        return log
 
     def _validate_usage_log_memory_ids(self, log: MemoryUsageLog) -> None:
         known_memory_ids = set(self._failure_cases).union(
@@ -382,13 +550,8 @@ class TraceBackedMemoryStore:
         obsolete_attempts = sum(
             1
             for log in self._usage_logs
-            for memory_id in log.candidate_memory_ids
-            if _is_obsolete_memory(
-                memory_id,
-                self._failure_cases,
-                self._lessons,
-                self._project_policies,
-            )
+            for status in log.candidate_memory_statuses.values()
+            if status == "obsolete"
         )
         average_confidence = 0.0
         if self._lessons:
@@ -466,6 +629,22 @@ def _context_values(context: MemoryContext) -> dict[str, str | None]:
     }
 
 
+def _context_evidence(context: MemoryContext) -> dict[str, str]:
+    return {
+        key: value
+        for key, value in asdict(context).items()
+        if isinstance(value, str)
+    }
+
+
+def _validate_trace_context(trace: Trace, context: MemoryContext) -> None:
+    for field_name in ("repo", "commit_sha", "tenant"):
+        if getattr(trace, field_name) != getattr(context, field_name):
+            raise ValueError(
+                f"trace {field_name} does not match memory context: {trace.trace_id}"
+            )
+
+
 def _snapshot_records(data: Mapping[str, Any], key: str) -> list[dict[str, Any]]:
     value = data.get(key, [])
     if not isinstance(value, list):
@@ -473,24 +652,6 @@ def _snapshot_records(data: Mapping[str, Any], key: str) -> list[dict[str, Any]]
     if any(not isinstance(record, dict) for record in value):
         raise ValueError(f"snapshot field {key!r} must contain JSON objects")
     return [dict(record) for record in value]
-
-
-def _is_obsolete_memory(
-    memory_id: str,
-    failure_cases: Mapping[str, FailureCase],
-    lessons: Mapping[str, Lesson],
-    project_policies: Mapping[str, ProjectPolicy],
-) -> bool:
-    case = failure_cases.get(memory_id)
-    if case is not None:
-        return case.status == "obsolete"
-    lesson = lessons.get(memory_id)
-    if lesson is not None:
-        return lesson.status == "obsolete"
-    policy = project_policies.get(memory_id)
-    if policy is not None:
-        return policy.status == "obsolete"
-    return False
 
 
 def _next_decision_id(logs: list[MemoryUsageLog]) -> str:
@@ -587,6 +748,23 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
         raise ValueError("usage log eval_result must be one of: error, fail, pass, unknown")
     if type(log.memory_caused_failure) is not bool:
         raise ValueError("memory_caused_failure must be a boolean")
+    if log.trace_id is not None and (
+        not isinstance(log.trace_id, str) or not log.trace_id
+    ):
+        raise ValueError("usage log trace_id must be a non-empty string")
+    _validate_string_mapping(log.context, "context")
+    _validate_status_mapping(
+        log.candidate_memory_statuses, log.candidate_memory_ids
+    )
+    _validate_string_mapping(log.system_blocked_reasons, "system_blocked_reasons")
+    unknown_blocked_reasons = sorted(
+        set(log.system_blocked_reasons).difference(log.candidate_memory_ids)
+    )
+    if unknown_blocked_reasons:
+        raise ValueError(
+            "usage log system_blocked_reasons must reference candidates: "
+            + ", ".join(unknown_blocked_reasons)
+        )
     if log.used_memory_ids and log.recommended_injection == "none":
         raise ValueError("usage log recommended_injection cannot be 'none' when memory was used")
     if not log.used_memory_ids and log.recommended_injection != "none":
@@ -620,6 +798,41 @@ def _validate_memory_id_list(value: Any, field_name: str) -> None:
         raise ValueError(f"usage log {field_name} must be a list of non-empty strings")
     if len(set(value)) != len(value):
         raise ValueError(f"usage log {field_name} must not contain duplicate memory IDs")
+
+
+def _validate_string_mapping(value: Any, field_name: str) -> None:
+    if not isinstance(value, dict) or any(
+        not isinstance(key, str)
+        or not key
+        or not isinstance(item, str)
+        or not item
+        for key, item in value.items()
+    ):
+        raise ValueError(
+            f"usage log {field_name} must map non-empty strings to non-empty strings"
+        )
+
+
+def _validate_status_mapping(value: Any, candidate_memory_ids: list[str]) -> None:
+    if not isinstance(value, dict) or any(
+        not isinstance(memory_id, str)
+        or not memory_id
+        or status not in FAILURE_CASE_STATUSES.union(LESSON_STATUSES)
+        for memory_id, status in value.items()
+    ):
+        raise ValueError("usage log candidate_memory_statuses contains an invalid status")
+    unknown_statuses = sorted(set(value).difference(candidate_memory_ids))
+    if unknown_statuses:
+        raise ValueError(
+            "usage log candidate_memory_statuses must reference candidates: "
+            + ", ".join(unknown_statuses)
+        )
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
+        "+00:00", "Z"
+    )
 
 
 def _lessons_to_yaml(lessons: list[Lesson]) -> str:

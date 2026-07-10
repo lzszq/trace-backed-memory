@@ -6,8 +6,6 @@ from trace_backed_memory import (
     Trace,
     TraceMetadataCaptureError,
     TraceBackedMemoryStore,
-    apply_llm_gate_decision,
-    build_injection_snippet,
     build_llm_gate_prompt,
     capture_trace_metadata,
     classify_failure_type,
@@ -21,7 +19,6 @@ from trace_backed_memory import (
     obsolete_failure_case,
     obsolete_lesson,
     parse_memory_context,
-    parse_memory_decision,
     review_failure_case,
     system_gate,
     verify_failure_case,
@@ -126,9 +123,13 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
             "eval_suite": "tool_calling_regression",
         }
     )
-    candidates = store.candidate_memories(context, query="search_docs null query")
-    system_allowed, system_blocked = system_gate(context, candidates)
-    llm_decision = parse_memory_decision(
+    request = store.prepare_memory(
+        context,
+        task="repair failed search_docs call",
+        query="search_docs null query",
+    )
+    result = store.finalize_memory(
+        request,
         {
             "use_memory": True,
             "allowed_memory_ids": ["lesson_001"],
@@ -136,15 +137,8 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
             "reason": "The lesson directly matches the current tool failure.",
             "risk": "low",
             "recommended_injection": "short_summary",
-        }
-    )
-    allowed, final_decision = apply_llm_gate_decision(system_allowed, system_blocked, llm_decision)
-    snippet = build_injection_snippet(allowed, decision=final_decision)
-    store.log_decision(
-        "run_001",
-        context,
-        [memory.memory_id for memory in candidates],
-        final_decision,
+        },
+        trace_id=trace.trace_id,
         eval_result="pass",
     )
 
@@ -166,8 +160,8 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
     assert verified.reviewed_by == "jason"
     assert trace.repo == "agent-harness"
     assert trace.eval_suite == "tool_calling_regression"
-    assert [memory.memory_id for memory in allowed] == ["lesson_001"]
-    assert "When calling search_docs" in snippet
+    assert result.allowed_memory_ids == ("lesson_001",)
+    assert "When calling search_docs" in result.snippet
     assert metrics.decision_count == 1
     assert metrics.pass_rate_with_memory == 1.0
     assert restored.lessons == store.lessons

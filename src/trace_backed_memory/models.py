@@ -171,6 +171,10 @@ class MemoryUsageLog:
     recommended_injection: Literal["none", "short_summary", "full_case_summary", "pointer_only"]
     eval_result: EvalResult | None = None
     memory_caused_failure: bool = False
+    trace_id: str | None = None
+    context: dict[str, str] = field(default_factory=dict)
+    candidate_memory_statuses: dict[str, Status] = field(default_factory=dict)
+    system_blocked_reasons: dict[str, str] = field(default_factory=dict)
     created_at: str | None = None
 
 

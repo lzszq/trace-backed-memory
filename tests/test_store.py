@@ -70,6 +70,109 @@ def store_with_active_lesson() -> tuple[
     return store, trace, case, lesson
 
 
+def matching_context(trace: Trace) -> MemoryContext:
+    return MemoryContext(
+        mode="repair",
+        repo=trace.repo or "repo",
+        tenant=trace.tenant,
+        commit_sha=trace.commit_sha,
+        tool="search_docs",
+    )
+
+
+def allow_decision(memory_id: str) -> dict[str, object]:
+    return {
+        "use_memory": True,
+        "allowed_memory_ids": [memory_id],
+        "blocked_memory_ids": [],
+        "reason": "direct match",
+        "risk": "low",
+        "recommended_injection": "short_summary",
+    }
+
+
+def test_prepare_and_finalize_memory_is_trace_linked_and_audited():
+    store, trace, _case, lesson = store_with_active_lesson()
+    context = MemoryContext(
+        mode="repair",
+        repo=trace.repo,
+        tenant=trace.tenant,
+        commit_sha=trace.commit_sha,
+        tool="search_docs",
+    )
+    request = store.prepare_memory(context, task="repair failed call")
+    result = store.finalize_memory(
+        request,
+        {
+            "use_memory": True,
+            "allowed_memory_ids": [lesson.lesson_id],
+            "blocked_memory_ids": [],
+            "reason": "direct match",
+            "risk": "low",
+            "recommended_injection": "short_summary",
+        },
+        trace_id=trace.trace_id,
+        eval_result="pass",
+    )
+
+    assert result.allowed_memory_ids == (lesson.lesson_id,)
+    assert "Relevant verified memory" in result.snippet
+    log = store.usage_logs[-1]
+    assert log.trace_id == trace.trace_id
+    assert log.context["tenant"] == trace.tenant
+    assert log.candidate_memory_statuses == {lesson.lesson_id: "active"}
+    assert log.created_at.endswith("Z")
+
+
+def test_gate_request_cannot_cross_stores_or_be_replayed():
+    first, trace, _case, lesson = store_with_active_lesson()
+    second = TraceBackedMemoryStore.from_snapshot(first.to_snapshot())
+    context = matching_context(trace)
+    request = first.prepare_memory(context, task="repair")
+    payload = allow_decision(lesson.lesson_id)
+    with pytest.raises(ValueError, match="does not belong"):
+        second.finalize_memory(request, payload, trace_id=trace.trace_id)
+    first.finalize_memory(request, payload, trace_id=trace.trace_id)
+    with pytest.raises(ValueError, match="already finalized"):
+        first.finalize_memory(request, payload, trace_id=trace.trace_id)
+
+
+def test_finalize_rechecks_memory_obsoleted_after_prepare():
+    store, trace, _case, lesson = store_with_active_lesson()
+    request = store.prepare_memory(matching_context(trace), task="repair")
+    store.obsolete_lesson(lesson.lesson_id)
+    result = store.finalize_memory(
+        request, allow_decision(lesson.lesson_id), trace_id=trace.trace_id
+    )
+    assert result.use_memory is False
+    assert result.snippet == ""
+    assert lesson.lesson_id in result.blocked_memory_ids
+
+
+def test_failed_finalize_does_not_consume_request_or_append_log():
+    store, trace, _case, lesson = store_with_active_lesson()
+    request = store.prepare_memory(matching_context(trace), task="repair")
+    before = store.usage_logs
+    with pytest.raises(ValueError, match="unknown trace_id"):
+        store.finalize_memory(request, allow_decision(lesson.lesson_id), trace_id="wrong")
+    assert store.usage_logs == before
+    result = store.finalize_memory(
+        request, allow_decision(lesson.lesson_id), trace_id=trace.trace_id
+    )
+    assert result.use_memory is True
+
+
+def test_obsolete_attempt_metric_does_not_reclassify_old_decisions():
+    store, trace, _case, lesson = store_with_active_lesson()
+    request = store.prepare_memory(matching_context(trace), task="repair")
+    store.finalize_memory(
+        request, allow_decision(lesson.lesson_id), trace_id=trace.trace_id
+    )
+    assert store.metrics().obsolete_memory_usage_attempts == 0
+    store.obsolete_lesson(lesson.lesson_id)
+    assert store.metrics().obsolete_memory_usage_attempts == 0
+
+
 def store_with_cascade_lessons() -> tuple[
     TraceBackedMemoryStore, FailureCase, tuple[Lesson, Lesson], Lesson
 ]:
@@ -552,7 +655,15 @@ def test_store_rejects_non_boolean_memory_caused_failure_exact_boolean(invalid_b
 
 def test_store_retrieves_by_metadata_then_logs_usage_decision():
     store = TraceBackedMemoryStore()
-    trace = store.record_trace(Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="fail"))
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc123",
+            repo="agent-harness",
+            eval_result="fail",
+        )
+    )
     case = verify_failure_case(
         draft_failure_case(trace, case_id="case_001", failure_type="invalid_tool_argument", symptom="bad query"),
         fix="fixed prompt",
@@ -566,7 +677,7 @@ def test_store_retrieves_by_metadata_then_logs_usage_decision():
             lesson_id="lesson_001",
             lesson_text="Use a non-empty query.",
             memory_type="procedural",
-            scope={"tool": "search_docs"},
+            scope={"repo": "agent-harness", "tool": "search_docs"},
         )
     )
 
@@ -1097,7 +1208,15 @@ def test_candidate_memories_do_not_match_multi_tool_failure_cases_to_unseen_tool
 
 def test_store_metrics_summarize_usage_logs_and_lesson_confidence():
     store = TraceBackedMemoryStore()
-    trace = store.record_trace(Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="fail"))
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc123",
+            repo="agent-harness",
+            eval_result="fail",
+        )
+    )
     case = verify_failure_case(
         draft_failure_case(trace, case_id="case_001", failure_type="invalid_tool_argument", symptom="bad query"),
         fix="fixed prompt",
@@ -1110,7 +1229,7 @@ def test_store_metrics_summarize_usage_logs_and_lesson_confidence():
         lesson_id="active_lesson",
         lesson_text="Use a non-empty query.",
         memory_type="procedural",
-        scope={"tool": "search_docs"},
+        scope={"repo": "agent-harness", "tool": "search_docs"},
         confidence=0.8,
     )
     obsolete = obsolete_lesson(
@@ -1119,7 +1238,7 @@ def test_store_metrics_summarize_usage_logs_and_lesson_confidence():
             lesson_id="obsolete_lesson",
             lesson_text="Old query guidance.",
             memory_type="procedural",
-            scope={"tool": "search_docs"},
+            scope={"repo": "agent-harness", "tool": "search_docs"},
             confidence=0.2,
         )
     )
@@ -1156,7 +1275,15 @@ def test_store_metrics_summarize_usage_logs_and_lesson_confidence():
 
 def test_store_metrics_track_pass_rates_and_wrong_memory_failures():
     store = TraceBackedMemoryStore()
-    trace = store.record_trace(Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="fail"))
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc123",
+            repo="agent-harness",
+            eval_result="fail",
+        )
+    )
     case = verify_failure_case(
         draft_failure_case(trace, case_id="case_001", failure_type="invalid_tool_argument", symptom="bad query"),
         fix="fixed prompt",
@@ -1170,7 +1297,7 @@ def test_store_metrics_track_pass_rates_and_wrong_memory_failures():
             lesson_id="lesson_001",
             lesson_text="Use a non-empty query.",
             memory_type="procedural",
-            scope={"tool": "search_docs"},
+            scope={"repo": "agent-harness", "tool": "search_docs"},
         )
     )
     store.add_lesson(
@@ -1179,9 +1306,21 @@ def test_store_metrics_track_pass_rates_and_wrong_memory_failures():
             lesson_id="lesson_002",
             lesson_text="Old guidance that looked relevant.",
             memory_type="procedural",
-            scope={"tool": "search_docs"},
+            scope={"repo": "agent-harness", "tool": "search_docs"},
         )
     )
+    for index, run_id in enumerate(
+        ["run_with_memory_pass", "run_with_memory_fail", "run_without_memory_pass"],
+        start=2,
+    ):
+        store.record_trace(
+            Trace(
+                trace_id=f"trace_{index:03d}",
+                run_id=run_id,
+                commit_sha="abc123",
+                repo="agent-harness",
+            )
+        )
     context = MemoryContext(mode="repair", repo="agent-harness", commit_sha="abc123", tool="search_docs")
 
     store.log_decision(
@@ -1236,12 +1375,12 @@ def test_store_metrics_track_pass_rates_and_wrong_memory_failures():
 
 
 def test_store_rejects_usage_log_with_used_memory_outside_candidates():
-    store = TraceBackedMemoryStore()
-    context = MemoryContext(mode="repair", repo="agent-harness", commit_sha="abc123", tool="search_docs")
+    store, trace, _case, _lesson = store_with_active_lesson()
+    context = matching_context(trace)
 
     try:
         store.log_decision(
-            "run_001",
+            trace.run_id,
             context,
             ["lesson_001"],
             MemoryDecision(
@@ -1260,12 +1399,12 @@ def test_store_rejects_usage_log_with_used_memory_outside_candidates():
 
 
 def test_store_rejects_usage_log_with_invalid_eval_result():
-    store = TraceBackedMemoryStore()
-    context = MemoryContext(mode="repair", repo="agent-harness", commit_sha="abc123", tool="search_docs")
+    store, trace, _case, _lesson = store_with_active_lesson()
+    context = matching_context(trace)
 
     try:
         store.log_decision(
-            "run_001",
+            trace.run_id,
             context,
             [],
             MemoryDecision(
@@ -1309,8 +1448,8 @@ def test_store_rejects_usage_log_with_empty_run_id():
 
 
 def test_store_rejects_usage_log_with_inconsistent_blocked_memory_ids():
-    store = TraceBackedMemoryStore()
-    context = MemoryContext(mode="repair", repo="agent-harness", commit_sha="abc123", tool="search_docs")
+    store, trace, _case, _lesson = store_with_active_lesson()
+    context = matching_context(trace)
     invalid_decisions = [
         MemoryDecision(
             use_memory=False,
@@ -1340,7 +1479,7 @@ def test_store_rejects_usage_log_with_inconsistent_blocked_memory_ids():
 
     for decision in invalid_decisions:
         try:
-            store.log_decision("run_001", context, ["lesson_001"], decision)
+            store.log_decision(trace.run_id, context, ["lesson_001"], decision)
         except ValueError as exc:
             assert "memory" in str(exc) or "candidate" in str(exc) or "duplicate" in str(exc)
         else:
@@ -1372,12 +1511,12 @@ def test_store_rejects_usage_log_with_empty_memory_ids():
 
 
 def test_store_rejects_usage_log_with_unknown_candidate_memory_ids():
-    store = TraceBackedMemoryStore()
-    context = MemoryContext(mode="repair", repo="agent-harness", commit_sha="abc123", tool="search_docs")
+    store, trace, _case, _lesson = store_with_active_lesson()
+    context = matching_context(trace)
 
     try:
         store.log_decision(
-            "run_001",
+            trace.run_id,
             context,
             ["missing_memory"],
             MemoryDecision(
@@ -1397,7 +1536,15 @@ def test_store_rejects_usage_log_with_unknown_candidate_memory_ids():
 
 def test_store_rejects_usage_logs_with_impossible_injection_modes():
     store = TraceBackedMemoryStore()
-    trace = store.record_trace(Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="fail"))
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc123",
+            repo="agent-harness",
+            eval_result="fail",
+        )
+    )
     case = verify_failure_case(
         draft_failure_case(trace, case_id="case_001", failure_type="invalid_tool_argument", symptom="bad query"),
         fix="fixed prompt",
@@ -1411,7 +1558,7 @@ def test_store_rejects_usage_logs_with_impossible_injection_modes():
             lesson_id="lesson_001",
             lesson_text="Use a non-empty query.",
             memory_type="procedural",
-            scope={"tool": "search_docs"},
+            scope={"repo": "agent-harness", "tool": "search_docs"},
         )
     )
     context = MemoryContext(mode="repair", repo="agent-harness", commit_sha="abc123", tool="search_docs")
@@ -1453,7 +1600,15 @@ def test_store_rejects_usage_logs_with_impossible_injection_modes():
 
 def test_store_rejects_wrong_memory_failure_without_failed_memory_use():
     store = TraceBackedMemoryStore()
-    trace = store.record_trace(Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="fail"))
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc123",
+            repo="agent-harness",
+            eval_result="fail",
+        )
+    )
     case = verify_failure_case(
         draft_failure_case(trace, case_id="case_001", failure_type="invalid_tool_argument", symptom="bad query"),
         fix="fixed prompt",
@@ -1467,7 +1622,7 @@ def test_store_rejects_wrong_memory_failure_without_failed_memory_use():
             lesson_id="lesson_001",
             lesson_text="Use a non-empty query.",
             memory_type="procedural",
-            scope={"tool": "search_docs"},
+            scope={"repo": "agent-harness", "tool": "search_docs"},
         )
     )
     context = MemoryContext(mode="repair", repo="agent-harness", commit_sha="abc123", tool="search_docs")
@@ -1516,6 +1671,14 @@ def test_store_rejects_wrong_memory_failure_without_failed_memory_use():
 
 def test_store_metrics_count_obsolete_project_policy_attempts():
     store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc123",
+            repo="agent-harness",
+        )
+    )
     store.add_project_policy(
         ProjectPolicy(
             policy_id="obsolete_policy",
@@ -1553,7 +1716,15 @@ def test_store_metrics_count_obsolete_project_policy_attempts():
 
 def test_store_metrics_count_obsolete_failure_case_attempts():
     store = TraceBackedMemoryStore()
-    trace = store.record_trace(Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="fail"))
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc123",
+            repo="agent-harness",
+            eval_result="fail",
+        )
+    )
     case = obsolete_failure_case(
         verify_failure_case(
             draft_failure_case(trace, case_id="case_001", failure_type="invalid_tool_argument", symptom="bad query"),
@@ -2303,6 +2474,7 @@ def test_store_json_snapshot_round_trips_records_and_usage_logs(tmp_path):
             trace_id="trace_001",
             run_id="run_001",
             commit_sha="abc123",
+            repo="agent-harness",
             tenant="tenant_a",
             eval_suite="tool_calling_regression",
             eval_result="fail",
@@ -2322,7 +2494,11 @@ def test_store_json_snapshot_round_trips_records_and_usage_logs(tmp_path):
             lesson_id="lesson_001",
             lesson_text="Use a non-empty query.",
             memory_type="procedural",
-            scope={"tenant": "tenant_a", "tool": "search_docs"},
+            scope={
+                "repo": "agent-harness",
+                "tenant": "tenant_a",
+                "tool": "search_docs",
+            },
         )
     )
     context = MemoryContext(
@@ -2695,7 +2871,15 @@ def test_store_json_snapshot_rejects_duplicate_usage_log_decision_ids(tmp_path):
 
 def test_log_decision_avoids_duplicate_decision_ids_after_sparse_snapshot_import():
     seed = TraceBackedMemoryStore()
-    trace = seed.record_trace(Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="fail"))
+    trace = seed.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc123",
+            repo="agent-harness",
+            eval_result="fail",
+        )
+    )
     case = verify_failure_case(
         draft_failure_case(trace, case_id="case_001", failure_type="invalid_tool_argument", symptom="bad query"),
         fix="fixed prompt",
@@ -2709,7 +2893,15 @@ def test_log_decision_avoids_duplicate_decision_ids_after_sparse_snapshot_import
             lesson_id="lesson_001",
             lesson_text="Use a non-empty query.",
             memory_type="procedural",
-            scope={"tool": "search_docs"},
+            scope={"repo": "agent-harness", "tool": "search_docs"},
+        )
+    )
+    seed.record_trace(
+        Trace(
+            trace_id="trace_004",
+            run_id="run_004",
+            commit_sha="abc123",
+            repo="agent-harness",
         )
     )
     snapshot = seed.to_snapshot()

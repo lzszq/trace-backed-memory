@@ -168,6 +168,16 @@ def test_memory_store_snapshot_schema_requires_versioned_record_collections():
         assert collection_schema.get("items") == {"$ref": schema_ref}
 
 
+def test_memory_store_snapshot_schema_matches_emitted_v2_envelope():
+    schema = _json_schema("memory_store_snapshot.schema.json")
+    snapshot = TraceBackedMemoryStore().to_snapshot()
+
+    assert set(schema.get("required", [])) == set(snapshot)
+    assert schema["properties"]["snapshot_version"] == {"type": "integer", "const": 2}
+    assert snapshot["snapshot_version"] == 2
+    assert schema.get("additionalProperties") is False
+
+
 def test_memory_decision_schema_requires_non_empty_unique_memory_ids():
     schema = _json_schema("memory_decision.schema.json")
     properties = _schema_properties(schema)

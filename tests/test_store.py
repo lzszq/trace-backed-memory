@@ -1,5 +1,6 @@
 import json
 import os
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -535,6 +536,70 @@ def valid_snapshot_dict() -> dict[str, object]:
     return store.to_snapshot()
 
 
+def fully_populated_snapshot() -> dict[str, object]:
+    store = TraceBackedMemoryStore()
+    for suffix in ["a", "b"]:
+        trace = store.record_trace(
+            Trace(
+                trace_id=f"trace_{suffix}",
+                run_id=f"run_{suffix}",
+                commit_sha=f"commit_{suffix}",
+                repo="repo",
+                tenant="tenant",
+                eval_result="pass",
+            )
+        )
+        case = store.add_failure_case(
+            FailureCase(
+                case_id=f"case_{suffix}",
+                source_trace_id=trace.trace_id,
+                commit_sha=trace.commit_sha,
+                failure_type="invalid_tool_argument",
+                symptom=f"symptom {suffix}",
+                fix=f"fix {suffix}",
+                fix_commit_sha=f"fix_commit_{suffix}",
+                regression_passed=True,
+                status="verified",
+            )
+        )
+        lesson = store.add_lesson(
+            Lesson(
+                lesson_id=f"lesson_{suffix}",
+                source_case_id=case.case_id,
+                lesson_text=f"lesson {suffix}",
+                memory_type="procedural",
+                scope={"repo": "repo", "tenant": "tenant"},
+            )
+        )
+        policy = store.add_project_policy(
+            ProjectPolicy(
+                policy_id=f"policy_{suffix}",
+                policy_text=f"policy {suffix}",
+                scope={"repo": "repo", "tenant": "tenant"},
+            )
+        )
+        store.log_decision(
+            trace.run_id,
+            MemoryContext(
+                mode="repair",
+                repo="repo",
+                tenant="tenant",
+                commit_sha=trace.commit_sha,
+            ),
+            [lesson.lesson_id, policy.policy_id],
+            MemoryDecision(
+                use_memory=True,
+                allowed_memory_ids=[lesson.lesson_id, policy.policy_id],
+                blocked_memory_ids=[],
+                reason=f"use records {suffix}",
+                risk="low",
+                recommended_injection="short_summary",
+            ),
+            eval_result="pass",
+        )
+    return store.to_snapshot()
+
+
 def test_snapshot_v2_has_exact_versioned_envelope():
     snapshot = TraceBackedMemoryStore().to_snapshot()
 
@@ -585,6 +650,38 @@ def test_equivalent_stores_emit_identical_snapshot_json(tmp_path):
     second.save_json(second_path)
 
     assert first_path.read_bytes() == second_path.read_bytes()
+
+
+def test_reversed_v2_collections_emit_identical_snapshot_json(tmp_path):
+    snapshot = fully_populated_snapshot()
+    reversed_snapshot = deepcopy(snapshot)
+    collection_names = [
+        "traces",
+        "failure_cases",
+        "lessons",
+        "project_policies",
+        "usage_logs",
+    ]
+
+    for collection_name in collection_names:
+        records = reversed_snapshot[collection_name]
+        assert isinstance(records, list)
+        assert len(records) >= 2
+        records.reverse()
+
+    first = TraceBackedMemoryStore.from_snapshot(snapshot)
+    second = TraceBackedMemoryStore.from_snapshot(reversed_snapshot)
+    first_path = tmp_path / "first.json"
+    second_path = tmp_path / "second.json"
+
+    first.save_json(first_path)
+    second.save_json(second_path)
+
+    assert first_path.read_bytes() == second_path.read_bytes()
+    assert [log["decision_id"] for log in second.to_snapshot()["usage_logs"]] == [
+        "decision_000001",
+        "decision_000002",
+    ]
 
 
 def test_save_json_uses_sibling_replace(monkeypatch, tmp_path):

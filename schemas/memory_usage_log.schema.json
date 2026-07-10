@@ -39,6 +39,29 @@
       "default": null
     },
     "memory_caused_failure": {"type": "boolean", "default": false},
+    "trace_id": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "default": null
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1},
+      "default": {}
+    },
+    "candidate_memory_statuses": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["draft", "verified", "active", "obsolete"]
+      },
+      "default": {}
+    },
+    "system_blocked_reasons": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1},
+      "default": {}
+    },
     "created_at": {"type": ["string", "null"], "format": "date-time"}
   },
   "allOf": [

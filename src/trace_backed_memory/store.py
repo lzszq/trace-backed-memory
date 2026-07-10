@@ -423,6 +423,8 @@ class TraceBackedMemoryStore:
     @_synchronized
     def candidate_memories(self, context: MemoryContext, *, query: str | None = None) -> list[MemoryItem]:
         validate_memory_context(context)
+        if query is not None and not isinstance(query, str):
+            raise ValueError("query must be a string or None")
         context_values = _context_values(context)
         candidates: list[MemoryItem] = []
 
@@ -500,6 +502,20 @@ class TraceBackedMemoryStore:
     ) -> GatedMemoryResult:
         if not isinstance(request, MemoryGateRequest) or request._store_token is not self._store_token:
             raise ValueError("gate request does not belong to this store")
+        _validate_required_string(
+            request.request_id,
+            "request_id",
+            "gate request records require",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        validate_memory_context(request.context)
+        _validate_required_string(
+            trace_id,
+            "trace_id",
+            "finalization requires",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        _validate_runtime_outcome(eval_result, memory_caused_failure)
         if request.request_id in self._finalized_gate_request_ids:
             raise ValueError(f"gate request already finalized: {request.request_id}")
         pending = self._pending_gate_requests.get(request.request_id)
@@ -555,7 +571,17 @@ class TraceBackedMemoryStore:
         eval_result: EvalResult | None = None,
         memory_caused_failure: bool = False,
     ) -> MemoryUsageLog:
+        _validate_required_string(
+            run_id,
+            "run_id",
+            "usage logging requires",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        validate_memory_context(context)
         _validate_memory_id_list(candidate_memory_ids, "candidate_memory_ids")
+        if not isinstance(decision, MemoryDecision):
+            raise ValueError("decision must be a MemoryDecision")
+        _validate_runtime_outcome(eval_result, memory_caused_failure)
         trace = self._trace_for_run_id(run_id)
         _validate_trace_context(trace, context)
         candidates = self._memory_items(candidate_memory_ids)
@@ -587,6 +613,12 @@ class TraceBackedMemoryStore:
         return deepcopy(log)
 
     def _trace_for_run_id(self, run_id: str) -> Trace:
+        _validate_required_string(
+            run_id,
+            "run_id",
+            "trace lookup requires",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
         matches = [trace for trace in self._traces.values() if trace.run_id == run_id]
         if not matches:
             raise ValueError(f"unknown run_id: {run_id}")
@@ -869,6 +901,7 @@ def _context_evidence(context: MemoryContext) -> dict[str, str]:
 
 
 def _validate_trace_context(trace: Trace, context: MemoryContext) -> None:
+    validate_memory_context(context)
     for field_name in ("repo", "commit_sha", "tenant"):
         if getattr(trace, field_name) != getattr(context, field_name):
             raise ValueError(
@@ -1141,6 +1174,17 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
     if used_and_blocked:
         raise ValueError(f"memory ids cannot be both used and blocked: {', '.join(used_and_blocked)}")
     _validate_optional_rfc3339(log.created_at, "created_at", "usage log")
+
+
+def _validate_runtime_outcome(
+    eval_result: EvalResult | None, memory_caused_failure: bool
+) -> None:
+    if eval_result is not None and (
+        not isinstance(eval_result, str) or eval_result not in EVAL_RESULTS
+    ):
+        raise ValueError("eval_result must be one of: error, fail, pass, unknown, or None")
+    if type(memory_caused_failure) is not bool:
+        raise ValueError("memory_caused_failure must be a boolean")
 
 
 def _validate_required_string(

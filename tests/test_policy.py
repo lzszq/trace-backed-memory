@@ -62,11 +62,17 @@ def test_memory_and_source_identifiers_enforce_maximum_length(field_name: str):
     values[field_name] = "x" * 129
     memory = MemoryItem(**values)  # type: ignore[arg-type]
 
-    _allowed, blocked = system_gate(
-        MemoryContext(mode="repair", repo="repo", commit_sha="abc"), [memory]
-    )
-
-    assert "at most 128 characters" in next(iter(blocked.values()))
+    if field_name == "memory_id":
+        with pytest.raises(ValueError, match="at most 128 characters"):
+            system_gate(
+                MemoryContext(mode="repair", repo="repo", commit_sha="abc"),
+                [memory],
+            )
+    else:
+        _allowed, blocked = system_gate(
+            MemoryContext(mode="repair", repo="repo", commit_sha="abc"), [memory]
+        )
+        assert "at most 128 characters" in next(iter(blocked.values()))
 
 
 def test_identifier_and_metadata_exact_boundaries_are_accepted():
@@ -100,7 +106,7 @@ def test_context_and_scope_values_reject_more_than_metadata_budget():
 
     memory = _budget_memory("lesson_001", scope={"repo": "r" * 513})
     _allowed, blocked = system_gate(
-        MemoryContext(mode="repair", repo="r" * 513, commit_sha="abc"), [memory]
+        MemoryContext(mode="repair", repo="repo", commit_sha="abc"), [memory]
     )
     assert "at most 512 characters" in blocked[memory.memory_id]
 
@@ -379,10 +385,8 @@ def test_system_gate_rejects_invalid_direct_context_mode():
         source_case_id="case_001",
     )
 
-    allowed, blocked = system_gate(context, [memory])
-
-    assert allowed == []
-    assert blocked["lesson_001"] == "context mode must be one of: debug, eval, planning, production, regression, repair"
+    with pytest.raises(ValueError, match="context mode"):
+        system_gate(context, [memory])
 
 
 def test_system_gate_blocks_cross_tenant_memory():
@@ -1409,3 +1413,166 @@ def test_parse_memory_context_rejects_non_mapping_payloads():
         assert "JSON object" in str(exc)
     else:
         raise AssertionError("memory context payloads must be JSON strings or mappings")
+
+
+@pytest.mark.parametrize("invalid_context", [None, {}, []])
+def test_system_gate_validates_context_even_without_candidates(
+    invalid_context: object,
+):
+    with pytest.raises(ValueError, match="context must be a MemoryContext"):
+        system_gate(invalid_context, [])  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "invalid_candidates",
+    [None, {}, (), "lesson_001", {"lesson_001"}],
+)
+def test_system_gate_requires_a_list_of_memory_items(
+    invalid_candidates: object,
+):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(ValueError, match="candidates must be a list"):
+        system_gate(context, invalid_candidates)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("invalid_entry", [None, {}, "lesson_001"])
+def test_system_gate_rejects_non_record_candidate_entries(invalid_entry: object):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(ValueError, match="MemoryItem records"):
+        system_gate(context, [invalid_entry])  # type: ignore[list-item]
+
+
+def test_system_gate_rejects_duplicate_candidate_ids():
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+    memory = _budget_memory("lesson_duplicate")
+
+    with pytest.raises(ValueError, match="duplicate memory IDs"):
+        system_gate(context, [memory, memory])
+
+
+@pytest.mark.parametrize("invalid_task", [None, "", [], {}, ["repair"]])
+def test_llm_gate_requires_non_empty_string_task(invalid_task: object):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(ValueError, match="task must be a non-empty string"):
+        build_llm_gate_prompt(
+            context,
+            [],
+            task=invalid_task,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize("invalid_summary", [None, [], {}, ["summary"]])
+def test_llm_gate_requires_string_context_summary(invalid_summary: object):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(ValueError, match="context_summary must be a string"):
+        build_llm_gate_prompt(
+            context,
+            [],
+            task="repair",
+            context_summary=invalid_summary,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize("invalid_candidates", [None, {}, (), "lesson_001"])
+def test_llm_gate_validates_candidates_before_counting_or_sorting(
+    invalid_candidates: object,
+):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(ValueError, match="candidates must be a list"):
+        build_llm_gate_prompt(
+            context,
+            invalid_candidates,  # type: ignore[arg-type]
+            task="repair",
+        )
+
+
+@pytest.mark.parametrize(
+    "invalid_allowed",
+    [None, {}, (), "lesson_001", [None], [{}]],
+)
+def test_apply_llm_gate_validates_system_allowed_collection(
+    invalid_allowed: object,
+):
+    decision = MemoryDecision(False, [], [], "not relevant", "none", "none")
+
+    with pytest.raises(ValueError, match="system_allowed"):
+        apply_llm_gate_decision(
+            invalid_allowed,  # type: ignore[arg-type]
+            {},
+            decision,
+        )
+
+
+@pytest.mark.parametrize(
+    "invalid_blocked",
+    [None, [], (), {1: "blocked"}, {"lesson_001": []}, {"": "blocked"}],
+)
+def test_apply_llm_gate_validates_system_blocked_mapping(
+    invalid_blocked: object,
+):
+    decision = MemoryDecision(False, [], [], "not relevant", "none", "none")
+
+    with pytest.raises(ValueError, match="system_blocked"):
+        apply_llm_gate_decision(
+            [],
+            invalid_blocked,  # type: ignore[arg-type]
+            decision,
+        )
+
+
+@pytest.mark.parametrize("invalid_memories", [None, {}, (), "lesson_001"])
+def test_injection_requires_a_list_before_counting(invalid_memories: object):
+    with pytest.raises(ValueError, match="memories must be a list"):
+        build_injection_snippet(
+            invalid_memories,  # type: ignore[arg-type]
+            decision=MemoryDecision(False, [], [], "not relevant", "none", "none"),
+        )
+
+
+@pytest.mark.parametrize("invalid_entry", [None, {}, "lesson_001"])
+def test_injection_rejects_non_record_entries(invalid_entry: object):
+    with pytest.raises(ValueError, match="MemoryItem records"):
+        build_injection_snippet(
+            [invalid_entry],  # type: ignore[list-item]
+            decision=MemoryDecision(False, [], [], "not relevant", "none", "none"),
+        )
+
+
+@pytest.mark.parametrize(
+    ("parser", "payload"),
+    [
+        (
+            parse_memory_context,
+            {"mode": "repair", "repo": "repo", "commit_sha": "abc", 1: "bad"},
+        ),
+        (
+            parse_memory_decision,
+            {
+                "use_memory": False,
+                "allowed_memory_ids": [],
+                "blocked_memory_ids": [],
+                "reason": "not relevant",
+                "risk": "none",
+                "recommended_injection": "none",
+                1: "bad",
+            },
+        ),
+    ],
+)
+def test_mapping_parsers_reject_non_string_keys(parser, payload: dict[object, object]):
+    with pytest.raises(ValueError, match="keys must be strings"):
+        parser(payload)
+
+
+@pytest.mark.parametrize("invalid_decision", [{}, [], "decision"])
+def test_injection_rejects_non_record_decisions(invalid_decision: object):
+    with pytest.raises(ValueError, match="decision must be a MemoryDecision"):
+        build_injection_snippet(
+            [],
+            decision=invalid_decision,  # type: ignore[arg-type]
+        )

@@ -3,6 +3,7 @@ import os
 import threading
 import time
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -4010,3 +4011,136 @@ def test_store_json_snapshot_round_trips_failure_case_review_metadata(tmp_path):
     assert loaded_case.reviewed_by == "jason"
     assert loaded_case.review_notes == "Confirmed by manual trace inspection."
     assert loaded_case.reviewed_at == "2026-07-09T00:00:00Z"
+
+
+@pytest.mark.parametrize("invalid_query", [[], {}, (), 0, False, ["query"]])
+def test_candidate_memories_requires_string_or_none_query(invalid_query: object):
+    store = TraceBackedMemoryStore()
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(ValueError, match="query must be a string or None"):
+        store.candidate_memories(
+            context,
+            query=invalid_query,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    "invalid_kwargs",
+    [
+        {"task": ""},
+        {"task": []},
+        {"task": "repair", "query": {}},
+        {"task": "repair", "context_summary": []},
+    ],
+)
+def test_prepare_memory_rejects_malformed_inputs_without_consuming_request_id(
+    invalid_kwargs: dict[str, object],
+):
+    store = TraceBackedMemoryStore()
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(ValueError):
+        store.prepare_memory(context, **invalid_kwargs)  # type: ignore[arg-type]
+
+    request = store.prepare_memory(context, task="repair")
+    assert request.request_id == "gate_request_000001"
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("run_id", []),
+        ("context", {}),
+        ("decision", {}),
+    ],
+)
+def test_log_decision_rejects_malformed_direct_inputs(
+    field_name: str, invalid_value: object
+):
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc", repo="repo")
+    )
+    values: dict[str, object] = {
+        "run_id": trace.run_id,
+        "context": matching_context(trace),
+        "decision": MemoryDecision(False, [], [], "not relevant", "none", "none"),
+    }
+    values[field_name] = invalid_value
+
+    with pytest.raises(ValueError, match=field_name):
+        store.log_decision(
+            values["run_id"],  # type: ignore[arg-type]
+            values["context"],  # type: ignore[arg-type]
+            [],
+            values["decision"],  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("request_id", []),
+        ("context", {}),
+        ("trace_id", []),
+        ("trace_id", ""),
+    ],
+)
+def test_finalize_memory_rejects_malformed_request_and_trace_identifiers(
+    field_name: str, invalid_value: object
+):
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc", repo="repo")
+    )
+    request = store.prepare_memory(matching_context(trace), task="repair")
+    trace_id: object = trace.trace_id
+    if field_name in {"request_id", "context"}:
+        request = replace(request, **{field_name: invalid_value})
+    else:
+        trace_id = invalid_value
+
+    with pytest.raises(ValueError, match=field_name):
+        store.finalize_memory(
+            request,
+            {
+                "use_memory": False,
+                "allowed_memory_ids": [],
+                "blocked_memory_ids": [],
+                "reason": "not relevant",
+                "risk": "none",
+                "recommended_injection": "none",
+            },
+            trace_id=trace_id,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [("eval_result", []), ("memory_caused_failure", [])],
+)
+def test_finalize_memory_rejects_malformed_outcome_fields(
+    field_name: str, invalid_value: object
+):
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc", repo="repo")
+    )
+    request = store.prepare_memory(matching_context(trace), task="repair")
+    kwargs = {field_name: invalid_value}
+
+    with pytest.raises(ValueError, match=field_name):
+        store.finalize_memory(
+            request,
+            {
+                "use_memory": False,
+                "allowed_memory_ids": [],
+                "blocked_memory_ids": [],
+                "reason": "not relevant",
+                "risk": "none",
+                "recommended_injection": "none",
+            },
+            trace_id=trace.trace_id,
+            **kwargs,  # type: ignore[arg-type]
+        )

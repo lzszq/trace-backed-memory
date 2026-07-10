@@ -185,6 +185,11 @@ Runtime contexts can enter the system through `parse_memory_context()`, a
 dependency-free validator for JSON strings or mappings. It enforces the required
 `mode`, `repo`, and `commit_sha` fields, validates supported modes, and drops
 unknown fields before a `MemoryContext` reaches retrieval or gating.
+All public gate helpers validate contexts, list containers, `MemoryItem`
+records, unique IDs, and string mappings before iterating, sorting, or reading
+record fields. Gate tasks must be non-empty strings, context summaries must be
+strings, and retrieval queries must be strings or `None`; malformed direct
+calls fail with `ValueError` before a store request ID is consumed.
 
 LLM Gate judges semantic usefulness after System Gate has filtered candidates.
 
@@ -243,15 +248,22 @@ PostgreSQL rejects empty required identifiers and text, uses composite
 `(source_trace_id, commit_sha)` provenance to bind cases to their source trace,
 requires non-null lesson and policy confidence, and checks audit JSONB objects
 and values. Failure-case, lesson, and project-policy IDs are immutable and their
-records cannot be deleted, keeping the shared runtime ID registry append-only.
-Active lessons require verified regression-backed sources; obsoleting a source
-case atomically obsoletes active derived lessons, while invalid source
-transitions and lesson reactivation are rejected. A wrong-memory failure
-requires used memory plus a non-null `fail` or `error` result.
+records cannot be deleted. The shared runtime ID registry rejects direct DML;
+only schema-qualified source-table triggers can register IDs, and usage evidence
+must resolve both a registry entry and its concrete source row.
+Status INSERTs remain valid for snapshot restoration, while UPDATEs are
+forward-only (`draft -> verified|obsolete`, `verified -> obsolete`, and
+`active -> obsolete`, with same-state updates allowed). Active lesson validation locks the verified,
+regression-backed parent case `FOR SHARE`, so concurrent lesson insertion and
+parent obsoletion serialize; parent obsoletion atomically cascades active lessons
+to obsolete. A wrong-memory failure requires used memory plus a non-null `fail`
+or `error` result.
 
 The SQL schema is kept aligned with the dataclass contracts through tests for
 model defaults, required usage-decision audit fields, JSONB object/array and
-element-type checks, and the runtime memory context example.
+element-type checks, and the runtime memory context example. A dependency-free
+integration test loads the complete DDL into a temporary PostgreSQL cluster and
+uses two real sessions to verify lifecycle lock serialization.
 Portable JSON Schema files document trace, failure case, lesson, project policy,
 usage log, and full snapshot shapes; cross-record provenance checks still live
 in the store because they require current store state.

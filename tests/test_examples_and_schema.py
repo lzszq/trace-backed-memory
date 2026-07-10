@@ -433,7 +433,7 @@ def test_postgres_schema_enforces_verified_case_and_lesson_source_lifecycle():
     assert "CREATE FUNCTION enforce_failure_case_lesson_lifecycle()" in schema
     assert "CREATE TRIGGER failure_cases_enforce_lesson_lifecycle" in schema
     assert "BEFORE UPDATE OF status, regression_passed ON failure_cases" in schema
-    assert "UPDATE lessons" in schema
+    assert "UPDATE public.lessons" in schema
     assert "SET status = 'obsolete'" in schema
     assert "active lessons require a verified regression-backed source case" in schema
 
@@ -526,7 +526,7 @@ def test_postgres_usage_logs_reference_known_runtime_memory_ids():
 
     assert "CREATE FUNCTION require_known_usage_memory_ids()" in schema
     assert "CREATE TRIGGER memory_usage_decisions_require_known_memory_ids" in schema
-    assert "FROM memory_ids" in schema
+    assert "FROM public.memory_ids" in schema
     assert "used memory ids must be present in candidates" in schema
     assert "blocked memory ids must be present in candidates" in schema
 
@@ -640,3 +640,62 @@ def test_memory_context_example_matches_parser_contract():
     assert context.mode == payload["mode"]
     assert context.repo == payload["repo"]
     assert context.commit_sha == payload["commit_sha"]
+
+
+def test_postgres_memory_id_registry_rejects_direct_dml():
+    schema = _postgres_schema()
+
+    assert "CREATE FUNCTION protect_memory_id_registry()" in schema
+    assert "CREATE TRIGGER memory_ids_reject_direct_dml" in schema
+    assert "BEFORE INSERT OR UPDATE OR DELETE ON memory_ids" in schema
+    assert "FOR EACH STATEMENT EXECUTE FUNCTION protect_memory_id_registry()" in schema
+    assert "TG_OP != 'INSERT' OR pg_trigger_depth() < 2" in schema
+    assert "pg_trigger_depth()" in schema
+    assert "memory_ids registry does not allow direct" in schema
+    assert "REVOKE INSERT, UPDATE, DELETE ON memory_ids FROM PUBLIC" in schema
+
+
+def test_postgres_runtime_registration_is_narrow_security_definer():
+    schema = _postgres_schema()
+
+    assert "SECURITY DEFINER" in schema
+    assert "SET search_path = pg_catalog" in schema
+    assert "public.memory_ids" in schema
+    assert "TG_RELID = 'public.failure_cases'::regclass" in schema
+    assert "REVOKE ALL ON FUNCTION register_runtime_memory_id() FROM PUBLIC" in schema
+
+
+def test_postgres_usage_registry_checks_concrete_runtime_rows():
+    schema = _postgres_schema()
+
+    assert "public.memory_ids.memory_kind = 'failure_case'" in schema
+    assert "FROM public.failure_cases" in schema
+    assert "public.memory_ids.memory_kind = 'lesson'" in schema
+    assert "FROM public.lessons" in schema
+    assert "public.memory_ids.memory_kind = 'project_policy'" in schema
+    assert "FROM public.project_policies" in schema
+
+
+def test_postgres_status_updates_are_forward_only():
+    schema = _postgres_schema()
+
+    assert "CREATE FUNCTION enforce_failure_case_status_transition()" in schema
+    assert "CREATE FUNCTION enforce_active_obsolete_status_transition()" in schema
+    assert "failure case status transition is not allowed" in schema
+    assert "runtime memory status transition is not allowed" in schema
+    assert "OLD.status = 'verified' AND NEW.status = 'draft'" in schema
+    assert "OLD.status = 'obsolete' AND NEW.status != 'obsolete'" in schema
+    for trigger_name in [
+        "failure_cases_enforce_forward_status",
+        "lessons_enforce_forward_status",
+        "project_policies_enforce_forward_status",
+    ]:
+        assert f"CREATE TRIGGER {trigger_name}" in schema
+
+
+def test_postgres_active_lesson_parent_check_uses_share_lock():
+    schema = _postgres_schema()
+
+    assert "FROM public.failure_cases" in schema
+    assert "FOR SHARE" in schema
+    assert "FOR KEY SHARE" not in schema

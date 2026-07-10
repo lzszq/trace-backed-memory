@@ -25,6 +25,11 @@ Runtime context should be parsed through `parse_memory_context()` before
 retrieval or gating. The parser accepts JSON strings or mappings, requires
 `mode`, `repo`, and `commit_sha`, validates supported modes, and keeps only
 known non-empty string fields from `schemas/memory_context.schema.json`.
+Direct helper calls are held to the same boundary: candidates and injection
+inputs must be lists of unique `MemoryItem` records, System Gate block reasons
+must be a string mapping, gate tasks must be non-empty strings, summaries must
+be strings, and retrieval queries must be strings or `None`. Invalid structures
+raise `ValueError` before rendering or store request registration.
 
 A memory item must satisfy:
 

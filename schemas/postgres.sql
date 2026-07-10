@@ -48,6 +48,21 @@ CREATE TABLE memory_ids (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE FUNCTION protect_memory_id_registry() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP != 'INSERT' OR pg_trigger_depth() < 2 THEN
+    RAISE EXCEPTION 'memory_ids registry does not allow direct %', TG_OP;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER memory_ids_reject_direct_dml
+BEFORE INSERT OR UPDATE OR DELETE ON memory_ids
+FOR EACH STATEMENT EXECUTE FUNCTION protect_memory_id_registry();
+
+REVOKE INSERT, UPDATE, DELETE ON memory_ids FROM PUBLIC;
+
 CREATE TABLE failure_cases (
   case_id TEXT PRIMARY KEY,
   source_trace_id TEXT NOT NULL,
@@ -143,24 +158,30 @@ DECLARE
   runtime_memory_id TEXT;
   runtime_memory_kind TEXT;
 BEGIN
-  IF TG_TABLE_NAME = 'failure_cases' THEN
+  IF TG_RELID = 'public.failure_cases'::regclass THEN
     runtime_memory_id := NEW.case_id;
     runtime_memory_kind := 'failure_case';
-  ELSIF TG_TABLE_NAME = 'lessons' THEN
+  ELSIF TG_RELID = 'public.lessons'::regclass THEN
     runtime_memory_id := NEW.lesson_id;
     runtime_memory_kind := 'lesson';
-  ELSE
+  ELSIF TG_RELID = 'public.project_policies'::regclass THEN
     runtime_memory_id := NEW.policy_id;
     runtime_memory_kind := 'project_policy';
+  ELSE
+    RAISE EXCEPTION 'runtime memory registration is limited to approved source tables';
   END IF;
 
-  INSERT INTO memory_ids(memory_id, memory_kind)
+  INSERT INTO public.memory_ids(memory_id, memory_kind)
   VALUES (runtime_memory_id, runtime_memory_kind);
   RETURN NEW;
 EXCEPTION WHEN unique_violation THEN
   RAISE EXCEPTION 'duplicate runtime memory_id: %', runtime_memory_id;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog;
+
+REVOKE ALL ON FUNCTION register_runtime_memory_id() FROM PUBLIC;
 
 CREATE FUNCTION protect_runtime_memory_identity() RETURNS trigger AS $$
 DECLARE
@@ -186,15 +207,38 @@ $$ LANGUAGE plpgsql;
 
 CREATE FUNCTION require_verified_lesson_source_case() RETURNS trigger AS $$
 BEGIN
-  IF NEW.status = 'active' AND NOT EXISTS (
-    SELECT 1
-    FROM failure_cases
+  IF NEW.status = 'active' THEN
+    PERFORM 1
+    FROM public.failure_cases
     WHERE case_id = NEW.source_case_id
       AND status = 'verified'
       AND regression_passed
-  ) THEN
-    RAISE EXCEPTION 'lesson source_case_id must reference a verified regression-backed failure case: %',
-      NEW.source_case_id;
+    FOR SHARE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'lesson source_case_id must reference a verified regression-backed failure case: %',
+        NEW.source_case_id;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION enforce_failure_case_status_transition() RETURNS trigger AS $$
+BEGIN
+  IF (OLD.status = 'verified' AND NEW.status = 'draft')
+    OR (OLD.status = 'obsolete' AND NEW.status != 'obsolete') THEN
+    RAISE EXCEPTION 'failure case status transition is not allowed: % -> %',
+      OLD.status, NEW.status;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION enforce_active_obsolete_status_transition() RETURNS trigger AS $$
+BEGIN
+  IF OLD.status = 'obsolete' AND NEW.status != 'obsolete' THEN
+    RAISE EXCEPTION 'runtime memory status transition is not allowed: % -> %',
+      OLD.status, NEW.status;
   END IF;
   RETURN NEW;
 END;
@@ -203,7 +247,7 @@ $$ LANGUAGE plpgsql;
 CREATE FUNCTION enforce_failure_case_lesson_lifecycle() RETURNS trigger AS $$
 BEGIN
   IF NEW.status = 'obsolete' AND OLD.status IS DISTINCT FROM 'obsolete' THEN
-    UPDATE lessons
+    UPDATE public.lessons
     SET status = 'obsolete', updated_at = now()
     WHERE source_case_id = OLD.case_id
       AND status = 'active';
@@ -212,7 +256,7 @@ BEGIN
     OR NOT NEW.regression_passed
   ) AND EXISTS (
     SELECT 1
-    FROM lessons
+    FROM public.lessons
     WHERE source_case_id = OLD.case_id
       AND status = 'active'
   ) THEN
@@ -232,6 +276,10 @@ CREATE TRIGGER failure_cases_protect_runtime_memory_identity
 BEFORE UPDATE OF case_id OR DELETE ON failure_cases
 FOR EACH ROW EXECUTE FUNCTION protect_runtime_memory_identity('case_id');
 
+CREATE TRIGGER failure_cases_enforce_forward_status
+BEFORE UPDATE OF status ON failure_cases
+FOR EACH ROW EXECUTE FUNCTION enforce_failure_case_status_transition();
+
 CREATE TRIGGER failure_cases_enforce_lesson_lifecycle
 BEFORE UPDATE OF status, regression_passed ON failure_cases
 FOR EACH ROW EXECUTE FUNCTION enforce_failure_case_lesson_lifecycle();
@@ -244,6 +292,10 @@ CREATE TRIGGER lessons_protect_runtime_memory_identity
 BEFORE UPDATE OF lesson_id OR DELETE ON lessons
 FOR EACH ROW EXECUTE FUNCTION protect_runtime_memory_identity('lesson_id');
 
+CREATE TRIGGER lessons_enforce_forward_status
+BEFORE UPDATE OF status ON lessons
+FOR EACH ROW EXECUTE FUNCTION enforce_active_obsolete_status_transition();
+
 CREATE TRIGGER lessons_require_verified_source_case
 BEFORE INSERT OR UPDATE OF source_case_id, status ON lessons
 FOR EACH ROW EXECUTE FUNCTION require_verified_lesson_source_case();
@@ -255,6 +307,10 @@ FOR EACH ROW EXECUTE FUNCTION register_runtime_memory_id();
 CREATE TRIGGER project_policies_protect_runtime_memory_identity
 BEFORE UPDATE OF policy_id OR DELETE ON project_policies
 FOR EACH ROW EXECUTE FUNCTION protect_runtime_memory_identity('policy_id');
+
+CREATE TRIGGER project_policies_enforce_forward_status
+BEFORE UPDATE OF status ON project_policies
+FOR EACH ROW EXECUTE FUNCTION enforce_active_obsolete_status_transition();
 
 CREATE FUNCTION jsonb_text_array_has_duplicates(value JSONB) RETURNS BOOLEAN AS $$
   SELECT CASE
@@ -345,10 +401,10 @@ CREATE TABLE memory_usage_decisions (
 
 CREATE FUNCTION require_usage_trace_context() RETURNS trigger AS $$
 DECLARE
-  trace_record traces%ROWTYPE;
+  trace_record public.traces%ROWTYPE;
 BEGIN
   SELECT * INTO trace_record
-  FROM traces
+  FROM public.traces
   WHERE trace_id = NEW.trace_id
     AND run_id = NEW.run_id;
 
@@ -410,7 +466,32 @@ BEGIN
     SELECT jsonb_array_elements_text(NEW.blocked_memory_ids) AS memory_id
   ) AS refs
   WHERE NOT EXISTS (
-    SELECT 1 FROM memory_ids WHERE memory_ids.memory_id = refs.memory_id
+    SELECT 1
+    FROM public.memory_ids
+    WHERE public.memory_ids.memory_id = refs.memory_id
+      AND (
+        (
+          public.memory_ids.memory_kind = 'failure_case'
+          AND EXISTS (
+            SELECT 1 FROM public.failure_cases
+            WHERE public.failure_cases.case_id = refs.memory_id
+          )
+        )
+        OR (
+          public.memory_ids.memory_kind = 'lesson'
+          AND EXISTS (
+            SELECT 1 FROM public.lessons
+            WHERE public.lessons.lesson_id = refs.memory_id
+          )
+        )
+        OR (
+          public.memory_ids.memory_kind = 'project_policy'
+          AND EXISTS (
+            SELECT 1 FROM public.project_policies
+            WHERE public.project_policies.policy_id = refs.memory_id
+          )
+        )
+      )
   )
   LIMIT 1;
   IF unknown_id IS NOT NULL THEN

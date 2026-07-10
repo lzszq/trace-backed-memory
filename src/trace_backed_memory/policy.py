@@ -188,14 +188,12 @@ def system_gate(context: MemoryContext, candidates: list[MemoryItem]) -> tuple[l
         allowed: memory items that passed system policy.
         blocked: mapping of memory_id -> blocked reason.
     """
+    validate_memory_context(context)
+    validated_candidates = _validated_memory_collection(candidates, "candidates")
     allowed: list[MemoryItem] = []
     blocked: dict[str, str] = {}
 
-    for memory in candidates:
-        if not isinstance(memory, MemoryItem):
-            raise ValueError("candidates must contain MemoryItem records")
-        if not isinstance(memory.memory_id, str) or not memory.memory_id:
-            raise ValueError("memory_id must be a non-empty string")
+    for memory in validated_candidates:
         reason = _blocked_reason(context, memory)
         if reason is None:
             allowed.append(memory)
@@ -213,11 +211,17 @@ def build_llm_gate_prompt(
     context_summary: str = "",
 ) -> str:
     """Build the semantic applicability prompt for system-approved memory."""
-    if len(candidates) > LLM_GATE_MAX_CANDIDATES:
+    validate_memory_context(context)
+    validated_candidates = _validated_memory_collection(candidates, "candidates")
+    if not isinstance(task, str) or not task:
+        raise ValueError("task must be a non-empty string")
+    if not isinstance(context_summary, str):
+        raise ValueError("context_summary must be a string")
+    if len(validated_candidates) > LLM_GATE_MAX_CANDIDATES:
         raise ValueError(
             f"LLM gate accepts at most {LLM_GATE_MAX_CANDIDATES} candidates"
         )
-    _system_allowed, system_blocked = system_gate(context, candidates)
+    _system_allowed, system_blocked = system_gate(context, validated_candidates)
     if system_blocked:
         blocked_details = ", ".join(
             f"{memory_id}: {reason}" for memory_id, reason in system_blocked.items()
@@ -242,7 +246,7 @@ def build_llm_gate_prompt(
     context_lines = [f"- {key}: {_json_scalar(value)}" for key, value in context_fields.items() if value is not None]
 
     memory_lines: list[str] = []
-    for memory in sorted(candidates, key=lambda item: item.memory_id):
+    for memory in sorted(validated_candidates, key=lambda item: item.memory_id):
         source = memory.source_case_id or memory.source_trace_id or memory.source_policy_id or "unknown"
         scope = json.dumps(dict(sorted(memory.scope.items())), sort_keys=True)
         memory_lines.extend(
@@ -297,8 +301,14 @@ def apply_llm_gate_decision(
     decision: MemoryDecision,
 ) -> tuple[list[MemoryItem], MemoryDecision]:
     """Apply an LLM applicability decision without letting it override System Gate."""
+    validated_allowed = _validated_memory_collection(
+        system_allowed, "system_allowed", require_valid_contract=True
+    )
+    validated_blocked = _validated_string_mapping(
+        system_blocked, "system_blocked"
+    )
     allowed_memory_ids, blocked_memory_ids = _validated_decision_fields(decision)
-    allowed_by_id = {memory.memory_id: memory for memory in system_allowed}
+    allowed_by_id = {memory.memory_id: memory for memory in validated_allowed}
     llm_blocked_ids = set(blocked_memory_ids)
     memory_requested = decision.use_memory and decision.recommended_injection != "none"
     requested_allowed_ids = [
@@ -313,7 +323,7 @@ def apply_llm_gate_decision(
     final_allowed = [allowed_by_id[memory_id] for memory_id in final_allowed_ids]
 
     blocked_ids: list[str] = []
-    for memory_id in [*system_blocked.keys(), *blocked_memory_ids]:
+    for memory_id in [*validated_blocked.keys(), *blocked_memory_ids]:
         if memory_id not in blocked_ids:
             blocked_ids.append(memory_id)
     for memory_id in allowed_memory_ids:
@@ -422,7 +432,12 @@ def build_injection_snippet(
     decision: MemoryDecision | None = None,
 ) -> str:
     """Build a short prompt-safe memory snippet from approved memory items."""
-    if len(memories) > INJECTION_MAX_MEMORIES:
+    validated_memories = _validated_memory_collection(
+        memories, "memories", require_valid_contract=True
+    )
+    if decision is not None and not isinstance(decision, MemoryDecision):
+        raise ValueError("decision must be a MemoryDecision")
+    if len(validated_memories) > INJECTION_MAX_MEMORIES:
         raise ValueError(
             f"injection accepts at most {INJECTION_MAX_MEMORIES} memories"
         )
@@ -439,13 +454,13 @@ def build_injection_snippet(
         raise ValueError(
             "recommended_injection must be one of: full_case_summary, none, pointer_only, short_summary"
         )
-    _validate_injection_inputs(memories, decision, recommended_injection)
+    _validate_injection_inputs(validated_memories, decision, recommended_injection)
 
-    if injection_mode == "none" or not memories:
+    if injection_mode == "none" or not validated_memories:
         return ""
 
     lines = ["Relevant verified memory:"]
-    for i, memory in enumerate(memories, start=1):
+    for i, memory in enumerate(validated_memories, start=1):
         source = memory.source_case_id or memory.source_trace_id or memory.source_policy_id or "unknown"
         scope = json.dumps(dict(sorted(memory.scope.items())), sort_keys=True)
         lines.append(
@@ -590,6 +605,53 @@ def _string_list(value: Any, field_name: str) -> list[str]:
     return list(value)
 
 
+def _validated_memory_collection(
+    value: Any,
+    field_name: str,
+    *,
+    require_valid_contract: bool = False,
+) -> list[MemoryItem]:
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name} must be a list of MemoryItem records")
+    if any(not isinstance(item, MemoryItem) for item in value):
+        raise ValueError(f"{field_name} must contain MemoryItem records")
+
+    memory_ids: list[str] = []
+    for memory in value:
+        if not isinstance(memory.memory_id, str) or not memory.memory_id:
+            raise ValueError("memory_id must be a non-empty string")
+        if len(memory.memory_id) > MEMORY_ID_MAX_CHARS:
+            raise ValueError(
+                f"memory_id must be at most {MEMORY_ID_MAX_CHARS} characters"
+            )
+        if require_valid_contract:
+            contract_error = _memory_item_contract_error(memory)
+            if contract_error is not None:
+                raise ValueError(
+                    f"{field_name} memory {memory.memory_id!r} is invalid: "
+                    f"{contract_error}"
+                )
+        memory_ids.append(memory.memory_id)
+    if len(set(memory_ids)) != len(memory_ids):
+        raise ValueError(f"{field_name} must not contain duplicate memory IDs")
+    return list(value)
+
+
+def _validated_string_mapping(value: Any, field_name: str) -> dict[str, str]:
+    if not isinstance(value, Mapping) or any(
+        not isinstance(key, str)
+        or not key
+        or len(key) > MEMORY_ID_MAX_CHARS
+        or not isinstance(reason, str)
+        or not reason
+        for key, reason in value.items()
+    ):
+        raise ValueError(
+            f"{field_name} must map non-empty string IDs to non-empty strings"
+        )
+    return dict(value)
+
+
 def _json_object(payload: str | Mapping[str, Any], label: str) -> dict[str, Any]:
     if isinstance(payload, str):
         try:
@@ -603,4 +665,6 @@ def _json_object(payload: str | Mapping[str, Any], label: str) -> dict[str, Any]
 
     if not isinstance(data, dict):
         raise ValueError(f"{label} payload must be a JSON object")
+    if any(not isinstance(key, str) for key in data):
+        raise ValueError(f"{label} payload keys must be strings")
     return data

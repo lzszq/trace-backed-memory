@@ -137,7 +137,15 @@ def test_stored_record_json_schemas_exist_are_draft_2020_12_and_cover_dataclass_
 
         assert schema.get("$schema") == DRAFT_2020_12
         assert schema.get("type") == "object"
-        assert set(schema.get("required", [])) == _required_dataclass_fields(model_cls)
+        expected_required = _required_dataclass_fields(model_cls)
+        if model_cls is MemoryUsageLog:
+            expected_required |= {
+                "trace_id",
+                "context",
+                "candidate_memory_statuses",
+                "system_blocked_reasons",
+            }
+        assert set(schema.get("required", [])) == expected_required
         assert {field.name for field in dataclass_fields(model_cls)} <= set(properties)
 
         for field_name, expected_values in enum_expectations.items():
@@ -212,6 +220,22 @@ def test_memory_usage_log_schema_encodes_decision_consistency_rules():
     assert any("memory_caused_failure" in json.dumps(rule) and "eval_result" in json.dumps(rule) for rule in all_of)
 
 
+def test_usage_log_schema_requires_safe_workflow_audit_fields():
+    schema = _json_schema("memory_usage_log.schema.json")
+    required = set(schema["required"])
+    assert {"trace_id", "context", "candidate_memory_statuses", "system_blocked_reasons"} <= required
+    caused_failure_then = schema["allOf"][2]["then"]
+    assert "eval_result" in caused_failure_then["required"]
+
+
+def test_postgres_enforces_case_trace_commit_and_wrong_memory_evidence():
+    sql = _postgres_schema()
+    assert "UNIQUE (trace_id, commit_sha)" in sql
+    assert "FOREIGN KEY (source_trace_id, commit_sha)" in sql
+    assert "eval_result IS NOT NULL" in sql
+    assert "candidate_memory_statuses JSONB NOT NULL" in sql
+
+
 def test_json_examples_match_current_models_and_parsers():
     trace = Trace(**_json_example("trace.example.json"))
     case = FailureCase(**_json_example("failure_case.example.json"))
@@ -264,7 +288,7 @@ def test_postgres_schema_mentions_current_model_fields():
         "tool_calls JSONB",
         "tool_outputs JSONB",
         "recommended_injection TEXT",
-        "source_trace_id TEXT NOT NULL REFERENCES traces(trace_id)",
+        "source_trace_id TEXT NOT NULL",
         "source_case_id TEXT NOT NULL REFERENCES failure_cases(case_id)",
         "CREATE TABLE project_policies",
         "policy_id TEXT PRIMARY KEY",
@@ -370,7 +394,7 @@ def test_postgres_scope_json_matches_runtime_scope_contract():
     ]:
         assert f"'{scope_field}'" in schema
     assert "jsonb_typeof(entry.scope_value) != 'string'" in schema
-    assert "entry.scope_value #>> '{}' = ''" in schema
+    assert "btrim(entry.scope_value #>> '{}') = ''" in schema
 
 
 def test_postgres_jsonb_arrays_constrain_element_shapes():

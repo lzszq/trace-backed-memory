@@ -111,6 +111,20 @@ the system-approved memory set, not reopen blocked memory. If the LLM output
 lists the same memory ID as both allowed and blocked, blocked wins and the
 memory is not injected.
 
+## Safe Store Workflow
+
+Use `TraceBackedMemoryStore.prepare_memory()` to retrieve candidates, apply
+System Gate, and create the bounded LLM prompt. Pass the decision payload to
+`finalize_memory()` with the trace ID; it rechecks stale state, applies the
+LLM decision as a narrowing operation, renders the snippet, and atomically
+persists trace ID, context, candidate statuses, and System Gate block reasons.
+Only this workflow provides ownership, replay, stale-state, trace-link, and
+atomic logging guarantees. Low-level helpers remain available for callers that
+own equivalent orchestration.
+
+When `memory_caused_failure` is true, persisted evidence must include a
+non-null `eval_result` of `fail` or `error` and at least one used memory ID.
+
 ## Injection format
 
 `recommended_injection` controls the final runtime snippet:

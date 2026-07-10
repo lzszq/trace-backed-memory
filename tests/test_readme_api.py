@@ -1,4 +1,6 @@
 from trace_backed_memory import (
+    FailureCase,
+    Lesson,
     ProjectPolicy,
     MemoryContext,
     MemoryItem,
@@ -23,6 +25,73 @@ from trace_backed_memory import (
     system_gate,
     verify_failure_case,
 )
+
+
+def readme_store_fixture() -> tuple[
+    TraceBackedMemoryStore, Trace, FailureCase, Lesson
+]:
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_safe_readme",
+            run_id="run_safe_readme",
+            commit_sha="abc123",
+            repo="agent-harness",
+            tenant="tenant_a",
+            eval_result="fail",
+            tool_calls=[{"name": "search_docs", "arguments": {"query": None}}],
+        )
+    )
+    case = verify_failure_case(
+        draft_failure_case(
+            trace,
+            case_id="case_safe_readme",
+            failure_type="invalid_tool_argument",
+            symptom="search_docs received an empty query",
+        ),
+        fix="require a non-empty query",
+        fix_commit_sha="def456",
+        regression_passed=True,
+    )
+    store.add_failure_case(case)
+    lesson = lesson_from_failure_case(
+        case,
+        lesson_id="lesson_safe_readme",
+        lesson_text="Always pass a non-empty query to search_docs.",
+        memory_type="procedural",
+        scope={
+            "repo": "agent-harness",
+            "tenant": "tenant_a",
+            "tool": "search_docs",
+        },
+    )
+    store.add_lesson(lesson)
+    return store, trace, case, lesson
+
+
+def allow_decision(memory_id: str) -> dict[str, object]:
+    return {
+        "use_memory": True,
+        "allowed_memory_ids": [memory_id],
+        "blocked_memory_ids": [],
+        "reason": "direct match",
+        "risk": "low",
+        "recommended_injection": "short_summary",
+    }
+
+
+def test_readme_safe_workflow_example_stays_executable():
+    store, trace, _case, lesson = readme_store_fixture()
+    context = MemoryContext(
+        mode="repair", repo=trace.repo, tenant=trace.tenant,
+        commit_sha=trace.commit_sha, tool="search_docs",
+    )
+    request = store.prepare_memory(context, task="repair failed tool call")
+    result = store.finalize_memory(
+        request, allow_decision(lesson.lesson_id), trace_id=trace.trace_id,
+    )
+    assert result.use_memory
+    assert result.decision_id == store.usage_logs[-1].decision_id
 
 
 def test_readme_suggested_initial_api_still_works():

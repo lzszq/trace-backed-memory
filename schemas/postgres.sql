@@ -32,6 +32,10 @@ CREATE TABLE traces (
   error TEXT,
   latency_ms INTEGER,
   cost_usd NUMERIC,
+  CHECK (btrim(trace_id) <> ''),
+  CHECK (btrim(run_id) <> ''),
+  CHECK (btrim(commit_sha) <> ''),
+  UNIQUE (trace_id, commit_sha),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -43,7 +47,7 @@ CREATE TABLE memory_ids (
 
 CREATE TABLE failure_cases (
   case_id TEXT PRIMARY KEY,
-  source_trace_id TEXT NOT NULL REFERENCES traces(trace_id),
+  source_trace_id TEXT NOT NULL,
   commit_sha TEXT NOT NULL,
   failure_type TEXT NOT NULL,
   symptom TEXT NOT NULL,
@@ -55,10 +59,22 @@ CREATE TABLE failure_cases (
   fix_commit_sha TEXT,
   regression_passed BOOLEAN NOT NULL DEFAULT false,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'verified', 'obsolete')),
+  CHECK (btrim(case_id) <> ''),
+  CHECK (btrim(source_trace_id) <> ''),
+  CHECK (btrim(commit_sha) <> ''),
+  CHECK (btrim(failure_type) <> ''),
+  CHECK (btrim(symptom) <> ''),
+  CHECK (fix IS NULL OR btrim(fix) <> ''),
+  CHECK (fix_commit_sha IS NULL OR btrim(fix_commit_sha) <> ''),
   CHECK (
     status != 'verified'
-    OR (fix IS NOT NULL AND fix_commit_sha IS NOT NULL AND regression_passed)
+    OR (
+      fix IS NOT NULL AND btrim(fix) <> ''
+      AND fix_commit_sha IS NOT NULL AND btrim(fix_commit_sha) <> ''
+      AND regression_passed
+    )
   ),
+  FOREIGN KEY (source_trace_id, commit_sha) REFERENCES traces(trace_id, commit_sha),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -84,7 +100,7 @@ CREATE FUNCTION valid_memory_scope_json(value JSONB) RETURNS BOOLEAN AS $$
         'failure_type'
       )
         OR jsonb_typeof(entry.scope_value) != 'string'
-        OR entry.scope_value #>> '{}' = ''
+        OR btrim(entry.scope_value #>> '{}') = ''
     );
 $$ LANGUAGE SQL IMMUTABLE;
 
@@ -94,10 +110,13 @@ CREATE TABLE lessons (
   lesson_text TEXT NOT NULL,
   memory_type TEXT NOT NULL CHECK (memory_type IN ('procedural', 'semantic', 'episodic', 'policy')),
   scope_json JSONB NOT NULL CHECK (valid_memory_scope_json(scope_json)),
-  confidence NUMERIC DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
+  confidence NUMERIC NOT NULL DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
   sensitive BOOLEAN NOT NULL DEFAULT false,
   eval_leaking BOOLEAN NOT NULL DEFAULT false,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'obsolete')),
+  CHECK (btrim(lesson_id) <> ''),
+  CHECK (btrim(source_case_id) <> ''),
+  CHECK (btrim(lesson_text) <> ''),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -106,10 +125,12 @@ CREATE TABLE project_policies (
   policy_id TEXT PRIMARY KEY,
   policy_text TEXT NOT NULL,
   scope_json JSONB NOT NULL CHECK (valid_memory_scope_json(scope_json)),
-  confidence NUMERIC DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
+  confidence NUMERIC NOT NULL DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
   sensitive BOOLEAN NOT NULL DEFAULT false,
   eval_leaking BOOLEAN NOT NULL DEFAULT false,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'obsolete')),
+  CHECK (btrim(policy_id) <> ''),
+  CHECK (btrim(policy_text) <> ''),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -182,9 +203,32 @@ CREATE FUNCTION jsonb_text_array_has_duplicates(value JSONB) RETURNS BOOLEAN AS 
   END;
 $$ LANGUAGE SQL IMMUTABLE;
 
+CREATE FUNCTION valid_non_empty_text_object(value JSONB) RETURNS BOOLEAN AS $$
+  SELECT jsonb_typeof(value) = 'object'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_each(value) AS entry(object_key, object_value)
+      WHERE btrim(entry.object_key) = ''
+        OR jsonb_typeof(entry.object_value) != 'string'
+        OR btrim(entry.object_value #>> '{}') = ''
+    );
+$$ LANGUAGE SQL IMMUTABLE;
+
+CREATE FUNCTION valid_candidate_memory_statuses(value JSONB) RETURNS BOOLEAN AS $$
+  SELECT jsonb_typeof(value) = 'object'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_each(value) AS entry(memory_id, status)
+      WHERE btrim(entry.memory_id) = ''
+        OR jsonb_typeof(entry.status) != 'string'
+        OR entry.status #>> '{}' NOT IN ('draft', 'verified', 'active', 'obsolete')
+    );
+$$ LANGUAGE SQL IMMUTABLE;
+
 CREATE TABLE memory_usage_decisions (
   decision_id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,
+  trace_id TEXT NOT NULL REFERENCES traces(trace_id),
   mode TEXT NOT NULL CHECK (mode IN ('debug', 'repair', 'regression', 'planning', 'eval', 'production')),
   candidate_memory_ids JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (
     jsonb_typeof(candidate_memory_ids) = 'array'
@@ -211,13 +255,24 @@ CREATE TABLE memory_usage_decisions (
   ),
   eval_result TEXT CHECK (eval_result IN ('pass', 'fail', 'error', 'unknown')),
   memory_caused_failure BOOLEAN NOT NULL DEFAULT false,
+  context JSONB NOT NULL CHECK (valid_non_empty_text_object(context)),
+  candidate_memory_statuses JSONB NOT NULL CHECK (valid_candidate_memory_statuses(candidate_memory_statuses)),
+  system_blocked_reasons JSONB NOT NULL CHECK (valid_non_empty_text_object(system_blocked_reasons)),
+  CHECK (btrim(decision_id) <> ''),
+  CHECK (btrim(run_id) <> ''),
+  CHECK (btrim(trace_id) <> ''),
+  CHECK (btrim(reason) <> ''),
   CHECK (
     (jsonb_array_length(used_memory_ids) = 0 AND recommended_injection = 'none')
     OR (jsonb_array_length(used_memory_ids) > 0 AND recommended_injection != 'none')
   ),
   CHECK (
     NOT memory_caused_failure
-    OR (jsonb_array_length(used_memory_ids) > 0 AND eval_result IN ('fail', 'error'))
+    OR (
+      jsonb_array_length(used_memory_ids) > 0
+      AND eval_result IS NOT NULL
+      AND eval_result IN ('fail', 'error')
+    )
   ),
   created_at TIMESTAMPTZ DEFAULT now()
 );

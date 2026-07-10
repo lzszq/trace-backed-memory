@@ -73,7 +73,39 @@ python -m pip install -e .
 
 For one-off local commands, setting `PYTHONPATH=src` also works.
 
-## Suggested initial API
+## Safe Store Workflow
+
+Use the store's two-phase workflow for runtime memory. `prepare_memory()`
+retrieves candidates, applies System Gate, and creates the bounded LLM gate
+prompt. After the LLM returns a decision payload, `finalize_memory()` rechecks
+state, renders the allowed snippet, and records one trace-linked audit event.
+
+```python
+request = store.prepare_memory(
+    context,
+    task="repair failed search_docs call",
+    query="search_docs null query",
+)
+result = store.finalize_memory(
+    request,
+    {
+        "use_memory": True,
+        "allowed_memory_ids": ["lesson_001"],
+        "blocked_memory_ids": [],
+        "reason": "The lesson directly matches the current tool failure.",
+        "risk": "low",
+        "recommended_injection": "short_summary",
+    },
+    trace_id=trace.trace_id,
+    eval_result="pass",
+)
+snippet = result.snippet
+```
+
+Only this store workflow provides ownership, replay, stale-state, trace-link,
+and atomic logging guarantees.
+
+## Low-level System Gate Helper
 
 ```python
 from trace_backed_memory import MemoryContext, MemoryItem, system_gate
@@ -203,10 +235,13 @@ context = parse_memory_context(
         "eval_suite": "tool_calling_regression",
     }
 )
-candidates = store.candidate_memories(context, query="search_docs null query")
-system_allowed, system_blocked = system_gate(context, candidates)
-
-llm_decision = parse_memory_decision(
+request = store.prepare_memory(
+    context,
+    task="repair failed search_docs call",
+    query="search_docs null query",
+)
+result = store.finalize_memory(
+    request,
     {
         "use_memory": True,
         "allowed_memory_ids": ["lesson_001"],
@@ -214,11 +249,11 @@ llm_decision = parse_memory_decision(
         "reason": "The lesson directly matches the current tool failure.",
         "risk": "low",
         "recommended_injection": "short_summary",
-    }
+    },
+    trace_id=trace.trace_id,
+    eval_result="pass",
 )
-allowed, final_decision = apply_llm_gate_decision(system_allowed, system_blocked, llm_decision)
-snippet = build_injection_snippet(allowed, decision=final_decision)
-store.log_decision("run_001", context, [m.memory_id for m in candidates], final_decision, eval_result="pass")
+snippet = result.snippet
 metrics = store.metrics()
 
 snapshot = store.to_snapshot()
@@ -234,8 +269,9 @@ lesson_only_store.load_lessons_yaml("lessons.active.yaml")
 pr_report = store.pr_memory_report(context, changed_fields=["tool_schema_version", "eval_suite"])
 ```
 
-Lower-level helpers are also public for callers that already own part of the
-pipeline:
+Low-level helpers remain public for callers that own equivalent orchestration,
+but only the store workflow provides ownership, replay, stale-state,
+trace-link, and atomic logging guarantees:
 
 ```python
 manual_case = draft_failure_case(
@@ -274,13 +310,13 @@ Implemented pieces:
 - Deterministic System Gate with strict source, tenant-aware scope, status, memory-type, confidence, sensitivity, eval-leak, and mode checks.
 - Gate boundary helpers that validate runtime context JSON, JSON-quote and cap dynamic gate prompt fields, validate LLM decision JSON with non-empty unique IDs and consistent `use_memory` / `recommended_injection` fields, require the final `MemoryDecision` before rendering non-empty runtime snippets, honor `none`/`pointer_only`/`short_summary` injection modes, and prevent the LLM decision from overriding System Gate.
 - In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, debug/repair visibility for verified regression-backed failure cases, optional keyword filtering including short domain tokens, and usage decision logs.
-- Usage-log validation that rejects empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
+- Usage-log validation and persisted contract that require trace ID, serialized context, candidate status snapshots, and System Gate block reasons; reject empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
 - Dependency-free JSON snapshot save/load for trace, failure case, lesson, project policy, and usage-log records.
 - Dependency-free active lesson YAML save/load for the repository's simple `memory/lessons.example.yaml` shape, preserving numeric-looking scope strings.
 - Store-level checks that reject lessons with empty identity fields, invalid memory type/status, unknown non-empty scope fields, unbounded confidence, or a missing, unverified, non-regression-backed source case.
 - Store-level checks that reject project policies with empty identity/text fields, invalid status, invalid scope, unbounded confidence, or IDs that collide with failure case, lesson, or project policy memory IDs.
 - JSON schemas for stored records and full memory-store snapshots.
-- Postgres schema parity checks for model defaults, shared runtime memory ID namespace, verified-case lifecycle constraints, JSONB object/array and element-type checks, required usage-decision fields, and context example parsing.
+- Postgres schema parity checks for model defaults, shared runtime memory ID namespace, non-empty required text, composite case/trace commit provenance, verified-case lifecycle constraints, JSONB object/array and element-type checks, required usage-decision audit evidence, and context example parsing.
 - Lesson safety flags for sensitive or eval-leaking memory are preserved through retrieval and blocked by System Gate.
 - PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, and warns on risky prompt/tool/model/eval-suite changes.
 - Basic metrics for decisions, candidates, used/blocked memory, pass rates with/without memory, wrong-memory failures, obsolete attempts, and lesson confidence.

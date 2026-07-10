@@ -209,9 +209,18 @@ query. Keyword overlap is only a retrieval aid and does not replace System Gate
 or LLM applicability checks. Short domain tokens such as `AI` and `v2` are
 preserved in keyword filtering.
 
-Usage logs should retain the candidate IDs, used IDs, blocked IDs, risk,
-reason, recommended injection, optional eval result, and whether memory was
-attributed as the cause of a failure. These fields feed pass-rate and
+The safe store workflow is `prepare_memory()` followed by `finalize_memory()`.
+Preparation performs retrieval, System Gate, and bounded LLM prompt creation;
+finalization rechecks current state, narrows the LLM decision, renders the
+snippet, and atomically records trace-linked evidence. Only this workflow
+provides ownership, replay, stale-state, trace-link, and atomic logging
+guarantees. Low-level helpers remain public for callers that own equivalent
+orchestration.
+
+Usage logs persist a non-empty trace ID, serialized context, candidate IDs,
+candidate status snapshots, System Gate blocked reasons, used IDs, blocked IDs,
+risk, reason, recommended injection, optional eval result, and whether memory
+was attributed as the cause of a failure. These fields feed pass-rate and
 wrong-memory metrics. The in-memory store rejects usage logs whose used memory
 IDs were not present in the recorded candidate set, whose identity fields are
 empty, whose imported decision IDs are duplicated, whose memory ID lists contain
@@ -219,8 +228,16 @@ duplicate, empty-string, or non-string memory IDs, whose used and blocked IDs
 overlap, whose used or blocked IDs were not recorded candidates, or whose mode, risk,
 recommended injection, or optional `eval_result` values are unsupported.
 
+The JSON Schema requires the four safe-workflow audit fields for persisted
+usage logs while Python keeps defaults to migrate exact legacy snapshots.
+PostgreSQL rejects empty required identifiers and text, uses composite
+`(source_trace_id, commit_sha)` provenance to bind cases to their source trace,
+requires non-null lesson and policy confidence, and checks audit JSONB objects
+and values. A wrong-memory failure requires used memory plus a non-null
+`fail` or `error` result.
+
 The SQL schema is kept aligned with the dataclass contracts through tests for
-model defaults, required usage-decision fields, JSONB object/array and
+model defaults, required usage-decision audit fields, JSONB object/array and
 element-type checks, and the runtime memory context example.
 Portable JSON Schema files document trace, failure case, lesson, project policy,
 usage log, and full snapshot shapes; cross-record provenance checks still live

@@ -63,12 +63,13 @@
 - Run deterministic System Gate.
 - Block zero or out-of-range confidence memory before LLM applicability checks.
 - Run LLM Gate for semantic applicability.
+- Make `prepare_memory()` then `finalize_memory()` the primary runtime path: bind retrieval, System Gate, LLM narrowing, stale-state recheck, trace link, and atomic audit logging in the store.
 - Honor injection modes when building runtime snippets, JSON-quote snippet text, and cap injected text.
 - Quote and cap task text, context summaries, and candidate memory text inside the LLM gate prompt.
-- Log decisions.
+- Persist trace ID, serialized context, candidate status snapshots, and System Gate block reasons with decisions; require failed or errored non-null eval evidence for wrong-memory failures.
 - Keep keyword search as a post-metadata retrieval aid, not an approval gate.
 - Reject usage logs with empty identities, duplicate imported decision IDs, unsupported enum fields, duplicate, empty-string, or non-string memory ID lists, overlapping used/blocked IDs, or used/blocked memory IDs that were not retrieved as candidates.
-- Keep Postgres schema checks aligned with model defaults, required fields, and JSONB object/array element shapes.
+- Keep Postgres schema checks aligned with model defaults, non-empty required identities/text, composite case/trace commit provenance, non-null confidence, required audit fields, and JSONB object/array element shapes.
 - Publish JSON schemas for stored records and full memory-store snapshots.
 
 ## Phase 6: CI / PR integration

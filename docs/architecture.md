@@ -163,6 +163,8 @@ collide with the shared runtime memory ID namespace across failure cases, lesson
 For the MVP, `TraceBackedMemoryStore.to_snapshot()`, `from_snapshot()`,
 `save_json()`, and `load_json()` provide a stable full-store persistence
 boundary for traces, failure cases, lessons, project policies, and usage logs.
+The boundary requires a JSON object, rejects non-finite costs and confidence,
+and serializes and parses strict JSON without `NaN` or infinity constants.
 `save_lessons_yaml()` and `load_lessons_yaml()` provide a small dependency-free
 adapter for active lessons using the repository's `memory/lessons.example.yaml`
 shape; loading still reuses `add_lesson()` so source-case and lesson-contract
@@ -240,8 +242,12 @@ usage logs while Python keeps defaults to migrate exact legacy snapshots.
 PostgreSQL rejects empty required identifiers and text, uses composite
 `(source_trace_id, commit_sha)` provenance to bind cases to their source trace,
 requires non-null lesson and policy confidence, and checks audit JSONB objects
-and values. A wrong-memory failure requires used memory plus a non-null
-`fail` or `error` result.
+and values. Failure-case, lesson, and project-policy IDs are immutable and their
+records cannot be deleted, keeping the shared runtime ID registry append-only.
+Active lessons require verified regression-backed sources; obsoleting a source
+case atomically obsoletes active derived lessons, while invalid source
+transitions and lesson reactivation are rejected. A wrong-memory failure
+requires used memory plus a non-null `fail` or `error` result.
 
 The SQL schema is kept aligned with the dataclass contracts through tests for
 model defaults, required usage-decision audit fields, JSONB object/array and

@@ -261,7 +261,7 @@ def test_decision_and_usage_schemas_require_nonblank_reasons():
 
     assert decision_reason["pattern"] == r"\S"
     assert usage_reason["pattern"] == r"\S"
-    assert "CHECK (btrim(reason) <> '')" in _postgres_schema()
+    assert "CHECK (reason ~ '[^[:space:]]')" in _postgres_schema()
 
 
 def test_memory_usage_log_schema_encodes_decision_consistency_rules():
@@ -394,6 +394,28 @@ def test_postgres_schema_preserves_shared_runtime_memory_id_namespace():
         assert f"CREATE TRIGGER {table_name}_register_runtime_memory_id" in schema
 
 
+def test_postgres_runtime_memory_records_are_append_only():
+    schema = _postgres_schema()
+
+    assert "CREATE FUNCTION protect_runtime_memory_identity()" in schema
+    for table_name, identity_column in [
+        ("failure_cases", "case_id"),
+        ("lessons", "lesson_id"),
+        ("project_policies", "policy_id"),
+    ]:
+        assert (
+            f"CREATE TRIGGER {table_name}_protect_runtime_memory_identity"
+            in schema
+        )
+        assert f"BEFORE UPDATE OF {identity_column} OR DELETE" in schema
+        assert (
+            f"EXECUTE FUNCTION protect_runtime_memory_identity('{identity_column}')"
+            in schema
+        )
+    assert "runtime memory IDs are immutable" in schema
+    assert "runtime memory records cannot be deleted" in schema
+
+
 def test_postgres_schema_enforces_verified_case_and_lesson_source_lifecycle():
     failure_cases = _table_definition(_postgres_schema(), "failure_cases")
     schema = _postgres_schema()
@@ -404,8 +426,16 @@ def test_postgres_schema_enforces_verified_case_and_lesson_source_lifecycle():
     assert "regression_passed" in failure_cases
     assert "CREATE FUNCTION require_verified_lesson_source_case()" in schema
     assert "CREATE TRIGGER lessons_require_verified_source_case" in schema
+    assert "IF NEW.status = 'active'" in schema
+    assert "BEFORE INSERT OR UPDATE OF source_case_id, status ON lessons" in schema
     assert "status = 'verified'" in schema
     assert "regression_passed" in schema
+    assert "CREATE FUNCTION enforce_failure_case_lesson_lifecycle()" in schema
+    assert "CREATE TRIGGER failure_cases_enforce_lesson_lifecycle" in schema
+    assert "BEFORE UPDATE OF status, regression_passed ON failure_cases" in schema
+    assert "UPDATE lessons" in schema
+    assert "SET status = 'obsolete'" in schema
+    assert "active lessons require a verified regression-backed source case" in schema
 
 
 def test_trace_eval_result_defaults_to_unknown_and_is_required():
@@ -414,6 +444,15 @@ def test_trace_eval_result_defaults_to_unknown_and_is_required():
 
     assert "NOT NULL" in eval_result
     assert "DEFAULT 'unknown'" in eval_result
+
+
+def test_postgres_trace_cost_rejects_non_finite_numeric_values():
+    traces = _table_definition(_postgres_schema(), "traces")
+    cost_usd = _column_definition(traces, "cost_usd")
+
+    for non_finite in ["NaN", "Infinity", "-Infinity"]:
+        assert f"'{non_finite}'::numeric" in cost_usd
+    assert "NOT IN" in cost_usd
 
 
 def test_jsonb_columns_constrain_object_and_array_shapes():

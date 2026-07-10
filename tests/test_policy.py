@@ -197,6 +197,17 @@ def test_injection_rejects_aggregate_snippet_over_budget():
         build_injection_snippet(memories, decision=decision)
 
 
+@pytest.mark.parametrize("injection_mode", [[], {}])
+def test_injection_rejects_container_valued_injection_mode(
+    injection_mode: object,
+):
+    with pytest.raises(ValueError, match="recommended_injection"):
+        build_injection_snippet(
+            [],
+            recommended_injection=injection_mode,  # type: ignore[arg-type]
+        )
+
+
 def test_memory_context_preserves_original_positional_argument_order():
     context = MemoryContext(
         "repair",
@@ -867,6 +878,32 @@ def test_llm_gate_treats_none_injection_as_no_memory_use():
     assert final_decision.recommended_injection == "none"
 
 
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("allowed_memory_ids", [[]]),
+        ("blocked_memory_ids", [{}]),
+        ("recommended_injection", []),
+    ],
+)
+def test_apply_llm_gate_decision_rejects_malformed_direct_decisions(
+    field_name: str, invalid_value: object
+):
+    values: dict[str, object] = {
+        "use_memory": False,
+        "allowed_memory_ids": [],
+        "blocked_memory_ids": [],
+        "reason": "no relevant memory",
+        "risk": "none",
+        "recommended_injection": "none",
+    }
+    values[field_name] = invalid_value
+    decision = MemoryDecision(**values)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match=field_name):
+        apply_llm_gate_decision([], {}, decision)
+
+
 def test_llm_gate_prompt_excludes_raw_trace_fields():
     context = MemoryContext(
         mode="repair",
@@ -1027,6 +1064,100 @@ def test_parse_memory_decision_rejects_invalid_enums():
         assert "risk" in str(exc)
     else:
         raise AssertionError("invalid risk values must be rejected")
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("risk", []),
+        ("risk", {}),
+        ("recommended_injection", []),
+        ("recommended_injection", {}),
+    ],
+)
+def test_parse_memory_decision_rejects_container_valued_enums(
+    field_name: str, invalid_value: object
+):
+    payload = {
+        "use_memory": False,
+        "allowed_memory_ids": [],
+        "blocked_memory_ids": [],
+        "reason": "no applicable memory",
+        "risk": "none",
+        "recommended_injection": "none",
+    }
+    payload[field_name] = invalid_value
+
+    with pytest.raises(ValueError, match=field_name):
+        parse_memory_decision(payload)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("status", ["active"]),
+        ("memory_type", {"type": "procedural"}),
+        ("text", ["rule"]),
+    ],
+)
+def test_llm_gate_rejects_container_valued_memory_contract_fields(
+    field_name: str, invalid_value: object
+):
+    values: dict[str, object] = {
+        "memory_id": "lesson_malformed",
+        "status": "active",
+        "memory_type": "procedural",
+        "scope": {"repo": "repo"},
+        "text": "rule",
+        "source_case_id": "case_001",
+    }
+    values[field_name] = invalid_value
+    memory = MemoryItem(**values)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match=field_name):
+        build_llm_gate_prompt(
+            MemoryContext(mode="repair", repo="repo", commit_sha="abc"),
+            [memory],
+            task="repair",
+        )
+
+
+@pytest.mark.parametrize("memory_id", [[], {}])
+def test_system_gate_normalizes_unhashable_memory_ids(memory_id: object):
+    memory = MemoryItem(
+        memory_id=memory_id,  # type: ignore[arg-type]
+        status="active",
+        memory_type="procedural",
+        scope={"repo": "repo"},
+        text="rule",
+        source_case_id="case_001",
+    )
+
+    with pytest.raises(ValueError, match="memory_id"):
+        system_gate(
+            MemoryContext(mode="repair", repo="repo", commit_sha="abc"),
+            [memory],
+        )
+
+
+@pytest.mark.parametrize("confidence", [float("nan"), float("inf"), float("-inf")])
+def test_llm_gate_rejects_non_finite_memory_confidence(confidence: float):
+    memory = MemoryItem(
+        memory_id="lesson_non_finite",
+        status="active",
+        memory_type="procedural",
+        scope={"repo": "repo"},
+        text="rule",
+        source_case_id="case_001",
+        confidence=confidence,
+    )
+
+    with pytest.raises(ValueError, match="confidence"):
+        build_llm_gate_prompt(
+            MemoryContext(mode="repair", repo="repo", commit_sha="abc"),
+            [memory],
+            task="repair",
+        )
 
 
 def test_parse_memory_decision_rejects_non_string_ids():

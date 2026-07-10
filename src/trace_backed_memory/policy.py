@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -107,6 +108,12 @@ def _memory_item_contract_error(memory: MemoryItem) -> str | None:
         return "memory_id must be a non-empty string"
     if len(memory.memory_id) > MEMORY_ID_MAX_CHARS:
         return f"memory_id must be at most {MEMORY_ID_MAX_CHARS} characters"
+    if not isinstance(memory.status, str):
+        return "status must be a string"
+    if not isinstance(memory.memory_type, str):
+        return "memory_type must be a string"
+    if not isinstance(memory.text, str):
+        return "text must be a string"
     if not isinstance(memory.scope, dict):
         return "scope must be a mapping of known non-empty string fields"
     for key, value in memory.scope.items():
@@ -132,7 +139,12 @@ def _memory_item_contract_error(memory: MemoryItem) -> str | None:
         return "sensitive must be a boolean"
     if type(memory.eval_leaking) is not bool:
         return "eval_leaking must be a boolean"
-    if isinstance(memory.confidence, bool) or not isinstance(memory.confidence, (int, float)) or not 0.0 < memory.confidence <= 1.0:
+    if (
+        isinstance(memory.confidence, bool)
+        or not isinstance(memory.confidence, (int, float))
+        or not math.isfinite(memory.confidence)
+        or not 0.0 < memory.confidence <= 1.0
+    ):
         return "confidence must be greater than 0.0 and at most 1.0"
     return None
 
@@ -180,6 +192,10 @@ def system_gate(context: MemoryContext, candidates: list[MemoryItem]) -> tuple[l
     blocked: dict[str, str] = {}
 
     for memory in candidates:
+        if not isinstance(memory, MemoryItem):
+            raise ValueError("candidates must contain MemoryItem records")
+        if not isinstance(memory.memory_id, str) or not memory.memory_id:
+            raise ValueError("memory_id must be a non-empty string")
         reason = _blocked_reason(context, memory)
         if reason is None:
             allowed.append(memory)
@@ -281,12 +297,13 @@ def apply_llm_gate_decision(
     decision: MemoryDecision,
 ) -> tuple[list[MemoryItem], MemoryDecision]:
     """Apply an LLM applicability decision without letting it override System Gate."""
+    allowed_memory_ids, blocked_memory_ids = _validated_decision_fields(decision)
     allowed_by_id = {memory.memory_id: memory for memory in system_allowed}
-    llm_blocked_ids = set(decision.blocked_memory_ids)
+    llm_blocked_ids = set(blocked_memory_ids)
     memory_requested = decision.use_memory and decision.recommended_injection != "none"
     requested_allowed_ids = [
         memory_id
-        for memory_id in (decision.allowed_memory_ids if memory_requested else [])
+        for memory_id in (allowed_memory_ids if memory_requested else [])
         if memory_id not in llm_blocked_ids
     ]
     final_allowed_ids = [memory_id for memory_id in requested_allowed_ids if memory_id in allowed_by_id]
@@ -296,10 +313,10 @@ def apply_llm_gate_decision(
     final_allowed = [allowed_by_id[memory_id] for memory_id in final_allowed_ids]
 
     blocked_ids: list[str] = []
-    for memory_id in [*system_blocked.keys(), *decision.blocked_memory_ids]:
+    for memory_id in [*system_blocked.keys(), *blocked_memory_ids]:
         if memory_id not in blocked_ids:
             blocked_ids.append(memory_id)
-    for memory_id in decision.allowed_memory_ids:
+    for memory_id in allowed_memory_ids:
         if memory_id not in allowed_by_id and memory_id not in blocked_ids:
             blocked_ids.append(memory_id)
 
@@ -369,11 +386,14 @@ def parse_memory_decision(payload: str | Mapping[str, Any]) -> MemoryDecision:
         raise ValueError("reason must be nonblank")
 
     risk = data["risk"]
-    if risk not in DECISION_RISKS:
+    if not isinstance(risk, str) or risk not in DECISION_RISKS:
         raise ValueError("risk must be one of: high, low, medium, none")
 
     recommended_injection = data["recommended_injection"]
-    if recommended_injection not in RECOMMENDED_INJECTIONS:
+    if (
+        not isinstance(recommended_injection, str)
+        or recommended_injection not in RECOMMENDED_INJECTIONS
+    ):
         raise ValueError(
             "recommended_injection must be one of: full_case_summary, none, pointer_only, short_summary"
         )
@@ -406,8 +426,16 @@ def build_injection_snippet(
         raise ValueError(
             f"injection accepts at most {INJECTION_MAX_MEMORIES} memories"
         )
-    injection_mode = recommended_injection or (decision.recommended_injection if decision else "short_summary")
-    if injection_mode not in RECOMMENDED_INJECTIONS:
+    if recommended_injection is not None:
+        injection_mode = recommended_injection
+    elif decision is not None:
+        injection_mode = decision.recommended_injection
+    else:
+        injection_mode = "short_summary"
+    if (
+        not isinstance(injection_mode, str)
+        or injection_mode not in RECOMMENDED_INJECTIONS
+    ):
         raise ValueError(
             "recommended_injection must be one of: full_case_summary, none, pointer_only, short_summary"
         )
@@ -449,9 +477,10 @@ def _validate_injection_inputs(
         if memories:
             raise ValueError("memory decision is required before injecting memory")
         return
+    allowed_memory_ids, blocked_memory_ids = _validated_decision_fields(decision)
     consistency_error = _memory_decision_consistency_error(
         use_memory=decision.use_memory,
-        allowed_memory_ids=decision.allowed_memory_ids,
+        allowed_memory_ids=allowed_memory_ids,
         recommended_injection=decision.recommended_injection,
     )
     if consistency_error is not None:
@@ -466,8 +495,8 @@ def _validate_injection_inputs(
     memory_ids = [memory.memory_id for memory in memories]
     if len(set(memory_ids)) != len(memory_ids):
         raise ValueError("injection memories must not contain duplicate memory IDs")
-    allowed_ids = set(decision.allowed_memory_ids)
-    blocked_ids = set(decision.blocked_memory_ids)
+    allowed_ids = set(allowed_memory_ids)
+    blocked_ids = set(blocked_memory_ids)
     if any(memory_id not in allowed_ids for memory_id in memory_ids):
         raise ValueError("injection memories must be listed in decision.allowed_memory_ids")
     if any(memory_id in blocked_ids for memory_id in memory_ids):
@@ -489,6 +518,35 @@ def _snippet_guardrail_error(memory: MemoryItem) -> str | None:
     if memory.eval_leaking:
         return "memory is marked eval_leaking"
     return None
+
+
+def _validated_decision_fields(
+    decision: MemoryDecision,
+) -> tuple[list[str], list[str]]:
+    if not isinstance(decision, MemoryDecision):
+        raise ValueError("decision must be a MemoryDecision")
+    if type(decision.use_memory) is not bool:
+        raise ValueError("use_memory must be a boolean")
+    allowed_memory_ids = _string_list(
+        decision.allowed_memory_ids, "allowed_memory_ids"
+    )
+    blocked_memory_ids = _string_list(
+        decision.blocked_memory_ids, "blocked_memory_ids"
+    )
+    if not isinstance(decision.reason, str):
+        raise ValueError("reason must be a string")
+    if not decision.reason.strip():
+        raise ValueError("reason must be nonblank")
+    if not isinstance(decision.risk, str) or decision.risk not in DECISION_RISKS:
+        raise ValueError("risk must be one of: high, low, medium, none")
+    if (
+        not isinstance(decision.recommended_injection, str)
+        or decision.recommended_injection not in RECOMMENDED_INJECTIONS
+    ):
+        raise ValueError(
+            "recommended_injection must be one of: full_case_summary, none, pointer_only, short_summary"
+        )
+    return allowed_memory_ids, blocked_memory_ids
 
 
 def _memory_decision_consistency_error(

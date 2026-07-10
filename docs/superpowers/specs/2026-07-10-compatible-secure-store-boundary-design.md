@@ -214,4 +214,3 @@ Focused tests cover:
 
 Completion requires the focused tests, the full pytest suite, and
 `git diff --check` to pass from the final worktree.
-

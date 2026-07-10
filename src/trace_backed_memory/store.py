@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import tempfile
@@ -136,6 +137,8 @@ class TraceBackedMemoryStore:
 
     @classmethod
     def from_snapshot(cls, data: Mapping[str, Any]) -> "TraceBackedMemoryStore":
+        if not isinstance(data, Mapping):
+            raise ValueError("memory store snapshot must be a JSON object")
         is_v2 = _validate_snapshot_envelope(data)
         store = cls()
         for trace_data in _snapshot_records(data, "traces"):
@@ -182,7 +185,13 @@ class TraceBackedMemoryStore:
                 suffix=".tmp",
             ) as temporary_file:
                 temp_path = Path(temporary_file.name)
-                json.dump(self.to_snapshot(), temporary_file, indent=2, sort_keys=True)
+                json.dump(
+                    self.to_snapshot(),
+                    temporary_file,
+                    indent=2,
+                    sort_keys=True,
+                    allow_nan=False,
+                )
                 temporary_file.write("\n")
                 temporary_file.flush()
             os.replace(temp_path, target)
@@ -196,7 +205,10 @@ class TraceBackedMemoryStore:
 
     @classmethod
     def load_json(cls, path: str | Path) -> "TraceBackedMemoryStore":
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        data = json.loads(
+            Path(path).read_text(encoding="utf-8"),
+            parse_constant=_reject_json_constant,
+        )
         if not isinstance(data, Mapping):
             raise ValueError("memory store snapshot must be a JSON object")
         return cls.from_snapshot(data)
@@ -961,8 +973,9 @@ def _validate_trace(trace: Trace) -> None:
     if trace.cost_usd is not None and (
         isinstance(trace.cost_usd, bool)
         or not isinstance(trace.cost_usd, (int, float))
+        or not math.isfinite(trace.cost_usd)
     ):
-        raise ValueError("cost_usd must be a number or None")
+        raise ValueError("cost_usd must be a finite number or None")
     _validate_json_object_list(trace.retrieved_context, "retrieved_context")
     _validate_json_object_list(trace.tool_calls, "tool_calls")
     _validate_json_object_list(trace.tool_outputs, "tool_outputs")
@@ -1182,6 +1195,10 @@ def _validate_optional_rfc3339(
         raise ValueError(
             f"{record_label} {field_name} must be None or a timezone-aware RFC 3339 date-time string"
         )
+
+
+def _reject_json_constant(value: str) -> Any:
+    raise ValueError(f"invalid JSON constant: {value}")
 
 
 def _validate_json_object_list(value: Any, field_name: str) -> None:

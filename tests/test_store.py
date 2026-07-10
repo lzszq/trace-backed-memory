@@ -817,6 +817,56 @@ def test_runtime_trace_validation_matches_schema_types(
         TraceBackedMemoryStore().record_trace(Trace(**values))  # type: ignore[arg-type]
 
 
+@pytest.mark.parametrize("cost_usd", [float("nan"), float("inf"), float("-inf")])
+def test_runtime_trace_rejects_non_finite_cost(cost_usd: float):
+    with pytest.raises(ValueError, match="cost_usd"):
+        TraceBackedMemoryStore().record_trace(
+            Trace(
+                trace_id="trace_non_finite",
+                run_id="run_non_finite",
+                commit_sha="abc",
+                cost_usd=cost_usd,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("record_kind", "confidence"),
+    [
+        ("lesson", float("nan")),
+        ("lesson", float("inf")),
+        ("policy", float("-inf")),
+    ],
+)
+def test_runtime_memory_records_reject_non_finite_confidence(
+    record_kind: str, confidence: float
+):
+    store, _trace, case = store_with_verified_case()
+    if record_kind == "lesson":
+        insertion = lambda: store.add_lesson(
+            Lesson(
+                lesson_id="lesson_non_finite",
+                source_case_id=case.case_id,
+                lesson_text="rule",
+                memory_type="procedural",
+                scope={"repo": "repo", "tenant": "tenant_a"},
+                confidence=confidence,
+            )
+        )
+    else:
+        insertion = lambda: store.add_project_policy(
+            ProjectPolicy(
+                policy_id="policy_non_finite",
+                policy_text="rule",
+                scope={"repo": "repo"},
+                confidence=confidence,
+            )
+        )
+
+    with pytest.raises(ValueError, match="confidence"):
+        insertion()
+
+
 def test_runtime_trace_error_text_is_not_treated_as_bounded_metadata():
     error_text = "failure detail " * 100
     trace = TraceBackedMemoryStore().record_trace(
@@ -1041,6 +1091,25 @@ def test_v2_snapshot_record_validation_matches_schema_types(
 
 
 @pytest.mark.parametrize(
+    ("collection_name", "field_name", "invalid_value"),
+    [
+        ("traces", "cost_usd", float("nan")),
+        ("traces", "cost_usd", float("inf")),
+        ("lessons", "confidence", float("-inf")),
+        ("project_policies", "confidence", float("nan")),
+    ],
+)
+def test_v2_snapshot_rejects_non_finite_numbers(
+    collection_name: str, field_name: str, invalid_value: float
+):
+    snapshot = fully_populated_snapshot()
+    _snapshot_record(snapshot, collection_name)[field_name] = invalid_value
+
+    with pytest.raises(ValueError, match=field_name):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+@pytest.mark.parametrize(
     ("collection_name", "required_field", "record_label"),
     [
         ("traces", "trace_id", "trace"),
@@ -1097,6 +1166,14 @@ def test_snapshot_v2_has_exact_versioned_envelope():
 @pytest.mark.parametrize("payload", [{}, {"unknown": []}, {"snapshot_version": 2}])
 def test_snapshot_rejects_truncated_or_unknown_envelopes(payload):
     with pytest.raises(ValueError, match="snapshot envelope"):
+        TraceBackedMemoryStore.from_snapshot(payload)
+
+
+@pytest.mark.parametrize("payload", [None, [], "snapshot", 7])
+def test_snapshot_rejects_non_mapping_payloads_with_stable_error(payload):
+    with pytest.raises(
+        ValueError, match="memory store snapshot must be a JSON object"
+    ):
         TraceBackedMemoryStore.from_snapshot(payload)
 
 
@@ -1387,6 +1464,53 @@ def test_save_json_cleans_temporary_sibling_when_replace_fails(monkeypatch, tmp_
 
     assert target.read_text(encoding="utf-8") == "existing snapshot\n"
     assert list(tmp_path.glob(".snapshot.json.*.tmp")) == []
+
+
+@pytest.mark.parametrize("cost_usd", [float("nan"), float("inf"), float("-inf")])
+def test_save_json_rejects_non_finite_numbers_atomically(tmp_path, cost_usd: float):
+    target = tmp_path / "snapshot.json"
+    target.write_text("existing snapshot\n", encoding="utf-8")
+    store = TraceBackedMemoryStore()
+    store._traces["trace_non_finite"] = Trace(
+        trace_id="trace_non_finite",
+        run_id="run_non_finite",
+        commit_sha="abc",
+        cost_usd=cost_usd,
+    )
+
+    with pytest.raises(ValueError, match="JSON"):
+        store.save_json(target)
+
+    assert target.read_text(encoding="utf-8") == "existing snapshot\n"
+    assert list(tmp_path.glob(".snapshot.json.*.tmp")) == []
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_load_json_rejects_non_standard_numeric_constants(tmp_path, constant: str):
+    snapshot_path = tmp_path / "non-standard-number.json"
+    snapshot_path.write_text(
+        """
+        {
+          "snapshot_version": 2,
+          "traces": [
+            {
+              "trace_id": "trace_non_finite",
+              "run_id": "run_non_finite",
+              "commit_sha": "abc",
+              "cost_usd": %s
+            }
+          ],
+          "failure_cases": [],
+          "lessons": [],
+          "project_policies": [],
+          "usage_logs": []
+        }
+        """ % constant,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid JSON constant"):
+        TraceBackedMemoryStore.load_json(snapshot_path)
 
 
 def test_snapshot_rejects_string_boolean_safety_fields():

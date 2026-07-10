@@ -31,7 +31,9 @@ CREATE TABLE traces (
   ),
   error TEXT,
   latency_ms INTEGER,
-  cost_usd NUMERIC,
+  cost_usd NUMERIC CHECK (
+    cost_usd NOT IN ('NaN'::numeric, 'Infinity'::numeric, '-Infinity'::numeric)
+  ),
   CHECK (btrim(trace_id) <> ''),
   CHECK (btrim(run_id) <> ''),
   CHECK (btrim(commit_sha) <> ''),
@@ -160,9 +162,31 @@ EXCEPTION WHEN unique_violation THEN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE FUNCTION protect_runtime_memory_identity() RETURNS trigger AS $$
+DECLARE
+  old_runtime_memory_id TEXT;
+  new_runtime_memory_id TEXT;
+BEGIN
+  old_runtime_memory_id := to_jsonb(OLD) ->> TG_ARGV[0];
+
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'runtime memory records cannot be deleted: %',
+      old_runtime_memory_id;
+  END IF;
+
+  new_runtime_memory_id := to_jsonb(NEW) ->> TG_ARGV[0];
+  IF new_runtime_memory_id IS DISTINCT FROM old_runtime_memory_id THEN
+    RAISE EXCEPTION 'runtime memory IDs are immutable: % -> %',
+      old_runtime_memory_id, new_runtime_memory_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE FUNCTION require_verified_lesson_source_case() RETURNS trigger AS $$
 BEGIN
-  IF NOT EXISTS (
+  IF NEW.status = 'active' AND NOT EXISTS (
     SELECT 1
     FROM failure_cases
     WHERE case_id = NEW.source_case_id
@@ -176,21 +200,61 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE FUNCTION enforce_failure_case_lesson_lifecycle() RETURNS trigger AS $$
+BEGIN
+  IF NEW.status = 'obsolete' AND OLD.status IS DISTINCT FROM 'obsolete' THEN
+    UPDATE lessons
+    SET status = 'obsolete', updated_at = now()
+    WHERE source_case_id = OLD.case_id
+      AND status = 'active';
+  ELSIF (
+    NEW.status IS DISTINCT FROM 'verified'
+    OR NOT NEW.regression_passed
+  ) AND EXISTS (
+    SELECT 1
+    FROM lessons
+    WHERE source_case_id = OLD.case_id
+      AND status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'active lessons require a verified regression-backed source case: %',
+      OLD.case_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TRIGGER failure_cases_register_runtime_memory_id
 BEFORE INSERT ON failure_cases
 FOR EACH ROW EXECUTE FUNCTION register_runtime_memory_id();
+
+CREATE TRIGGER failure_cases_protect_runtime_memory_identity
+BEFORE UPDATE OF case_id OR DELETE ON failure_cases
+FOR EACH ROW EXECUTE FUNCTION protect_runtime_memory_identity('case_id');
+
+CREATE TRIGGER failure_cases_enforce_lesson_lifecycle
+BEFORE UPDATE OF status, regression_passed ON failure_cases
+FOR EACH ROW EXECUTE FUNCTION enforce_failure_case_lesson_lifecycle();
 
 CREATE TRIGGER lessons_register_runtime_memory_id
 BEFORE INSERT ON lessons
 FOR EACH ROW EXECUTE FUNCTION register_runtime_memory_id();
 
+CREATE TRIGGER lessons_protect_runtime_memory_identity
+BEFORE UPDATE OF lesson_id OR DELETE ON lessons
+FOR EACH ROW EXECUTE FUNCTION protect_runtime_memory_identity('lesson_id');
+
 CREATE TRIGGER lessons_require_verified_source_case
-BEFORE INSERT OR UPDATE OF source_case_id ON lessons
+BEFORE INSERT OR UPDATE OF source_case_id, status ON lessons
 FOR EACH ROW EXECUTE FUNCTION require_verified_lesson_source_case();
 
 CREATE TRIGGER project_policies_register_runtime_memory_id
 BEFORE INSERT ON project_policies
 FOR EACH ROW EXECUTE FUNCTION register_runtime_memory_id();
+
+CREATE TRIGGER project_policies_protect_runtime_memory_identity
+BEFORE UPDATE OF policy_id OR DELETE ON project_policies
+FOR EACH ROW EXECUTE FUNCTION protect_runtime_memory_identity('policy_id');
 
 CREATE FUNCTION jsonb_text_array_has_duplicates(value JSONB) RETURNS BOOLEAN AS $$
   SELECT CASE
@@ -262,7 +326,7 @@ CREATE TABLE memory_usage_decisions (
   CHECK (btrim(decision_id) <> ''),
   CHECK (btrim(run_id) <> ''),
   CHECK (btrim(trace_id) <> ''),
-  CHECK (btrim(reason) <> ''),
+  CHECK (reason ~ '[^[:space:]]'),
   CHECK (
     (jsonb_array_length(used_memory_ids) = 0 AND recommended_injection = 'none')
     OR (jsonb_array_length(used_memory_ids) > 0 AND recommended_injection != 'none')

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+import trace_backed_memory.store as store_module
 from trace_backed_memory import (
     FailureCase,
     Lesson,
@@ -67,6 +68,52 @@ def store_with_active_lesson() -> tuple[
     )
     store.add_lesson(lesson)
     return store, trace, case, lesson
+
+
+def store_with_cascade_lessons() -> tuple[
+    TraceBackedMemoryStore, FailureCase, tuple[Lesson, Lesson], Lesson
+]:
+    store, _trace, case, first_lesson = store_with_active_lesson()
+    second_lesson = lesson_from_failure_case(
+        case,
+        lesson_id="lesson_002",
+        lesson_text="Validate the search query before calling search_docs.",
+        memory_type="procedural",
+        scope={"repo": "repo", "tenant": "tenant_a", "tool": "search_docs"},
+    )
+    store.add_lesson(second_lesson)
+
+    unrelated_trace = store.record_trace(
+        Trace(
+            trace_id="trace_unrelated",
+            run_id="run_unrelated",
+            commit_sha="unrelated",
+            repo="repo",
+            tenant="tenant_a",
+            eval_result="fail",
+        )
+    )
+    unrelated_case = verify_failure_case(
+        draft_failure_case(
+            unrelated_trace,
+            case_id="case_unrelated",
+            failure_type="other_failure",
+            symptom="unrelated failure",
+        ),
+        fix="unrelated fix",
+        fix_commit_sha="unrelated_fix",
+        regression_passed=True,
+    )
+    store.add_failure_case(unrelated_case)
+    unrelated_lesson = lesson_from_failure_case(
+        unrelated_case,
+        lesson_id="lesson_unrelated",
+        lesson_text="Unrelated active guidance.",
+        memory_type="semantic",
+        scope={"repo": "repo", "tenant": "tenant_a", "tool": "other_tool"},
+    )
+    store.add_lesson(unrelated_lesson)
+    return store, case, (first_lesson, second_lesson), unrelated_lesson
 
 
 def test_store_can_review_and_verify_a_persisted_draft():
@@ -143,6 +190,47 @@ def test_obsoleting_source_case_cascades_to_active_lessons():
     assert store.lessons[lesson.lesson_id].status == "obsolete"
 
 
+def test_obsolete_failure_case_cascade_updates_all_dependents_only():
+    store, case, dependent_lessons, unrelated_lesson = store_with_cascade_lessons()
+
+    store.obsolete_failure_case(case.case_id)
+
+    assert store.failure_cases[case.case_id].status == "obsolete"
+    assert [store.lessons[lesson.lesson_id].status for lesson in dependent_lessons] == [
+        "obsolete",
+        "obsolete",
+    ]
+    assert store.lessons[unrelated_lesson.lesson_id].status == "active"
+
+
+def test_obsolete_failure_case_cascade_is_atomic_on_second_lesson_validation_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    store, case, dependent_lessons, _unrelated_lesson = store_with_cascade_lessons()
+    before_snapshot = store.to_snapshot()
+    before_bytes = json.dumps(before_snapshot, sort_keys=True).encode("utf-8")
+    before_cases = store.failure_cases
+    before_lessons = store.lessons
+    original_validator = store_module._validate_lesson_record
+    validated_lesson_ids: list[str] = []
+
+    def fail_for_second_dependent(lesson: Lesson) -> None:
+        validated_lesson_ids.append(lesson.lesson_id)
+        if lesson.lesson_id == dependent_lessons[1].lesson_id:
+            raise ValueError("injected second dependent validation failure")
+        original_validator(lesson)
+
+    monkeypatch.setattr(store_module, "_validate_lesson_record", fail_for_second_dependent)
+
+    with pytest.raises(ValueError, match="second dependent validation failure"):
+        store.obsolete_failure_case(case.case_id)
+
+    assert validated_lesson_ids == [lesson.lesson_id for lesson in dependent_lessons]
+    assert store.failure_cases == before_cases
+    assert store.lessons == before_lessons
+    assert json.dumps(store.to_snapshot(), sort_keys=True).encode("utf-8") == before_bytes
+
+
 def test_obsolete_case_cascade_round_trips_through_snapshot():
     store, _trace, case, lesson = store_with_active_lesson()
 
@@ -186,6 +274,67 @@ def test_mutating_public_collection_copy_does_not_change_store():
     public["trace_001"].tool_calls.append({"name": "mutated"})
 
     assert store.traces["trace_001"].tool_calls == []
+
+
+@pytest.mark.parametrize(
+    ("collection_name", "record_id"),
+    [
+        ("failure_cases", "case_contract"),
+        ("lessons", "lesson_001"),
+        ("project_policies", "policy_001"),
+    ],
+)
+def test_public_record_mapping_values_are_copy_isolated(
+    collection_name: str, record_id: str
+):
+    store, _trace, _case, _lesson = store_with_active_lesson()
+    store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_001",
+            policy_text="Always provide a search query.",
+            scope={"repo": "repo", "tool": "search_docs"},
+        )
+    )
+    public = dict(getattr(store, collection_name))
+    public_record = public[record_id]
+
+    if isinstance(public_record, FailureCase):
+        object.__setattr__(public_record, "symptom", "mutated")
+        assert store.failure_cases[record_id].symptom == "search_docs received an empty query"
+    else:
+        public_record.scope["tool"] = "mutated"
+        assert getattr(store, collection_name)[record_id].scope["tool"] == "search_docs"
+
+
+@pytest.mark.parametrize("record_kind", ["lesson", "project_policy"])
+def test_store_isolates_caller_owned_scope_of_accepted_records(record_kind: str):
+    store, _trace, case = store_with_verified_case()
+    scope = {"repo": "repo", "tenant": "tenant_a", "tool": "search_docs"}
+
+    if record_kind == "lesson":
+        record = Lesson(
+            lesson_id="lesson_scope",
+            source_case_id=case.case_id,
+            lesson_text="Always provide a search query.",
+            memory_type="procedural",
+            scope=scope,
+        )
+        store.add_lesson(record)
+        collection_name = "lessons"
+        record_id = record.lesson_id
+    else:
+        record = ProjectPolicy(
+            policy_id="policy_scope",
+            policy_text="Always provide a search query.",
+            scope=scope,
+        )
+        store.add_project_policy(record)
+        collection_name = "project_policies"
+        record_id = record.policy_id
+
+    record.scope["tool"] = "mutated"
+
+    assert getattr(store, collection_name)[record_id].scope["tool"] == "search_docs"
 
 
 def test_mutating_public_usage_logs_copy_does_not_change_store():

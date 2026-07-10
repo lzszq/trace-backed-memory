@@ -2835,6 +2835,34 @@ def test_store_json_snapshot_rejects_invalid_usage_log_contract(tmp_path):
             raise AssertionError(f"loaded usage logs must reject invalid {expected_message}")
 
 
+def test_store_snapshot_rejects_unhashable_candidate_memory_status():
+    snapshot = {
+        "traces": [],
+        "failure_cases": [],
+        "lessons": [],
+        "project_policies": [],
+        "usage_logs": [
+            {
+                "decision_id": "decision_000001",
+                "run_id": "run_001",
+                "mode": "repair",
+                "candidate_memory_ids": ["lesson_001"],
+                "used_memory_ids": [],
+                "blocked_memory_ids": [],
+                "reason": "malformed imported status evidence",
+                "risk": "low",
+                "recommended_injection": "none",
+                "candidate_memory_statuses": {"lesson_001": ["active"]},
+            }
+        ],
+    }
+
+    with pytest.raises(
+        ValueError, match="candidate_memory_statuses.*status"
+    ):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
 def test_store_json_snapshot_rejects_duplicate_usage_log_decision_ids(tmp_path):
     usage_log = {
         "decision_id": "decision_000001",

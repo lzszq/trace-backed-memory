@@ -817,6 +817,7 @@ def _validate_status_mapping(value: Any, candidate_memory_ids: list[str]) -> Non
     if not isinstance(value, dict) or any(
         not isinstance(memory_id, str)
         or not memory_id
+        or not isinstance(status, str)
         or status not in FAILURE_CASE_STATUSES.union(LESSON_STATUSES)
         for memory_id, status in value.items()
     ):

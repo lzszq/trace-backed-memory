@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import math
 from datetime import datetime, timezone
 from dataclasses import replace
 from typing import get_args
 
 from .models import FailureCase, Lesson, LessonStatus, MemoryItem, MemoryType, ProjectPolicy, Trace
-from .policy import METADATA_VALUE_MAX_CHARS
+from .policy import METADATA_VALUE_MAX_CHARS, is_finite_number
 
 SCOPE_FIELDS = {
     "repo",
@@ -51,9 +50,9 @@ def validate_lesson_contract(*, lesson_text: str, scope: dict[str, str], confide
             )
     if not isinstance(lesson_text, str) or not lesson_text.strip():
         raise ValueError("lessons require lesson_text")
-    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+    if not is_finite_number(confidence):
         raise ValueError("lesson confidence must be a number between 0 and 1")
-    if not math.isfinite(confidence) or confidence < 0.0 or confidence > 1.0:
+    if confidence < 0.0 or confidence > 1.0:
         raise ValueError("lesson confidence must be between 0 and 1")
 
 

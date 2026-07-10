@@ -48,6 +48,7 @@ from .policy import (
     apply_llm_gate_decision,
     build_injection_snippet,
     build_llm_gate_prompt,
+    is_finite_number,
     parse_memory_decision,
     system_gate,
     validate_memory_context,
@@ -62,6 +63,7 @@ MODES = {"debug", "repair", "regression", "planning", "eval", "production"}
 DECISION_RISKS = {"none", "low", "medium", "high"}
 RECOMMENDED_INJECTIONS = {"none", "short_summary", "full_case_summary", "pointer_only"}
 SNAPSHOT_VERSION = 2
+TRACE_JSON_MAX_DEPTH = 100
 SNAPSHOT_COLLECTION_KEYS = frozenset(
     {"traces", "failure_cases", "lessons", "project_policies", "usage_logs"}
 )
@@ -220,13 +222,22 @@ class TraceBackedMemoryStore:
 
     @_synchronized
     def load_lessons_yaml(self, path: str | Path) -> list[Lesson]:
-        lesson_records = _lessons_from_yaml(Path(path).read_text(encoding="utf-8"))
-        return [self.add_lesson(Lesson(**record)) for record in lesson_records]
+        try:
+            lesson_records = _lessons_from_yaml(
+                Path(path).read_text(encoding="utf-8")
+            )
+        except (AttributeError, OverflowError, TypeError) as exc:
+            raise ValueError(f"invalid lessons YAML: {exc}") from exc
+        return [
+            self.add_lesson(_snapshot_record_instance(Lesson, record, "lesson"))
+            for record in lesson_records
+        ]
 
     @_synchronized
     def record_trace(self, trace: Trace) -> Trace:
+        _require_exact_record(trace, Trace, "trace")
+        _validate_trace(trace)
         stored_trace = deepcopy(trace)
-        _validate_trace(stored_trace)
         if stored_trace.trace_id in self._traces:
             raise ValueError(f"duplicate trace_id: {stored_trace.trace_id}")
         self._traces[stored_trace.trace_id] = stored_trace
@@ -234,6 +245,7 @@ class TraceBackedMemoryStore:
 
     @_synchronized
     def add_failure_case(self, case: FailureCase) -> FailureCase:
+        _require_exact_record(case, FailureCase, "failure case")
         stored_case = deepcopy(case)
         _validate_failure_case(stored_case)
         if stored_case.case_id in self._failure_cases:
@@ -329,6 +341,7 @@ class TraceBackedMemoryStore:
 
     @_synchronized
     def add_lesson(self, lesson: Lesson) -> Lesson:
+        _require_exact_record(lesson, Lesson, "lesson")
         stored_lesson = deepcopy(lesson)
         _validate_lesson_record(stored_lesson)
         if stored_lesson.lesson_id in self._lessons:
@@ -386,6 +399,7 @@ class TraceBackedMemoryStore:
 
     @_synchronized
     def add_project_policy(self, policy: ProjectPolicy) -> ProjectPolicy:
+        _require_exact_record(policy, ProjectPolicy, "project policy")
         stored_policy = deepcopy(policy)
         _validate_project_policy(stored_policy)
         if stored_policy.policy_id in self._project_policies:
@@ -840,6 +854,12 @@ class TraceBackedMemoryStore:
 
     @_synchronized
     def pr_memory_report(self, context: MemoryContext, *, changed_fields: list[str]) -> PRMemoryReport:
+        validate_memory_context(context)
+        if not isinstance(changed_fields, list) or any(
+            not isinstance(field_name, str) or not field_name.strip()
+            for field_name in changed_fields
+        ):
+            raise ValueError("changed_fields must be a list of non-empty strings")
         related_case_records: list[tuple[FailureCase, Trace]] = []
         for case in self._failure_cases.values():
             trace = self._traces.get(case.source_trace_id)
@@ -869,6 +889,12 @@ class TraceBackedMemoryStore:
 
 
 def _stored_record(records: Mapping[str, Any], record_id: str, record_label: str) -> Any:
+    if not isinstance(record_id, str) or not record_id:
+        raise ValueError(f"{record_label} ID must be a non-empty string")
+    if len(record_id) > MEMORY_ID_MAX_CHARS:
+        raise ValueError(
+            f"{record_label} ID must be at most {MEMORY_ID_MAX_CHARS} characters"
+        )
     record = records.get(record_id)
     if record is None:
         raise ValueError(f"unknown {record_label} ID: {record_id}")
@@ -925,6 +951,13 @@ def _snapshot_record_instance(
         return record_type(**data)
     except TypeError as exc:
         raise ValueError(f"invalid {record_label} record: {exc}") from exc
+
+
+def _require_exact_record(value: Any, record_type: type[Any], record_label: str) -> None:
+    if type(value) is not record_type:
+        raise ValueError(
+            f"{record_label} must be exactly a {record_type.__name__} record"
+        )
 
 
 def _validate_snapshot_envelope(data: Mapping[str, Any]) -> bool:
@@ -1003,11 +1036,9 @@ def _validate_trace(trace: Trace) -> None:
         raise ValueError("dirty must be a boolean")
     if trace.latency_ms is not None and type(trace.latency_ms) is not int:
         raise ValueError("latency_ms must be an integer or None")
-    if trace.cost_usd is not None and (
-        isinstance(trace.cost_usd, bool)
-        or not isinstance(trace.cost_usd, (int, float))
-        or not math.isfinite(trace.cost_usd)
-    ):
+    if trace.latency_ms is not None:
+        _validate_json_integer(trace.latency_ms, "latency_ms")
+    if trace.cost_usd is not None and not is_finite_number(trace.cost_usd):
         raise ValueError("cost_usd must be a finite number or None")
     _validate_json_object_list(trace.retrieved_context, "retrieved_context")
     _validate_json_object_list(trace.tool_calls, "tool_calls")
@@ -1246,8 +1277,71 @@ def _reject_json_constant(value: str) -> Any:
 
 
 def _validate_json_object_list(value: Any, field_name: str) -> None:
-    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+    if not isinstance(value, list) or any(type(item) is not dict for item in value):
         raise ValueError(f"trace {field_name} must be a list of JSON objects")
+    for index, item in enumerate(value):
+        _validate_json_value(item, f"{field_name}[{index}]")
+
+
+def _validate_json_value(value: Any, root_path: str) -> None:
+    stack: list[tuple[Any, str, int, bool]] = [(value, root_path, 0, False)]
+    active_container_ids: set[int] = set()
+
+    while stack:
+        current, path, depth, leaving = stack.pop()
+        if leaving:
+            active_container_ids.remove(id(current))
+            continue
+
+        if current is None or type(current) in {bool, str}:
+            continue
+        if type(current) is int:
+            _validate_json_integer(current, path)
+            continue
+        if type(current) is float:
+            if not math.isfinite(current):
+                raise ValueError(f"trace {path} must be a finite JSON number")
+            continue
+        if type(current) not in {dict, list}:
+            raise ValueError(
+                f"trace {path} must contain only JSON semantic values"
+            )
+        if depth >= TRACE_JSON_MAX_DEPTH:
+            raise ValueError(
+                f"trace {path} exceeds maximum nesting depth "
+                f"{TRACE_JSON_MAX_DEPTH}"
+            )
+
+        container_id = id(current)
+        if container_id in active_container_ids:
+            raise ValueError(f"trace {path} contains a reference cycle")
+        active_container_ids.add(container_id)
+        stack.append((current, path, depth, True))
+
+        if type(current) is list:
+            for index in range(len(current) - 1, -1, -1):
+                stack.append((current[index], f"{path}[{index}]", depth + 1, False))
+            continue
+
+        items = list(current.items())
+        for key, child in reversed(items):
+            if not isinstance(key, str):
+                raise ValueError(f"trace {path} object keys must be strings")
+            child_path = (
+                f"{path}.{key}"
+                if key.isidentifier()
+                else f"{path}[{json.dumps(key)}]"
+            )
+            stack.append((child, child_path, depth + 1, False))
+
+
+def _validate_json_integer(value: int, path: str) -> None:
+    try:
+        str(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"trace {path} integer exceeds JSON serialization limits"
+        ) from exc
 
 
 def _validate_memory_id_list(value: Any, field_name: str) -> None:

@@ -416,6 +416,34 @@ def test_postgres_runtime_memory_records_are_append_only():
     assert "runtime memory records cannot be deleted" in schema
 
 
+def test_postgres_runtime_memory_tables_reject_truncate():
+    schema = _postgres_schema()
+
+    assert "CREATE FUNCTION reject_runtime_memory_truncate()" in schema
+    for table_name in [
+        "memory_ids",
+        "failure_cases",
+        "lessons",
+        "project_policies",
+    ]:
+        assert f"CREATE TRIGGER {table_name}_reject_truncate" in schema
+        assert f"BEFORE TRUNCATE ON {table_name}" in schema
+    assert (
+        "REVOKE TRUNCATE ON memory_ids, failure_cases, lessons, project_policies "
+        "FROM PUBLIC"
+        in schema
+    )
+
+
+def test_postgres_fresh_install_is_atomic_and_explicitly_targets_public():
+    schema = _postgres_schema()
+    statements = schema.strip().splitlines()
+
+    assert statements[2] == "BEGIN;"
+    assert statements[3] == "SET LOCAL search_path = public, pg_catalog;"
+    assert statements[-1] == "COMMIT;"
+
+
 def test_postgres_schema_enforces_verified_case_and_lesson_source_lifecycle():
     failure_cases = _table_definition(_postgres_schema(), "failure_cases")
     schema = _postgres_schema()

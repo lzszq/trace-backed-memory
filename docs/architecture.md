@@ -190,6 +190,9 @@ records, unique IDs, and string mappings before iterating, sorting, or reading
 record fields. Gate tasks must be non-empty strings, context summaries must be
 strings, and retrieval queries must be strings or `None`; malformed direct
 calls fail with `ValueError` before a store request ID is consumed.
+Direct low-level application also rejects any ID present in both the System
+Gate allowed list and blocked map, so deterministic blocks cannot appear in a
+final allowed result.
 
 LLM Gate judges semantic usefulness after System Gate has filtered candidates.
 
@@ -244,6 +247,10 @@ recommended injection, or optional `eval_result` values are unsupported.
 
 The JSON Schema requires the four safe-workflow audit fields for persisted
 usage logs while Python keeps defaults to migrate exact legacy snapshots.
+Trace context/tool JSON is validated recursively before storage. Only JSON
+semantic values with string object keys and finite numbers are accepted;
+cycles, excessive nesting, and values that cannot be serialized by the runtime
+fail with a path-specific `ValueError`.
 PostgreSQL rejects empty required identifiers and text, uses composite
 `(source_trace_id, commit_sha)` provenance to bind cases to their source trace,
 requires non-null lesson and policy confidence, and checks audit JSONB objects
@@ -251,6 +258,11 @@ and values. Failure-case, lesson, and project-policy IDs are immutable and their
 records cannot be deleted. The shared runtime ID registry rejects direct DML;
 only schema-qualified source-table triggers can register IDs, and usage evidence
 must resolve both a registry entry and its concrete source row.
+The fresh-install DDL runs in one transaction with a local
+`public, pg_catalog` search path. Statement triggers reject `TRUNCATE` on the
+registry and all three runtime-memory source tables, and `TRUNCATE` is revoked
+from `PUBLIC`, preserving registry/source parity. The file is a fresh-install
+schema, not an in-place migration for an already deployed database.
 Status INSERTs remain valid for snapshot restoration, while UPDATEs are
 forward-only (`draft -> verified|obsolete`, `verified -> obsolete`, and
 `active -> obsolete`, with same-state updates allowed). Active lesson validation locks the verified,
@@ -263,7 +275,9 @@ The SQL schema is kept aligned with the dataclass contracts through tests for
 model defaults, required usage-decision audit fields, JSONB object/array and
 element-type checks, and the runtime memory context example. A dependency-free
 integration test loads the complete DDL into a temporary PostgreSQL cluster and
-uses two real sessions to verify lifecycle lock serialization.
+uses controllable advisory-lock latches across real sessions to verify both
+lifecycle lock orderings without timing sleeps. It also verifies failed-install
+rollback, non-default caller search paths, and child-process cleanup.
 Portable JSON Schema files document trace, failure case, lesson, project policy,
 usage log, and full snapshot shapes; cross-record provenance checks still live
 in the store because they require current store state.

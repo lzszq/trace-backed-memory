@@ -830,6 +830,52 @@ def test_llm_gate_cannot_allow_memory_blocked_by_system_gate():
     assert "lesson_blocked" in final_decision.blocked_memory_ids
 
 
+def test_llm_gate_rejects_ids_present_in_both_system_gate_results():
+    memory = _budget_memory("lesson_conflicted")
+    decision = MemoryDecision(
+        use_memory=True,
+        allowed_memory_ids=[memory.memory_id],
+        blocked_memory_ids=[],
+        reason="The memory looks relevant.",
+        risk="low",
+        recommended_injection="short_summary",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="system_allowed and system_blocked.*lesson_conflicted",
+    ):
+        apply_llm_gate_decision(
+            [memory],
+            {memory.memory_id: "blocked by deterministic policy"},
+            decision,
+        )
+
+
+@pytest.mark.parametrize("sign", [1, -1], ids=["positive", "negative"])
+def test_llm_gate_rejects_huge_integer_confidence_without_overflow(
+    sign: int,
+):
+    confidence = sign * 10**10_000
+    memory = MemoryItem(
+        **{
+            **_budget_memory("lesson_huge_confidence").__dict__,
+            "confidence": confidence,
+        }
+    )
+    decision = MemoryDecision(
+        use_memory=True,
+        allowed_memory_ids=[memory.memory_id],
+        blocked_memory_ids=[],
+        reason="The memory looks relevant.",
+        risk="low",
+        recommended_injection="short_summary",
+    )
+
+    with pytest.raises(ValueError, match="confidence"):
+        apply_llm_gate_decision([memory], {}, decision)
+
+
 def test_llm_gate_blocked_ids_override_allowed_ids():
     memory = MemoryItem(
         memory_id="lesson_conflicted",

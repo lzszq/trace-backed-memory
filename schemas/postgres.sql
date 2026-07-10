@@ -1,5 +1,8 @@
 -- Minimal schema for trace-backed memory.
 
+BEGIN;
+SET LOCAL search_path = public, pg_catalog;
+
 CREATE TABLE traces (
   trace_id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,
@@ -152,6 +155,31 @@ CREATE TABLE project_policies (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE FUNCTION reject_runtime_memory_truncate() RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'runtime memory table does not allow TRUNCATE: %',
+    TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER memory_ids_reject_truncate
+BEFORE TRUNCATE ON memory_ids
+FOR EACH STATEMENT EXECUTE FUNCTION reject_runtime_memory_truncate();
+
+CREATE TRIGGER failure_cases_reject_truncate
+BEFORE TRUNCATE ON failure_cases
+FOR EACH STATEMENT EXECUTE FUNCTION reject_runtime_memory_truncate();
+
+CREATE TRIGGER lessons_reject_truncate
+BEFORE TRUNCATE ON lessons
+FOR EACH STATEMENT EXECUTE FUNCTION reject_runtime_memory_truncate();
+
+CREATE TRIGGER project_policies_reject_truncate
+BEFORE TRUNCATE ON project_policies
+FOR EACH STATEMENT EXECUTE FUNCTION reject_runtime_memory_truncate();
+
+REVOKE TRUNCATE ON memory_ids, failure_cases, lessons, project_policies FROM PUBLIC;
 
 CREATE FUNCTION register_runtime_memory_id() RETURNS trigger AS $$
 DECLARE
@@ -585,3 +613,5 @@ CREATE INDEX idx_lessons_status ON lessons(status);
 CREATE INDEX idx_lessons_scope_json ON lessons USING GIN (scope_json);
 CREATE INDEX idx_project_policies_status ON project_policies(status);
 CREATE INDEX idx_project_policies_scope_json ON project_policies USING GIN (scope_json);
+
+COMMIT;

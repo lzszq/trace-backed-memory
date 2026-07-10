@@ -4144,3 +4144,307 @@ def test_finalize_memory_rejects_malformed_outcome_fields(
             trace_id=trace.trace_id,
             **kwargs,  # type: ignore[arg-type]
         )
+
+
+@pytest.mark.parametrize(
+    ("method_name", "message"),
+    [
+        ("record_trace", "trace must be exactly a Trace record"),
+        ("add_failure_case", "failure case must be exactly a FailureCase record"),
+        ("add_lesson", "lesson must be exactly a Lesson record"),
+        ("add_project_policy", "project policy must be exactly a ProjectPolicy record"),
+    ],
+)
+def test_record_writers_reject_wrong_record_types_before_field_access(
+    method_name: str,
+    message: str,
+):
+    store = TraceBackedMemoryStore()
+
+    with pytest.raises(ValueError, match=message):
+        getattr(store, method_name)(object())
+
+
+def test_record_writers_require_exact_record_classes_not_subclasses():
+    class DerivedTrace(Trace):
+        pass
+
+    class DerivedFailureCase(FailureCase):
+        pass
+
+    class DerivedLesson(Lesson):
+        pass
+
+    class DerivedProjectPolicy(ProjectPolicy):
+        pass
+
+    records = [
+        (
+            "record_trace",
+            DerivedTrace("trace_derived", "run_derived", "abc"),
+            "trace must be exactly a Trace record",
+        ),
+        (
+            "add_failure_case",
+            DerivedFailureCase(
+                "case_derived", "trace_derived", "abc", "tool_error", "failed"
+            ),
+            "failure case must be exactly a FailureCase record",
+        ),
+        (
+            "add_lesson",
+            DerivedLesson(
+                "lesson_derived",
+                "case_derived",
+                "rule",
+                "procedural",
+                {"repo": "repo"},
+            ),
+            "lesson must be exactly a Lesson record",
+        ),
+        (
+            "add_project_policy",
+            DerivedProjectPolicy("policy_derived", "rule", {"repo": "repo"}),
+            "project policy must be exactly a ProjectPolicy record",
+        ),
+    ]
+
+    store = TraceBackedMemoryStore()
+    for method_name, record, message in records:
+        with pytest.raises(ValueError, match=message):
+            getattr(store, method_name)(record)
+
+
+@pytest.mark.parametrize(
+    ("method_name", "record_label"),
+    [
+        ("obsolete_failure_case", "failure case"),
+        ("obsolete_lesson", "lesson"),
+        ("obsolete_project_policy", "project policy"),
+    ],
+)
+@pytest.mark.parametrize("record_id", [None, 0, "", []])
+def test_lifecycle_lookups_reject_falsey_and_unhashable_ids(
+    method_name: str,
+    record_label: str,
+    record_id: object,
+):
+    store = TraceBackedMemoryStore()
+
+    with pytest.raises(
+        ValueError,
+        match=rf"{record_label} ID must be a non-empty string",
+    ):
+        getattr(store, method_name)(record_id)
+
+
+def test_lessons_yaml_normalizes_constructor_errors_to_value_error(tmp_path: Path):
+    path = tmp_path / "malformed-lessons.yaml"
+    path.write_text(
+        'lessons:\n  - lesson_id: "missing_required_fields"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid lesson record"):
+        TraceBackedMemoryStore().load_lessons_yaml(path)
+
+
+def test_lessons_yaml_normalizes_parser_type_errors_to_value_error(tmp_path: Path):
+    path = tmp_path / "malformed-scope-lessons.yaml"
+    path.write_text(
+        (
+            'lessons:\n'
+            '  - lesson_id: "malformed_scope"\n'
+            '    scope: 1\n'
+            '      repo: "repo"\n'
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="invalid lessons YAML"):
+        TraceBackedMemoryStore().load_lessons_yaml(path)
+
+
+def test_pr_memory_report_validates_context_before_scanning_empty_store():
+    with pytest.raises(ValueError, match="context must be a MemoryContext"):
+        TraceBackedMemoryStore().pr_memory_report(
+            object(),  # type: ignore[arg-type]
+            changed_fields=["tool"],
+        )
+
+
+@pytest.mark.parametrize(
+    "changed_fields",
+    [None, "tool", [""], ["   "], [1], ["tool", None]],
+)
+def test_pr_memory_report_validates_changed_fields_before_scanning_empty_store(
+    changed_fields: object,
+):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(
+        ValueError,
+        match="changed_fields must be a list of non-empty strings",
+    ):
+        TraceBackedMemoryStore().pr_memory_report(
+            context,
+            changed_fields=changed_fields,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize("sign", [1, -1], ids=["positive", "negative"])
+def test_trace_rejects_huge_integer_cost_without_overflow(sign: int):
+    cost_usd = sign * 10**10_000
+    with pytest.raises(ValueError, match="cost_usd must be a finite number"):
+        TraceBackedMemoryStore().record_trace(
+            Trace(
+                trace_id="trace_huge_cost",
+                run_id="run_huge_cost",
+                commit_sha="abc",
+                cost_usd=cost_usd,
+            )
+        )
+
+
+@pytest.mark.parametrize("sign", [1, -1], ids=["positive", "negative"])
+def test_trace_rejects_huge_integer_latency_before_json_serialization(sign: int):
+    latency_ms = sign * 10**10_000
+
+    with pytest.raises(ValueError, match="latency_ms.*JSON serialization limits"):
+        TraceBackedMemoryStore().record_trace(
+            Trace(
+                trace_id="trace_huge_latency",
+                run_id="run_huge_latency",
+                commit_sha="abc",
+                latency_ms=latency_ms,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ["retrieved_context", "tool_calls", "tool_outputs"],
+)
+def test_trace_json_fields_reject_nested_non_json_values(field_name: str):
+    values: dict[str, object] = {
+        "trace_id": f"trace_invalid_{field_name}",
+        "run_id": f"run_invalid_{field_name}",
+        "commit_sha": "abc",
+        field_name: [{"nested": {"not", "json"}}],
+    }
+
+    with pytest.raises(ValueError, match=rf"trace {field_name}\[0\].*nested"):
+        TraceBackedMemoryStore().record_trace(Trace(**values))  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        ("tuple",),
+        b"bytes",
+        {1: "non-string key"},
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+    ],
+)
+def test_trace_json_fields_reject_every_nested_non_json_semantic_value(
+    invalid_value: object,
+):
+    with pytest.raises(ValueError, match=r"trace tool_calls\[0\].*payload"):
+        TraceBackedMemoryStore().record_trace(
+            Trace(
+                trace_id="trace_invalid_nested_json",
+                run_id="run_invalid_nested_json",
+                commit_sha="abc",
+                tool_calls=[{"payload": invalid_value}],
+            )
+        )
+
+
+def test_trace_json_fields_reject_reference_cycles_with_a_stable_path():
+    cyclic: dict[str, object] = {}
+    cyclic["self"] = cyclic
+
+    with pytest.raises(
+        ValueError,
+        match=r"trace tool_outputs\[0\].*self.*reference cycle",
+    ):
+        TraceBackedMemoryStore().record_trace(
+            Trace(
+                trace_id="trace_cyclic_json",
+                run_id="run_cyclic_json",
+                commit_sha="abc",
+                tool_outputs=[cyclic],
+            )
+        )
+
+
+def test_trace_json_rejects_huge_nested_integer_before_storage():
+    huge_integer = 10**10_000
+
+    with pytest.raises(ValueError, match="integer exceeds JSON serialization limits"):
+        TraceBackedMemoryStore().record_trace(
+            Trace(
+                trace_id="trace_huge_nested_integer",
+                run_id="run_huge_nested_integer",
+                commit_sha="abc",
+                tool_outputs=[{"result": huge_integer}],
+            )
+        )
+
+
+def test_trace_json_excessive_depth_is_a_value_error_not_recursion_error():
+    root: dict[str, object] = {}
+    cursor = root
+    for _ in range(2_000):
+        child: dict[str, object] = {}
+        cursor["next"] = child
+        cursor = child
+
+    with pytest.raises(ValueError, match="maximum nesting depth"):
+        TraceBackedMemoryStore().record_trace(
+            Trace(
+                trace_id="trace_deep_json",
+                run_id="run_deep_json",
+                commit_sha="abc",
+                retrieved_context=[root],
+            )
+        )
+
+
+def test_snapshot_import_rejects_nested_invalid_trace_json():
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(trace_id="trace_snapshot_json", run_id="run_snapshot_json", commit_sha="abc")
+    )
+    snapshot = store.to_snapshot()
+    snapshot["traces"][0]["tool_outputs"] = [{"payload": {"not", "json"}}]
+
+    with pytest.raises(ValueError, match=r"trace tool_outputs\[0\].*payload"):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+def test_valid_nested_trace_json_can_snapshot_save_and_reload(tmp_path: Path):
+    payload: dict[str, object] = {"leaf": [None, True, False, "text", 1, 1.5]}
+    for index in range(40):
+        payload = {f"level_{index}": [payload]}
+
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id="trace_valid_nested_json",
+            run_id="run_valid_nested_json",
+            commit_sha="abc",
+            retrieved_context=[payload],
+            tool_calls=[{"name": "search", "arguments": payload}],
+            tool_outputs=[{"result": payload}],
+        )
+    )
+
+    snapshot = store.to_snapshot()
+    path = tmp_path / "nested-store.json"
+    store.save_json(path)
+    loaded = TraceBackedMemoryStore.load_json(path)
+
+    assert loaded.to_snapshot() == snapshot

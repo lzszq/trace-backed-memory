@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import pytest
 import trace_backed_memory as tbm
 from trace_backed_memory import (
     FailureCase,
@@ -60,6 +61,34 @@ def test_failed_trace_can_become_verified_lesson_memory():
     assert memory.status == "active"
     assert memory.source_case_id == "case_001"
     assert memory.scope == {"tool": "search_docs", "tool_schema_version": "search_docs_v2"}
+
+
+@pytest.mark.parametrize("sign", [1, -1], ids=["positive", "negative"])
+def test_lesson_contract_rejects_huge_integer_confidence_without_overflow(
+    sign: int,
+):
+    confidence = sign * 10**10_000
+    case = FailureCase(
+        case_id="case_huge_confidence",
+        source_trace_id="trace_huge_confidence",
+        commit_sha="abc123",
+        failure_type="tool_error",
+        symptom="failed",
+        fix="fixed",
+        fix_commit_sha="def456",
+        regression_passed=True,
+        status="verified",
+    )
+
+    with pytest.raises(ValueError, match="confidence"):
+        lesson_from_failure_case(
+            case,
+            lesson_id="lesson_huge_confidence",
+            lesson_text="Use a bounded confidence value.",
+            memory_type="procedural",
+            scope={"repo": "repo"},
+            confidence=confidence,
+        )
 
 
 def test_lesson_requires_verified_failure_case():

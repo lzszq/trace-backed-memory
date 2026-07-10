@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 from collections.abc import Mapping
 from typing import Any
 
@@ -46,6 +47,16 @@ DECISION_REQUIRED_FIELDS = {
     "risk",
     "recommended_injection",
 }
+_MAX_FINITE_FLOAT_INTEGER = int(sys.float_info.max)
+
+
+def is_finite_number(value: Any) -> bool:
+    """Return whether a runtime number can be represented as a finite float."""
+    if type(value) is int:
+        return abs(value) <= _MAX_FINITE_FLOAT_INTEGER
+    if type(value) is float:
+        return math.isfinite(value)
+    return False
 
 
 def _scope_matches(context: MemoryContext, memory: MemoryItem) -> bool:
@@ -139,12 +150,7 @@ def _memory_item_contract_error(memory: MemoryItem) -> str | None:
         return "sensitive must be a boolean"
     if type(memory.eval_leaking) is not bool:
         return "eval_leaking must be a boolean"
-    if (
-        isinstance(memory.confidence, bool)
-        or not isinstance(memory.confidence, (int, float))
-        or not math.isfinite(memory.confidence)
-        or not 0.0 < memory.confidence <= 1.0
-    ):
+    if not is_finite_number(memory.confidence) or not 0.0 < memory.confidence <= 1.0:
         return "confidence must be greater than 0.0 and at most 1.0"
     return None
 
@@ -309,6 +315,12 @@ def apply_llm_gate_decision(
     )
     allowed_memory_ids, blocked_memory_ids = _validated_decision_fields(decision)
     allowed_by_id = {memory.memory_id: memory for memory in validated_allowed}
+    system_overlap = sorted(set(allowed_by_id).intersection(validated_blocked))
+    if system_overlap:
+        raise ValueError(
+            "memory IDs cannot be present in both system_allowed and system_blocked: "
+            + ", ".join(system_overlap)
+        )
     llm_blocked_ids = set(blocked_memory_ids)
     memory_requested = decision.use_memory and decision.recommended_injection != "none"
     requested_allowed_ids = [

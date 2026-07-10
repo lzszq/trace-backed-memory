@@ -115,6 +115,9 @@ System Gate still remains authoritative: parsed LLM decisions can only narrow
 the system-approved memory set, not reopen blocked memory. If the LLM output
 lists the same memory ID as both allowed and blocked, blocked wins and the
 memory is not injected.
+Low-level callers must also provide disjoint System Gate allowed and blocked
+results; `apply_llm_gate_decision()` rejects contradictory inputs before it
+constructs a final decision.
 
 ## Safe Store Workflow
 

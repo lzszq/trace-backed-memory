@@ -621,29 +621,60 @@ class TraceBackedMemoryStore:
         _validate_memory_id_list(
             legacy_log.candidate_memory_ids, "candidate_memory_ids"
         )
-        trace = self._trace_for_run_id(legacy_log.run_id)
+        supplied_trace_id = log_data.get("trace_id")
+        if supplied_trace_id not in (None, ""):
+            if not isinstance(supplied_trace_id, str):
+                raise ValueError("usage log trace_id must be a non-empty string")
+            trace = self._traces.get(supplied_trace_id)
+            if trace is None:
+                raise ValueError(f"unknown trace_id: {supplied_trace_id}")
+        else:
+            trace = self._trace_for_run_id(legacy_log.run_id)
+        if legacy_log.run_id != trace.run_id:
+            raise ValueError(
+                f"usage log run_id does not match trace: {trace.trace_id}"
+            )
         if trace.repo is None:
             raise ValueError(
                 f"legacy usage log trace repo is required for context evidence: {trace.trace_id}"
             )
-        candidates = self._memory_items(legacy_log.candidate_memory_ids)
-        context = {
-            "mode": legacy_log.mode,
-            "repo": trace.repo,
-            "commit_sha": trace.commit_sha,
-        }
-        if trace.tenant is not None:
-            context["tenant"] = trace.tenant
+
+        if "context" in log_data and log_data["context"] != {}:
+            context = log_data["context"]
+        else:
+            context = {
+                "mode": legacy_log.mode,
+                "repo": trace.repo,
+                "commit_sha": trace.commit_sha,
+            }
+            if trace.tenant is not None:
+                context["tenant"] = trace.tenant
+
+        if (
+            legacy_log.candidate_memory_ids
+            and (
+                "candidate_memory_statuses" not in log_data
+                or log_data["candidate_memory_statuses"] == {}
+            )
+        ):
+            candidate_memory_statuses = {
+                memory.memory_id: memory.status
+                for memory in self._memory_items(legacy_log.candidate_memory_ids)
+            }
+        else:
+            candidate_memory_statuses = log_data.get(
+                "candidate_memory_statuses", {}
+            )
+
+        system_blocked_reasons = log_data.get("system_blocked_reasons", {})
 
         migrated = dict(log_data)
         migrated.update(
             {
                 "trace_id": trace.trace_id,
                 "context": context,
-                "candidate_memory_statuses": {
-                    memory.memory_id: memory.status for memory in candidates
-                },
-                "system_blocked_reasons": {},
+                "candidate_memory_statuses": candidate_memory_statuses,
+                "system_blocked_reasons": system_blocked_reasons,
             }
         )
         return migrated

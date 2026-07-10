@@ -729,6 +729,64 @@ def test_legacy_usage_log_is_migrated_to_complete_audit_evidence():
     assert migrated_log.system_blocked_reasons == {}
 
 
+def test_legacy_usage_log_prefers_valid_supplied_trace_id_over_ambiguous_run_id():
+    legacy = v2_snapshot_with_usage_log()
+    legacy.pop("snapshot_version")
+    traces = legacy["traces"]
+    assert isinstance(traces, list)
+    duplicate_trace = deepcopy(traces[0])
+    duplicate_trace["trace_id"] = "trace_duplicate"
+    traces.append(duplicate_trace)
+    usage_logs = legacy["usage_logs"]
+    assert isinstance(usage_logs, list)
+    usage_logs[0].pop("context")
+    usage_logs[0].pop("candidate_memory_statuses")
+    usage_logs[0].pop("system_blocked_reasons")
+
+    restored = TraceBackedMemoryStore.from_snapshot(legacy)
+
+    assert restored.usage_logs[0].trace_id == "trace_contract"
+
+
+def test_legacy_usage_log_preserves_supplied_decision_time_evidence_after_obsoletion():
+    legacy = v2_snapshot_with_usage_log()
+    legacy.pop("snapshot_version")
+    lessons = legacy["lessons"]
+    assert isinstance(lessons, list)
+    lessons[0]["status"] = "obsolete"
+    usage_logs = legacy["usage_logs"]
+    assert isinstance(usage_logs, list)
+    supplied_context = deepcopy(usage_logs[0]["context"])
+    usage_logs[0]["candidate_memory_statuses"] = {"lesson_001": "active"}
+    usage_logs[0]["system_blocked_reasons"] = {
+        "lesson_001": "captured at decision time"
+    }
+
+    restored = TraceBackedMemoryStore.from_snapshot(legacy)
+    migrated_log = restored.usage_logs[0]
+
+    assert migrated_log.context == supplied_context
+    assert migrated_log.candidate_memory_statuses == {"lesson_001": "active"}
+    assert migrated_log.system_blocked_reasons == {
+        "lesson_001": "captured at decision time"
+    }
+    assert restored.metrics().obsolete_memory_usage_attempts == 0
+
+
+def test_legacy_usage_log_rejects_invalid_supplied_trace_id_without_fallback():
+    legacy = v2_snapshot_with_usage_log()
+    legacy.pop("snapshot_version")
+    usage_logs = legacy["usage_logs"]
+    assert isinstance(usage_logs, list)
+    usage_logs[0]["trace_id"] = "missing_trace"
+    usage_logs[0].pop("context")
+    usage_logs[0].pop("candidate_memory_statuses")
+    usage_logs[0].pop("system_blocked_reasons")
+
+    with pytest.raises(ValueError, match="unknown trace_id: missing_trace"):
+        TraceBackedMemoryStore.from_snapshot(legacy)
+
+
 @pytest.mark.parametrize("ambiguous", [False, True], ids=["missing", "ambiguous"])
 def test_legacy_usage_log_migration_rejects_unresolvable_run_id(ambiguous: bool):
     legacy = v2_snapshot_with_usage_log()

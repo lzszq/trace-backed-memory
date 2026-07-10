@@ -537,6 +537,122 @@ def test_recorded_trace_is_isolated_from_caller_nested_mutation():
     assert store.traces["trace_001"].tool_calls[0]["arguments"]["query"] == "before"
 
 
+def test_record_trace_validates_caller_and_copied_trace_before_insertion(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    trace = Trace(
+        trace_id="trace_double_validation",
+        run_id="run_double_validation",
+        commit_sha="abc",
+        tool_calls=[{"name": "search", "arguments": {"query": "before"}}],
+    )
+    validated: list[Trace] = []
+    real_validate = store_module._validate_trace
+
+    def tracking_validate(value: Trace) -> None:
+        validated.append(value)
+        real_validate(value)
+
+    monkeypatch.setattr(store_module, "_validate_trace", tracking_validate)
+    store = TraceBackedMemoryStore()
+    stored = store.record_trace(trace)
+
+    assert len(validated) == 2
+    assert validated[0] is trace
+    assert validated[1] is not trace
+    trace.tool_calls[0]["arguments"]["query"] = "after"
+    assert stored.tool_calls[0]["arguments"]["query"] == "before"
+    assert store.traces[trace.trace_id].tool_calls[0]["arguments"]["query"] == "before"
+
+
+def test_record_trace_rejects_coordinated_mutation_between_validation_and_copy(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    trace = Trace(
+        trace_id="trace_copy_race",
+        run_id="run_copy_race",
+        commit_sha="abc",
+        tool_calls=[{"name": "search", "arguments": {"query": "before"}}],
+    )
+    copy_started = threading.Event()
+    mutation_finished = threading.Event()
+    errors: list[BaseException] = []
+    real_deepcopy = store_module.deepcopy
+
+    def coordinated_deepcopy(value, *args, **kwargs):
+        if value is trace:
+            copy_started.set()
+            if not mutation_finished.wait(timeout=2):
+                raise AssertionError("coordinated mutation did not finish")
+        return real_deepcopy(value, *args, **kwargs)
+
+    monkeypatch.setattr(store_module, "deepcopy", coordinated_deepcopy)
+    store = TraceBackedMemoryStore()
+
+    def record() -> None:
+        try:
+            store.record_trace(trace)
+        except BaseException as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=record)
+    worker.start()
+    assert copy_started.wait(timeout=2)
+    arguments = trace.tool_calls[0]["arguments"]
+    assert isinstance(arguments, dict)
+    arguments["query"] = {"not-json"}
+    mutation_finished.set()
+    worker.join(timeout=2)
+
+    assert not worker.is_alive()
+    assert len(errors) == 1
+    assert isinstance(errors[0], ValueError)
+    assert "tool_calls[0].arguments.query" in str(errors[0])
+    assert store.traces == {}
+
+
+def test_record_trace_normalizes_expected_copy_mutation_error(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    trace = Trace("trace_copy_error", "run_copy_error", "abc")
+
+    def fail_copy(_value, *_args, **_kwargs):
+        raise RuntimeError("dictionary changed size during iteration")
+
+    monkeypatch.setattr(store_module, "deepcopy", fail_copy)
+
+    with pytest.raises(ValueError, match="trace changed while being copied"):
+        TraceBackedMemoryStore().record_trace(trace)
+
+
+def test_record_trace_normalizes_copy_recursion_from_concurrent_depth_change(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    trace = Trace("trace_copy_depth", "run_copy_depth", "abc")
+
+    def fail_copy(_value, *_args, **_kwargs):
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr(store_module, "deepcopy", fail_copy)
+
+    with pytest.raises(ValueError, match="trace changed while being copied"):
+        TraceBackedMemoryStore().record_trace(trace)
+
+
+def test_record_trace_does_not_swallow_unrelated_copy_programming_error(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    trace = Trace("trace_copy_bug", "run_copy_bug", "abc")
+
+    def fail_copy(_value, *_args, **_kwargs):
+        raise RuntimeError("copy implementation bug")
+
+    monkeypatch.setattr(store_module, "deepcopy", fail_copy)
+
+    with pytest.raises(RuntimeError, match="copy implementation bug"):
+        TraceBackedMemoryStore().record_trace(trace)
+
+
 def test_mutating_public_collection_copy_does_not_change_store():
     store = TraceBackedMemoryStore()
     trace = store.record_trace(
@@ -4292,10 +4408,51 @@ def test_pr_memory_report_validates_changed_fields_before_scanning_empty_store(
         )
 
 
+def test_trace_accepts_json_serializable_large_integer_cost():
+    large_cost = 10**1000
+    store = TraceBackedMemoryStore()
+
+    stored = store.record_trace(
+        Trace(
+            trace_id="trace_large_cost",
+            run_id="run_large_cost",
+            commit_sha="abc",
+            cost_usd=large_cost,
+        )
+    )
+
+    assert stored.cost_usd == large_cost
+    assert store.traces[stored.trace_id].cost_usd == large_cost
+
+
+def test_large_integer_cost_round_trips_through_snapshot_and_json(tmp_path: Path):
+    large_cost = 10**1000
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id="trace_large_cost_round_trip",
+            run_id="run_large_cost_round_trip",
+            commit_sha="abc",
+            cost_usd=large_cost,
+        )
+    )
+
+    snapshot_loaded = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    path = tmp_path / "large-cost-store.json"
+    store.save_json(path)
+    json_loaded = TraceBackedMemoryStore.load_json(path)
+
+    assert snapshot_loaded.traces["trace_large_cost_round_trip"].cost_usd == large_cost
+    assert json_loaded.traces["trace_large_cost_round_trip"].cost_usd == large_cost
+
+
 @pytest.mark.parametrize("sign", [1, -1], ids=["positive", "negative"])
 def test_trace_rejects_huge_integer_cost_without_overflow(sign: int):
     cost_usd = sign * 10**10_000
-    with pytest.raises(ValueError, match="cost_usd must be a finite number"):
+    with pytest.raises(
+        ValueError,
+        match="cost_usd.*integer exceeds JSON serialization limits",
+    ):
         TraceBackedMemoryStore().record_trace(
             Trace(
                 trace_id="trace_huge_cost",

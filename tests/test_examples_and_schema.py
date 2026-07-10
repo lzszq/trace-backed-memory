@@ -483,6 +483,28 @@ def test_postgres_trace_cost_rejects_non_finite_numeric_values():
     assert "NOT IN" in cost_usd
 
 
+def test_large_integer_cost_and_confidence_schemas_match_runtime_contracts():
+    large_integer = 10**1000
+    trace_cost = _schema_properties(_json_schema("trace.schema.json"))["cost_usd"]
+    lesson_confidence = _schema_properties(
+        _json_schema("lesson.schema.json")
+    )["confidence"]
+    policy_confidence = _schema_properties(
+        _json_schema("project_policy.schema.json")
+    )["confidence"]
+    traces = _table_definition(_postgres_schema(), "traces")
+    lessons = _table_definition(_postgres_schema(), "lessons")
+
+    assert json.loads(json.dumps(large_integer)) == large_integer
+    assert trace_cost == {"type": ["number", "null"]}
+    for confidence in [lesson_confidence, policy_confidence]:
+        assert confidence["type"] == "number"
+        assert confidence["minimum"] == 0.0
+        assert confidence["maximum"] == 1.0
+    assert "cost_usd NUMERIC" in traces
+    assert "confidence NUMERIC" in lessons
+
+
 def test_jsonb_columns_constrain_object_and_array_shapes():
     schema = _postgres_schema()
 
@@ -691,6 +713,61 @@ def test_postgres_runtime_registration_is_narrow_security_definer():
     assert "public.memory_ids" in schema
     assert "TG_RELID = 'public.failure_cases'::regclass" in schema
     assert "REVOKE ALL ON FUNCTION register_runtime_memory_id() FROM PUBLIC" in schema
+
+
+def test_every_postgres_invariant_function_pins_pg_catalog_search_path():
+    schema = _postgres_schema()
+    expected_functions = {
+        "protect_memory_id_registry",
+        "valid_memory_scope_json",
+        "reject_runtime_memory_truncate",
+        "register_runtime_memory_id",
+        "protect_runtime_memory_identity",
+        "require_verified_lesson_source_case",
+        "enforce_failure_case_status_transition",
+        "enforce_active_obsolete_status_transition",
+        "enforce_failure_case_lesson_lifecycle",
+        "jsonb_text_array_has_duplicates",
+        "valid_non_empty_text_object",
+        "valid_candidate_memory_statuses",
+        "require_usage_trace_context",
+        "require_known_usage_memory_ids",
+    }
+    function_blocks = {
+        name: block
+        for name, block in re.findall(
+            r"CREATE FUNCTION\s+(\w+)\b(.*?)(?=\nCREATE FUNCTION|\Z)",
+            schema,
+            re.DOTALL,
+        )
+    }
+
+    assert expected_functions == set(function_blocks)
+    for function_name in sorted(expected_functions):
+        block = function_blocks[function_name]
+        assert re.search(
+            r"\$\$\s+LANGUAGE\s+(?:SQL|plpgsql)(?:\s+IMMUTABLE)?\s+"
+            r"(?:SECURITY DEFINER\s+)?"
+            r"SET search_path = pg_catalog;",
+            block,
+        ), function_name
+
+
+def test_pinned_postgres_functions_schema_qualify_application_tables():
+    schema = _postgres_schema()
+    application_table = re.compile(
+        r"(?<!public\.)\b(?:traces|memory_ids|failure_cases|lessons|"
+        r"project_policies|memory_usage_decisions)\b"
+    )
+
+    for function_name, block in re.findall(
+        r"CREATE FUNCTION\s+(\w+)\b(.*?)(?=\nCREATE FUNCTION|\Z)",
+        schema,
+        re.DOTALL,
+    ):
+        body = block.split("$$", 2)[1]
+        body_without_literals = re.sub(r"'(?:''|[^'])*'", "''", body)
+        assert application_table.search(body_without_literals) is None, function_name
 
 
 def test_postgres_usage_registry_checks_concrete_runtime_rows():

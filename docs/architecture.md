@@ -80,6 +80,9 @@ Trace writes require non-empty `trace_id`, `run_id`, and `commit_sha`, and
 `eval_result` must be one of `pass`, `fail`, `error`, or `unknown`.
 `retrieved_context`, `tool_calls`, and `tool_outputs` must be lists of JSON
 objects so downstream extraction and reporting can safely inspect them.
+The store validates the caller-owned `Trace`, deep-copies it, validates the
+copy again, and only then inserts it. Expected concurrent copy mutation fails
+with `ValueError`, while unrelated copy programming errors remain visible.
 
 ## Layer 2: Failure Case Store
 
@@ -163,8 +166,10 @@ collide with the shared runtime memory ID namespace across failure cases, lesson
 For the MVP, `TraceBackedMemoryStore.to_snapshot()`, `from_snapshot()`,
 `save_json()`, and `load_json()` provide a stable full-store persistence
 boundary for traces, failure cases, lessons, project policies, and usage logs.
-The boundary requires a JSON object, rejects non-finite costs and confidence,
-and serializes and parses strict JSON without `NaN` or infinity constants.
+The boundary requires a JSON object, accepts JSON-serializable integer costs,
+rejects non-finite floats and integers beyond the runtime serialization limit,
+keeps confidence bounded to 0.0 through 1.0, and parses strict JSON without
+`NaN` or infinity constants.
 `save_lessons_yaml()` and `load_lessons_yaml()` provide a small dependency-free
 adapter for active lessons using the repository's `memory/lessons.example.yaml`
 shape; loading still reuses `add_lesson()` so source-case and lesson-contract
@@ -263,6 +268,9 @@ The fresh-install DDL runs in one transaction with a local
 registry and all three runtime-memory source tables, and `TRUNCATE` is revoked
 from `PUBLIC`, preserving registry/source parity. The file is a fresh-install
 schema, not an in-place migration for an already deployed database.
+Every SQL and PL/pgSQL invariant function executes with
+`search_path = pg_catalog`; application relations remain explicitly qualified
+as `public.*`, preventing caller-owned helper functions from changing checks.
 Status INSERTs remain valid for snapshot restoration, while UPDATEs are
 forward-only (`draft -> verified|obsolete`, `verified -> obsolete`, and
 `active -> obsolete`, with same-state updates allowed). Active lesson validation locks the verified,
@@ -277,7 +285,8 @@ element-type checks, and the runtime memory context example. A dependency-free
 integration test loads the complete DDL into a temporary PostgreSQL cluster and
 uses controllable advisory-lock latches across real sessions to verify both
 lifecycle lock orderings without timing sleeps. It also verifies failed-install
-rollback, non-default caller search paths, and child-process cleanup.
+rollback, non-owner helper shadowing, non-default caller search paths, and
+independent client/server/directory cleanup.
 Portable JSON Schema files document trace, failure case, lesson, project policy,
 usage log, and full snapshot shapes; cross-record provenance checks still live
 in the store because they require current store state.

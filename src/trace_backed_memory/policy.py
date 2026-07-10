@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import math
-import sys
 from collections.abc import Mapping
 from typing import Any
 
@@ -47,13 +46,12 @@ DECISION_REQUIRED_FIELDS = {
     "risk",
     "recommended_injection",
 }
-_MAX_FINITE_FLOAT_INTEGER = int(sys.float_info.max)
 
 
 def is_finite_number(value: Any) -> bool:
-    """Return whether a runtime number can be represented as a finite float."""
+    """Return whether a value is an exact finite runtime number."""
     if type(value) is int:
-        return abs(value) <= _MAX_FINITE_FLOAT_INTEGER
+        return True
     if type(value) is float:
         return math.isfinite(value)
     return False

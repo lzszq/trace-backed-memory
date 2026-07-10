@@ -91,6 +91,30 @@ def test_lesson_contract_rejects_huge_integer_confidence_without_overflow(
         )
 
 
+def test_lesson_contract_rejects_json_serializable_large_integer_confidence():
+    case = FailureCase(
+        case_id="case_large_confidence",
+        source_trace_id="trace_large_confidence",
+        commit_sha="abc123",
+        failure_type="tool_error",
+        symptom="failed",
+        fix="fixed",
+        fix_commit_sha="def456",
+        regression_passed=True,
+        status="verified",
+    )
+
+    with pytest.raises(ValueError, match="confidence must be between 0 and 1"):
+        lesson_from_failure_case(
+            case,
+            lesson_id="lesson_large_confidence",
+            lesson_text="Keep confidence bounded.",
+            memory_type="procedural",
+            scope={"repo": "repo"},
+            confidence=10**1000,
+        )
+
+
 def test_lesson_requires_verified_failure_case():
     trace = Trace(
         trace_id="trace_001",

@@ -58,7 +58,8 @@ BEGIN
   END IF;
   RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
 
 CREATE TRIGGER memory_ids_reject_direct_dml
 BEFORE INSERT OR UPDATE OR DELETE ON memory_ids
@@ -123,7 +124,8 @@ CREATE FUNCTION valid_memory_scope_json(value JSONB) RETURNS BOOLEAN AS $$
         OR jsonb_typeof(entry.scope_value) != 'string'
         OR btrim(entry.scope_value #>> '{}') = ''
     );
-$$ LANGUAGE SQL IMMUTABLE;
+$$ LANGUAGE SQL IMMUTABLE
+SET search_path = pg_catalog;
 
 CREATE TABLE lessons (
   lesson_id TEXT PRIMARY KEY,
@@ -161,7 +163,8 @@ BEGIN
   RAISE EXCEPTION 'runtime memory table does not allow TRUNCATE: %',
     TG_TABLE_NAME;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
 
 CREATE TRIGGER memory_ids_reject_truncate
 BEFORE TRUNCATE ON memory_ids
@@ -231,7 +234,8 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
 
 CREATE FUNCTION require_verified_lesson_source_case() RETURNS trigger AS $$
 BEGIN
@@ -249,7 +253,8 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
 
 CREATE FUNCTION enforce_failure_case_status_transition() RETURNS trigger AS $$
 BEGIN
@@ -260,7 +265,8 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
 
 CREATE FUNCTION enforce_active_obsolete_status_transition() RETURNS trigger AS $$
 BEGIN
@@ -270,7 +276,8 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
 
 CREATE FUNCTION enforce_failure_case_lesson_lifecycle() RETURNS trigger AS $$
 BEGIN
@@ -294,7 +301,8 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
 
 CREATE TRIGGER failure_cases_register_runtime_memory_id
 BEFORE INSERT ON failure_cases
@@ -350,7 +358,8 @@ CREATE FUNCTION jsonb_text_array_has_duplicates(value JSONB) RETURNS BOOLEAN AS 
       HAVING COUNT(*) > 1
     )
   END;
-$$ LANGUAGE SQL IMMUTABLE;
+$$ LANGUAGE SQL IMMUTABLE
+SET search_path = pg_catalog;
 
 CREATE FUNCTION valid_non_empty_text_object(value JSONB) RETURNS BOOLEAN AS $$
   SELECT jsonb_typeof(value) = 'object'
@@ -361,7 +370,8 @@ CREATE FUNCTION valid_non_empty_text_object(value JSONB) RETURNS BOOLEAN AS $$
         OR jsonb_typeof(entry.object_value) != 'string'
         OR btrim(entry.object_value #>> '{}') = ''
     );
-$$ LANGUAGE SQL IMMUTABLE;
+$$ LANGUAGE SQL IMMUTABLE
+SET search_path = pg_catalog;
 
 CREATE FUNCTION valid_candidate_memory_statuses(value JSONB) RETURNS BOOLEAN AS $$
   SELECT jsonb_typeof(value) = 'object'
@@ -372,7 +382,8 @@ CREATE FUNCTION valid_candidate_memory_statuses(value JSONB) RETURNS BOOLEAN AS 
         OR jsonb_typeof(entry.status) != 'string'
         OR entry.status #>> '{}' NOT IN ('draft', 'verified', 'active', 'obsolete')
     );
-$$ LANGUAGE SQL IMMUTABLE;
+$$ LANGUAGE SQL IMMUTABLE
+SET search_path = pg_catalog;
 
 CREATE TABLE memory_usage_decisions (
   decision_id TEXT PRIMARY KEY,
@@ -468,7 +479,8 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
 
 CREATE TRIGGER memory_usage_decisions_require_trace_context
 BEFORE INSERT OR UPDATE OF trace_id, run_id, mode, context
@@ -597,7 +609,8 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
 
 CREATE TRIGGER memory_usage_decisions_require_known_memory_ids
 BEFORE INSERT OR UPDATE OF candidate_memory_ids, used_memory_ids, blocked_memory_ids, candidate_memory_statuses, system_blocked_reasons

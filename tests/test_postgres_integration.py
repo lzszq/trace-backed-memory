@@ -4,6 +4,7 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -157,23 +158,50 @@ class PostgresCluster:
         assert returncode == 0, f"stdout:\n{stdout}\nstderr:\n{stderr}"
 
     def terminate_clients(self) -> None:
+        cleanup_errors: list[Exception] = []
+
+        def kill_and_wait(process: subprocess.Popen[bytes]) -> None:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+            except Exception as exc:
+                cleanup_errors.append(exc)
+            try:
+                process.wait(timeout=3)
+            except (ChildProcessError, ProcessLookupError):
+                pass
+            except Exception as exc:
+                cleanup_errors.append(exc)
+
         for process in self.clients:
             if process.poll() is None and process.stdin is not None:
                 try:
                     process.stdin.close()
-                except OSError:
+                except (OSError, ValueError):
                     pass
             if process.poll() is None:
-                process.terminate()
+                try:
+                    process.terminate()
+                except ProcessLookupError:
+                    pass
+                except Exception as exc:
+                    cleanup_errors.append(exc)
 
         for process in self.clients:
-            if process.poll() is not None:
-                continue
             try:
                 process.wait(timeout=3)
             except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=3)
+                kill_and_wait(process)
+            except (ChildProcessError, ProcessLookupError):
+                pass
+            except Exception as exc:
+                cleanup_errors.append(exc)
+                if process.poll() is None:
+                    kill_and_wait(process)
+
+        if cleanup_errors:
+            raise ExceptionGroup("PostgreSQL client cleanup failed", cleanup_errors)
 
     def unfinished_clients(self) -> list[subprocess.Popen[bytes]]:
         return [process for process in self.clients if process.poll() is None]
@@ -183,6 +211,82 @@ def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         listener.bind(("127.0.0.1", 0))
         return int(listener.getsockname()[1])
+
+
+def _cleanup_postgres_resources(
+    *,
+    cluster: PostgresCluster | None,
+    data: Path,
+    root: Path,
+    tmp_path: Path,
+    pg_ctl: str,
+    env: dict[str, str],
+) -> list[Exception]:
+    cleanup_errors: list[Exception] = []
+
+    try:
+        if cluster is not None:
+            cluster.terminate_clients()
+    except Exception as exc:
+        exc.add_note("PostgreSQL client cleanup stage")
+        cleanup_errors.append(exc)
+
+    try:
+        if data.exists():
+            stop = subprocess.run(
+                [
+                    pg_ctl,
+                    "-D",
+                    str(data),
+                    "-m",
+                    "immediate",
+                    "-w",
+                    "-t",
+                    "20",
+                    "stop",
+                ],
+                env=env,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                check=False,
+            )
+            if stop.returncode != 0 and (data / "postmaster.pid").exists():
+                raise RuntimeError(
+                    "pg_ctl stop failed:\n" + stop.stdout + "\n" + stop.stderr
+                )
+    except Exception as exc:
+        exc.add_note("PostgreSQL server cleanup stage")
+        cleanup_errors.append(exc)
+
+    try:
+        resolved_root = root.resolve()
+        if not resolved_root.is_relative_to(tmp_path.resolve()):
+            raise AssertionError("PostgreSQL test root escaped pytest tmp_path")
+        if root.exists():
+            shutil.rmtree(resolved_root, ignore_errors=False)
+    except Exception as exc:
+        exc.add_note("PostgreSQL directory cleanup stage")
+        cleanup_errors.append(exc)
+
+    return cleanup_errors
+
+
+def _report_cleanup_errors(
+    cleanup_errors: list[Exception], original_error: BaseException | None
+) -> None:
+    if not cleanup_errors:
+        return
+    if original_error is not None:
+        summary = "; ".join(
+            f"{type(error).__name__}: {error}" for error in cleanup_errors
+        )
+        original_error.add_note("PostgreSQL cleanup also failed: " + summary)
+        return
+    raise ExceptionGroup("PostgreSQL cleanup failed", cleanup_errors)
 
 
 @pytest.fixture
@@ -198,9 +302,7 @@ def postgres_cluster(tmp_path: Path):
     data = root / "data"
     log = root / "postgres.log"
     root.mkdir()
-    started = False
     cluster: PostgresCluster | None = None
-    unfinished_clients: list[subprocess.Popen[bytes]] = []
     env = {
         **os.environ,
         "PGHOST": "127.0.0.1",
@@ -261,40 +363,19 @@ def postgres_cluster(tmp_path: Path):
         if start.returncode != 0:
             details = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
             pytest.fail(f"pg_ctl start failed:\n{details}")
-        started = True
         cluster = PostgresCluster(executables["psql"], env, root)
         yield cluster
     finally:
-        try:
-            if cluster is not None:
-                cluster.terminate_clients()
-                unfinished_clients = cluster.unfinished_clients()
-            if data.exists():
-                subprocess.run(
-                    [
-                        executables["pg_ctl"],
-                        "-D",
-                        str(data),
-                        "-m",
-                        "immediate",
-                        "-w",
-                        "-t",
-                        "20",
-                        "stop",
-                    ],
-                    env=env,
-                    stdin=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=30,
-                    check=False,
-                )
-            assert unfinished_clients == []
-        finally:
-            resolved_root = root.resolve()
-            assert resolved_root.is_relative_to(tmp_path.resolve())
-            if started or root.exists():
-                shutil.rmtree(resolved_root, ignore_errors=False)
+        original_error = sys.exc_info()[1]
+        cleanup_errors = _cleanup_postgres_resources(
+            cluster=cluster,
+            data=data,
+            root=root,
+            tmp_path=tmp_path,
+            pg_ctl=executables["pg_ctl"],
+            env=env,
+        )
+        _report_cleanup_errors(cleanup_errors, original_error)
 
 
 def _assert_sql_succeeds(cluster: PostgresCluster, sql: str) -> str:
@@ -463,6 +544,131 @@ def test_postgres_cluster_cleanup_terminates_unfinished_clients(
     assert _assert_sql_succeeds(cluster, "SELECT 1") == "1"
 
 
+def test_client_termination_tolerates_process_exit_race(tmp_path: Path):
+    class FakeInput:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    class RaceProcess:
+        def __init__(self) -> None:
+            self.stdin = FakeInput()
+            self.waited = False
+            self.kill_called = False
+
+        def poll(self):
+            return 0 if self.waited else None
+
+        def terminate(self) -> None:
+            raise ProcessLookupError("process exited before terminate")
+
+        def wait(self, timeout: float):
+            self.waited = True
+            return 0
+
+        def kill(self) -> None:
+            self.kill_called = True
+
+    process = RaceProcess()
+    cluster = PostgresCluster("psql", {}, tmp_path, clients=[process])  # type: ignore[list-item]
+
+    cluster.terminate_clients()
+
+    assert process.stdin.closed is True
+    assert process.waited is True
+    assert process.kill_called is False
+
+
+def test_client_cleanup_collects_errors_and_waits_every_tracked_process(
+    tmp_path: Path,
+):
+    class TrackedProcess:
+        stdin = None
+
+        def __init__(self, terminate_error: Exception | None = None) -> None:
+            self.terminate_error = terminate_error
+            self.waited = False
+
+        def poll(self):
+            return 0 if self.waited else None
+
+        def terminate(self) -> None:
+            if self.terminate_error is not None:
+                raise self.terminate_error
+
+        def wait(self, timeout: float):
+            self.waited = True
+            return 0
+
+        def kill(self) -> None:
+            self.waited = True
+
+    first = TrackedProcess(RuntimeError("terminate implementation failed"))
+    second = TrackedProcess()
+    cluster = PostgresCluster(
+        "psql",
+        {},
+        tmp_path,
+        clients=[first, second],  # type: ignore[list-item]
+    )
+
+    with pytest.raises(ExceptionGroup, match="PostgreSQL client cleanup failed"):
+        cluster.terminate_clients()
+
+    assert first.waited is True
+    assert second.waited is True
+
+
+def test_cleanup_stages_are_independent_and_preserve_original_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "postgres-cluster"
+    data = root / "data"
+    data.mkdir(parents=True)
+    (data / "postmaster.pid").write_text("123", encoding="ascii")
+    events: list[str] = []
+
+    class FailingCluster:
+        def terminate_clients(self) -> None:
+            events.append("clients")
+            raise RuntimeError("client cleanup failed")
+
+    def fail_server_stop(*_args, **_kwargs):
+        events.append("server")
+        raise subprocess.TimeoutExpired("pg_ctl", 1)
+
+    real_rmtree = shutil.rmtree
+
+    def remove_directory(path: Path, *, ignore_errors: bool) -> None:
+        events.append("directory")
+        real_rmtree(path, ignore_errors=ignore_errors)
+
+    monkeypatch.setattr(subprocess, "run", fail_server_stop)
+    monkeypatch.setattr(shutil, "rmtree", remove_directory)
+
+    cleanup_errors = _cleanup_postgres_resources(
+        cluster=FailingCluster(),  # type: ignore[arg-type]
+        data=data,
+        root=root,
+        tmp_path=tmp_path,
+        pg_ctl="pg_ctl",
+        env={},
+    )
+
+    assert events == ["clients", "server", "directory"]
+    assert len(cleanup_errors) == 2
+    assert root.exists() is False
+    original_error = AssertionError("original test failure")
+    _report_cleanup_errors(cleanup_errors, original_error)
+    assert any("PostgreSQL cleanup also failed" in note for note in original_error.__notes__)
+
+    with pytest.raises(ExceptionGroup, match="PostgreSQL cleanup failed"):
+        _report_cleanup_errors(cleanup_errors, None)
+
+
 def test_postgres_registry_lifecycle_and_two_session_serialization(
     postgres_cluster: PostgresCluster,
 ):
@@ -475,6 +681,8 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         CREATE ROLE memory_app;
         GRANT USAGE ON SCHEMA public TO memory_app;
         GRANT SELECT, INSERT, UPDATE ON traces, failure_cases, lessons, project_policies TO memory_app;
+        GRANT SELECT ON memory_ids TO memory_app;
+        GRANT INSERT ON memory_usage_decisions TO memory_app;
         SET ROLE memory_app;
         INSERT INTO traces(trace_id, run_id, commit_sha, repo)
         VALUES ('trace_app', 'run_app', 'commit_app', 'repo');
@@ -500,6 +708,36 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         WHERE memory_id IN ('case_app', 'lesson_app', 'policy_app')
         """,
     ) == "case_app:failure_case,lesson_app:lesson,policy_app:project_policy"
+
+    _assert_sql_fails(
+        cluster,
+        """
+        CREATE SCHEMA memory_app_shadow AUTHORIZATION memory_app;
+        SET ROLE memory_app;
+        CREATE FUNCTION memory_app_shadow.jsonb_array_elements_text(jsonb)
+        RETURNS SETOF text LANGUAGE SQL IMMUTABLE
+        AS $shadow$ SELECT NULL::text WHERE false $shadow$;
+        CREATE FUNCTION memory_app_shadow.jsonb_object_keys(jsonb)
+        RETURNS SETOF text LANGUAGE SQL IMMUTABLE
+        AS $shadow$ SELECT NULL::text WHERE false $shadow$;
+        SET search_path = memory_app_shadow, public, pg_catalog;
+        INSERT INTO memory_usage_decisions(
+          decision_id, run_id, trace_id, mode, candidate_memory_ids,
+          used_memory_ids, blocked_memory_ids, risk, reason,
+          recommended_injection, context, candidate_memory_statuses,
+          system_blocked_reasons
+        ) VALUES (
+          'decision_helper_shadow', 'run_app', 'trace_app', 'repair',
+          '["ghost_helper_shadow"]', '[]', '["ghost_helper_shadow"]',
+          'none', 'shadowed helpers must not bypass invariants', 'none',
+          '{"mode":"repair","repo":"repo","commit_sha":"commit_app"}',
+          '{"ghost_helper_shadow":"active"}',
+          '{"ghost_helper_shadow":"not a concrete runtime memory"}'
+        );
+        RESET ROLE;
+        """,
+        "usage log references unknown memory IDs: ghost_helper_shadow",
+    )
 
     for table_name in [
         "memory_ids",

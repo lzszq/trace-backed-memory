@@ -237,7 +237,8 @@ class TraceBackedMemoryStore:
     def record_trace(self, trace: Trace) -> Trace:
         _require_exact_record(trace, Trace, "trace")
         _validate_trace(trace)
-        stored_trace = deepcopy(trace)
+        stored_trace = _copy_trace_for_storage(trace)
+        _validate_trace(stored_trace)
         if stored_trace.trace_id in self._traces:
             raise ValueError(f"duplicate trace_id: {stored_trace.trace_id}")
         self._traces[stored_trace.trace_id] = stored_trace
@@ -960,6 +961,17 @@ def _require_exact_record(value: Any, record_type: type[Any], record_label: str)
         )
 
 
+def _copy_trace_for_storage(trace: Trace) -> Trace:
+    try:
+        return deepcopy(trace)
+    except RecursionError as exc:
+        raise ValueError("trace changed while being copied") from exc
+    except RuntimeError as exc:
+        if "changed size during iteration" not in str(exc):
+            raise
+        raise ValueError("trace changed while being copied") from exc
+
+
 def _validate_snapshot_envelope(data: Mapping[str, Any]) -> bool:
     keys = set(data)
     if keys == SNAPSHOT_COLLECTION_KEYS:
@@ -1038,8 +1050,17 @@ def _validate_trace(trace: Trace) -> None:
         raise ValueError("latency_ms must be an integer or None")
     if trace.latency_ms is not None:
         _validate_json_integer(trace.latency_ms, "latency_ms")
-    if trace.cost_usd is not None and not is_finite_number(trace.cost_usd):
-        raise ValueError("cost_usd must be a finite number or None")
+    if trace.cost_usd is not None:
+        if not is_finite_number(trace.cost_usd):
+            raise ValueError("cost_usd must be a finite number or None")
+        if type(trace.cost_usd) is int:
+            try:
+                _validate_json_integer(trace.cost_usd, "cost_usd")
+            except ValueError as exc:
+                raise ValueError(
+                    "cost_usd must be a finite number or None; "
+                    "integer exceeds JSON serialization limits"
+                ) from exc
     _validate_json_object_list(trace.retrieved_context, "retrieved_context")
     _validate_json_object_list(trace.tool_calls, "tool_calls")
     _validate_json_object_list(trace.tool_outputs, "tool_outputs")

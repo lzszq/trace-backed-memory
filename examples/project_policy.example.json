@@ -1,0 +1,13 @@
+{
+  "policy_id": "project_policy_001",
+  "policy_text": "Planner responses must include a short rationale before invoking search_docs.",
+  "scope": {
+    "repo": "agent-harness",
+    "prompt_family": "planner",
+    "tool": "search_docs"
+  },
+  "confidence": 1.0,
+  "sensitive": false,
+  "eval_leaking": false,
+  "status": "active"
+}

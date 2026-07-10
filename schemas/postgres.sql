@@ -4,60 +4,295 @@ CREATE TABLE traces (
   trace_id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,
   commit_sha TEXT NOT NULL,
+  repo TEXT,
+  tenant TEXT,
   branch TEXT,
+  dirty BOOLEAN NOT NULL DEFAULT false,
   prompt_version TEXT,
+  prompt_family TEXT,
   tool_schema_version TEXT,
   model TEXT,
-  eval_result TEXT CHECK (eval_result IN ('pass', 'fail', 'error', 'unknown')),
+  eval_suite TEXT,
+  eval_result TEXT NOT NULL DEFAULT 'unknown' CHECK (eval_result IN ('pass', 'fail', 'error', 'unknown')),
   trace_uri TEXT,
   input_hash TEXT,
   output_hash TEXT,
+  retrieved_context JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (
+    jsonb_typeof(retrieved_context) = 'array'
+    AND NOT jsonb_path_exists(retrieved_context, '$[*] ? (@.type() != "object")')
+  ),
+  tool_calls JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (
+    jsonb_typeof(tool_calls) = 'array'
+    AND NOT jsonb_path_exists(tool_calls, '$[*] ? (@.type() != "object")')
+  ),
+  tool_outputs JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (
+    jsonb_typeof(tool_outputs) = 'array'
+    AND NOT jsonb_path_exists(tool_outputs, '$[*] ? (@.type() != "object")')
+  ),
   error TEXT,
   latency_ms INTEGER,
   cost_usd NUMERIC,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE TABLE memory_ids (
+  memory_id TEXT PRIMARY KEY,
+  memory_kind TEXT NOT NULL CHECK (memory_kind IN ('failure_case', 'lesson', 'project_policy')),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 CREATE TABLE failure_cases (
   case_id TEXT PRIMARY KEY,
-  source_trace_id TEXT REFERENCES traces(trace_id),
+  source_trace_id TEXT NOT NULL REFERENCES traces(trace_id),
   commit_sha TEXT NOT NULL,
   failure_type TEXT NOT NULL,
   symptom TEXT NOT NULL,
   root_cause TEXT,
+  reviewed_by TEXT,
+  review_notes TEXT,
+  reviewed_at TIMESTAMPTZ,
   fix TEXT,
   fix_commit_sha TEXT,
-  status TEXT NOT NULL CHECK (status IN ('draft', 'verified', 'obsolete')),
+  regression_passed BOOLEAN NOT NULL DEFAULT false,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'verified', 'obsolete')),
+  CHECK (
+    status != 'verified'
+    OR (fix IS NOT NULL AND fix_commit_sha IS NOT NULL AND regression_passed)
+  ),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE FUNCTION valid_memory_scope_json(value JSONB) RETURNS BOOLEAN AS $$
+  SELECT jsonb_typeof(value) = 'object'
+    AND value != '{}'::jsonb
+    AND NOT EXISTS (
+      SELECT 1
+      FROM jsonb_each(value) AS entry(scope_key, scope_value)
+      WHERE entry.scope_key NOT IN (
+        'repo',
+        'tenant',
+        'branch',
+        'prompt_version',
+        'prompt_family',
+        'tool',
+        'tool_schema_version',
+        'model',
+        'model_family',
+        'eval_suite',
+        'task_type',
+        'failure_type'
+      )
+        OR jsonb_typeof(entry.scope_value) != 'string'
+        OR entry.scope_value #>> '{}' = ''
+    );
+$$ LANGUAGE SQL IMMUTABLE;
+
 CREATE TABLE lessons (
   lesson_id TEXT PRIMARY KEY,
-  source_case_id TEXT REFERENCES failure_cases(case_id),
+  source_case_id TEXT NOT NULL REFERENCES failure_cases(case_id),
   lesson_text TEXT NOT NULL,
   memory_type TEXT NOT NULL CHECK (memory_type IN ('procedural', 'semantic', 'episodic', 'policy')),
-  scope_json JSONB NOT NULL,
-  confidence NUMERIC DEFAULT 0.0,
-  status TEXT NOT NULL CHECK (status IN ('active', 'obsolete')),
+  scope_json JSONB NOT NULL CHECK (valid_memory_scope_json(scope_json)),
+  confidence NUMERIC DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
+  sensitive BOOLEAN NOT NULL DEFAULT false,
+  eval_leaking BOOLEAN NOT NULL DEFAULT false,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'obsolete')),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE TABLE project_policies (
+  policy_id TEXT PRIMARY KEY,
+  policy_text TEXT NOT NULL,
+  scope_json JSONB NOT NULL CHECK (valid_memory_scope_json(scope_json)),
+  confidence NUMERIC DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
+  sensitive BOOLEAN NOT NULL DEFAULT false,
+  eval_leaking BOOLEAN NOT NULL DEFAULT false,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'obsolete')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE FUNCTION register_runtime_memory_id() RETURNS trigger AS $$
+DECLARE
+  runtime_memory_id TEXT;
+  runtime_memory_kind TEXT;
+BEGIN
+  IF TG_TABLE_NAME = 'failure_cases' THEN
+    runtime_memory_id := NEW.case_id;
+    runtime_memory_kind := 'failure_case';
+  ELSIF TG_TABLE_NAME = 'lessons' THEN
+    runtime_memory_id := NEW.lesson_id;
+    runtime_memory_kind := 'lesson';
+  ELSE
+    runtime_memory_id := NEW.policy_id;
+    runtime_memory_kind := 'project_policy';
+  END IF;
+
+  INSERT INTO memory_ids(memory_id, memory_kind)
+  VALUES (runtime_memory_id, runtime_memory_kind);
+  RETURN NEW;
+EXCEPTION WHEN unique_violation THEN
+  RAISE EXCEPTION 'duplicate runtime memory_id: %', runtime_memory_id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE FUNCTION require_verified_lesson_source_case() RETURNS trigger AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM failure_cases
+    WHERE case_id = NEW.source_case_id
+      AND status = 'verified'
+      AND regression_passed
+  ) THEN
+    RAISE EXCEPTION 'lesson source_case_id must reference a verified regression-backed failure case: %',
+      NEW.source_case_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER failure_cases_register_runtime_memory_id
+BEFORE INSERT ON failure_cases
+FOR EACH ROW EXECUTE FUNCTION register_runtime_memory_id();
+
+CREATE TRIGGER lessons_register_runtime_memory_id
+BEFORE INSERT ON lessons
+FOR EACH ROW EXECUTE FUNCTION register_runtime_memory_id();
+
+CREATE TRIGGER lessons_require_verified_source_case
+BEFORE INSERT OR UPDATE OF source_case_id ON lessons
+FOR EACH ROW EXECUTE FUNCTION require_verified_lesson_source_case();
+
+CREATE TRIGGER project_policies_register_runtime_memory_id
+BEFORE INSERT ON project_policies
+FOR EACH ROW EXECUTE FUNCTION register_runtime_memory_id();
+
+CREATE FUNCTION jsonb_text_array_has_duplicates(value JSONB) RETURNS BOOLEAN AS $$
+  SELECT CASE
+    WHEN jsonb_typeof(value) != 'array' THEN true
+    ELSE EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements_text(value) AS item(memory_id)
+      GROUP BY item.memory_id
+      HAVING COUNT(*) > 1
+    )
+  END;
+$$ LANGUAGE SQL IMMUTABLE;
 
 CREATE TABLE memory_usage_decisions (
   decision_id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,
   mode TEXT NOT NULL CHECK (mode IN ('debug', 'repair', 'regression', 'planning', 'eval', 'production')),
-  candidate_memory_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
-  used_memory_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
-  blocked_memory_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
-  risk TEXT CHECK (risk IN ('none', 'low', 'medium', 'high')),
-  reason TEXT,
+  candidate_memory_ids JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (
+    jsonb_typeof(candidate_memory_ids) = 'array'
+    AND NOT jsonb_path_exists(candidate_memory_ids, '$[*] ? (@.type() != "string")')
+    AND NOT jsonb_path_exists(candidate_memory_ids, '$[*] ? (@ == "")')
+    AND NOT jsonb_text_array_has_duplicates(candidate_memory_ids)
+  ),
+  used_memory_ids JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (
+    jsonb_typeof(used_memory_ids) = 'array'
+    AND NOT jsonb_path_exists(used_memory_ids, '$[*] ? (@.type() != "string")')
+    AND NOT jsonb_path_exists(used_memory_ids, '$[*] ? (@ == "")')
+    AND NOT jsonb_text_array_has_duplicates(used_memory_ids)
+  ),
+  blocked_memory_ids JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (
+    jsonb_typeof(blocked_memory_ids) = 'array'
+    AND NOT jsonb_path_exists(blocked_memory_ids, '$[*] ? (@.type() != "string")')
+    AND NOT jsonb_path_exists(blocked_memory_ids, '$[*] ? (@ == "")')
+    AND NOT jsonb_text_array_has_duplicates(blocked_memory_ids)
+  ),
+  risk TEXT NOT NULL CHECK (risk IN ('none', 'low', 'medium', 'high')),
+  reason TEXT NOT NULL,
+  recommended_injection TEXT NOT NULL CHECK (
+    recommended_injection IN ('none', 'short_summary', 'full_case_summary', 'pointer_only')
+  ),
+  eval_result TEXT CHECK (eval_result IN ('pass', 'fail', 'error', 'unknown')),
+  memory_caused_failure BOOLEAN NOT NULL DEFAULT false,
+  CHECK (
+    (jsonb_array_length(used_memory_ids) = 0 AND recommended_injection = 'none')
+    OR (jsonb_array_length(used_memory_ids) > 0 AND recommended_injection != 'none')
+  ),
+  CHECK (
+    NOT memory_caused_failure
+    OR (jsonb_array_length(used_memory_ids) > 0 AND eval_result IN ('fail', 'error'))
+  ),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE FUNCTION require_known_usage_memory_ids() RETURNS trigger AS $$
+DECLARE
+  unknown_id TEXT;
+  missing_used_id TEXT;
+  missing_blocked_id TEXT;
+  overlapping_id TEXT;
+BEGIN
+  SELECT refs.memory_id INTO unknown_id
+  FROM (
+    SELECT jsonb_array_elements_text(NEW.candidate_memory_ids) AS memory_id
+    UNION
+    SELECT jsonb_array_elements_text(NEW.used_memory_ids) AS memory_id
+    UNION
+    SELECT jsonb_array_elements_text(NEW.blocked_memory_ids) AS memory_id
+  ) AS refs
+  WHERE NOT EXISTS (
+    SELECT 1 FROM memory_ids WHERE memory_ids.memory_id = refs.memory_id
+  )
+  LIMIT 1;
+  IF unknown_id IS NOT NULL THEN
+    RAISE EXCEPTION 'usage log references unknown memory IDs: %', unknown_id;
+  END IF;
+
+  SELECT used_ids.memory_id INTO missing_used_id
+  FROM jsonb_array_elements_text(NEW.used_memory_ids) AS used_ids(memory_id)
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements_text(NEW.candidate_memory_ids) AS candidate_ids(memory_id)
+    WHERE candidate_ids.memory_id = used_ids.memory_id
+  )
+  LIMIT 1;
+  IF missing_used_id IS NOT NULL THEN
+    RAISE EXCEPTION 'used memory ids must be present in candidates: %', missing_used_id;
+  END IF;
+
+  SELECT blocked_ids.memory_id INTO missing_blocked_id
+  FROM jsonb_array_elements_text(NEW.blocked_memory_ids) AS blocked_ids(memory_id)
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements_text(NEW.candidate_memory_ids) AS candidate_ids(memory_id)
+    WHERE candidate_ids.memory_id = blocked_ids.memory_id
+  )
+  LIMIT 1;
+  IF missing_blocked_id IS NOT NULL THEN
+    RAISE EXCEPTION 'blocked memory ids must be present in candidates: %', missing_blocked_id;
+  END IF;
+
+  SELECT used_ids.memory_id INTO overlapping_id
+  FROM jsonb_array_elements_text(NEW.used_memory_ids) AS used_ids(memory_id)
+  JOIN jsonb_array_elements_text(NEW.blocked_memory_ids) AS blocked_ids(memory_id)
+    ON blocked_ids.memory_id = used_ids.memory_id
+  LIMIT 1;
+  IF overlapping_id IS NOT NULL THEN
+    RAISE EXCEPTION 'memory ids cannot be both used and blocked: %', overlapping_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER memory_usage_decisions_require_known_memory_ids
+BEFORE INSERT OR UPDATE OF candidate_memory_ids, used_memory_ids, blocked_memory_ids
+ON memory_usage_decisions
+FOR EACH ROW EXECUTE FUNCTION require_known_usage_memory_ids();
+
 CREATE INDEX idx_traces_commit_sha ON traces(commit_sha);
+CREATE INDEX idx_traces_repo ON traces(repo);
+CREATE INDEX idx_traces_eval_suite ON traces(eval_suite);
 CREATE INDEX idx_failure_cases_failure_type ON failure_cases(failure_type);
 CREATE INDEX idx_failure_cases_status ON failure_cases(status);
 CREATE INDEX idx_lessons_status ON lessons(status);
 CREATE INDEX idx_lessons_scope_json ON lessons USING GIN (scope_json);
+CREATE INDEX idx_project_policies_status ON project_policies(status);
+CREATE INDEX idx_project_policies_scope_json ON project_policies USING GIN (scope_json);

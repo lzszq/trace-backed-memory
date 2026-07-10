@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "failure_case.schema.json",
+  "title": "FailureCase",
+  "type": "object",
+  "required": ["case_id", "source_trace_id", "commit_sha", "failure_type", "symptom"],
+  "properties": {
+    "case_id": {"type": "string", "minLength": 1},
+    "source_trace_id": {"type": "string", "minLength": 1},
+    "commit_sha": {"type": "string", "minLength": 1},
+    "failure_type": {"type": "string", "minLength": 1},
+    "symptom": {"type": "string", "minLength": 1},
+    "root_cause": {"type": ["string", "null"], "minLength": 1},
+    "fix": {"type": ["string", "null"], "minLength": 1},
+    "fix_commit_sha": {"type": ["string", "null"], "minLength": 1},
+    "regression_passed": {"type": "boolean", "default": false},
+    "reviewed_by": {"type": ["string", "null"], "minLength": 1},
+    "review_notes": {"type": ["string", "null"], "minLength": 1},
+    "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
+    "status": {
+      "type": "string",
+      "enum": ["draft", "verified", "obsolete"],
+      "default": "draft"
+    },
+    "created_at": {"type": ["string", "null"], "format": "date-time"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["status"],
+        "properties": {"status": {"const": "verified"}}
+      },
+      "then": {
+        "required": ["fix", "fix_commit_sha"],
+        "properties": {
+          "fix": {"type": "string", "minLength": 1},
+          "fix_commit_sha": {"type": "string", "minLength": 1},
+          "regression_passed": {"const": true}
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

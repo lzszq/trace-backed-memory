@@ -2,10 +2,15 @@
   "trace_id": "trace_001",
   "run_id": "run_20260708_001",
   "commit_sha": "abc123",
+  "repo": "agent-harness",
+  "tenant": "tenant_a",
   "branch": "main",
+  "dirty": false,
   "prompt_version": "planner_v4",
+  "prompt_family": "planner",
   "tool_schema_version": "search_docs_v2",
   "model": "gpt-5.5-pro",
+  "eval_suite": "tool_calling_regression",
   "eval_result": "fail",
   "tool_calls": [
     {

@@ -1,0 +1,9 @@
+{
+  "mode": "repair",
+  "repo": "agent-harness",
+  "commit_sha": "abc123",
+  "tenant": "tenant_a",
+  "prompt_family": "planner",
+  "tool": "search_docs",
+  "tool_schema_version": "search_docs_v2"
+}

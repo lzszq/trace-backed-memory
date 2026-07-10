@@ -14,23 +14,31 @@ raw trace -> failure case -> verified lesson -> gated runtime memory
 |---|---:|---|---|
 | debug | use | trace summaries, verified failure cases, fix history | secrets, unrelated raw traces |
 | repair | use | verified lessons, previous fixes, tool/prompt policy | draft cases, weak guesses |
-| regression | use | commit history, eval history, failure cases | unrelated project memory |
+| regression | use | commit history, eval history, PR memory reports | unrelated project memory |
 | planning | cautious | project policy, tool policy, procedural lessons | raw traces |
 | eval | usually skip | prompt contract, tool schema policy | prior answers, gold labels, evaluator comments |
 | production | minimal | active verified scoped lessons | raw trace, draft memory, sensitive memory |
 
 ## System Gate
 
+Runtime context should be parsed through `parse_memory_context()` before
+retrieval or gating. The parser accepts JSON strings or mappings, requires
+`mode`, `repo`, and `commit_sha`, validates supported modes, and keeps only
+known non-empty string fields from `schemas/memory_context.schema.json`.
+
 A memory item must satisfy:
 
 ```text
 status in ["active", "verified"]
+memory_type in ["procedural", "semantic", "episodic", "policy"]
 scope matches current task
+scope keys are known MemoryContext fields
+scope values are non-empty strings
 repo / branch / tenant allowed
 not obsolete
 not sensitive
 not eval-leaking
-has source_case_id or source_trace_id
+has source_case_id, source_trace_id, or source_policy_id
 ```
 
 Reject immediately when:
@@ -41,6 +49,8 @@ status = obsolete
 missing scope
 missing source
 contains sensitive raw trace
+memory marked sensitive
+memory marked eval-leaking
 same benchmark expected output
 cross-tenant memory
 ```
@@ -71,7 +81,7 @@ Decide whether this memory should be used.
 Rules:
 1. Use memory only if it is directly relevant to the current task.
 2. Do not use memory if it is obsolete, draft, low-confidence, or missing source.
-3. Do not use memory if its scope does not match the current repo, tool, prompt family, model family, or eval suite.
+3. Do not use memory if its scope does not match the current repo, tenant, tool, prompt family, model family, or eval suite.
 4. Do not use memory if it may leak benchmark answers, evaluator reasoning, private user data, secrets, or sensitive tool output.
 5. In eval mode, use only project policy, prompt contract, and tool schema policy. Do not use prior answers or failure traces from the same dataset.
 6. In debug or repair mode, similar failure cases and verified lessons may be used.
@@ -89,7 +99,32 @@ Return only this JSON:
 }
 ```
 
+The MVP exposes `parse_memory_decision()` to validate this JSON shape before it
+is applied. Together with `parse_memory_context()`, this keeps both external
+runtime context and LLM applicability output behind deterministic validators.
+The decision must keep `use_memory`, `allowed_memory_ids`, and
+`recommended_injection` consistent: memory use requires at least one allowed ID
+and a non-`none` injection mode; declining memory requires no allowed IDs and
+`recommended_injection: "none"`.
+System Gate still remains authoritative: parsed LLM decisions can only narrow
+the system-approved memory set, not reopen blocked memory. If the LLM output
+lists the same memory ID as both allowed and blocked, blocked wins and the
+memory is not injected.
+
 ## Injection format
+
+`recommended_injection` controls the final runtime snippet:
+
+- `none`: inject nothing.
+- `pointer_only`: inject only memory ID, source, and scope.
+- `short_summary` / `full_case_summary`: inject bounded, quoted memory text after System Gate and LLM Gate approval.
+
+Task text, context summaries, and candidate memory shown to the LLM
+applicability gate should also be bounded and quoted as data. Long or
+instruction-like dynamic text must not be allowed to merge with the gate
+prompt's own rules.
+Runtime snippets require the final parsed `MemoryDecision`; callers should not
+render non-empty memory snippets directly from retrieved candidates.
 
 Recommended:
 

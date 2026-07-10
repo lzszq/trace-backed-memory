@@ -4,7 +4,10 @@ lessons:
     memory_type: procedural
     status: active
     confidence: 0.92
+    sensitive: false
+    eval_leaking: false
     scope:
+      tenant: tenant_a
       tool: search_docs
       prompt_family: planner
       tool_schema_version: search_docs_v2

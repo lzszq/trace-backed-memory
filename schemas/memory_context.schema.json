@@ -8,18 +8,19 @@
       "type": "string",
       "enum": ["debug", "repair", "regression", "planning", "eval", "production"]
     },
-    "repo": {"type": "string"},
-    "branch": {"type": "string"},
-    "commit_sha": {"type": "string"},
-    "prompt_version": {"type": "string"},
-    "prompt_family": {"type": "string"},
-    "tool": {"type": "string"},
-    "tool_schema_version": {"type": "string"},
-    "model": {"type": "string"},
-    "model_family": {"type": "string"},
-    "eval_suite": {"type": "string"},
-    "task_type": {"type": "string"},
-    "failure_type": {"type": "string"}
+    "repo": {"type": "string", "minLength": 1},
+    "tenant": {"type": "string", "minLength": 1},
+    "branch": {"type": "string", "minLength": 1},
+    "commit_sha": {"type": "string", "minLength": 1},
+    "prompt_version": {"type": "string", "minLength": 1},
+    "prompt_family": {"type": "string", "minLength": 1},
+    "tool": {"type": "string", "minLength": 1},
+    "tool_schema_version": {"type": "string", "minLength": 1},
+    "model": {"type": "string", "minLength": 1},
+    "model_family": {"type": "string", "minLength": 1},
+    "eval_suite": {"type": "string", "minLength": 1},
+    "task_type": {"type": "string", "minLength": 1},
+    "failure_type": {"type": "string", "minLength": 1}
   },
   "additionalProperties": true
 }

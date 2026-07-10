@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lesson.schema.json",
+  "title": "Lesson",
+  "type": "object",
+  "required": ["lesson_id", "source_case_id", "lesson_text", "memory_type", "scope"],
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "enum": [
+          "repo",
+          "tenant",
+          "branch",
+          "prompt_version",
+          "prompt_family",
+          "tool",
+          "tool_schema_version",
+          "model",
+          "model_family",
+          "eval_suite",
+          "task_type",
+          "failure_type"
+        ]
+      },
+      "additionalProperties": {"type": "string", "minLength": 1}
+    }
+  },
+  "properties": {
+    "lesson_id": {"type": "string", "minLength": 1},
+    "source_case_id": {"type": "string", "minLength": 1},
+    "lesson_text": {"type": "string", "pattern": "\\S"},
+    "memory_type": {
+      "type": "string",
+      "enum": ["procedural", "semantic", "episodic", "policy"]
+    },
+    "scope": {"$ref": "#/$defs/scope"},
+    "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0, "default": 1.0},
+    "sensitive": {"type": "boolean", "default": false},
+    "eval_leaking": {"type": "boolean", "default": false},
+    "status": {
+      "type": "string",
+      "enum": ["active", "obsolete"],
+      "default": "active"
+    },
+    "created_at": {"type": ["string", "null"], "format": "date-time"}
+  },
+  "additionalProperties": false
+}

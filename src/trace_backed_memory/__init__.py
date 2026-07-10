@@ -1,10 +1,72 @@
-from .models import MemoryContext, MemoryItem, MemoryDecision
-from .policy import system_gate, build_injection_snippet
+from .capture import TraceMetadataCaptureError, capture_trace_metadata
+from .extraction import classify_failure_type, draft_failure_case_from_trace, load_failure_taxonomy
+from .lifecycle import (
+    draft_failure_case,
+    lesson_from_failure_case,
+    memory_item_from_failure_case,
+    memory_item_from_project_policy,
+    memory_item_from_lesson,
+    obsolete_failure_case,
+    obsolete_lesson,
+    review_failure_case,
+    verify_failure_case,
+)
+from .models import (
+    FailureCase,
+    Lesson,
+    MemoryContext,
+    MemoryDecision,
+    MemoryItem,
+    MemoryMetrics,
+    MemoryUsageLog,
+    PRCaseProvenance,
+    PRMemoryReport,
+    ProjectPolicy,
+    Trace,
+    TraceMetadata,
+)
+from .policy import (
+    apply_llm_gate_decision,
+    build_injection_snippet,
+    build_llm_gate_prompt,
+    parse_memory_context,
+    parse_memory_decision,
+    system_gate,
+)
+from .store import TraceBackedMemoryStore
 
 __all__ = [
+    "FailureCase",
+    "Lesson",
     "MemoryContext",
-    "MemoryItem",
     "MemoryDecision",
+    "MemoryItem",
+    "MemoryMetrics",
+    "MemoryUsageLog",
+    "PRCaseProvenance",
+    "PRMemoryReport",
+    "ProjectPolicy",
+    "Trace",
+    "TraceBackedMemoryStore",
+    "TraceMetadata",
+    "TraceMetadataCaptureError",
+    "apply_llm_gate_decision",
+    "build_llm_gate_prompt",
+    "capture_trace_metadata",
+    "classify_failure_type",
+    "draft_failure_case",
+    "draft_failure_case_from_trace",
+    "lesson_from_failure_case",
+    "load_failure_taxonomy",
+    "memory_item_from_failure_case",
+    "memory_item_from_lesson",
+    "memory_item_from_project_policy",
+    "obsolete_failure_case",
+    "obsolete_lesson",
+    "parse_memory_context",
+    "parse_memory_decision",
+    "review_failure_case",
     "system_gate",
     "build_injection_snippet",
+    "verify_failure_case",
 ]

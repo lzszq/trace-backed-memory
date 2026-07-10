@@ -5,8 +5,8 @@
   "required": ["use_memory", "allowed_memory_ids", "blocked_memory_ids", "reason", "risk", "recommended_injection"],
   "properties": {
     "use_memory": {"type": "boolean"},
-    "allowed_memory_ids": {"type": "array", "items": {"type": "string"}},
-    "blocked_memory_ids": {"type": "array", "items": {"type": "string"}},
+    "allowed_memory_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "blocked_memory_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
     "reason": {"type": "string"},
     "risk": {"type": "string", "enum": ["none", "low", "medium", "high"]},
     "recommended_injection": {
@@ -14,5 +14,33 @@
       "enum": ["none", "short_summary", "full_case_summary", "pointer_only"]
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "use_memory": {"const": true}
+        }
+      },
+      "then": {
+        "properties": {
+          "allowed_memory_ids": {"minItems": 1},
+          "recommended_injection": {"not": {"const": "none"}}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "use_memory": {"const": false}
+        }
+      },
+      "then": {
+        "properties": {
+          "allowed_memory_ids": {"maxItems": 0},
+          "recommended_injection": {"const": "none"}
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

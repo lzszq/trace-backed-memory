@@ -36,31 +36,42 @@ The system is designed around five rules:
 
 ```text
 Git commit / PR / CI
-        ↓
+        |
 Harness run
-        ↓
+        |
 Trace store
-        ↓
+        |
 Eval result
-        ↓
+        |
 Failure detection
-        ↓
+        |
 Failure case draft
-        ↓
+        |
 Verification / regression
-        ↓
+        |
 Verified lesson
-        ↓
+        |
 Memory index
-        ↓
+        |
 System gate
-        ↓
+        |
 LLM applicability gate
-        ↓
+        |
 Runtime injection
-        ↓
+        |
 Memory usage log
 ```
+
+## Install / Local Dev
+
+The package uses a `src/` layout. From a checkout, install it in editable mode
+before running the examples:
+
+```powershell
+python -m pip install -e .
+```
+
+For one-off local commands, setting `PYTHONPATH=src` also works.
 
 ## Suggested initial API
 
@@ -70,6 +81,7 @@ from trace_backed_memory import MemoryContext, MemoryItem, system_gate
 context = MemoryContext(
     mode="repair",
     repo="agent-harness",
+    tenant="tenant_a",
     branch="main",
     commit_sha="abc123",
     prompt_family="planner",
@@ -84,7 +96,7 @@ candidates = [
         memory_id="lesson_001",
         status="active",
         memory_type="procedural",
-        scope={"tool": "search_docs", "prompt_family": "planner"},
+        scope={"tenant": "tenant_a", "tool": "search_docs", "prompt_family": "planner"},
         text="When calling search_docs, always provide a non-empty natural-language query.",
         source_case_id="case_001",
     )
@@ -93,30 +105,228 @@ candidates = [
 allowed, blocked = system_gate(context, candidates)
 ```
 
+## Implemented MVP API
+
+The package now implements the README pipeline as dependency-free Python objects and helpers:
+
+```python
+from trace_backed_memory import (
+    MemoryContext,
+    MemoryDecision,
+    ProjectPolicy,
+    Trace,
+    TraceMetadataCaptureError,
+    TraceBackedMemoryStore,
+    apply_llm_gate_decision,
+    build_injection_snippet,
+    build_llm_gate_prompt,
+    capture_trace_metadata,
+    classify_failure_type,
+    draft_failure_case,
+    draft_failure_case_from_trace,
+    lesson_from_failure_case,
+    load_failure_taxonomy,
+    memory_item_from_failure_case,
+    memory_item_from_lesson,
+    memory_item_from_project_policy,
+    obsolete_failure_case,
+    obsolete_lesson,
+    parse_memory_context,
+    parse_memory_decision,
+    review_failure_case,
+    system_gate,
+    verify_failure_case,
+)
+
+store = TraceBackedMemoryStore()
+try:
+    metadata = capture_trace_metadata(repo_path=".")
+except TraceMetadataCaptureError as exc:
+    raise RuntimeError(f"cannot capture git metadata for memory trace: {exc}") from exc
+taxonomy = load_failure_taxonomy("memory/failure_taxonomy.yaml")
+
+trace = store.record_trace(
+    Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha=metadata.commit_sha,
+        repo=metadata.repo,
+        tenant="tenant_a",
+        branch=metadata.branch,
+        dirty=metadata.dirty,
+        prompt_family="planner",
+        eval_suite="tool_calling_regression",
+        eval_result="fail",
+        tool_calls=[{"name": "search_docs", "arguments": {"query": None}}],
+        error="Invalid argument: query is required",
+    )
+)
+
+failure_type = classify_failure_type(trace, taxonomy=taxonomy)
+case = draft_failure_case_from_trace(
+    trace,
+    case_id="case_001",
+    taxonomy=taxonomy,
+)
+assert case.failure_type == failure_type
+reviewed = review_failure_case(
+    case,
+    reviewed_by="jason",
+    root_cause="planner prompt omitted the search_docs query contract",
+    review_notes="Confirmed by inspecting failed tool call arguments.",
+)
+verified = verify_failure_case(
+    reviewed,
+    fix="added schema example",
+    fix_commit_sha="def456",
+    regression_passed=True,
+)
+store.add_failure_case(verified)
+
+lesson = lesson_from_failure_case(
+    verified,
+    lesson_id="lesson_001",
+    lesson_text="When calling search_docs, always provide a non-empty query.",
+    memory_type="procedural",
+    scope={"tenant": "tenant_a", "tool": "search_docs"},
+)
+store.add_lesson(lesson)
+
+context = parse_memory_context(
+    {
+        "mode": "repair",
+        "repo": "agent-harness",
+        "tenant": "tenant_a",
+        "commit_sha": "abc123",
+        "tool": "search_docs",
+        "failure_type": failure_type,
+        "eval_suite": "tool_calling_regression",
+    }
+)
+candidates = store.candidate_memories(context, query="search_docs null query")
+system_allowed, system_blocked = system_gate(context, candidates)
+
+llm_decision = parse_memory_decision(
+    {
+        "use_memory": True,
+        "allowed_memory_ids": ["lesson_001"],
+        "blocked_memory_ids": [],
+        "reason": "The lesson directly matches the current tool failure.",
+        "risk": "low",
+        "recommended_injection": "short_summary",
+    }
+)
+allowed, final_decision = apply_llm_gate_decision(system_allowed, system_blocked, llm_decision)
+snippet = build_injection_snippet(allowed, decision=final_decision)
+store.log_decision("run_001", context, [m.memory_id for m in candidates], final_decision, eval_result="pass")
+metrics = store.metrics()
+
+snapshot = store.to_snapshot()
+restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+store.save_json("memory-store.snapshot.json")
+restored_from_disk = TraceBackedMemoryStore.load_json("memory-store.snapshot.json")
+store.save_lessons_yaml("lessons.active.yaml")
+lesson_only_store = TraceBackedMemoryStore()
+lesson_only_store.record_trace(trace)
+lesson_only_store.add_failure_case(verified)
+lesson_only_store.load_lessons_yaml("lessons.active.yaml")
+
+pr_report = store.pr_memory_report(context, changed_fields=["tool_schema_version", "eval_suite"])
+```
+
+Lower-level helpers are also public for callers that already own part of the
+pipeline:
+
+```python
+manual_case = draft_failure_case(
+    trace,
+    case_id="case_manual",
+    failure_type="invalid_tool_argument",
+    symptom="planner called search_docs with null query",
+)
+lesson_memory = memory_item_from_lesson(lesson)
+case_memory = memory_item_from_failure_case(verified, trace)
+policy_memory = memory_item_from_project_policy(
+    ProjectPolicy(
+        policy_id="project_policy_001",
+        policy_text="Planner responses must include a tool-call rationale.",
+        scope={"prompt_family": "planner"},
+    )
+)
+gate_prompt = build_llm_gate_prompt(context, [lesson_memory], task="repair failed tool call")
+old_case = obsolete_failure_case(verified)
+old_lesson = obsolete_lesson(lesson)
+```
+
+Implemented pieces:
+
+- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, and `MemoryMetrics`.
+- Git metadata capture for repo name, commit SHA, branch, and dirty state, with command failure errors wrapped for harness diagnostics.
+- Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
+- Store-level checks that reject trace records with empty identity fields, unsupported eval results, or malformed JSON-like trace collections.
+- Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
+- Failure extraction helpers that load the failure taxonomy, classify failed traces against it with ordered conservative heuristics, and draft failure cases.
+- Manual review helper that records reviewer, root cause, notes, and review timestamp on draft failure cases.
+- Verification loop hardening: only draft cases can be verified, and verified cases require a fix commit and passing regression evidence.
+- Obsolete transitions for failure cases and lessons.
+- Store-level checks that reject failure cases with empty identity fields, invalid status, missing verified evidence, missing source trace, or source commit mismatch.
+- Project policy helper that turns manually maintained prompt/tool/eval policy into sourced `MemoryItem` policy memory.
+- Deterministic System Gate with strict source, tenant-aware scope, status, memory-type, confidence, sensitivity, eval-leak, and mode checks.
+- Gate boundary helpers that validate runtime context JSON, JSON-quote and cap dynamic gate prompt fields, validate LLM decision JSON with non-empty unique IDs and consistent `use_memory` / `recommended_injection` fields, require the final `MemoryDecision` before rendering non-empty runtime snippets, honor `none`/`pointer_only`/`short_summary` injection modes, and prevent the LLM decision from overriding System Gate.
+- In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, debug/repair visibility for verified regression-backed failure cases, optional keyword filtering including short domain tokens, and usage decision logs.
+- Usage-log validation that rejects empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
+- Dependency-free JSON snapshot save/load for trace, failure case, lesson, project policy, and usage-log records.
+- Dependency-free active lesson YAML save/load for the repository's simple `memory/lessons.example.yaml` shape, preserving numeric-looking scope strings.
+- Store-level checks that reject lessons with empty identity fields, invalid memory type/status, unknown non-empty scope fields, unbounded confidence, or a missing, unverified, non-regression-backed source case.
+- Store-level checks that reject project policies with empty identity/text fields, invalid status, invalid scope, unbounded confidence, or IDs that collide with failure case, lesson, or project policy memory IDs.
+- JSON schemas for stored records and full memory-store snapshots.
+- Postgres schema parity checks for model defaults, shared runtime memory ID namespace, verified-case lifecycle constraints, JSONB object/array and element-type checks, required usage-decision fields, and context example parsing.
+- Lesson safety flags for sensitive or eval-leaking memory are preserved through retrieval and blocked by System Gate.
+- PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, and warns on risky prompt/tool/model/eval-suite changes.
+- Basic metrics for decisions, candidates, used/blocked memory, pass rates with/without memory, wrong-memory failures, obsolete attempts, and lesson confidence.
+
 ## Repository layout
 
 ```text
 .
-├── docs/
-│   ├── architecture.md
-│   ├── usage-policy.md
-│   └── mvp-roadmap.md
-├── examples/
-│   ├── trace.example.json
-│   ├── failure_case.example.json
-│   ├── lesson.example.json
-│   └── memory_decision.example.json
-├── memory/
-│   ├── lessons.example.yaml
-│   └── failure_taxonomy.yaml
-├── schemas/
-│   ├── postgres.sql
-│   ├── memory_context.schema.json
-│   └── memory_decision.schema.json
-├── src/trace_backed_memory/
-│   ├── __init__.py
-│   ├── models.py
-│   └── policy.py
-└── tests/
-    └── test_policy.py
+|-- docs/
+|   |-- architecture.md
+|   |-- usage-policy.md
+|   `-- mvp-roadmap.md
+|-- examples/
+|   |-- trace.example.json
+|   |-- failure_case.example.json
+|   |-- lesson.example.json
+|   |-- memory_context.example.json
+|   |-- project_policy.example.json
+|   `-- memory_decision.example.json
+|-- memory/
+|   |-- lessons.example.yaml
+|   `-- failure_taxonomy.yaml
+|-- schemas/
+|   |-- postgres.sql
+|   |-- trace.schema.json
+|   |-- failure_case.schema.json
+|   |-- lesson.schema.json
+|   |-- project_policy.schema.json
+|   |-- memory_usage_log.schema.json
+|   |-- memory_store_snapshot.schema.json
+|   |-- memory_context.schema.json
+|   `-- memory_decision.schema.json
+|-- src/trace_backed_memory/
+|   |-- __init__.py
+|   |-- capture.py
+|   |-- extraction.py
+|   |-- lifecycle.py
+|   |-- models.py
+|   |-- policy.py
+|   `-- store.py
+`-- tests/
+    |-- test_capture.py
+    |-- test_examples_and_schema.py
+    |-- test_extraction.py
+    |-- test_lifecycle.py
+    |-- test_policy.py
+    |-- test_readme_api.py
+    `-- test_store.py
 ```

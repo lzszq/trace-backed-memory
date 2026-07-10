@@ -134,6 +134,31 @@ class MemoryDecision:
 
 
 @dataclass(frozen=True)
+class MemoryGateRequest:
+    request_id: str
+    context: MemoryContext
+    candidate_memory_ids: tuple[str, ...]
+    system_allowed_memory_ids: tuple[str, ...]
+    system_blocked: tuple[tuple[str, str], ...]
+    prompt: str
+    _store_token: object = field(repr=False, compare=False)
+
+
+@dataclass(frozen=True)
+class GatedMemoryResult:
+    request_id: str
+    trace_id: str
+    decision_id: str
+    use_memory: bool
+    allowed_memory_ids: tuple[str, ...]
+    blocked_memory_ids: tuple[str, ...]
+    reason: str
+    risk: Literal["none", "low", "medium", "high"]
+    recommended_injection: Literal["none", "short_summary", "full_case_summary", "pointer_only"]
+    snippet: str
+
+
+@dataclass(frozen=True)
 class MemoryUsageLog:
     decision_id: str
     run_id: str

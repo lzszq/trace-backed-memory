@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from trace_backed_memory import (
     FailureCase,
     Lesson,
@@ -19,6 +21,70 @@ from trace_backed_memory import (
     system_gate,
     verify_failure_case,
 )
+
+
+def store_with_verified_case(
+    *, repo: str = "repo", tenant: str | None = "tenant_a"
+) -> tuple[TraceBackedMemoryStore, Trace, FailureCase]:
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_contract",
+            run_id="run_contract",
+            commit_sha="abc",
+            repo=repo,
+            tenant=tenant,
+            eval_result="fail",
+            tool_calls=[{"name": "search_docs", "arguments": {"query": None}}],
+        )
+    )
+    case = verify_failure_case(
+        draft_failure_case(
+            trace,
+            case_id="case_contract",
+            failure_type="invalid_tool_argument",
+            symptom="search_docs received an empty query",
+        ),
+        fix="require a non-empty query",
+        fix_commit_sha="def",
+        regression_passed=True,
+    )
+    store.add_failure_case(case)
+    return store, trace, case
+
+
+def valid_snapshot_dict() -> dict[str, object]:
+    store, _trace, case = store_with_verified_case()
+    store.add_lesson(
+        lesson_from_failure_case(
+            case,
+            lesson_id="lesson_contract",
+            lesson_text="Always pass a non-empty query.",
+            memory_type="procedural",
+            scope={"repo": "repo", "tenant": "tenant_a", "tool": "search_docs"},
+        )
+    )
+    return store.to_snapshot()
+
+
+def test_snapshot_rejects_string_boolean_safety_fields():
+    snapshot = valid_snapshot_dict()
+    snapshot["lessons"][0]["sensitive"] = "false"
+    with pytest.raises(ValueError, match="sensitive must be a boolean"):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+def test_store_rejects_lesson_that_omits_source_tenant_scope():
+    store, _trace, case = store_with_verified_case(repo="repo", tenant="tenant_a")
+    lesson = lesson_from_failure_case(
+        case,
+        lesson_id="lesson_001",
+        lesson_text="rule",
+        memory_type="procedural",
+        scope={"repo": "repo"},
+    )
+    with pytest.raises(ValueError, match="source tenant"):
+        store.add_lesson(lesson)
 
 
 def test_store_retrieves_by_metadata_then_logs_usage_decision():

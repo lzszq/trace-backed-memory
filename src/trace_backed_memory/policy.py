@@ -110,6 +110,10 @@ def _memory_item_contract_error(memory: MemoryItem) -> str | None:
     for source in source_values:
         if source is not None and (not isinstance(source, str) or not source):
             return "source identifiers must be non-empty strings"
+    if type(memory.sensitive) is not bool:
+        return "sensitive must be a boolean"
+    if type(memory.eval_leaking) is not bool:
+        return "eval_leaking must be a boolean"
     if isinstance(memory.confidence, bool) or not isinstance(memory.confidence, (int, float)) or not 0.0 < memory.confidence <= 1.0:
         return "confidence must be greater than 0.0 and at most 1.0"
     return None
@@ -157,6 +161,12 @@ def build_llm_gate_prompt(
     context_summary: str = "",
 ) -> str:
     """Build the semantic applicability prompt for system-approved memory."""
+    _system_allowed, system_blocked = system_gate(context, candidates)
+    if system_blocked:
+        blocked_details = ", ".join(
+            f"{memory_id}: {reason}" for memory_id, reason in system_blocked.items()
+        )
+        raise ValueError(f"LLM gate candidates must pass System Gate: {blocked_details}")
     context_fields = {
         "mode": context.mode,
         "repo": context.repo,

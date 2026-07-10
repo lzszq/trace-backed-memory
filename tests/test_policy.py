@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from trace_backed_memory import (
     MemoryContext,
     MemoryDecision,
@@ -11,6 +13,37 @@ from trace_backed_memory import (
     parse_memory_decision,
     system_gate,
 )
+
+
+def test_system_gate_rejects_non_boolean_safety_flags():
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", tenant="tenant_a")
+    malformed = MemoryItem(
+        memory_id="lesson_001",
+        status="active",
+        memory_type="procedural",
+        scope={"repo": "repo", "tenant": "tenant_a"},
+        text="rule",
+        source_case_id="case_001",
+        sensitive="false",  # type: ignore[arg-type]
+    )
+    allowed, blocked = system_gate(context, [malformed])
+    assert allowed == []
+    assert blocked == {"lesson_001": "sensitive must be a boolean"}
+
+
+def test_llm_gate_prompt_rejects_system_blocked_candidates():
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", tenant="tenant_a")
+    sensitive = MemoryItem(
+        memory_id="lesson_001",
+        status="active",
+        memory_type="procedural",
+        scope={"repo": "repo", "tenant": "tenant_a"},
+        text="secret",
+        source_case_id="case_001",
+        sensitive=True,
+    )
+    with pytest.raises(ValueError, match="must pass System Gate"):
+        build_llm_gate_prompt(context, [sensitive], task="repair")
 
 
 def test_system_gate_allows_matching_active_lesson():

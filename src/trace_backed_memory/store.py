@@ -135,6 +135,15 @@ class TraceBackedMemoryStore:
             raise ValueError(f"missing source_case_id: {lesson.source_case_id}")
         if source_case.status != "verified" or not source_case.regression_passed:
             raise ValueError(f"lesson requires verified source case: {lesson.source_case_id}")
+        source_trace = self.traces.get(source_case.source_trace_id)
+        if source_trace is None:
+            raise ValueError(f"missing source_trace_id: {source_case.source_trace_id}")
+        for field_name in ("repo", "tenant"):
+            source_value = getattr(source_trace, field_name)
+            if source_value is not None and lesson.scope.get(field_name) != source_value:
+                raise ValueError(
+                    f"lesson scope must preserve source {field_name}: {source_value}"
+                )
         self.lessons[lesson.lesson_id] = lesson
         return lesson
 
@@ -343,6 +352,8 @@ def _validate_trace(trace: Trace) -> None:
         raise ValueError("trace records require commit_sha")
     if trace.eval_result not in EVAL_RESULTS:
         raise ValueError("eval_result must be one of: error, fail, pass, unknown")
+    if type(trace.dirty) is not bool:
+        raise ValueError("dirty must be a boolean")
     _validate_json_object_list(trace.retrieved_context, "retrieved_context")
     _validate_json_object_list(trace.tool_calls, "tool_calls")
     _validate_json_object_list(trace.tool_outputs, "tool_outputs")
@@ -361,6 +372,8 @@ def _validate_failure_case(case: FailureCase) -> None:
         raise ValueError("failure case records require symptom")
     if case.status not in FAILURE_CASE_STATUSES:
         raise ValueError("failure case status must be one of: draft, obsolete, verified")
+    if type(case.regression_passed) is not bool:
+        raise ValueError("regression_passed must be a boolean")
     if case.status == "verified" and (not case.fix or not case.fix_commit_sha or not case.regression_passed):
         raise ValueError("verified failure cases require fix, fix_commit_sha, and passing regression")
 
@@ -374,6 +387,10 @@ def _validate_lesson_record(lesson: Lesson) -> None:
         raise ValueError("lesson memory_type must be one of: episodic, policy, procedural, semantic")
     if lesson.status not in LESSON_STATUSES:
         raise ValueError("lesson status must be one of: active, obsolete")
+    if type(lesson.sensitive) is not bool:
+        raise ValueError("sensitive must be a boolean")
+    if type(lesson.eval_leaking) is not bool:
+        raise ValueError("eval_leaking must be a boolean")
 
 
 def _validate_project_policy(policy: ProjectPolicy) -> None:
@@ -383,6 +400,10 @@ def _validate_project_policy(policy: ProjectPolicy) -> None:
         raise ValueError("project policy records require policy_text")
     if policy.status not in LESSON_STATUSES:
         raise ValueError("project policy status must be one of: active, obsolete")
+    if type(policy.sensitive) is not bool:
+        raise ValueError("sensitive must be a boolean")
+    if type(policy.eval_leaking) is not bool:
+        raise ValueError("eval_leaking must be a boolean")
 
 
 def _validate_usage_log(log: MemoryUsageLog) -> None:
@@ -405,6 +426,8 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
         )
     if log.eval_result is not None and log.eval_result not in EVAL_RESULTS:
         raise ValueError("usage log eval_result must be one of: error, fail, pass, unknown")
+    if type(log.memory_caused_failure) is not bool:
+        raise ValueError("memory_caused_failure must be a boolean")
     if log.used_memory_ids and log.recommended_injection == "none":
         raise ValueError("usage log recommended_injection cannot be 'none' when memory was used")
     if not log.used_memory_ids and log.recommended_injection != "none":

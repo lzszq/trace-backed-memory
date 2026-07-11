@@ -127,7 +127,7 @@ def test_postgres_schema_install_is_atomic_and_public(
           (SELECT count(*) FROM pg_class
            WHERE relnamespace = 'public'::regnamespace
              AND relname IN (
-               'traces', 'memory_ids', 'failure_cases', 'lessons',
+               'trace_backed_memory_schema', 'traces', 'memory_ids', 'failure_cases', 'lessons',
                'project_policies', 'memory_usage_decisions'
              ))
           +
@@ -149,11 +149,15 @@ def test_postgres_schema_install_is_atomic_and_public(
         SELECT count(*) FROM pg_class
         WHERE relnamespace = 'public'::regnamespace
           AND relname IN (
-            'traces', 'memory_ids', 'failure_cases', 'lessons',
+            'trace_backed_memory_schema', 'traces', 'memory_ids', 'failure_cases', 'lessons',
             'project_policies', 'memory_usage_decisions'
           )
         """,
-    ) == "6"
+    ) == "7"
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT count(*) FROM public.trace_backed_memory_schema WHERE schema_version = 1",
+    ) == "1"
     assert assert_sql_succeeds(
         cluster,
         "SELECT to_regclass('pg_catalog.traces') IS NULL",

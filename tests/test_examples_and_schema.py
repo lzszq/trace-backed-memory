@@ -33,6 +33,13 @@ def test_postgres_adapter_dependencies_are_optional():
     assert "psycopg[binary]>=3.2,<4" in extras["dev"]
 
 
+def test_postgres_schema_publishes_adapter_version():
+    schema = _postgres_schema()
+    assert "CREATE TABLE trace_backed_memory_schema" in schema
+    assert "schema_version INTEGER NOT NULL CHECK (schema_version > 0)" in schema
+    assert "VALUES (true, 1)" in schema
+
+
 def _json_example(name: str) -> dict[str, object]:
     return json.loads((ROOT / "examples" / name).read_text(encoding="utf-8"))
 

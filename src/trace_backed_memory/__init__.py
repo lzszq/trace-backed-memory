@@ -41,6 +41,16 @@ from .policy import (
     parse_memory_decision,
     system_gate,
 )
+from .postgres import (
+    PostgresAdapterError,
+    PostgresConflictError,
+    PostgresDependencyError,
+    PostgresMemoryRepository,
+    PostgresPersistenceError,
+    PostgresSchemaError,
+    PostgresSyncCounts,
+    PostgresSyncResult,
+)
 from .store import TraceBackedMemoryStore
 
 __all__ = [
@@ -61,6 +71,14 @@ __all__ = [
     "MemoryUsageLog",
     "PRCaseProvenance",
     "PRMemoryReport",
+    "PostgresAdapterError",
+    "PostgresConflictError",
+    "PostgresDependencyError",
+    "PostgresMemoryRepository",
+    "PostgresPersistenceError",
+    "PostgresSchemaError",
+    "PostgresSyncCounts",
+    "PostgresSyncResult",
     "ProjectPolicy",
     "Trace",
     "TraceBackedMemoryStore",

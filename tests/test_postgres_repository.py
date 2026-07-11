@@ -9,7 +9,12 @@ from pathlib import Path
 import pytest
 
 
-def _complete_store(*, decision_reason: str = "directly relevant", extra_trace: bool = False):
+def _complete_store(
+    *,
+    decision_reason: str = "directly relevant",
+    extra_trace: bool = False,
+    offset_timestamps: bool = False,
+):
     from trace_backed_memory import (
         FailureCase,
         Lesson,
@@ -20,6 +25,23 @@ def _complete_store(*, decision_reason: str = "directly relevant", extra_trace: 
         TraceBackedMemoryStore,
     )
 
+    if offset_timestamps:
+        timestamps = {
+            "trace": "2025-01-02T03:04:05+05:30",
+            "reviewed": "2025-01-02T03:05:06+05:30",
+            "case": "2025-01-02T03:06:07+05:30",
+            "lesson": "2025-01-02T03:07:08+05:30",
+            "policy": "2025-01-02T03:08:09+05:30",
+        }
+    else:
+        timestamps = {
+            "trace": "2025-01-01T21:34:05Z",
+            "reviewed": "2025-01-01T21:35:06Z",
+            "case": "2025-01-01T21:36:07Z",
+            "lesson": "2025-01-01T21:37:08Z",
+            "policy": None,
+        }
+
     store = TraceBackedMemoryStore()
     store.record_trace(
         Trace(
@@ -28,9 +50,26 @@ def _complete_store(*, decision_reason: str = "directly relevant", extra_trace: 
             commit_sha="commit_sync",
             repo="repo_sync",
             tenant="tenant_sync",
+            branch="feature/sync",
+            dirty=True,
+            prompt_version="prompt_sync_v2",
+            prompt_family="repair_agent",
+            tool_schema_version="tools_sync_v3",
+            model="model_sync",
+            eval_suite="suite_sync",
+            input_hash="input_hash_sync",
+            output_hash="output_hash_sync",
+            retrieved_context=[
+                {"rank": 1, "source": "docs_sync", "trusted": True}
+            ],
             tool_calls=[{"name": "search_docs", "arguments": {"query": "sync"}}],
+            tool_outputs=[{"documents": 3, "succeeded": False}],
             eval_result="fail",
-            created_at=None,
+            latency_ms=321,
+            cost_usd=0.125,
+            error="query validation failed",
+            trace_uri="trace://sync/trace_sync",
+            created_at=timestamps["trace"],
         )
     )
     if extra_trace:
@@ -49,11 +88,15 @@ def _complete_store(*, decision_reason: str = "directly relevant", extra_trace: 
             commit_sha="commit_sync",
             failure_type="invalid_tool_argument",
             symptom="empty query",
+            root_cause="query validation was skipped",
             fix="require a query",
             fix_commit_sha="fix_sync",
             regression_passed=True,
+            reviewed_by="reviewer_sync",
+            review_notes="verified against the regression suite",
+            reviewed_at=timestamps["reviewed"],
             status="verified",
-            created_at=None,
+            created_at=timestamps["case"],
         )
     )
     store.add_lesson(
@@ -64,7 +107,10 @@ def _complete_store(*, decision_reason: str = "directly relevant", extra_trace: 
             memory_type="procedural",
             scope={"repo": "repo_sync", "tenant": "tenant_sync"},
             confidence=0.875,
-            created_at=None,
+            sensitive=True,
+            eval_leaking=False,
+            status="active",
+            created_at=timestamps["lesson"],
         )
     )
     store.add_project_policy(
@@ -73,7 +119,10 @@ def _complete_store(*, decision_reason: str = "directly relevant", extra_trace: 
             policy_text="Validate tool arguments before execution.",
             scope={"repo": "repo_sync", "tenant": "tenant_sync"},
             confidence=0.625,
-            created_at=None,
+            sensitive=False,
+            eval_leaking=False,
+            status="active",
+            created_at=timestamps["policy"],
         )
     )
     context = MemoryContext(
@@ -168,6 +217,148 @@ def test_repository_sync_rolls_back_earlier_inserts_on_late_conflict(postgres_cl
             repository.sync(conflicting)
 
         assert repository.load().to_snapshot() == baseline.to_snapshot()
+
+
+def test_repository_sync_conflicts_when_immutable_json_types_differ(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from psycopg.types.json import Jsonb
+
+    from trace_backed_memory import Trace, TraceBackedMemoryStore
+    from trace_backed_memory.postgres import PostgresConflictError, PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id="trace_json_types",
+            run_id="run_json_types",
+            commit_sha="commit_json_types",
+            tool_outputs=[{"succeeded": False}],
+        )
+    )
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+        connection.execute(
+            "UPDATE public.traces SET tool_outputs = %s WHERE trace_id = %s",
+            (Jsonb([{"succeeded": 0}]), "trace_json_types"),
+        )
+        connection.commit()
+
+        with pytest.raises(PostgresConflictError, match="traces.*trace_json_types"):
+            repository.sync(store)
+
+
+def test_repository_sync_keeps_numeric_normalization_type_aware(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+
+    from trace_backed_memory import Trace, TraceBackedMemoryStore
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id="trace_numeric_normalization",
+            run_id="run_numeric_normalization",
+            commit_sha="commit_numeric_normalization",
+            cost_usd=1.0,
+            tool_outputs=[{"succeeded": False, "attempts": 0}],
+        )
+    )
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+
+        repository.sync(store)
+        loaded = repository.load().traces["trace_numeric_normalization"]
+        assert loaded.cost_usd == 1
+        assert type(loaded.cost_usd) is int
+        assert repository.sync(store).traces == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_sync_is_idempotent_for_offset_timestamp(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store = _complete_store(offset_timestamps=True)
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+
+        repository.sync(store)
+        loaded = repository.load().to_snapshot()
+        assert loaded["traces"][0]["created_at"] == "2025-01-01T21:34:05Z"
+        assert loaded["failure_cases"][0]["reviewed_at"] == "2025-01-01T21:35:06Z"
+        assert loaded["failure_cases"][0]["created_at"] == "2025-01-01T21:36:07Z"
+        assert loaded["lessons"][0]["created_at"] == "2025-01-01T21:37:08Z"
+        assert loaded["project_policies"][0]["created_at"] == (
+            "2025-01-01T21:38:09Z"
+        )
+
+        second = repository.sync(store)
+        assert second.traces == PostgresSyncCounts(unchanged=1)
+        assert second.failure_cases == PostgresSyncCounts(unchanged=1)
+        assert second.lessons == PostgresSyncCounts(unchanged=1)
+        assert second.project_policies == PostgresSyncCounts(unchanged=1)
+        assert second.usage_logs == PostgresSyncCounts(unchanged=1)
+
+
+@pytest.mark.parametrize(
+    ("table", "record_id", "update_sql", "replacement"),
+    [
+        (
+            "traces",
+            "trace_sync",
+            "UPDATE public.traces SET model = %s WHERE trace_id = %s",
+            "conflicting_model",
+        ),
+        (
+            "failure_cases",
+            "case_sync",
+            "UPDATE public.failure_cases SET symptom = %s WHERE case_id = %s",
+            "conflicting symptom",
+        ),
+        (
+            "lessons",
+            "lesson_sync",
+            "UPDATE public.lessons SET lesson_text = %s WHERE lesson_id = %s",
+            "Conflicting lesson text.",
+        ),
+        (
+            "project_policies",
+            "policy_sync",
+            "UPDATE public.project_policies SET policy_text = %s WHERE policy_id = %s",
+            "Conflicting project policy.",
+        ),
+        (
+            "memory_usage_decisions",
+            "decision_000001",
+            "UPDATE public.memory_usage_decisions SET reason = %s WHERE decision_id = %s",
+            "conflicting usage reason",
+        ),
+    ],
+)
+def test_repository_sync_conflicts_for_differences_in_every_table(
+    postgres_cluster,
+    table,
+    record_id,
+    update_sql,
+    replacement,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresConflictError, PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    store = _complete_store()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+        connection.execute(update_sql, (replacement, record_id))
+        connection.commit()
+
+        with pytest.raises(PostgresConflictError, match=f"{table}.*{record_id}"):
+            repository.sync(store)
 
 
 def test_repository_rejects_missing_or_unknown_schema(postgres_cluster):

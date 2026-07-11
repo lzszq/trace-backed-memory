@@ -462,6 +462,78 @@ _ROW_CODECS = {
     "memory_usage_decisions": (_decode_usage_log, _encode_usage_log),
 }
 
+_TIMESTAMP_FIELDS = {
+    "traces": ("created_at",),
+    "failure_cases": ("reviewed_at", "created_at"),
+    "lessons": ("created_at",),
+    "project_policies": ("created_at",),
+    "memory_usage_decisions": ("created_at",),
+}
+
+
+def _canonical_rfc3339(value: object, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be an RFC 3339 string or None")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an RFC 3339 string or None") from exc
+    return _rfc3339(parsed, field_name)
+
+
+def _canonical_numeric_cost(value: object) -> int | float | None:
+    if value is None:
+        return None
+    if type(value) is int:
+        return _numeric_cost(Decimal(value))
+    if type(value) is float and math.isfinite(value):
+        return _numeric_cost(Decimal(str(value)))
+    raise ValueError("cost_usd must be a finite JSON number or None")
+
+
+def _canonical_numeric_confidence(value: object, field_name: str) -> float:
+    if type(value) not in (int, float) or not math.isfinite(value):
+        raise ValueError(f"{field_name} must be a finite JSON number")
+    return float(value)
+
+
+def _canonical_incoming_record(
+    table: str, incoming: dict[str, object]
+) -> dict[str, object]:
+    canonical = dict(incoming)
+    for field_name in _TIMESTAMP_FIELDS[table]:
+        canonical[field_name] = _canonical_rfc3339(
+            canonical[field_name], f"{table}.{field_name}"
+        )
+    if table == "traces":
+        canonical["cost_usd"] = _canonical_numeric_cost(canonical["cost_usd"])
+    elif table == "lessons":
+        canonical["confidence"] = _canonical_numeric_confidence(
+            canonical["confidence"], "lessons.confidence"
+        )
+    elif table == "project_policies":
+        canonical["confidence"] = _canonical_numeric_confidence(
+            canonical["confidence"], "project_policies.confidence"
+        )
+    return canonical
+
+
+def _type_strict_equal(left: object, right: object) -> bool:
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            _type_strict_equal(left[key], right[key]) for key in left
+        )
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _type_strict_equal(left_item, right_item)
+            for left_item, right_item in zip(left, right)
+        )
+    return left == right
+
 
 def _sync_immutable_row(
     cursor: object,
@@ -473,13 +545,16 @@ def _sync_immutable_row(
     insert_sql: str,
 ) -> Literal["inserted", "unchanged"]:
     decoder, encoder = _ROW_CODECS[table]
+    canonical_incoming = _canonical_incoming_record(table, incoming)
     cursor.execute(select_sql, (record_id,))
     rows = cursor.fetchall()
     if not rows:
         _psycopg, _dict_row, Jsonb = _load_psycopg()
-        cursor.execute(insert_sql, encoder(incoming, Jsonb))
+        cursor.execute(insert_sql, encoder(canonical_incoming, Jsonb))
         return "inserted"
-    if len(rows) != 1 or decoder(rows[0]) != incoming:
+    if len(rows) != 1 or not _type_strict_equal(
+        decoder(rows[0]), canonical_incoming
+    ):
         raise PostgresConflictError(f"PostgreSQL conflict for {table} row {record_id}")
     return "unchanged"
 

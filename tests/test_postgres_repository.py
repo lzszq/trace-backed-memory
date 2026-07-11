@@ -9,6 +9,167 @@ from pathlib import Path
 import pytest
 
 
+def _complete_store(*, decision_reason: str = "directly relevant", extra_trace: bool = False):
+    from trace_backed_memory import (
+        FailureCase,
+        Lesson,
+        MemoryContext,
+        MemoryDecision,
+        ProjectPolicy,
+        Trace,
+        TraceBackedMemoryStore,
+    )
+
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id="trace_sync",
+            run_id="run_sync",
+            commit_sha="commit_sync",
+            repo="repo_sync",
+            tenant="tenant_sync",
+            tool_calls=[{"name": "search_docs", "arguments": {"query": "sync"}}],
+            eval_result="fail",
+            created_at=None,
+        )
+    )
+    if extra_trace:
+        store.record_trace(
+            Trace(
+                trace_id="trace_sync_extra",
+                run_id="run_sync_extra",
+                commit_sha="commit_sync_extra",
+                created_at=None,
+            )
+        )
+    store.add_failure_case(
+        FailureCase(
+            case_id="case_sync",
+            source_trace_id="trace_sync",
+            commit_sha="commit_sync",
+            failure_type="invalid_tool_argument",
+            symptom="empty query",
+            fix="require a query",
+            fix_commit_sha="fix_sync",
+            regression_passed=True,
+            status="verified",
+            created_at=None,
+        )
+    )
+    store.add_lesson(
+        Lesson(
+            lesson_id="lesson_sync",
+            source_case_id="case_sync",
+            lesson_text="Use a non-empty query.",
+            memory_type="procedural",
+            scope={"repo": "repo_sync", "tenant": "tenant_sync"},
+            confidence=0.875,
+            created_at=None,
+        )
+    )
+    store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_sync",
+            policy_text="Validate tool arguments before execution.",
+            scope={"repo": "repo_sync", "tenant": "tenant_sync"},
+            confidence=0.625,
+            created_at=None,
+        )
+    )
+    context = MemoryContext(
+        mode="repair",
+        repo="repo_sync",
+        tenant="tenant_sync",
+        commit_sha="commit_sync",
+    )
+    store.log_decision(
+        "run_sync",
+        context,
+        ["lesson_sync", "policy_sync"],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=["lesson_sync", "policy_sync"],
+            blocked_memory_ids=[],
+            reason=decision_reason,
+            risk="low",
+            recommended_injection="short_summary",
+        ),
+        eval_result="pass",
+    )
+    return store
+
+
+def test_repository_sync_round_trips_and_is_idempotent(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store = _complete_store()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+
+        first = repository.sync(store)
+        assert first.traces == PostgresSyncCounts(inserted=1)
+        assert first.failure_cases == PostgresSyncCounts(inserted=1)
+        assert first.lessons == PostgresSyncCounts(inserted=1)
+        assert first.project_policies == PostgresSyncCounts(inserted=1)
+        assert first.usage_logs == PostgresSyncCounts(inserted=1)
+        assert repository.load().to_snapshot() == store.to_snapshot()
+
+        second = repository.sync(store)
+        assert second.traces == PostgresSyncCounts(unchanged=1)
+        assert second.failure_cases == PostgresSyncCounts(unchanged=1)
+        assert second.lessons == PostgresSyncCounts(unchanged=1)
+        assert second.project_policies == PostgresSyncCounts(unchanged=1)
+        assert second.usage_logs == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_sync_reports_empty_and_multi_record_counts(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        empty = repository.sync(TraceBackedMemoryStore())
+        assert empty.traces == PostgresSyncCounts()
+        assert empty.failure_cases == PostgresSyncCounts()
+        assert empty.lessons == PostgresSyncCounts()
+        assert empty.project_policies == PostgresSyncCounts()
+        assert empty.usage_logs == PostgresSyncCounts()
+
+        result = repository.sync(_complete_store(extra_trace=True))
+        assert result.traces == PostgresSyncCounts(inserted=2)
+        assert result.failure_cases == PostgresSyncCounts(inserted=1)
+        assert result.lessons == PostgresSyncCounts(inserted=1)
+        assert result.project_policies == PostgresSyncCounts(inserted=1)
+        assert result.usage_logs == PostgresSyncCounts(inserted=1)
+
+
+def test_repository_sync_rolls_back_earlier_inserts_on_late_conflict(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresConflictError, PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    baseline = _complete_store()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(baseline)
+
+        conflicting = _complete_store(
+            decision_reason="conflicting reason",
+            extra_trace=True,
+        )
+        with pytest.raises(
+            PostgresConflictError,
+            match="memory_usage_decisions.*decision_000001",
+        ):
+            repository.sync(conflicting)
+
+        assert repository.load().to_snapshot() == baseline.to_snapshot()
+
+
 def test_repository_rejects_missing_or_unknown_schema(postgres_cluster):
     psycopg = pytest.importorskip("psycopg")
     from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSchemaError

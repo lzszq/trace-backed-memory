@@ -35,9 +35,14 @@ def test_postgres_adapter_dependencies_are_optional():
 
 def test_postgres_schema_publishes_adapter_version():
     schema = _postgres_schema()
-    assert "CREATE TABLE trace_backed_memory_schema" in schema
+    assert "CREATE TABLE public.trace_backed_memory_schema" in schema
     assert "schema_version INTEGER NOT NULL CHECK (schema_version > 0)" in schema
+    assert (
+        "INSERT INTO public.trace_backed_memory_schema(singleton, schema_version)"
+        in schema
+    )
     assert "VALUES (true, 1)" in schema
+    assert "ON public.trace_backed_memory_schema FROM PUBLIC;" in schema
 
 
 def _json_example(name: str) -> dict[str, object]:

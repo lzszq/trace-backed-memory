@@ -3,16 +3,16 @@
 BEGIN;
 SET LOCAL search_path = public, pg_catalog;
 
-CREATE TABLE trace_backed_memory_schema (
+CREATE TABLE public.trace_backed_memory_schema (
   singleton BOOLEAN PRIMARY KEY DEFAULT true CHECK (singleton),
   schema_version INTEGER NOT NULL CHECK (schema_version > 0)
 );
 
-INSERT INTO trace_backed_memory_schema(singleton, schema_version)
+INSERT INTO public.trace_backed_memory_schema(singleton, schema_version)
 VALUES (true, 1);
 
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE
-ON trace_backed_memory_schema FROM PUBLIC;
+ON public.trace_backed_memory_schema FROM PUBLIC;
 
 CREATE TABLE traces (
   trace_id TEXT PRIMARY KEY,

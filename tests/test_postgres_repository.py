@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 from dataclasses import is_dataclass
+from pathlib import Path
 
 import pytest
 
@@ -55,13 +57,23 @@ def test_postgres_adapter_types_are_publicly_exported():
     assert PostgresSyncCounts() == PostgresSyncCounts(0, 0, 0)
 
 
-def test_package_import_does_not_load_psycopg(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delitem(sys.modules, "psycopg", raising=False)
-    monkeypatch.delitem(sys.modules, "trace_backed_memory", raising=False)
+def test_package_import_does_not_load_psycopg():
+    source_path = Path(__file__).resolve().parents[1] / "src"
+    script = (
+        "import sys\n"
+        f"sys.path.insert(0, {str(source_path)!r})\n"
+        "import trace_backed_memory\n"
+        "assert 'psycopg' not in sys.modules\n"
+    )
 
-    __import__("trace_backed_memory")
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
-    assert "psycopg" not in sys.modules
+    assert result.returncode == 0, result.stderr
 
 
 def test_missing_postgres_extra_has_stable_error(monkeypatch: pytest.MonkeyPatch):

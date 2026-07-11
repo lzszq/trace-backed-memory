@@ -1,397 +1,25 @@
 from __future__ import annotations
 
-import os
 import shutil
-import socket
 import subprocess
-import sys
 import time
-from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
 
+from tests.postgres_support import (
+    PostgresCluster,
+    TrackedClient,
+    _cleanup_postgres_resources,
+    _report_cleanup_errors,
+    assert_sql_fails,
+    assert_sql_succeeds,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-@dataclass(frozen=True)
-class AdvisoryLatch:
-    key: int
-    process: subprocess.Popen[bytes]
-    stdout_path: Path
-    stderr_path: Path
-
-
-@dataclass
-class PostgresCluster:
-    psql: str
-    env: dict[str, str]
-    root: Path
-    clients: list[subprocess.Popen[bytes]] = field(default_factory=list, repr=False)
-
-    def run(self, sql: str, *, timeout: float = 15.0) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [self.psql, "-X", "-v", "ON_ERROR_STOP=1", "-Atqc", sql],
-            env=self.env,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
-
-    def run_script(
-        self,
-        path: Path,
-        *,
-        caller_search_path: str | None = None,
-        timeout: float = 20.0,
-    ) -> subprocess.CompletedProcess[str]:
-        child_env = dict(self.env)
-        if caller_search_path is not None:
-            child_env["PGOPTIONS"] = (
-                f"{child_env.get('PGOPTIONS', '')} "
-                f"-c search_path={caller_search_path}"
-            ).strip()
-        return subprocess.run(
-            [
-                self.psql,
-                "-X",
-                "-v",
-                "ON_ERROR_STOP=1",
-                "-f",
-                str(path),
-            ],
-            env=child_env,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
-
-    def load_schema(self, *, caller_search_path: str | None = None) -> None:
-        result = self.run_script(
-            ROOT / "schemas" / "postgres.sql",
-            caller_search_path=caller_search_path,
-        )
-        assert result.returncode == 0, result.stderr
-
-    def spawn(self, name: str, sql: str) -> tuple[subprocess.Popen[bytes], Path, Path]:
-        stdout_path = self.root / f"{name}.stdout"
-        stderr_path = self.root / f"{name}.stderr"
-        child_env = {**self.env, "PGAPPNAME": name}
-        with stdout_path.open("wb") as stdout_file, stderr_path.open("wb") as stderr_file:
-            process = subprocess.Popen(
-                [self.psql, "-X", "-v", "ON_ERROR_STOP=1", "-q", "-c", sql],
-                env=child_env,
-                stdin=subprocess.DEVNULL,
-                stdout=stdout_file,
-                stderr=stderr_file,
-                close_fds=True,
-            )
-        self.clients.append(process)
-        return process, stdout_path, stderr_path
-
-    def acquire_latch(
-        self,
-        name: str,
-        key: int,
-        *,
-        timeout: float = 5.0,
-    ) -> AdvisoryLatch:
-        stdout_path = self.root / f"{name}.stdout"
-        stderr_path = self.root / f"{name}.stderr"
-        child_env = {**self.env, "PGAPPNAME": name}
-        with stdout_path.open("wb") as stdout_file, stderr_path.open("wb") as stderr_file:
-            process = subprocess.Popen(
-                [self.psql, "-X", "-v", "ON_ERROR_STOP=1", "-qAt"],
-                env=child_env,
-                stdin=subprocess.PIPE,
-                stdout=stdout_file,
-                stderr=stderr_file,
-                close_fds=True,
-            )
-        self.clients.append(process)
-        assert process.stdin is not None
-        process.stdin.write(f"SELECT pg_advisory_lock({key});\n".encode("ascii"))
-        process.stdin.flush()
-
-        deadline = time.monotonic() + timeout
-        escaped_name = name.replace("'", "''")
-        while time.monotonic() < deadline:
-            acquired = self.run(
-                "SELECT count(*) FROM pg_locks AS locks "
-                "JOIN pg_stat_activity AS activity USING (pid) "
-                "WHERE locks.locktype = 'advisory' AND locks.granted "
-                f"AND activity.application_name = '{escaped_name}'"
-            )
-            assert acquired.returncode == 0, acquired.stderr
-            if acquired.stdout.strip() == "1":
-                return AdvisoryLatch(key, process, stdout_path, stderr_path)
-            if process.poll() is not None:
-                break
-            time.sleep(0.05)
-
-        self.terminate_clients()
-        pytest.fail(f"database latch {name!r} was not acquired")
-
-    def release_latch(self, latch: AdvisoryLatch, *, timeout: float = 5.0) -> None:
-        if latch.process.poll() is not None or latch.process.stdin is None:
-            pytest.fail("database latch process exited before release")
-        latch.process.stdin.write(
-            (
-                f"SELECT pg_advisory_unlock({latch.key});\n"
-                "\\q\n"
-            ).encode("ascii")
-        )
-        latch.process.stdin.flush()
-        latch.process.stdin.close()
-        returncode = latch.process.wait(timeout=timeout)
-        stdout = latch.stdout_path.read_text(encoding="utf-8", errors="replace")
-        stderr = latch.stderr_path.read_text(encoding="utf-8", errors="replace")
-        assert returncode == 0, f"stdout:\n{stdout}\nstderr:\n{stderr}"
-
-    def terminate_clients(self) -> None:
-        cleanup_errors: list[Exception] = []
-
-        def kill_and_wait(process: subprocess.Popen[bytes]) -> None:
-            try:
-                process.kill()
-            except ProcessLookupError:
-                pass
-            except Exception as exc:
-                cleanup_errors.append(exc)
-            try:
-                process.wait(timeout=3)
-            except (ChildProcessError, ProcessLookupError):
-                pass
-            except Exception as exc:
-                cleanup_errors.append(exc)
-
-        for process in self.clients:
-            if process.poll() is None and process.stdin is not None:
-                try:
-                    process.stdin.close()
-                except (OSError, ValueError):
-                    pass
-            if process.poll() is None:
-                try:
-                    process.terminate()
-                except ProcessLookupError:
-                    pass
-                except Exception as exc:
-                    cleanup_errors.append(exc)
-
-        for process in self.clients:
-            try:
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                kill_and_wait(process)
-            except (ChildProcessError, ProcessLookupError):
-                pass
-            except Exception as exc:
-                cleanup_errors.append(exc)
-                if process.poll() is None:
-                    kill_and_wait(process)
-
-        if cleanup_errors:
-            raise ExceptionGroup("PostgreSQL client cleanup failed", cleanup_errors)
-
-    def unfinished_clients(self) -> list[subprocess.Popen[bytes]]:
-        return [process for process in self.clients if process.poll() is None]
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        listener.bind(("127.0.0.1", 0))
-        return int(listener.getsockname()[1])
-
-
-def _cleanup_postgres_resources(
-    *,
-    cluster: PostgresCluster | None,
-    data: Path,
-    root: Path,
-    tmp_path: Path,
-    pg_ctl: str,
-    env: dict[str, str],
-) -> list[Exception]:
-    cleanup_errors: list[Exception] = []
-
-    try:
-        if cluster is not None:
-            cluster.terminate_clients()
-    except Exception as exc:
-        exc.add_note("PostgreSQL client cleanup stage")
-        cleanup_errors.append(exc)
-
-    try:
-        if data.exists():
-            stop = subprocess.run(
-                [
-                    pg_ctl,
-                    "-D",
-                    str(data),
-                    "-m",
-                    "immediate",
-                    "-w",
-                    "-t",
-                    "20",
-                    "stop",
-                ],
-                env=env,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-                check=False,
-            )
-            if stop.returncode != 0 and (data / "postmaster.pid").exists():
-                raise RuntimeError(
-                    "pg_ctl stop failed:\n" + stop.stdout + "\n" + stop.stderr
-                )
-    except Exception as exc:
-        exc.add_note("PostgreSQL server cleanup stage")
-        cleanup_errors.append(exc)
-
-    try:
-        resolved_root = root.resolve()
-        if not resolved_root.is_relative_to(tmp_path.resolve()):
-            raise AssertionError("PostgreSQL test root escaped pytest tmp_path")
-        if root.exists():
-            shutil.rmtree(resolved_root, ignore_errors=False)
-    except Exception as exc:
-        exc.add_note("PostgreSQL directory cleanup stage")
-        cleanup_errors.append(exc)
-
-    return cleanup_errors
-
-
-def _report_cleanup_errors(
-    cleanup_errors: list[Exception], original_error: BaseException | None
-) -> None:
-    if not cleanup_errors:
-        return
-    if original_error is not None:
-        summary = "; ".join(
-            f"{type(error).__name__}: {error}" for error in cleanup_errors
-        )
-        original_error.add_note("PostgreSQL cleanup also failed: " + summary)
-        return
-    raise ExceptionGroup("PostgreSQL cleanup failed", cleanup_errors)
-
-
-@pytest.fixture
-def postgres_cluster(tmp_path: Path):
-    executables = {
-        name: shutil.which(name) for name in ("initdb", "pg_ctl", "psql")
-    }
-    missing = sorted(name for name, path in executables.items() if path is None)
-    if missing:
-        pytest.skip("PostgreSQL executables unavailable: " + ", ".join(missing))
-
-    root = tmp_path / "postgres-cluster"
-    data = root / "data"
-    log = root / "postgres.log"
-    root.mkdir()
-    cluster: PostgresCluster | None = None
-    env = {
-        **os.environ,
-        "PGHOST": "127.0.0.1",
-        "PGPORT": str(_free_port()),
-        "PGUSER": "postgres",
-        "PGDATABASE": "postgres",
-        "PGCONNECT_TIMEOUT": "5",
-        "PGOPTIONS": "-c statement_timeout=10000",
-    }
-    try:
-        init = subprocess.run(
-            [
-                executables["initdb"],
-                "-D",
-                str(data),
-                "-A",
-                "trust",
-                "-U",
-                "postgres",
-                "--no-locale",
-                "--encoding=UTF8",
-            ],
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-            check=False,
-        )
-        if init.returncode != 0:
-            error = f"{init.stdout}\n{init.stderr}".lower()
-            if "cannot be run as root" in error or "must not be run as root" in error:
-                pytest.skip("initdb cannot legally run as the current user")
-            pytest.fail(f"initdb failed:\n{init.stdout}\n{init.stderr}")
-
-        start = subprocess.run(
-            [
-                executables["pg_ctl"],
-                "-D",
-                str(data),
-                "-o",
-                f"-F -p {env['PGPORT']} -h 127.0.0.1",
-                "-l",
-                str(log),
-                "-w",
-                "-t",
-                "20",
-                "start",
-            ],
-            env=env,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=30,
-            check=False,
-        )
-        if start.returncode != 0:
-            details = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
-            pytest.fail(f"pg_ctl start failed:\n{details}")
-        cluster = PostgresCluster(executables["psql"], env, root)
-        yield cluster
-    finally:
-        original_error = sys.exc_info()[1]
-        cleanup_errors = _cleanup_postgres_resources(
-            cluster=cluster,
-            data=data,
-            root=root,
-            tmp_path=tmp_path,
-            pg_ctl=executables["pg_ctl"],
-            env=env,
-        )
-        _report_cleanup_errors(cleanup_errors, original_error)
-
-
-def _assert_sql_succeeds(cluster: PostgresCluster, sql: str) -> str:
-    result = cluster.run(sql)
-    assert result.returncode == 0, result.stderr
-    return result.stdout.strip()
-
-
-def _assert_sql_fails(cluster: PostgresCluster, sql: str, message: str) -> None:
-    result = cluster.run(sql)
-    assert result.returncode != 0, "SQL unexpectedly succeeded"
-    assert message in result.stderr, result.stderr
-
-
 def _assert_registry_parity(cluster: PostgresCluster) -> None:
-    assert _assert_sql_succeeds(
+    assert assert_sql_succeeds(
         cluster,
         """
         WITH source_ids(memory_id, memory_kind) AS (
@@ -441,27 +69,26 @@ def _wait_for_activity(
 
 
 def _wait_process(
-    process: subprocess.Popen[bytes],
-    stdout_path: Path,
-    stderr_path: Path,
+    client: TrackedClient,
     *,
     expected_returncode: int,
     timeout: float = 10.0,
 ) -> str:
+    process = client.process
     try:
         returncode = process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait(timeout=5)
         pytest.fail("PostgreSQL test session exceeded its bounded timeout")
-    stdout = stdout_path.read_text(encoding="utf-8", errors="replace")
-    stderr = stderr_path.read_text(encoding="utf-8", errors="replace")
+    stdout = client.stdout_path.read_text(encoding="utf-8", errors="replace")
+    stderr = client.stderr_path.read_text(encoding="utf-8", errors="replace")
     assert returncode == expected_returncode, f"stdout:\n{stdout}\nstderr:\n{stderr}"
     return stderr
 
 
 def _seed_verified_case(cluster: PostgresCluster, suffix: str) -> None:
-    _assert_sql_succeeds(
+    assert_sql_succeeds(
         cluster,
         f"""
         INSERT INTO traces(trace_id, run_id, commit_sha, repo)
@@ -493,7 +120,7 @@ def test_postgres_schema_install_is_atomic_and_public(
     failed_install = cluster.run_script(broken_path)
     assert failed_install.returncode != 0
     assert "release_closure_missing_function" in failed_install.stderr
-    assert _assert_sql_succeeds(
+    assert assert_sql_succeeds(
         cluster,
         """
         SELECT
@@ -513,8 +140,10 @@ def test_postgres_schema_install_is_atomic_and_public(
         """,
     ) == "0"
 
-    cluster.load_schema(caller_search_path="pg_catalog")
-    assert _assert_sql_succeeds(
+    cluster.load_schema(
+        env={"PGOPTIONS": f"{cluster.env['PGOPTIONS']} -c search_path=pg_catalog"}
+    )
+    assert assert_sql_succeeds(
         cluster,
         """
         SELECT count(*) FROM pg_class
@@ -525,7 +154,7 @@ def test_postgres_schema_install_is_atomic_and_public(
           )
         """,
     ) == "6"
-    assert _assert_sql_succeeds(
+    assert assert_sql_succeeds(
         cluster,
         "SELECT to_regclass('pg_catalog.traces') IS NULL",
     ) == "t"
@@ -541,7 +170,7 @@ def test_postgres_cluster_cleanup_terminates_unfinished_clients(
 
     assert latch.process.poll() is not None
     assert cluster.unfinished_clients() == []
-    assert _assert_sql_succeeds(cluster, "SELECT 1") == "1"
+    assert assert_sql_succeeds(cluster, "SELECT 1") == "1"
 
 
 def test_client_termination_tolerates_process_exit_race(tmp_path: Path):
@@ -572,7 +201,16 @@ def test_client_termination_tolerates_process_exit_race(tmp_path: Path):
             self.kill_called = True
 
     process = RaceProcess()
-    cluster = PostgresCluster("psql", {}, tmp_path, clients=[process])  # type: ignore[list-item]
+    cluster = PostgresCluster(
+        "psql",
+        {},
+        tmp_path,
+        clients=[
+            TrackedClient(
+                process, tmp_path / "race.stdout", tmp_path / "race.stderr"
+            )  # type: ignore[arg-type]
+        ],
+    )
 
     cluster.terminate_clients()
 
@@ -611,7 +249,14 @@ def test_client_cleanup_collects_errors_and_waits_every_tracked_process(
         "psql",
         {},
         tmp_path,
-        clients=[first, second],  # type: ignore[list-item]
+        clients=[
+            TrackedClient(
+                first, tmp_path / "first.stdout", tmp_path / "first.stderr"
+            ),  # type: ignore[arg-type]
+            TrackedClient(
+                second, tmp_path / "second.stdout", tmp_path / "second.stderr"
+            ),  # type: ignore[arg-type]
+        ],
     )
 
     with pytest.raises(ExceptionGroup, match="PostgreSQL client cleanup failed"):
@@ -675,7 +320,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
     cluster = postgres_cluster
     cluster.load_schema()
 
-    _assert_sql_succeeds(
+    assert_sql_succeeds(
         cluster,
         """
         CREATE ROLE memory_app;
@@ -700,7 +345,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         RESET ROLE;
         """,
     )
-    assert _assert_sql_succeeds(
+    assert assert_sql_succeeds(
         cluster,
         """
         SELECT string_agg(memory_id || ':' || memory_kind, ',' ORDER BY memory_id)
@@ -709,7 +354,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         """,
     ) == "case_app:failure_case,lesson_app:lesson,policy_app:project_policy"
 
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         """
         CREATE SCHEMA memory_app_shadow AUTHORIZATION memory_app;
@@ -748,13 +393,13 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         truncate_sql = f"TRUNCATE TABLE {table_name}"
         if table_name == "failure_cases":
             truncate_sql += " CASCADE"
-        _assert_sql_fails(
+        assert_sql_fails(
             cluster,
             truncate_sql,
             f"runtime memory table does not allow TRUNCATE: {table_name}",
         )
         _assert_registry_parity(cluster)
-        _assert_sql_fails(
+        assert_sql_fails(
             cluster,
             """
             INSERT INTO project_policies(policy_id, policy_text, scope_json)
@@ -763,7 +408,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
             "duplicate runtime memory_id: case_app",
         )
 
-    assert _assert_sql_succeeds(
+    assert assert_sql_succeeds(
         cluster,
         """
         SELECT string_agg(
@@ -781,7 +426,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         "project_policies:false"
     )
 
-    _assert_sql_succeeds(
+    assert_sql_succeeds(
         cluster,
         """
         INSERT INTO traces(trace_id, run_id, commit_sha, repo)
@@ -805,7 +450,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         );
         """,
     )
-    assert _assert_sql_succeeds(
+    assert assert_sql_succeeds(
         cluster,
         """
         SELECT count(*) FROM memory_ids
@@ -816,22 +461,22 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         """,
     ) == "3"
 
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         "INSERT INTO memory_ids(memory_id, memory_kind) VALUES ('forged', 'lesson')",
         "memory_ids registry does not allow direct INSERT",
     )
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         "UPDATE memory_ids SET memory_kind = 'lesson' WHERE memory_id = 'case_app'",
         "memory_ids registry does not allow direct UPDATE",
     )
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         "DELETE FROM memory_ids WHERE memory_id = 'case_app'",
         "memory_ids registry does not allow direct DELETE",
     )
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         """
         INSERT INTO project_policies(policy_id, policy_text, scope_json)
@@ -840,7 +485,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         "duplicate runtime memory_id: case_app",
     )
 
-    _assert_sql_succeeds(
+    assert_sql_succeeds(
         cluster,
         """
         INSERT INTO memory_usage_decisions(
@@ -857,12 +502,12 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         )
         """,
     )
-    assert _assert_sql_succeeds(
+    assert assert_sql_succeeds(
         cluster,
         "SELECT count(*) FROM memory_usage_decisions WHERE decision_id = 'decision_valid'",
     ) == "1"
 
-    _assert_sql_succeeds(
+    assert_sql_succeeds(
         cluster,
         """
         SET session_replication_role = replica;
@@ -870,7 +515,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         SET session_replication_role = origin;
         """,
     )
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         """
         INSERT INTO memory_usage_decisions(
@@ -887,7 +532,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         """,
         "usage log references unknown memory IDs: ghost_memory",
     )
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         """
         CREATE TEMP TABLE memory_ids(memory_id text, memory_kind text);
@@ -908,7 +553,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         """,
         "usage log references unknown memory IDs: ghost_shadow",
     )
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         """
         CREATE TEMP TABLE failure_cases(
@@ -926,23 +571,23 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
     )
 
     _seed_verified_case(cluster, "forward")
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         "UPDATE failure_cases SET status = 'draft' WHERE case_id = 'case_forward'",
         "failure case status transition is not allowed: verified -> draft",
     )
-    _assert_sql_succeeds(
+    assert_sql_succeeds(
         cluster,
         "UPDATE failure_cases SET status = 'obsolete' WHERE case_id = 'case_forward'",
     )
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         "UPDATE failure_cases SET status = 'verified' WHERE case_id = 'case_forward'",
         "failure case status transition is not allowed: obsolete -> verified",
     )
 
     _seed_verified_case(cluster, "child_forward")
-    _assert_sql_succeeds(
+    assert_sql_succeeds(
         cluster,
         """
         INSERT INTO lessons(lesson_id, source_case_id, lesson_text, memory_type, scope_json)
@@ -953,12 +598,12 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         UPDATE project_policies SET status = 'obsolete' WHERE policy_id = 'policy_forward';
         """,
     )
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         "UPDATE lessons SET status = 'active' WHERE lesson_id = 'lesson_forward'",
         "runtime memory status transition is not allowed: obsolete -> active",
     )
-    _assert_sql_fails(
+    assert_sql_fails(
         cluster,
         "UPDATE project_policies SET status = 'active' WHERE policy_id = 'policy_forward'",
         "runtime memory status transition is not allowed: obsolete -> active",
@@ -966,7 +611,7 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
 
     _seed_verified_case(cluster, "insert_first")
     insert_latch = cluster.acquire_latch("lesson_insert_latch", 91_001)
-    holder, holder_out, holder_err = cluster.spawn(
+    holder = cluster.spawn(
         "lesson_insert_holder",
         """
         BEGIN;
@@ -977,26 +622,26 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         COMMIT;
         """,
     )
-    _wait_for_activity(cluster, "lesson_insert_holder", "Lock", holder)
-    obsoleter, obsoleter_out, obsoleter_err = cluster.spawn(
+    _wait_for_activity(cluster, "lesson_insert_holder", "Lock", holder.process)
+    obsoleter = cluster.spawn(
         "parent_obsoleter",
         """
         SET lock_timeout = '5s';
         UPDATE failure_cases SET status = 'obsolete' WHERE case_id = 'case_insert_first';
         """,
     )
-    _wait_for_activity(cluster, "parent_obsoleter", "Lock", obsoleter)
+    _wait_for_activity(cluster, "parent_obsoleter", "Lock", obsoleter.process)
     cluster.release_latch(insert_latch)
-    _wait_process(holder, holder_out, holder_err, expected_returncode=0)
-    _wait_process(obsoleter, obsoleter_out, obsoleter_err, expected_returncode=0)
-    assert _assert_sql_succeeds(
+    _wait_process(holder, expected_returncode=0)
+    _wait_process(obsoleter, expected_returncode=0)
+    assert assert_sql_succeeds(
         cluster,
         "SELECT status FROM lessons WHERE lesson_id = 'lesson_insert_first'",
     ) == "obsolete"
 
     _seed_verified_case(cluster, "parent_first")
     parent_latch = cluster.acquire_latch("parent_update_latch", 91_002)
-    parent, parent_out, parent_err = cluster.spawn(
+    parent = cluster.spawn(
         "parent_update_holder",
         """
         BEGIN;
@@ -1006,8 +651,8 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         COMMIT;
         """,
     )
-    _wait_for_activity(cluster, "parent_update_holder", "Lock", parent)
-    lesson, lesson_out, lesson_err = cluster.spawn(
+    _wait_for_activity(cluster, "parent_update_holder", "Lock", parent.process)
+    lesson = cluster.spawn(
         "lesson_insert_waiter",
         """
         SET lock_timeout = '5s';
@@ -1015,14 +660,14 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         VALUES ('lesson_parent_first', 'case_parent_first', 'rule', 'procedural', '{"repo":"repo"}');
         """,
     )
-    _wait_for_activity(cluster, "lesson_insert_waiter", "Lock", lesson)
+    _wait_for_activity(cluster, "lesson_insert_waiter", "Lock", lesson.process)
     cluster.release_latch(parent_latch)
-    _wait_process(parent, parent_out, parent_err, expected_returncode=0)
+    _wait_process(parent, expected_returncode=0)
     lesson_stderr = _wait_process(
-        lesson, lesson_out, lesson_err, expected_returncode=1
+        lesson, expected_returncode=1
     )
     assert "verified regression-backed failure case" in lesson_stderr
-    assert _assert_sql_succeeds(
+    assert assert_sql_succeeds(
         cluster,
         "SELECT count(*) FROM lessons WHERE lesson_id = 'lesson_parent_first' AND status = 'active'",
     ) == "0"

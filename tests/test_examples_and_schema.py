@@ -1,5 +1,6 @@
 import json
 import re
+import tomllib
 from dataclasses import MISSING, fields as dataclass_fields
 from pathlib import Path
 from typing import get_args, get_type_hints
@@ -20,6 +21,16 @@ from trace_backed_memory.models import EvalResult, FailureCaseStatus, LessonStat
 
 ROOT = Path(__file__).resolve().parents[1]
 DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
+
+
+def test_postgres_adapter_dependencies_are_optional():
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    project = pyproject["project"]
+    extras = project["optional-dependencies"]
+
+    assert project["dependencies"] == []
+    assert extras["postgres"] == ["psycopg>=3.2,<4"]
+    assert "psycopg[binary]>=3.2,<4" in extras["dev"]
 
 
 def _json_example(name: str) -> dict[str, object]:

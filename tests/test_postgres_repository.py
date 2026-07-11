@@ -338,6 +338,74 @@ def test_repository_sync_rejects_failure_case_immutable_provenance_changes(
     )
 
 
+def test_sync_failure_case_row_conflicts_on_isolated_commit_sha(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from psycopg.rows import dict_row
+
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+        _sync_failure_case_row,
+    )
+
+    postgres_cluster.load_schema()
+    baseline = _draft_case_store(suffix="commit_sha_isolation")
+    incoming_snapshot = baseline.to_snapshot()
+    alternate_commit_sha = "commit_commit_sha_isolation_alternate"
+    incoming_snapshot["traces"][0]["commit_sha"] = alternate_commit_sha
+    incoming_snapshot["failure_cases"][0]["commit_sha"] = alternate_commit_sha
+    incoming = TraceBackedMemoryStore.from_snapshot(incoming_snapshot)
+    incoming_case = incoming.to_snapshot()["failure_cases"][0]
+    case_id = "case_commit_sha_isolation"
+    trace_id = "trace_commit_sha_isolation"
+    assert incoming.failure_cases[case_id].source_trace_id == trace_id
+    assert incoming.failure_cases[case_id].commit_sha == alternate_commit_sha
+    assert incoming.traces[trace_id].commit_sha == alternate_commit_sha
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(baseline)
+        expected = repository.load().to_snapshot()
+        stored_case = expected["failure_cases"][0]
+        assert {
+            field: value
+            for field, value in stored_case.items()
+            if field != "commit_sha"
+        } == {
+            field: value
+            for field, value in incoming_case.items()
+            if field != "commit_sha"
+        }
+        assert stored_case["commit_sha"] != incoming_case["commit_sha"]
+
+        with pytest.raises(
+            PostgresConflictError,
+            match=(
+                "^PostgreSQL conflict for failure_cases row "
+                "case_commit_sha_isolation$"
+            ),
+        ):
+            with connection.transaction():
+                with connection.cursor(row_factory=dict_row) as cursor:
+                    cursor.execute(
+                        "INSERT INTO public.traces "
+                        "(trace_id, run_id, commit_sha) VALUES (%s, %s, %s)",
+                        (
+                            "trace_commit_sha_rollback_marker",
+                            "run_commit_sha_rollback_marker",
+                            "commit_sha_rollback_marker",
+                        ),
+                    )
+                    _sync_failure_case_row(
+                        cursor,
+                        record_id=case_id,
+                        incoming=incoming_case,
+                    )
+
+        assert repository.load().to_snapshot() == expected
+
+
 @pytest.mark.parametrize(
     ("field_name", "replacement"),
     [

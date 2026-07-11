@@ -50,7 +50,7 @@
 - Require confidence to stay in the inclusive 0.0 to 1.0 range.
 - Reject stored lessons with empty IDs, invalid memory type, or invalid status.
 - Store active lessons in YAML or DB.
-- Provide dependency-free JSON snapshot persistence and active-lessons YAML save/load until DB adapters exist.
+- Provide dependency-free JSON snapshot persistence and active-lessons YAML save/load alongside the PostgreSQL repository.
 - Preserve numeric-looking scope strings through active-lessons YAML round trips.
 - Reject stored lessons whose source case is missing, unverified, or lacks regression evidence.
 - Store manually maintained project policies, validate policy IDs/text/status/scope/confidence, reject runtime memory ID collisions across failure cases, lessons, and project policies, and include policies in scoped retrieval.
@@ -91,3 +91,16 @@ Track:
 - failures caused by wrong memory
 - obsolete memory usage attempts
 - lesson confidence over time
+
+## Phase 8: PostgreSQL persistence (implemented)
+
+- Publish the synchronous `PostgresMemoryRepository` behind the optional
+  `postgres` dependency extra.
+- Require a fresh `public` schema installed from `schemas/postgres.sql` at
+  schema version 1.
+- Synchronize complete store snapshots additively and atomically, with canonical
+  comparison, immutable conflict rollback, and forward-only lifecycle updates.
+- Load normalized database records through the same store validation contract.
+- Support borrowed caller connections and owned connections from `connect()`.
+- Keep in-place migrations, connection pooling, and async repository support as
+  explicit non-goals.

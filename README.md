@@ -73,6 +73,38 @@ python -m pip install -e .
 
 For one-off local commands, setting `PYTHONPATH=src` also works.
 
+## PostgreSQL Repository
+
+PostgreSQL support is optional. Core installs do not import or require
+`psycopg`; install the extra when using the synchronous repository:
+
+```powershell
+python -m pip install -e ".[postgres]"
+pip install 'trace-backed-memory[postgres]'
+```
+
+Before connecting, install `schemas/postgres.sql` into a fresh `public` schema.
+The adapter requires the schema metadata row at `schema_version` 1. The SQL file
+is a fresh-install schema, not a migration for an existing database.
+
+```python
+from trace_backed_memory import PostgresMemoryRepository
+
+with PostgresMemoryRepository.connect("postgresql://...") as repository:
+    result = repository.sync(store)
+    restored = repository.load()
+```
+
+`connect()` creates an owned connection, and the context manager closes it. Pass
+an existing connection to `PostgresMemoryRepository(connection)` to borrow it;
+closing that repository leaves the caller's connection open.
+
+`sync(store)` is additive and transactional: it inserts records that are absent
+and never deletes database records. It preserves supported forward lifecycle
+updates, compares records in canonical form, and rejects immutable ID conflicts.
+Any conflict rolls back the whole synchronization. `load()` returns a normalized
+store snapshot and validates it through the regular in-memory store contract.
+
 ## Safe Store Workflow
 
 Use the store's two-phase workflow for runtime memory. `prepare_memory()`

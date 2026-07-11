@@ -8,6 +8,22 @@ Memory is not default context. Memory is historical experience that must be filt
 raw trace -> failure case -> verified lesson -> gated runtime memory
 ```
 
+## PostgreSQL Persistence Boundary
+
+The optional synchronous PostgreSQL repository persists the same gated store
+records; it does not make raw traces eligible for injection or bypass System
+Gate and LLM Gate policy. Install `trace-backed-memory[postgres]`, apply
+`schemas/postgres.sql` to a fresh `public` schema at version 1, then use
+`PostgresMemoryRepository` for persistence.
+
+Synchronization is additive and atomic. A sync retains database records absent
+from the submitted store, permits only supported forward lifecycle updates, and
+rolls back the entire transaction on an immutable ID conflict. Loading
+normalizes persisted values and reconstructs the regular validated store. A
+repository created from a caller connection borrows it; `connect()` owns and
+closes the connection. Schema migration, connection pooling, and async access
+are outside this repository's current policy and implementation.
+
 ## Suitable modes
 
 | Mode | Default | Allowed memory | Blocked memory |

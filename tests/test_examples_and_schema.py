@@ -45,6 +45,46 @@ def test_postgres_schema_publishes_adapter_version():
     assert "ON public.trace_backed_memory_schema FROM PUBLIC;" in schema
 
 
+def test_docs_publish_postgres_repository_operational_boundaries():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    architecture = _doc("architecture.md")
+    roadmap = _doc("mvp-roadmap.md")
+    usage_policy = _doc("usage-policy.md")
+
+    for required_text in [
+        "pip install 'trace-backed-memory[postgres]'",
+        "PostgresMemoryRepository.connect",
+        "repository.sync(store)",
+        "repository.load()",
+        "schema_version",
+        "additive",
+    ]:
+        assert required_text in readme
+
+    for required_text in [
+        "schema version 1",
+        "transaction",
+        "FOR UPDATE",
+        "FOR SHARE",
+        "canonical",
+        "borrowed",
+        "owned",
+        "migration",
+        "pooling",
+        "async",
+    ]:
+        assert required_text in architecture
+
+    non_goals = architecture.split("## Non-goals", maxsplit=1)[1].lower()
+    assert "postgresql runtime adapter" not in non_goals
+    assert "migration" in non_goals
+    assert "pooling" in non_goals
+    assert "async" in non_goals
+    assert "implemented" in roadmap.lower()
+    assert "synchronous" in roadmap.lower()
+    assert "postgres" in usage_policy.lower()
+
+
 def _json_example(name: str) -> dict[str, object]:
     return json.loads((ROOT / "examples" / name).read_text(encoding="utf-8"))
 

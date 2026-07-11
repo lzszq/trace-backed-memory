@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 from trace_backed_memory import (
     FailureCase,
@@ -6,6 +7,7 @@ from trace_backed_memory import (
     ProjectPolicy,
     MemoryContext,
     MemoryItem,
+    PostgresMemoryRepository,
     PRCaseProvenance,
     Trace,
     TraceMetadataCaptureError,
@@ -27,6 +29,56 @@ from trace_backed_memory import (
     system_gate,
     verify_failure_case,
 )
+
+
+def test_readme_postgres_repository_example_stays_executable_without_a_database(monkeypatch):
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    match = re.search(
+        r"```python\n"
+        r"(from trace_backed_memory import PostgresMemoryRepository\n\n"
+        r"with PostgresMemoryRepository\.connect\(\"postgresql://\.\.\.\"\) as repository:\n"
+        r"    result = repository\.sync\(store\)\n"
+        r"    restored = repository\.load\(\)\n)"
+        r"```",
+        readme,
+    )
+    assert match is not None, "README should include the PostgreSQL repository example"
+
+    store = TraceBackedMemoryStore()
+    restored = TraceBackedMemoryStore()
+
+    class FakeRepository:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def sync(self, incoming_store):
+            assert incoming_store is store
+            return "synced"
+
+        def load(self):
+            return restored
+
+    repository = FakeRepository()
+
+    def fake_connect(cls, conninfo):
+        assert cls is PostgresMemoryRepository
+        assert conninfo == "postgresql://..."
+        return repository
+
+    monkeypatch.setattr(
+        PostgresMemoryRepository, "connect", classmethod(fake_connect)
+    )
+
+    namespace = {"store": store}
+    exec(match.group(1), namespace)
+
+    assert namespace["result"] == "synced"
+    assert namespace["restored"] is restored
 
 
 def readme_store_fixture() -> tuple[

@@ -291,6 +291,38 @@ Portable JSON Schema files document trace, failure case, lesson, project policy,
 usage log, and full snapshot shapes; cross-record provenance checks still live
 in the store because they require current store state.
 
+## PostgreSQL Runtime Repository
+
+`PostgresMemoryRepository` is the implemented synchronous persistence boundary
+for a complete `TraceBackedMemoryStore`. It is public from the package root,
+but its `psycopg` dependency remains optional and lazy: core package import does
+not import the driver, while `PostgresMemoryRepository.connect()` requires the
+`postgres` extra.
+
+The repository operates only on a fresh `public` schema installed from
+`schemas/postgres.sql`. It locks the one schema metadata row and requires schema version 1.
+This schema is not an in-place migration mechanism.
+
+`sync(store)` first snapshots the in-memory store, then opens one database
+transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
+it inserts absent records, retains database records that are not in the supplied
+snapshot, and never performs destructive reconciliation. Existing records are
+compared in canonical form before a write. Immutable ID conflicts abort the
+operation, so the transaction rolls back every earlier insert or lifecycle
+update in that synchronization. Supported failure-case and runtime-memory
+status changes still follow the schema's forward-only lifecycle rules.
+
+`load()` opens a transaction, locks schema metadata `FOR SHARE`, reads the
+persisted collections, normalizes their database representation into the
+canonical snapshot shape, and reconstructs the store through its normal
+validation path. It therefore rejects database data that cannot form a valid
+store rather than returning partial or unvalidated records.
+
+`PostgresMemoryRepository(connection)` borrows a caller-provided connection;
+`close()` and context-manager exit do not close that borrowed connection.
+`PostgresMemoryRepository.connect(...)` creates an owned connection, and its
+context manager closes it. The repository does not provide connection pooling.
+
 ## Layer 5: PR / CI Memory Report
 
 The in-memory MVP can generate a PR-oriented memory report from the same trace
@@ -309,3 +341,6 @@ trace URI, and failure type.
 - Do not inject raw traces directly into prompts.
 - Do not treat vector similarity as sufficient proof of relevance.
 - Do not allow the LLM to mark memory active without verification.
+- Do not provide in-place migration between deployed schema versions.
+- Do not provide connection pooling or pool lifecycle management.
+- Do not provide `async` PostgreSQL repository support.

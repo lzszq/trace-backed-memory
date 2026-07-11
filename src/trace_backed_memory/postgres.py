@@ -127,6 +127,21 @@ INSERT INTO public.failure_cases (
 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
+_UPDATE_FAILURE_CASE = """
+UPDATE public.failure_cases
+SET failure_type = %s,
+    symptom = %s,
+    root_cause = %s,
+    reviewed_by = %s,
+    review_notes = %s,
+    reviewed_at = %s,
+    fix = %s,
+    fix_commit_sha = %s,
+    regression_passed = %s,
+    status = %s
+WHERE case_id = %s
+"""
+
 _INSERT_LESSON = """
 INSERT INTO public.lessons (
     lesson_id, source_case_id, lesson_text, memory_type, scope_json,
@@ -134,11 +149,23 @@ INSERT INTO public.lessons (
 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
+_UPDATE_LESSON_STATUS = """
+UPDATE public.lessons
+SET status = %s, updated_at = now()
+WHERE lesson_id = %s
+"""
+
 _INSERT_PROJECT_POLICY = """
 INSERT INTO public.project_policies (
     policy_id, policy_text, scope_json, confidence, sensitive, eval_leaking,
     status, created_at
 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+"""
+
+_UPDATE_PROJECT_POLICY_STATUS = """
+UPDATE public.project_policies
+SET status = %s, updated_at = now()
+WHERE policy_id = %s
 """
 
 _INSERT_USAGE_LOG = """
@@ -569,11 +596,120 @@ def _sync_immutable_row(
     return "unchanged"
 
 
-def _sync_counts(results: list[Literal["inserted", "unchanged"]]) -> PostgresSyncCounts:
+def _sync_failure_case_row(
+    cursor: object,
+    *,
+    record_id: str,
+    incoming: dict[str, object],
+) -> Literal["inserted", "updated", "unchanged"]:
+    canonical_incoming = _canonical_incoming_record("failure_cases", incoming)
+    cursor.execute(_SELECT_FAILURE_CASE_BY_ID, (record_id,))
+    rows = cursor.fetchall()
+    if not rows:
+        _psycopg, _dict_row, Jsonb = _load_psycopg()
+        cursor.execute(
+            _INSERT_FAILURE_CASE,
+            _encode_failure_case(canonical_incoming, Jsonb),
+        )
+        return "inserted"
+    if len(rows) != 1:
+        raise PostgresConflictError(
+            f"PostgreSQL conflict for failure_cases row {record_id}"
+        )
+
+    stored = _decode_failure_case(rows[0])
+    immutable_fields = ("case_id", "source_trace_id", "commit_sha", "created_at")
+    if any(
+        not _canonical_values_equal(stored[field], canonical_incoming[field])
+        for field in immutable_fields
+    ):
+        raise PostgresConflictError(
+            f"PostgreSQL conflict for failure_cases row {record_id}"
+        )
+    if _canonical_values_equal(stored, canonical_incoming):
+        return "unchanged"
+
+    cursor.execute(
+        _UPDATE_FAILURE_CASE,
+        (
+            canonical_incoming["failure_type"],
+            canonical_incoming["symptom"],
+            canonical_incoming["root_cause"],
+            canonical_incoming["reviewed_by"],
+            canonical_incoming["review_notes"],
+            canonical_incoming["reviewed_at"],
+            canonical_incoming["fix"],
+            canonical_incoming["fix_commit_sha"],
+            canonical_incoming["regression_passed"],
+            canonical_incoming["status"],
+            record_id,
+        ),
+    )
+    return "updated"
+
+
+def _sync_status_row(
+    cursor: object,
+    *,
+    table: str,
+    record_id: str,
+    incoming: dict[str, object],
+    select_sql: str,
+    insert_sql: str,
+    update_sql: str,
+) -> Literal["inserted", "updated", "unchanged"]:
+    decoder, encoder = _ROW_CODECS[table]
+    canonical_incoming = _canonical_incoming_record(table, incoming)
+    cursor.execute(select_sql, (record_id,))
+    rows = cursor.fetchall()
+    if not rows:
+        _psycopg, _dict_row, Jsonb = _load_psycopg()
+        cursor.execute(insert_sql, encoder(canonical_incoming, Jsonb))
+        return "inserted"
+    if len(rows) != 1:
+        raise PostgresConflictError(f"PostgreSQL conflict for {table} row {record_id}")
+
+    stored = decoder(rows[0])
+    if any(
+        field != "status"
+        and not _canonical_values_equal(stored[field], canonical_incoming[field])
+        for field in canonical_incoming
+    ):
+        raise PostgresConflictError(f"PostgreSQL conflict for {table} row {record_id}")
+    if stored["status"] == canonical_incoming["status"]:
+        return "unchanged"
+
+    cursor.execute(update_sql, (canonical_incoming["status"], record_id))
+    return "updated"
+
+
+def _sync_counts(
+    results: list[Literal["inserted", "updated", "unchanged"]],
+) -> PostgresSyncCounts:
     return PostgresSyncCounts(
         inserted=results.count("inserted"),
+        updated=results.count("updated"),
         unchanged=results.count("unchanged"),
     )
+
+
+def _sync_row_with_context(
+    sync_row: Any,
+    *,
+    table: str,
+    record_id: str,
+    driver_error: type[BaseException],
+) -> Literal["inserted", "updated", "unchanged"]:
+    try:
+        return sync_row()
+    except PostgresConflictError as exc:
+        raise PostgresConflictError(
+            f"failed to sync {table} row {record_id}: immutable conflict"
+        ) from exc
+    except driver_error as exc:
+        raise PostgresPersistenceError(
+            f"failed to sync {table} row {record_id}"
+        ) from exc
 
 
 class PostgresMemoryRepository:
@@ -634,52 +770,71 @@ class PostgresMemoryRepository:
                 with self._connection.cursor(row_factory=dict_row) as cursor:
                     self._lock_schema(cursor, write=True)
                     traces = [
-                        _sync_immutable_row(
-                            cursor,
+                        _sync_row_with_context(
+                            lambda record=record: _sync_immutable_row(
+                                cursor,
+                                table="traces",
+                                record_id=record["trace_id"],
+                                incoming=record,
+                                select_sql=_SELECT_TRACE_BY_ID,
+                                insert_sql=_INSERT_TRACE,
+                            ),
                             table="traces",
                             record_id=record["trace_id"],
-                            incoming=record,
-                            select_sql=_SELECT_TRACE_BY_ID,
-                            insert_sql=_INSERT_TRACE,
+                            driver_error=psycopg.Error,
                         )
                         for record in sorted(
                             snapshot["traces"], key=lambda item: item["trace_id"]
                         )
                     ]
                     failure_cases = [
-                        _sync_immutable_row(
-                            cursor,
+                        _sync_row_with_context(
+                            lambda record=record: _sync_failure_case_row(
+                                cursor,
+                                record_id=record["case_id"],
+                                incoming=record,
+                            ),
                             table="failure_cases",
                             record_id=record["case_id"],
-                            incoming=record,
-                            select_sql=_SELECT_FAILURE_CASE_BY_ID,
-                            insert_sql=_INSERT_FAILURE_CASE,
+                            driver_error=psycopg.Error,
                         )
                         for record in sorted(
                             snapshot["failure_cases"], key=lambda item: item["case_id"]
                         )
                     ]
                     lessons = [
-                        _sync_immutable_row(
-                            cursor,
+                        _sync_row_with_context(
+                            lambda record=record: _sync_status_row(
+                                cursor,
+                                table="lessons",
+                                record_id=record["lesson_id"],
+                                incoming=record,
+                                select_sql=_SELECT_LESSON_BY_ID,
+                                insert_sql=_INSERT_LESSON,
+                                update_sql=_UPDATE_LESSON_STATUS,
+                            ),
                             table="lessons",
                             record_id=record["lesson_id"],
-                            incoming=record,
-                            select_sql=_SELECT_LESSON_BY_ID,
-                            insert_sql=_INSERT_LESSON,
+                            driver_error=psycopg.Error,
                         )
                         for record in sorted(
                             snapshot["lessons"], key=lambda item: item["lesson_id"]
                         )
                     ]
                     project_policies = [
-                        _sync_immutable_row(
-                            cursor,
+                        _sync_row_with_context(
+                            lambda record=record: _sync_status_row(
+                                cursor,
+                                table="project_policies",
+                                record_id=record["policy_id"],
+                                incoming=record,
+                                select_sql=_SELECT_PROJECT_POLICY_BY_ID,
+                                insert_sql=_INSERT_PROJECT_POLICY,
+                                update_sql=_UPDATE_PROJECT_POLICY_STATUS,
+                            ),
                             table="project_policies",
                             record_id=record["policy_id"],
-                            incoming=record,
-                            select_sql=_SELECT_PROJECT_POLICY_BY_ID,
-                            insert_sql=_INSERT_PROJECT_POLICY,
+                            driver_error=psycopg.Error,
                         )
                         for record in sorted(
                             snapshot["project_policies"],
@@ -687,13 +842,18 @@ class PostgresMemoryRepository:
                         )
                     ]
                     usage_logs = [
-                        _sync_immutable_row(
-                            cursor,
+                        _sync_row_with_context(
+                            lambda record=record: _sync_immutable_row(
+                                cursor,
+                                table="memory_usage_decisions",
+                                record_id=record["decision_id"],
+                                incoming=record,
+                                select_sql=_SELECT_USAGE_LOG_BY_ID,
+                                insert_sql=_INSERT_USAGE_LOG,
+                            ),
                             table="memory_usage_decisions",
                             record_id=record["decision_id"],
-                            incoming=record,
-                            select_sql=_SELECT_USAGE_LOG_BY_ID,
-                            insert_sql=_INSERT_USAGE_LOG,
+                            driver_error=psycopg.Error,
                         )
                         for record in sorted(
                             snapshot["usage_logs"], key=lambda item: item["decision_id"]

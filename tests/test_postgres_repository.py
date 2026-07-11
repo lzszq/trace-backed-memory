@@ -148,6 +148,223 @@ def _complete_store(
     return store
 
 
+def _draft_case_store(*, suffix: str = "lifecycle"):
+    from trace_backed_memory import FailureCase, Trace, TraceBackedMemoryStore
+
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id=f"trace_{suffix}",
+            run_id=f"run_{suffix}",
+            commit_sha=f"commit_{suffix}",
+            repo=f"repo_{suffix}",
+            tenant=f"tenant_{suffix}",
+            created_at="2025-02-01T08:00:00Z",
+        )
+    )
+    store.add_failure_case(
+        FailureCase(
+            case_id=f"case_{suffix}",
+            source_trace_id=f"trace_{suffix}",
+            commit_sha=f"commit_{suffix}",
+            failure_type="unclassified",
+            symptom="request failed",
+            created_at="2025-02-01T09:00:00Z",
+        )
+    )
+    return store
+
+
+def test_repository_sync_updates_failure_case_lifecycle_and_cascades_lessons(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import Lesson
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store = _draft_case_store()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+
+        store.review_failure_case(
+            "case_lifecycle",
+            reviewed_by="reviewer_lifecycle",
+            root_cause="empty arguments bypassed validation",
+            failure_type="invalid_tool_argument",
+            symptom="tool rejected an empty query",
+            review_notes="reproduced from the source trace",
+            reviewed_at="2025-02-01T10:00:00Z",
+        )
+        store.verify_failure_case(
+            "case_lifecycle",
+            fix="validate arguments before tool execution",
+            fix_commit_sha="fix_lifecycle",
+            regression_passed=True,
+        )
+        store.add_lesson(
+            Lesson(
+                lesson_id="lesson_lifecycle",
+                source_case_id="case_lifecycle",
+                lesson_text="Validate arguments before executing tools.",
+                memory_type="procedural",
+                scope={"repo": "repo_lifecycle", "tenant": "tenant_lifecycle"},
+                confidence=0.9,
+                created_at="2025-02-01T11:00:00Z",
+            )
+        )
+
+        reviewed = repository.sync(store)
+        assert reviewed.failure_cases == PostgresSyncCounts(updated=1)
+        loaded_case = repository.load().failure_cases["case_lifecycle"]
+        assert (
+            loaded_case.failure_type,
+            loaded_case.symptom,
+            loaded_case.root_cause,
+            loaded_case.reviewed_by,
+            loaded_case.review_notes,
+            loaded_case.reviewed_at,
+            loaded_case.fix,
+            loaded_case.fix_commit_sha,
+            loaded_case.regression_passed,
+            loaded_case.status,
+        ) == (
+            "invalid_tool_argument",
+            "tool rejected an empty query",
+            "empty arguments bypassed validation",
+            "reviewer_lifecycle",
+            "reproduced from the source trace",
+            "2025-02-01T10:00:00Z",
+            "validate arguments before tool execution",
+            "fix_lifecycle",
+            True,
+            "verified",
+        )
+
+        store.obsolete_failure_case("case_lifecycle")
+        obsoleted = repository.sync(store)
+        assert obsoleted.failure_cases == PostgresSyncCounts(updated=1)
+        assert connection.execute(
+            "SELECT status FROM public.lessons WHERE lesson_id = %s",
+            ("lesson_lifecycle",),
+        ).fetchone() == ("obsolete",)
+        loaded = repository.load()
+        assert loaded.failure_cases["case_lifecycle"].status == "obsolete"
+        assert loaded.lessons["lesson_lifecycle"].status == "obsolete"
+
+
+def test_repository_sync_updates_only_lesson_and_policy_statuses(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store = _complete_store()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+
+        store.obsolete_lesson("lesson_sync")
+        store.obsolete_project_policy("policy_sync")
+        result = repository.sync(store)
+
+        assert result.lessons == PostgresSyncCounts(updated=1)
+        assert result.project_policies == PostgresSyncCounts(updated=1)
+        loaded = repository.load()
+        assert loaded.lessons["lesson_sync"].status == "obsolete"
+        assert loaded.project_policies["policy_sync"].status == "obsolete"
+
+
+@pytest.mark.parametrize(
+    ("field_name", "replacement"),
+    [
+        ("lesson_text", "Use a validated non-empty query."),
+        (
+            "scope",
+            {"repo": "repo_sync", "tenant": "tenant_sync", "branch": "main"},
+        ),
+        ("confidence", 0.5),
+        ("source_case_id", "case_alternate"),
+        ("sensitive", True),
+        ("eval_leaking", True),
+    ],
+)
+def test_repository_sync_rejects_lesson_non_status_changes(
+    postgres_cluster,
+    field_name,
+    replacement,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import PostgresConflictError, PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    baseline = _complete_store()
+    snapshot = baseline.to_snapshot()
+    if field_name == "source_case_id":
+        snapshot["traces"].append(
+            {
+                **snapshot["traces"][0],
+                "trace_id": "trace_alternate",
+                "run_id": "run_alternate",
+                "commit_sha": "commit_alternate",
+            }
+        )
+        snapshot["failure_cases"].append(
+            {
+                **snapshot["failure_cases"][0],
+                "case_id": "case_alternate",
+                "source_trace_id": "trace_alternate",
+                "commit_sha": "commit_alternate",
+            }
+        )
+    snapshot["lessons"][0][field_name] = replacement
+    conflicting = TraceBackedMemoryStore.from_snapshot(snapshot)
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(baseline)
+
+        with pytest.raises(PostgresConflictError, match="lessons.*lesson_sync"):
+            repository.sync(conflicting)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "replacement"),
+    [
+        ("policy_text", "Require schema-valid tool arguments."),
+        (
+            "scope",
+            {"repo": "repo_sync", "tenant": "tenant_sync", "branch": "main"},
+        ),
+        ("confidence", 0.5),
+        ("sensitive", False),
+        ("eval_leaking", True),
+    ],
+)
+def test_repository_sync_rejects_policy_non_status_changes(
+    postgres_cluster,
+    field_name,
+    replacement,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import PostgresConflictError, PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    baseline = _complete_store()
+    snapshot = baseline.to_snapshot()
+    snapshot["project_policies"][0][field_name] = replacement
+    conflicting = TraceBackedMemoryStore.from_snapshot(snapshot)
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(baseline)
+
+        with pytest.raises(PostgresConflictError, match="project_policies.*policy_sync"):
+            repository.sync(conflicting)
+
+
 def test_repository_sync_round_trips_and_is_idempotent(postgres_cluster):
     psycopg = pytest.importorskip("psycopg")
     from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
@@ -226,16 +443,118 @@ def test_repository_sync_rolls_back_earlier_inserts_on_late_conflict(postgres_cl
         repository.sync(baseline)
 
         conflicting = _complete_store(
-            decision_reason="conflicting reason",
+            decision_reason=(
+                'postgresql://sync_user:dsn-secret@db/sync '
+                '{"api_key":"payload-secret"} params=("sql-secret",)'
+            ),
             extra_trace=True,
         )
         with pytest.raises(
             PostgresConflictError,
             match="memory_usage_decisions.*decision_000001",
-        ):
+        ) as error:
             repository.sync(conflicting)
 
-        assert repository.load().to_snapshot() == baseline.to_snapshot()
+        message = str(error.value)
+        assert "sync" in message
+        assert "memory_usage_decisions" in message
+        assert "decision_000001" in message
+        assert "dsn-secret" not in message
+        assert "payload-secret" not in message
+        assert "sql-secret" not in message
+        assert isinstance(error.value.__cause__, PostgresConflictError)
+        loaded = repository.load().to_snapshot()
+        assert loaded == baseline.to_snapshot()
+        assert all(trace["trace_id"] != "trace_sync_extra" for trace in loaded["traces"])
+
+
+def test_repository_sync_preserves_database_only_trace_case_chains(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store_a = _draft_case_store(suffix="additive_a")
+    store_b = _draft_case_store(suffix="additive_b")
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store_a)
+        repository.sync(store_b)
+
+        repeated_a = repository.sync(store_a)
+        assert repeated_a.traces == PostgresSyncCounts(unchanged=1)
+        assert repeated_a.failure_cases == PostgresSyncCounts(unchanged=1)
+        assert connection.execute(
+            "SELECT trace_id FROM public.traces ORDER BY trace_id"
+        ).fetchall() == [("trace_additive_a",), ("trace_additive_b",)]
+        assert connection.execute(
+            "SELECT case_id FROM public.failure_cases ORDER BY case_id"
+        ).fetchall() == [("case_additive_a",), ("case_additive_b",)]
+
+        loaded = repository.load()
+        assert set(loaded.traces) == {"trace_additive_a", "trace_additive_b"}
+        assert set(loaded.failure_cases) == {"case_additive_a", "case_additive_b"}
+
+    adapter_source = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "trace_backed_memory"
+        / "postgres.py"
+    ).read_text(encoding="utf-8")
+    assert "DELETE" not in adapter_source.upper()
+    assert "TRUNCATE" not in adapter_source.upper()
+
+
+def test_repository_sync_wraps_driver_errors_with_sanitized_row_context(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import Trace, TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresPersistenceError,
+    )
+
+    postgres_cluster.load_schema()
+    verified = _draft_case_store(suffix="driver_error")
+    reverse = TraceBackedMemoryStore.from_snapshot(verified.to_snapshot())
+    reverse.record_trace(
+        Trace(
+            trace_id="trace_driver_error_extra",
+            run_id="run_driver_error_extra",
+            commit_sha="commit_driver_error_extra",
+        )
+    )
+    verified.review_failure_case(
+        "case_driver_error",
+        reviewed_by="dsn-secret",
+        root_cause='{"api_key":"payload-secret"}',
+        review_notes='params=("sql-secret",)',
+    )
+    verified.verify_failure_case(
+        "case_driver_error",
+        fix="validate the request",
+        fix_commit_sha="fix_driver_error",
+        regression_passed=True,
+    )
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(verified)
+
+        with pytest.raises(PostgresPersistenceError) as error:
+            repository.sync(reverse)
+
+        message = str(error.value)
+        assert "sync" in message
+        assert "failure_cases" in message
+        assert "case_driver_error" in message
+        assert "dsn-secret" not in message
+        assert "payload-secret" not in message
+        assert "sql-secret" not in message
+        assert isinstance(error.value.__cause__, psycopg.Error)
+        loaded = repository.load()
+        assert loaded.failure_cases["case_driver_error"].status == "verified"
+        assert "trace_driver_error_extra" not in loaded.traces
 
 
 def test_repository_sync_conflicts_when_immutable_json_types_differ(postgres_cluster):
@@ -365,8 +684,8 @@ def test_repository_sync_is_idempotent_for_offset_timestamp(postgres_cluster):
         (
             "failure_cases",
             "case_sync",
-            "UPDATE public.failure_cases SET symptom = %s WHERE case_id = %s",
-            "conflicting symptom",
+            "UPDATE public.failure_cases SET created_at = %s WHERE case_id = %s",
+            "2026-01-01T00:00:00Z",
         ),
         (
             "lessons",

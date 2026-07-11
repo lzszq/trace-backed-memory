@@ -107,7 +107,7 @@ def _complete_store(
             memory_type="procedural",
             scope={"repo": "repo_sync", "tenant": "tenant_sync"},
             confidence=0.875,
-            sensitive=True,
+            sensitive=False,
             eval_leaking=False,
             status="active",
             created_at=timestamps["lesson"],
@@ -119,7 +119,7 @@ def _complete_store(
             policy_text="Validate tool arguments before execution.",
             scope={"repo": "repo_sync", "tenant": "tenant_sync"},
             confidence=0.625,
-            sensitive=False,
+            sensitive=True,
             eval_leaking=False,
             status="active",
             created_at=timestamps["policy"],
@@ -163,7 +163,26 @@ def test_repository_sync_round_trips_and_is_idempotent(postgres_cluster):
         assert first.lessons == PostgresSyncCounts(inserted=1)
         assert first.project_policies == PostgresSyncCounts(inserted=1)
         assert first.usage_logs == PostgresSyncCounts(inserted=1)
-        assert repository.load().to_snapshot() == store.to_snapshot()
+        assert connection.execute(
+            "SELECT sensitive, eval_leaking FROM public.project_policies "
+            "WHERE policy_id = %s",
+            ("policy_sync",),
+        ).fetchone() == (True, False)
+        assert connection.execute(
+            "SELECT candidate_memory_ids, used_memory_ids "
+            "FROM public.memory_usage_decisions WHERE decision_id = %s",
+            ("decision_000001",),
+        ).fetchone() == (["lesson_sync", "policy_sync"], ["lesson_sync"])
+
+        loaded = repository.load().to_snapshot()
+        assert loaded == store.to_snapshot()
+        assert loaded["project_policies"][0]["sensitive"] is True
+        assert loaded["project_policies"][0]["eval_leaking"] is False
+        assert loaded["usage_logs"][0]["candidate_memory_ids"] == [
+            "lesson_sync",
+            "policy_sync",
+        ]
+        assert loaded["usage_logs"][0]["used_memory_ids"] == ["lesson_sync"]
 
         second = repository.sync(store)
         assert second.traces == PostgresSyncCounts(unchanged=1)
@@ -273,6 +292,36 @@ def test_repository_sync_keeps_numeric_normalization_type_aware(postgres_cluster
         loaded = repository.load().traces["trace_numeric_normalization"]
         assert loaded.cost_usd == 1
         assert type(loaded.cost_usd) is int
+        assert repository.sync(store).traces == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_sync_is_idempotent_when_jsonb_normalizes_large_float(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+
+    from trace_backed_memory import Trace, TraceBackedMemoryStore
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id="trace_json_large_float",
+            run_id="run_json_large_float",
+            commit_sha="commit_json_large_float",
+            tool_outputs=[{"metrics": {"magnitude": 1e20}}],
+        )
+    )
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+
+        repository.sync(store)
+        magnitude = repository.load().traces["trace_json_large_float"].tool_outputs[
+            0
+        ]["metrics"]["magnitude"]
+        assert magnitude == 100000000000000000000
+        assert type(magnitude) is int
         assert repository.sync(store).traces == PostgresSyncCounts(unchanged=1)
 
 

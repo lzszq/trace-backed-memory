@@ -520,16 +520,26 @@ def _canonical_incoming_record(
     return canonical
 
 
-def _type_strict_equal(left: object, right: object) -> bool:
+def _canonical_values_equal(left: object, right: object) -> bool:
+    left_is_number = type(left) in (int, float)
+    right_is_number = type(right) in (int, float)
+    if left_is_number or right_is_number:
+        if not (left_is_number and right_is_number):
+            return False
+        if (type(left) is float and not math.isfinite(left)) or (
+            type(right) is float and not math.isfinite(right)
+        ):
+            return False
+        return Decimal(str(left)) == Decimal(str(right))
     if type(left) is not type(right):
         return False
     if isinstance(left, dict):
         return left.keys() == right.keys() and all(
-            _type_strict_equal(left[key], right[key]) for key in left
+            _canonical_values_equal(left[key], right[key]) for key in left
         )
     if isinstance(left, list):
         return len(left) == len(right) and all(
-            _type_strict_equal(left_item, right_item)
+            _canonical_values_equal(left_item, right_item)
             for left_item, right_item in zip(left, right)
         )
     return left == right
@@ -552,7 +562,7 @@ def _sync_immutable_row(
         _psycopg, _dict_row, Jsonb = _load_psycopg()
         cursor.execute(insert_sql, encoder(canonical_incoming, Jsonb))
         return "inserted"
-    if len(rows) != 1 or not _type_strict_equal(
+    if len(rows) != 1 or not _canonical_values_equal(
         decoder(rows[0]), canonical_incoming
     ):
         raise PostgresConflictError(f"PostgreSQL conflict for {table} row {record_id}")

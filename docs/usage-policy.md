@@ -154,8 +154,9 @@ atomic logging guarantees. Low-level helpers remain available for callers that
 own equivalent orchestration.
 
 For semantic retrieval, compute scores outside the store and pass
-`semantic_scores` with an explicit `max_candidates` and optional
-`minimum_score`. Do not combine it with `query`. Treat scores as retrieval
+`semantic_scores` with an explicit `max_candidates` that must be an integer from
+1 through 50 inclusive, and optional `minimum_score`. Do not combine it with
+`query`. Treat scores as retrieval
 evidence only: sensitive, obsolete, leaking, low-confidence, or out-of-scope
 memory must still be blocked by the normal gates.
 

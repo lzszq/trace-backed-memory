@@ -163,7 +163,8 @@ request = store.prepare_memory(
 Metadata scope is applied before ranking. Scores may use any finite numeric
 scale, but callers must normalize them so larger values mean greater relevance.
 Keyword `query` and `semantic_scores` cannot be combined in one call.
-`max_candidates` is required and capped at 50. System Gate and LLM Gate remain
+`max_candidates` is required and must be an integer from 1 through 50 inclusive.
+System Gate and LLM Gate remain
 authoritative, and scores are not persisted in snapshots or PostgreSQL.
 
 ## Low-level System Gate Helper

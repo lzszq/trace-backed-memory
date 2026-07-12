@@ -233,7 +233,7 @@ preserved in keyword filtering.
 
 Callers may alternatively provide precomputed semantic scores keyed by stored
 runtime memory ID. Semantic mode remains metadata-first, requires an explicit
-an integer `max_candidates` from 1 through 50 inclusive, accepts only finite
+integer `max_candidates` from 1 through 50 inclusive, accepts only finite
 numeric scores, and breaks ties by
 memory ID. Scores select candidates only; System Gate and LLM Gate remain the
 approval boundary. The store neither computes nor persists embeddings or raw

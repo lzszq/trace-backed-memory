@@ -1,9 +1,11 @@
+import os
 import subprocess
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 
 import pytest
 
+import trace_backed_memory.capture as capture_module
 from trace_backed_memory import (
     CommitAncestryCaptureError,
     CommitAncestryEvidence,
@@ -11,6 +13,44 @@ from trace_backed_memory import (
     capture_commit_ancestry,
     capture_trace_metadata,
 )
+
+
+def test_capture_commit_ancestry_default_runner_disables_lazy_fetch(monkeypatch):
+    monkeypatch.setenv("CAPTURE_EXISTING_VALUE", "preserved")
+    monkeypatch.setenv("GIT_NO_LAZY_FETCH", "0")
+    captured_env: dict[str, str] | None = None
+
+    def run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal captured_env
+        captured_env = kwargs.get("env")  # type: ignore[assignment]
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(capture_module.subprocess, "run", run)
+
+    evidence = capture_commit_ancestry("current", ["anchor"])
+
+    assert evidence.commit_relations == (("anchor", True),)
+    assert captured_env is not os.environ
+    assert captured_env is not None
+    assert captured_env["GIT_NO_LAZY_FETCH"] == "1"
+    assert captured_env["CAPTURE_EXISTING_VALUE"] == "preserved"
+
+
+def test_capture_commit_ancestry_default_runner_wraps_missing_object(monkeypatch):
+    stderr = "fatal: Not a valid object name missing\n"
+
+    def run(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args, 128, stdout="", stderr=stderr)
+
+    monkeypatch.setattr(capture_module.subprocess, "run", run)
+
+    with pytest.raises(CommitAncestryCaptureError) as captured:
+        capture_commit_ancestry("current", ["missing"])
+
+    assert stderr.strip() in str(captured.value)
+    assert isinstance(captured.value.__cause__, subprocess.CalledProcessError)
+    assert captured.value.__cause__.returncode == 128
+    assert captured.value.__cause__.stderr == stderr
 
 
 def test_capture_commit_ancestry_sorts_deduplicates_and_records_false():

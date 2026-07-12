@@ -2219,22 +2219,71 @@ def test_pr_report_commit_anchors_are_sorted():
 
 
 def test_pr_memory_report_excludes_unrelated_git_history_everywhere():
-    store = store_with_retrieval_records_in_order(["b", "a"])
+    store = TraceBackedMemoryStore()
+    for suffix, failure_type in [
+        ("a", "invalid_tool_argument"),
+        ("b", "tool_timeout"),
+    ]:
+        trace = store.record_trace(
+            Trace(
+                trace_id=f"trace_{suffix}",
+                run_id=f"run_{suffix}",
+                commit_sha=f"commit_{suffix}",
+                repo="repo",
+                tenant="tenant",
+                eval_result="fail",
+                trace_uri=f"s3://traces/trace_{suffix}.json",
+            )
+        )
+        store.add_failure_case(
+            verify_failure_case(
+                draft_failure_case(
+                    trace,
+                    case_id=f"case_{suffix}",
+                    failure_type=failure_type,
+                    symptom=f"symptom {suffix}",
+                ),
+                fix=f"fix {suffix}",
+                fix_commit_sha=f"fix_commit_{suffix}",
+                regression_passed=True,
+            )
+        )
     evidence = ancestry_evidence("current", commit_a=True, commit_b=False)
+    context = MemoryContext(
+        mode="debug",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        failure_type=None,
+    )
 
     report = store.pr_memory_report(
-        ancestry_context(),
+        context,
         changed_fields=["model"],
         commit_ancestry=evidence,
     )
 
     assert report.related_case_ids == ["case_a"]
-    assert [item.case_id for item in report.related_case_provenance] == [
-        "case_a"
+    assert report.suggested_regression_tests == [
+        "Run invalid_tool_argument regression for tool affected tool before merging."
     ]
-    assert len(report.suggested_regression_tests) == 1
-    assert len(report.warnings) == 1
-    assert "case_a" in report.warnings[0]
+    assert (
+        "Run tool_timeout regression for tool affected tool before merging."
+        not in report.suggested_regression_tests
+    )
+    assert report.warnings == [
+        "model change touches known failure case case_a for known failure area."
+    ]
+    assert report.related_case_provenance == [
+        PRCaseProvenance(
+            case_id="case_a",
+            source_trace_id="trace_a",
+            commit_sha="commit_a",
+            fix_commit_sha="fix_commit_a",
+            trace_uri="s3://traces/trace_a.json",
+            failure_type="invalid_tool_argument",
+        )
+    ]
 
 
 def test_pr_memory_report_rejects_missing_ancestry_evidence():

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Callable, Iterable
 from pathlib import Path
@@ -78,12 +79,15 @@ def _validate_commit_string(value: object, field_name: str) -> None:
 
 
 def _run_ancestry_command(args: list[str], cwd: str | None = None) -> int:
+    env = os.environ.copy()
+    env["GIT_NO_LAZY_FETCH"] = "1"
     completed = subprocess.run(
         args,
         cwd=cwd,
         check=False,
         capture_output=True,
         text=True,
+        env=env,
     )
     if completed.returncode not in {0, 1}:
         raise subprocess.CalledProcessError(

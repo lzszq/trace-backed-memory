@@ -8,10 +8,14 @@ from pathlib import Path
 
 import pytest
 
+from tests import postgres_support
 from tests.postgres_support import (
     PostgresCluster,
     TrackedClient,
     _cleanup_postgres_resources,
+    _new_test_database_name,
+    _quote_identifier,
+    _read_role_names,
     _report_cleanup_errors,
     assert_sql_fails,
     assert_sql_succeeds,
@@ -19,6 +23,50 @@ from tests.postgres_support import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_test_database_names_are_unique_safe_identifiers():
+    names = {_new_test_database_name() for _ in range(100)}
+    assert len(names) == 100
+    assert all(re.fullmatch(r"tbm_test_[0-9a-f]{32}", name) for name in names)
+
+
+def test_postgres_identifier_quoting_escapes_embedded_quotes():
+    assert _quote_identifier('role "owner"') == '"role ""owner"""'
+
+
+def test_read_role_names_decodes_structured_output(monkeypatch):
+    result = subprocess.CompletedProcess(
+        ["psql"], 0, '["postgres", "role with newline\\ninside"]\n', ""
+    )
+    monkeypatch.setattr(
+        postgres_support,
+        "_run_psql",
+        lambda *_args, **_kwargs: result,
+    )
+
+    assert _read_role_names("psql", {}) == frozenset(
+        {"postgres", "role with newline\ninside"}
+    )
+
+
+@pytest.mark.parametrize("stdout", ["not-json", "{}", '["postgres", 1]'])
+def test_read_role_names_rejects_invalid_json_shapes(
+    monkeypatch: pytest.MonkeyPatch, stdout: str
+):
+    result = subprocess.CompletedProcess(["psql"], 0, stdout, "")
+    monkeypatch.setattr(
+        postgres_support,
+        "_run_psql",
+        lambda *_args, **_kwargs: result,
+    )
+
+    with pytest.raises(
+        RuntimeError, match="^PostgreSQL role discovery returned invalid JSON$"
+    ):
+        _read_role_names("psql", {})
+
+
 def _assert_registry_parity(cluster: PostgresCluster) -> None:
     assert assert_sql_succeeds(
         cluster,

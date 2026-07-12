@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 import shutil
 import socket
 import subprocess
 import sys
 import time
-from collections.abc import Iterator
+import uuid
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+_TEST_DATABASE_RE = re.compile(r"tbm_test_[0-9a-f]{32}\Z")
 
 
 @dataclass(frozen=True)
@@ -29,6 +34,74 @@ class TrackedClient:
     process: subprocess.Popen[bytes]
     stdout_path: Path
     stderr_path: Path
+
+
+@dataclass(frozen=True)
+class PostgresServer:
+    psql: str
+    pg_ctl: str
+    env: Mapping[str, str]
+    root: Path
+    data: Path
+    baseline_roles: frozenset[str]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "env", MappingProxyType(dict(self.env)))
+
+
+def _new_test_database_name() -> str:
+    return f"tbm_test_{uuid.uuid4().hex}"
+
+
+def _require_test_database_name(database_name: str) -> str:
+    if _TEST_DATABASE_RE.fullmatch(database_name) is None:
+        raise ValueError("invalid PostgreSQL test database name")
+    return database_name
+
+
+def _quote_identifier(identifier: str) -> str:
+    if not isinstance(identifier, str) or "\x00" in identifier:
+        raise ValueError("PostgreSQL identifier must be a string without NUL")
+    return '"' + identifier.replace('"', '""') + '"'
+
+
+def _run_psql(
+    psql: str,
+    env: Mapping[str, str],
+    sql: str,
+    timeout: float = 15.0,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [psql, "-X", "-v", "ON_ERROR_STOP=1", "-Atqc", sql],
+        env=dict(env),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        check=False,
+    )
+
+
+def _read_role_names(psql: str, env: Mapping[str, str]) -> frozenset[str]:
+    result = _run_psql(
+        psql,
+        env,
+        "SELECT COALESCE(json_agg(rolname ORDER BY rolname), '[]'::json)::text "
+        "FROM pg_catalog.pg_roles",
+    )
+    if result.returncode != 0:
+        raise RuntimeError("PostgreSQL role discovery failed:\n" + result.stderr)
+    try:
+        roles = json.loads(result.stdout)
+    except (json.JSONDecodeError, TypeError):
+        raise RuntimeError(
+            "PostgreSQL role discovery returned invalid JSON"
+        ) from None
+    if not isinstance(roles, list) or not all(isinstance(role, str) for role in roles):
+        raise RuntimeError("PostgreSQL role discovery returned invalid JSON")
+    return frozenset(roles)
 
 
 @dataclass
@@ -54,16 +127,11 @@ class PostgresCluster:
         timeout: float = 15.0,
         env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [self.psql, "-X", "-v", "ON_ERROR_STOP=1", "-Atqc", sql],
-            env={**self.env, **(env or {})},
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
+        return _run_psql(
+            self.psql,
+            {**self.env, **(env or {})},
+            sql,
             timeout=timeout,
-            check=False,
         )
 
     def run_script(

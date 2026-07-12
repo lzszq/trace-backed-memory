@@ -48,6 +48,7 @@ def test_postgres_schema_publishes_adapter_version():
 def test_docs_publish_postgres_repository_operational_boundaries():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     architecture = _doc("architecture.md")
+    architecture_contract = " ".join(architecture.split())
     roadmap = _doc("mvp-roadmap.md")
     usage_policy = _doc("usage-policy.md")
 
@@ -83,6 +84,28 @@ def test_docs_publish_postgres_repository_operational_boundaries():
     assert "implemented" in roadmap.lower()
     assert "synchronous" in roadmap.lower()
     assert "postgres" in usage_policy.lower()
+
+    assert "treats traces and usage logs as immutable" in architecture_contract
+    assert (
+        "diagnosis (`failure_type`, `symptom`, and `root_cause`)"
+        in architecture_contract
+    )
+    assert (
+        "review (`reviewed_by`, `review_notes`, and `reviewed_at`)"
+        in architecture_contract
+    )
+    assert (
+        "fix and regression (`fix`, `fix_commit_sha`, and `regression_passed`)"
+        in architecture_contract
+    )
+    assert (
+        "lessons and project policies may update only `status`"
+        in architecture_contract
+    )
+    assert (
+        "triggers still enforce forward-only status transitions"
+        in architecture_contract
+    )
 
 
 def _json_example(name: str) -> dict[str, object]:

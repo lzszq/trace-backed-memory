@@ -102,8 +102,8 @@ closing that repository leaves the caller's connection open.
 `sync(store)` is additive and transactional: it inserts records that are absent
 and never deletes database records. It preserves supported forward lifecycle
 updates, compares records in canonical form, and rejects immutable ID conflicts.
-Any conflict rolls back the whole synchronization. `load()` returns a normalized
-store snapshot and validates it through the regular in-memory store contract.
+Any conflict rolls back the whole synchronization. `repository.load()` returns
+a normalized, validated `TraceBackedMemoryStore`, not a snapshot object.
 
 ## Safe Store Workflow
 

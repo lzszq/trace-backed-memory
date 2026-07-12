@@ -309,8 +309,24 @@ it inserts absent records, retains database records that are not in the supplied
 snapshot, and never performs destructive reconciliation. Existing records are
 compared in canonical form before a write. Immutable ID conflicts abort the
 operation, so the transaction rolls back every earlier insert or lifecycle
-update in that synchronization. Supported failure-case and runtime-memory
-status changes still follow the schema's forward-only lifecycle rules.
+update in that synchronization.
+
+The repository treats traces and usage logs as immutable: an existing row must
+be canonically equal to the incoming record or synchronization conflicts.
+Failure cases may update only diagnosis (`failure_type`, `symptom`, and
+`root_cause`), review (`reviewed_by`, `review_notes`, and `reviewed_at`), fix and
+regression (`fix`, `fix_commit_sha`, and `regression_passed`), and `status`.
+Their identity, source provenance, and creation timestamp remain immutable. For
+existing rows, lessons and project policies may update only `status`; a
+difference in any other field is a conflict.
+
+Database triggers still enforce forward-only status transitions. Failure cases
+may move from `draft` to `verified` or `obsolete`, and from `verified` to
+`obsolete`. Lessons and project policies may move from `active` to `obsolete`.
+Same-state writes remain valid, obsolete records cannot be reactivated, and
+obsoleting a failure case cascades its active lessons to obsolete. Other parent
+updates that would leave an active lesson without a verified,
+regression-backed source case are rejected.
 
 `load()` opens a transaction, locks schema metadata `FOR SHARE`, reads the
 persisted collections, normalizes their database representation into the

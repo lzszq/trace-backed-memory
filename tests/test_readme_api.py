@@ -319,6 +319,20 @@ def test_readme_primary_pipeline_uses_captured_metadata_values():
     assert '"commit_sha": metadata.commit_sha' in readme
 
 
+def test_readme_describes_postgres_load_return_type():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    contract = " ".join(readme.split())
+
+    assert (
+        "`repository.load()` returns a normalized, validated "
+        "`TraceBackedMemoryStore`"
+        in contract
+    )
+    assert "`load()` returns a normalized store snapshot" not in contract
+
+
 def test_readme_additional_public_helpers_still_work():
     trace = Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="fail")
     draft = draft_failure_case(

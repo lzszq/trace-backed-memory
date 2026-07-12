@@ -50,6 +50,7 @@ def test_postgres_jsonpath_schema_publishes_supported_version_floor():
     documents = {
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "design": _doc(
             "superpowers/specs/2026-07-12-postgres-runtime-adapter-design.md"

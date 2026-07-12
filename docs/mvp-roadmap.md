@@ -96,6 +96,8 @@ Track:
 
 - Publish the synchronous `PostgresMemoryRepository` behind the optional
   `postgres` dependency extra.
+- Require PostgreSQL 12+ because the hardened schema uses
+  `jsonb_path_exists`.
 - Require a fresh `public` schema installed from `schemas/postgres.sql` at
   schema version 1.
 - Synchronize complete store snapshots additively and atomically, with canonical

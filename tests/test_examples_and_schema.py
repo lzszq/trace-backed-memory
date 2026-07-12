@@ -95,7 +95,8 @@ def test_docs_publish_postgres_repository_operational_boundaries():
         in architecture_contract
     )
     assert (
-        "fix and regression (`fix`, `fix_commit_sha`, and `regression_passed`)"
+        "fix and regression (`fix`, `fix_commit_sha`, and `regression_passed`), "
+        "and `status`"
         in architecture_contract
     )
     assert (
@@ -104,6 +105,11 @@ def test_docs_publish_postgres_repository_operational_boundaries():
     )
     assert (
         "triggers still enforce forward-only status transitions"
+        in architecture_contract
+    )
+    assert (
+        "Failure cases may move from `draft` to `verified` or `obsolete`, "
+        "and from `verified` to `obsolete`."
         in architecture_contract
     )
 

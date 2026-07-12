@@ -1,4 +1,9 @@
-from .capture import TraceMetadataCaptureError, capture_trace_metadata
+from .capture import (
+    CommitAncestryCaptureError,
+    TraceMetadataCaptureError,
+    capture_commit_ancestry,
+    capture_trace_metadata,
+)
 from .extraction import classify_failure_type, draft_failure_case_from_trace, load_failure_taxonomy
 from .lifecycle import (
     draft_failure_case,
@@ -13,6 +18,7 @@ from .lifecycle import (
 )
 from .models import (
     FailureCase,
+    CommitAncestryEvidence,
     GatedMemoryResult,
     Lesson,
     MemoryContext,
@@ -55,6 +61,8 @@ from .store import TraceBackedMemoryStore
 
 __all__ = [
     "FailureCase",
+    "CommitAncestryCaptureError",
+    "CommitAncestryEvidence",
     "GatedMemoryResult",
     "INJECTION_MAX_MEMORIES",
     "INJECTION_SNIPPET_MAX_CHARS",
@@ -87,6 +95,7 @@ __all__ = [
     "apply_llm_gate_decision",
     "build_llm_gate_prompt",
     "capture_trace_metadata",
+    "capture_commit_ancestry",
     "classify_failure_type",
     "draft_failure_case",
     "draft_failure_case_from_trace",

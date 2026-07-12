@@ -65,6 +65,12 @@ class TraceMetadata:
 
 
 @dataclass(frozen=True)
+class CommitAncestryEvidence:
+    current_commit_sha: str
+    commit_relations: tuple[tuple[str, bool], ...]
+
+
+@dataclass(frozen=True)
 class FailureCase:
     case_id: str
     source_trace_id: str

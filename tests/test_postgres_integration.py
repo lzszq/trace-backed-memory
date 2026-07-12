@@ -387,6 +387,40 @@ def test_client_cleanup_collects_errors_and_waits_every_tracked_process(
     assert second.waited is True
 
 
+def test_session_root_cleanup_rejects_root_outside_pytest_base(tmp_path: Path):
+    pytest_base = tmp_path / "pytest-base"
+    escaped_root = tmp_path / "escaped-session-root"
+    pytest_base.mkdir()
+    escaped_root.mkdir()
+    marker = escaped_root / "must-remain"
+    marker.write_text("protected", encoding="ascii")
+
+    with pytest.raises(
+        AssertionError,
+        match="PostgreSQL cleanup root escaped pytest-owned parent",
+    ):
+        postgres_support._remove_postgres_test_root(escaped_root, pytest_base)
+
+    assert marker.read_text(encoding="ascii") == "protected"
+
+
+def test_per_test_root_cleanup_rejects_root_outside_tmp_path(tmp_path: Path):
+    per_test_parent = tmp_path / "test-case"
+    escaped_root = tmp_path / "escaped-cluster-root"
+    per_test_parent.mkdir()
+    escaped_root.mkdir()
+    marker = escaped_root / "must-remain"
+    marker.write_text("protected", encoding="ascii")
+
+    with pytest.raises(
+        AssertionError,
+        match="PostgreSQL cleanup root escaped pytest-owned parent",
+    ):
+        postgres_support._remove_postgres_test_root(escaped_root, per_test_parent)
+
+    assert marker.read_text(encoding="ascii") == "protected"
+
+
 def test_cleanup_stages_are_independent_and_preserve_original_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

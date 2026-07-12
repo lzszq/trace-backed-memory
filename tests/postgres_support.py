@@ -345,6 +345,19 @@ def _free_port() -> int:
         return int(listener.getsockname()[1])
 
 
+def _remove_postgres_test_root(root: Path, pytest_parent: Path) -> None:
+    resolved_root = root.resolve()
+    resolved_parent = pytest_parent.resolve()
+    if resolved_root == resolved_parent or not resolved_root.is_relative_to(
+        resolved_parent
+    ):
+        raise AssertionError(
+            "PostgreSQL cleanup root escaped pytest-owned parent"
+        )
+    if resolved_root.exists():
+        shutil.rmtree(resolved_root, ignore_errors=False)
+
+
 def _cleanup_postgres_resources(
     *,
     cluster: PostgresCluster | None,
@@ -395,11 +408,7 @@ def _cleanup_postgres_resources(
         cleanup_errors.append(exc)
 
     try:
-        resolved_root = root.resolve()
-        if not resolved_root.is_relative_to(tmp_path.resolve()):
-            raise AssertionError("PostgreSQL test root escaped pytest tmp_path")
-        if root.exists():
-            shutil.rmtree(resolved_root, ignore_errors=False)
+        _remove_postgres_test_root(root, tmp_path)
     except Exception as exc:
         exc.add_note("PostgreSQL directory cleanup stage")
         cleanup_errors.append(exc)
@@ -532,8 +541,7 @@ def _postgres_server(
                         "pg_ctl stop failed:\n" + stop.stdout + "\n" + stop.stderr
                     )
         finally:
-            if root.exists():
-                shutil.rmtree(root)
+            _remove_postgres_test_root(root, tmp_path_factory.getbasetemp())
 
 
 @pytest.fixture
@@ -568,8 +576,7 @@ def postgres_cluster(
                     if database_created:
                         _drop_test_database(_postgres_server, database_name)
                 finally:
-                    if root.exists():
-                        shutil.rmtree(root)
+                    _remove_postgres_test_root(root, tmp_path)
 
 
 def assert_sql_succeeds(cluster: PostgresCluster, sql: str) -> str:

@@ -191,6 +191,90 @@ def test_prepare_and_finalize_memory_is_trace_linked_and_audited():
     assert log.created_at.endswith("Z")
 
 
+def test_prepare_memory_keeps_semantic_rank_and_system_gate_audit_boundaries():
+    store, trace, _case, safe_lesson = store_with_active_lesson()
+    sensitive_lesson = replace(
+        safe_lesson,
+        lesson_id="lesson_sensitive",
+        lesson_text="Sensitive guidance must remain blocked.",
+        sensitive=True,
+    )
+    obsolete_lesson = replace(
+        safe_lesson,
+        lesson_id="lesson_obsolete",
+        lesson_text="Obsolete guidance must remain blocked.",
+        status="obsolete",
+    )
+    store.add_lesson(sensitive_lesson)
+    store.add_lesson(obsolete_lesson)
+    scores = {
+        sensitive_lesson.lesson_id: 1.0,
+        obsolete_lesson.lesson_id: 0.9,
+        safe_lesson.lesson_id: 0.8,
+    }
+
+    request = store.prepare_memory(
+        matching_context(trace),
+        task="repair failed call",
+        semantic_scores=scores,
+        max_candidates=3,
+    )
+    scores.clear()
+
+    assert request.candidate_memory_ids == (
+        sensitive_lesson.lesson_id,
+        obsolete_lesson.lesson_id,
+        safe_lesson.lesson_id,
+    )
+    assert request.system_allowed_memory_ids == (safe_lesson.lesson_id,)
+    assert dict(request.system_blocked) == {
+        sensitive_lesson.lesson_id: "memory is marked sensitive",
+        obsolete_lesson.lesson_id: "status 'obsolete' is not allowed",
+    }
+    assert sensitive_lesson.lesson_id not in request.prompt
+    assert obsolete_lesson.lesson_id not in request.prompt
+
+    result = store.finalize_memory(
+        request,
+        allow_decision(safe_lesson.lesson_id),
+        trace_id=trace.trace_id,
+        eval_result="pass",
+    )
+
+    assert result.allowed_memory_ids == (safe_lesson.lesson_id,)
+    log = store.usage_logs[-1]
+    assert log.candidate_memory_ids == [
+        sensitive_lesson.lesson_id,
+        obsolete_lesson.lesson_id,
+        safe_lesson.lesson_id,
+    ]
+    assert log.candidate_memory_statuses == {
+        sensitive_lesson.lesson_id: "active",
+        obsolete_lesson.lesson_id: "obsolete",
+        safe_lesson.lesson_id: "active",
+    }
+    assert log.system_blocked_reasons == dict(request.system_blocked)
+
+
+def test_invalid_semantic_prepare_does_not_consume_request_id():
+    store = TraceBackedMemoryStore()
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(
+        ValueError,
+        match="max_candidates must be an integer from 1 through 50",
+    ):
+        store.prepare_memory(
+            context,
+            task="repair",
+            semantic_scores={},
+            max_candidates=0,
+        )
+
+    request = store.prepare_memory(context, task="repair")
+    assert request.request_id == "gate_request_000001"
+
+
 def test_prepare_memory_validates_context_before_empty_candidate_registration():
     store = TraceBackedMemoryStore()
     invalid_context = MemoryContext(
@@ -227,6 +311,27 @@ def test_finalize_rechecks_memory_obsoleted_after_prepare():
     result = store.finalize_memory(
         request, allow_decision(lesson.lesson_id), trace_id=trace.trace_id
     )
+    assert result.use_memory is False
+    assert result.snippet == ""
+    assert lesson.lesson_id in result.blocked_memory_ids
+
+
+def test_finalize_rechecks_semantically_selected_memory_obsoleted_after_prepare():
+    store, trace, _case, lesson = store_with_active_lesson()
+    request = store.prepare_memory(
+        matching_context(trace),
+        task="repair",
+        semantic_scores={lesson.lesson_id: 1.0},
+        max_candidates=1,
+    )
+    store.obsolete_lesson(lesson.lesson_id)
+
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=trace.trace_id,
+    )
+
     assert result.use_memory is False
     assert result.snippet == ""
     assert lesson.lesson_id in result.blocked_memory_ids

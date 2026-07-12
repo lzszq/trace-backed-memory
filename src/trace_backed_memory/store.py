@@ -514,10 +514,19 @@ class TraceBackedMemoryStore:
         *,
         task: str,
         query: str | None = None,
+        semantic_scores: Mapping[str, float] | None = None,
+        max_candidates: int | None = None,
+        minimum_score: float | None = None,
         context_summary: str = "",
     ) -> MemoryGateRequest:
         validate_memory_context(context)
-        candidates = self.candidate_memories(context, query=query)
+        candidates = self.candidate_memories(
+            context,
+            query=query,
+            semantic_scores=semantic_scores,
+            max_candidates=max_candidates,
+            minimum_score=minimum_score,
+        )
         system_allowed, system_blocked = system_gate(context, candidates)
         request = MemoryGateRequest(
             request_id=f"gate_request_{self._next_gate_request_number:06d}",

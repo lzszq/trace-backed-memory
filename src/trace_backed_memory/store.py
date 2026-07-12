@@ -43,6 +43,7 @@ from .models import (
     Trace,
 )
 from .policy import (
+    LLM_GATE_MAX_CANDIDATES,
     MEMORY_ID_MAX_CHARS,
     METADATA_VALUE_MAX_CHARS,
     apply_llm_gate_decision,
@@ -436,10 +437,27 @@ class TraceBackedMemoryStore:
         return deepcopy(obsolete)
 
     @_synchronized
-    def candidate_memories(self, context: MemoryContext, *, query: str | None = None) -> list[MemoryItem]:
+    def candidate_memories(
+        self,
+        context: MemoryContext,
+        *,
+        query: str | None = None,
+        semantic_scores: Mapping[str, float] | None = None,
+        max_candidates: int | None = None,
+        minimum_score: float | None = None,
+    ) -> list[MemoryItem]:
         validate_memory_context(context)
         if query is not None and not isinstance(query, str):
             raise ValueError("query must be a string or None")
+        validated_semantic_scores = _validated_semantic_scores(
+            semantic_scores,
+            query=query,
+            max_candidates=max_candidates,
+            minimum_score=minimum_score,
+            stored_memory_ids=set(self._failure_cases).union(
+                self._lessons, self._project_policies
+            ),
+        )
         context_values = _context_values(context)
         candidates: list[MemoryItem] = []
 
@@ -460,6 +478,24 @@ class TraceBackedMemoryStore:
                     continue
                 if _has_metadata_match(memory.scope, context_values):
                     candidates.append(memory)
+
+        if validated_semantic_scores is not None:
+            candidates = [
+                memory
+                for memory in candidates
+                if memory.memory_id in validated_semantic_scores
+                and (
+                    minimum_score is None
+                    or validated_semantic_scores[memory.memory_id] >= minimum_score
+                )
+            ]
+            candidates.sort(
+                key=lambda memory: (
+                    -validated_semantic_scores[memory.memory_id],
+                    memory.memory_id,
+                )
+            )
+            return candidates[:max_candidates]
 
         query_tokens = _tokens(query or "")
         if query_tokens:
@@ -1567,6 +1603,58 @@ def _pass_rate(results: list[EvalResult]) -> float | None:
     if not results:
         return None
     return sum(1 for result in results if result == "pass") / len(results)
+
+
+def _validated_semantic_scores(
+    semantic_scores: Mapping[str, float] | None,
+    *,
+    query: str | None,
+    max_candidates: int | None,
+    minimum_score: float | None,
+    stored_memory_ids: set[str],
+) -> dict[str, int | float] | None:
+    if semantic_scores is None:
+        if max_candidates is not None:
+            raise ValueError("max_candidates requires semantic_scores")
+        if minimum_score is not None:
+            raise ValueError("minimum_score requires semantic_scores")
+        return None
+    if not isinstance(semantic_scores, Mapping):
+        raise ValueError("semantic_scores must be a mapping or None")
+    if query is not None:
+        raise ValueError("query and semantic_scores are mutually exclusive")
+    if max_candidates is None:
+        raise ValueError("max_candidates is required with semantic_scores")
+    if type(max_candidates) is not int or not 1 <= max_candidates <= LLM_GATE_MAX_CANDIDATES:
+        raise ValueError(
+            "max_candidates must be an integer from 1 through "
+            f"{LLM_GATE_MAX_CANDIDATES}"
+        )
+    if minimum_score is not None and not is_finite_number(minimum_score):
+        raise ValueError("minimum_score must be a finite number")
+
+    validated: dict[str, int | float] = {}
+    for memory_id, score in semantic_scores.items():
+        if not isinstance(memory_id, str) or not memory_id:
+            raise ValueError("semantic score memory IDs must be non-empty strings")
+        if len(memory_id) > MEMORY_ID_MAX_CHARS:
+            raise ValueError(
+                "semantic score memory IDs must be at most "
+                f"{MEMORY_ID_MAX_CHARS} characters"
+            )
+        if not is_finite_number(score):
+            raise ValueError(
+                f"semantic score for {memory_id!r} must be a finite number"
+            )
+        validated[memory_id] = score
+
+    unknown_ids = sorted(set(validated).difference(stored_memory_ids))
+    if unknown_ids:
+        raise ValueError(
+            "semantic_scores references unknown memory IDs: "
+            + ", ".join(unknown_ids)
+        )
+    return validated
 
 
 def _tokens(text: str) -> set[str]:

@@ -2040,6 +2040,89 @@ def test_candidate_memories_uses_metadata_filter_before_gate():
     assert [memory.memory_id for memory in store.candidate_memories(context)] == ["matching_lesson"]
 
 
+def test_candidate_memories_ranks_semantic_scores_after_metadata_filter():
+    store = store_with_retrieval_records_in_order(["c", "a", "b"])
+    store.add_project_policy(
+        ProjectPolicy(
+            policy_id="wrong_scope",
+            policy_text="This record must never enter the current scope.",
+            scope={"repo": "other", "tenant": "tenant"},
+        )
+    )
+    context = MemoryContext(
+        mode="planning",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+    )
+    scores = {
+        "wrong_scope": 100,
+        "policy_c": 0.9,
+        "lesson_b": 0.9,
+        "lesson_a": 0.8,
+        "lesson_c": 0.7,
+        "policy_a": 0.2,
+    }
+
+    candidates = store.candidate_memories(
+        context,
+        semantic_scores=scores,
+        max_candidates=3,
+        minimum_score=0.5,
+    )
+
+    assert [memory.memory_id for memory in candidates] == [
+        "lesson_b",
+        "policy_c",
+        "lesson_a",
+    ]
+
+
+def test_candidate_memories_accepts_an_empty_semantic_score_mapping():
+    store, trace, _case, _lesson = store_with_active_lesson()
+
+    assert store.candidate_memories(
+        matching_context(trace),
+        semantic_scores={},
+        max_candidates=1,
+    ) == []
+
+
+@pytest.mark.parametrize(
+    ("semantic_kwargs", "message"),
+    [
+        ({"semantic_scores": [], "max_candidates": 1}, "semantic_scores must be a mapping or None"),
+        ({"query": "", "semantic_scores": {}, "max_candidates": 1}, "query and semantic_scores are mutually exclusive"),
+        ({"semantic_scores": {}}, "max_candidates is required with semantic_scores"),
+        ({"max_candidates": 1}, "max_candidates requires semantic_scores"),
+        ({"minimum_score": 0.5}, "minimum_score requires semantic_scores"),
+        ({"semantic_scores": {}, "max_candidates": True}, "max_candidates must be an integer from 1 through 50"),
+        ({"semantic_scores": {}, "max_candidates": 1.0}, "max_candidates must be an integer from 1 through 50"),
+        ({"semantic_scores": {}, "max_candidates": 0}, "max_candidates must be an integer from 1 through 50"),
+        ({"semantic_scores": {}, "max_candidates": 51}, "max_candidates must be an integer from 1 through 50"),
+        ({"semantic_scores": {}, "max_candidates": 1, "minimum_score": False}, "minimum_score must be a finite number"),
+        ({"semantic_scores": {}, "max_candidates": 1, "minimum_score": float("nan")}, "minimum_score must be a finite number"),
+        ({"semantic_scores": {}, "max_candidates": 1, "minimum_score": float("inf")}, "minimum_score must be a finite number"),
+        ({"semantic_scores": {"lesson_001": False}, "max_candidates": 1}, "semantic score for 'lesson_001' must be a finite number"),
+        ({"semantic_scores": {"lesson_001": float("inf")}, "max_candidates": 1}, "semantic score for 'lesson_001' must be a finite number"),
+        ({"semantic_scores": {1: 0.5}, "max_candidates": 1}, "semantic score memory IDs must be non-empty strings"),
+        ({"semantic_scores": {"": 0.5}, "max_candidates": 1}, "semantic score memory IDs must be non-empty strings"),
+        ({"semantic_scores": {"x" * 129: 0.5}, "max_candidates": 1}, "semantic score memory IDs must be at most 128 characters"),
+        ({"semantic_scores": {"missing": 0.5}, "max_candidates": 1}, "semantic_scores references unknown memory IDs: missing"),
+    ],
+)
+def test_candidate_memories_rejects_invalid_semantic_options(
+    semantic_kwargs: dict[str, object], message: str
+):
+    store, trace, _case, _lesson = store_with_active_lesson()
+
+    with pytest.raises(ValueError, match=message):
+        store.candidate_memories(
+            matching_context(trace),
+            **semantic_kwargs,  # type: ignore[arg-type]
+        )
+
+
 def test_candidate_memories_requires_all_declared_scope_fields_to_match():
     store = TraceBackedMemoryStore()
     trace = store.record_trace(Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="fail"))

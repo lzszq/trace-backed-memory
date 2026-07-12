@@ -31,6 +31,60 @@ def test_test_database_names_are_unique_safe_identifiers():
     assert all(re.fullmatch(r"tbm_test_[0-9a-f]{32}", name) for name in names)
 
 
+def test_postgres_cluster_targets_an_isolated_test_database(
+    postgres_cluster: PostgresCluster,
+):
+    database_name = assert_sql_succeeds(postgres_cluster, "SELECT current_database()")
+    assert database_name == postgres_cluster.env["PGDATABASE"]
+    assert re.fullmatch(r"tbm_test_[0-9a-f]{32}", database_name)
+
+
+def test_postgres_server_sequential_databases_are_isolated(
+    _postgres_server: postgres_support.PostgresServer,
+    tmp_path: Path,
+):
+    server = _postgres_server
+    first_database = _new_test_database_name()
+    postgres_support._create_test_database(server, first_database)
+    try:
+        first_cluster = PostgresCluster(
+            server.psql,
+            {**server.env, "PGDATABASE": first_database},
+            tmp_path / "first-database",
+        )
+        assert_sql_succeeds(
+            first_cluster,
+            f"""
+            CREATE TABLE first_database_only (value text);
+            ALTER DATABASE {_quote_identifier(first_database)}
+            SET lock_timeout TO '1234ms';
+            """,
+        )
+    finally:
+        postgres_support._terminate_database_sessions(server, first_database)
+        postgres_support._drop_test_database(server, first_database)
+
+    second_database = _new_test_database_name()
+    postgres_support._create_test_database(server, second_database)
+    try:
+        second_cluster = PostgresCluster(
+            server.psql,
+            {**server.env, "PGDATABASE": second_database},
+            tmp_path / "second-database",
+        )
+        assert (
+            assert_sql_succeeds(
+                second_cluster,
+                "SELECT to_regclass('public.first_database_only') IS NULL",
+            )
+            == "t"
+        )
+        assert assert_sql_succeeds(second_cluster, "SHOW lock_timeout") == "0"
+    finally:
+        postgres_support._terminate_database_sessions(server, second_database)
+        postgres_support._drop_test_database(server, second_database)
+
+
 def test_postgres_identifier_quoting_escapes_embedded_quotes():
     assert _quote_identifier('role "owner"') == '"role ""owner"""'
 

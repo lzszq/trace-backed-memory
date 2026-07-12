@@ -104,6 +104,41 @@ def _read_role_names(psql: str, env: Mapping[str, str]) -> frozenset[str]:
     return frozenset(roles)
 
 
+def _create_test_database(server: PostgresServer, database_name: str) -> None:
+    database_name = _require_test_database_name(database_name)
+    result = _run_psql(
+        server.psql,
+        server.env,
+        f"CREATE DATABASE {_quote_identifier(database_name)} TEMPLATE template0",
+    )
+    if result.returncode != 0:
+        raise RuntimeError("PostgreSQL test database creation failed:\n" + result.stderr)
+
+
+def _terminate_database_sessions(server: PostgresServer, database_name: str) -> None:
+    database_name = _require_test_database_name(database_name)
+    result = _run_psql(
+        server.psql,
+        server.env,
+        "SELECT pg_terminate_backend(pid) "
+        "FROM pg_catalog.pg_stat_activity "
+        f"WHERE datname = '{database_name}' AND pid <> pg_backend_pid()",
+    )
+    if result.returncode != 0:
+        raise RuntimeError("PostgreSQL test session termination failed:\n" + result.stderr)
+
+
+def _drop_test_database(server: PostgresServer, database_name: str) -> None:
+    database_name = _require_test_database_name(database_name)
+    result = _run_psql(
+        server.psql,
+        server.env,
+        f"DROP DATABASE {_quote_identifier(database_name)}",
+    )
+    if result.returncode != 0:
+        raise RuntimeError("PostgreSQL test database removal failed:\n" + result.stderr)
+
+
 @dataclass
 class PostgresCluster:
     psql: str
@@ -386,8 +421,10 @@ def _report_cleanup_errors(
     raise ExceptionGroup("PostgreSQL cleanup failed", cleanup_errors)
 
 
-@pytest.fixture
-def postgres_cluster(tmp_path: Path) -> Iterator[PostgresCluster]:
+@pytest.fixture(scope="session")
+def _postgres_server(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[PostgresServer]:
     executables = {
         name: shutil.which(name) for name in ("initdb", "pg_ctl", "psql")
     }
@@ -395,11 +432,9 @@ def postgres_cluster(tmp_path: Path) -> Iterator[PostgresCluster]:
     if missing:
         pytest.skip("PostgreSQL executables unavailable: " + ", ".join(missing))
 
-    root = tmp_path / "postgres-cluster"
+    root = tmp_path_factory.mktemp("postgres-server")
     data = root / "data"
     log = root / "postgres.log"
-    root.mkdir()
-    cluster: PostgresCluster | None = None
     env = {
         **os.environ,
         "PGHOST": "127.0.0.1",
@@ -460,19 +495,81 @@ def postgres_cluster(tmp_path: Path) -> Iterator[PostgresCluster]:
         if start.returncode != 0:
             details = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
             pytest.fail(f"pg_ctl start failed:\n{details}")
-        cluster = PostgresCluster(executables["psql"], env, root)
-        yield cluster
-    finally:
-        original_error = sys.exc_info()[1]
-        cleanup_errors = _cleanup_postgres_resources(
-            cluster=cluster,
-            data=data,
-            root=root,
-            tmp_path=tmp_path,
+        yield PostgresServer(
+            psql=executables["psql"],
             pg_ctl=executables["pg_ctl"],
             env=env,
+            root=root,
+            data=data,
+            baseline_roles=_read_role_names(executables["psql"], env),
         )
-        _report_cleanup_errors(cleanup_errors, original_error)
+    finally:
+        try:
+            if data.exists():
+                stop = subprocess.run(
+                    [
+                        executables["pg_ctl"],
+                        "-D",
+                        str(data),
+                        "-m",
+                        "immediate",
+                        "-w",
+                        "-t",
+                        "20",
+                        "stop",
+                    ],
+                    env=env,
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=30,
+                    check=False,
+                )
+                if stop.returncode != 0 and (data / "postmaster.pid").exists():
+                    raise RuntimeError(
+                        "pg_ctl stop failed:\n" + stop.stdout + "\n" + stop.stderr
+                    )
+        finally:
+            if root.exists():
+                shutil.rmtree(root)
+
+
+@pytest.fixture
+def postgres_cluster(
+    _postgres_server: PostgresServer,
+    tmp_path: Path,
+) -> Iterator[PostgresCluster]:
+    database_name = _new_test_database_name()
+    root = tmp_path / "postgres-cluster"
+    root.mkdir()
+    database_created = False
+    cluster: PostgresCluster | None = None
+    try:
+        _create_test_database(_postgres_server, database_name)
+        database_created = True
+        cluster = PostgresCluster(
+            _postgres_server.psql,
+            {**_postgres_server.env, "PGDATABASE": database_name},
+            root,
+        )
+        yield cluster
+    finally:
+        try:
+            if cluster is not None:
+                cluster.terminate_clients()
+        finally:
+            try:
+                if database_created:
+                    _terminate_database_sessions(_postgres_server, database_name)
+            finally:
+                try:
+                    if database_created:
+                        _drop_test_database(_postgres_server, database_name)
+                finally:
+                    if root.exists():
+                        shutil.rmtree(root)
 
 
 def assert_sql_succeeds(cluster: PostgresCluster, sql: str) -> str:

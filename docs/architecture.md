@@ -268,6 +268,9 @@ The fresh-install DDL runs in one transaction with a local
 registry and all three runtime-memory source tables, and `TRUNCATE` is revoked
 from `PUBLIC`, preserving registry/source parity. The file is a fresh-install
 schema, not an in-place migration for an already deployed database.
+The schema requires PostgreSQL 12+ because its hardened JSONB shape constraints
+use `jsonb_path_exists`.
+
 Every SQL and PL/pgSQL invariant function executes with
 `search_path = pg_catalog`; application relations remain explicitly qualified
 as `public.*`, preventing caller-owned helper functions from changing checks.
@@ -338,6 +341,10 @@ store rather than returning partial or unvalidated records.
 `close()` and context-manager exit do not close that borrowed connection.
 `PostgresMemoryRepository.connect(...)` creates an owned connection, and its
 context manager closes it. The repository does not provide connection pooling.
+When the supplied connection already has an active caller transaction, each
+repository operation uses a nested savepoint and does not commit or roll back
+the outer transaction; the caller owns the final commit or rollback. Without an
+outer transaction, the repository transaction commits normally.
 
 ## Layer 5: PR / CI Memory Report
 

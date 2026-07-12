@@ -12,7 +12,9 @@ raw trace -> failure case -> verified lesson -> gated runtime memory
 
 The optional synchronous PostgreSQL repository persists the same gated store
 records; it does not make raw traces eligible for injection or bypass System
-Gate and LLM Gate policy. Install `trace-backed-memory[postgres]`, apply
+Gate and LLM Gate policy. It requires PostgreSQL 12+ because the schema's
+hardened JSONB constraints use `jsonb_path_exists`. Install
+`trace-backed-memory[postgres]`, apply
 `schemas/postgres.sql` to a fresh `public` schema at version 1, then use
 `PostgresMemoryRepository` for persistence.
 
@@ -23,6 +25,11 @@ normalizes persisted values and reconstructs the regular validated store. A
 repository created from a caller connection borrows it; `connect()` owns and
 closes the connection. Schema migration, connection pooling, and async access
 are outside this repository's current policy and implementation.
+
+When the supplied connection already has an active caller transaction, each
+repository operation uses a nested savepoint and does not commit or roll back
+the outer transaction; the caller owns the final commit or rollback. Without an
+outer transaction, the repository transaction commits normally.
 
 ## Suitable modes
 

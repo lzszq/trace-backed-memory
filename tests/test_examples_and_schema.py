@@ -45,6 +45,24 @@ def test_postgres_schema_publishes_adapter_version():
     assert "ON public.trace_backed_memory_schema FROM PUBLIC;" in schema
 
 
+def test_postgres_jsonpath_schema_publishes_supported_version_floor():
+    schema = _postgres_schema()
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "design": _doc(
+            "superpowers/specs/2026-07-12-postgres-runtime-adapter-design.md"
+        ),
+        "plan": _doc("superpowers/plans/2026-07-12-postgres-runtime-adapter.md"),
+    }
+
+    assert "jsonb_path_exists(" in schema
+    for name, document in documents.items():
+        assert "PostgreSQL 12+" in document, name
+        assert "PostgreSQL 10+" not in document, name
+
+
 def test_docs_publish_postgres_repository_operational_boundaries():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     architecture = _doc("architecture.md")
@@ -112,6 +130,29 @@ def test_docs_publish_postgres_repository_operational_boundaries():
         "and from `verified` to `obsolete`."
         in architecture_contract
     )
+
+
+def test_docs_publish_exact_postgres_transaction_ownership_contract():
+    documents = [
+        (ROOT / "README.md").read_text(encoding="utf-8"),
+        _doc("architecture.md"),
+        _doc("usage-policy.md"),
+        _doc("superpowers/specs/2026-07-12-postgres-runtime-adapter-design.md"),
+        _doc("superpowers/plans/2026-07-12-postgres-runtime-adapter.md"),
+    ]
+    required_contract = [
+        "active caller transaction",
+        "nested savepoint",
+        "does not commit or roll back the outer transaction",
+        "caller owns the final commit or rollback",
+        "Without an outer transaction",
+        "repository transaction commits normally",
+    ]
+
+    for document in documents:
+        normalized = " ".join(document.split())
+        for required_text in required_contract:
+            assert required_text in normalized
 
 
 def _json_example(name: str) -> dict[str, object]:

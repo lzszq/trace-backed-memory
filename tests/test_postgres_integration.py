@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import time
@@ -102,6 +103,20 @@ def _seed_verified_case(cluster: PostgresCluster, suffix: str) -> None:
         );
         """,
     )
+
+
+def test_postgres_cluster_meets_documented_version_floor(
+    postgres_cluster: PostgresCluster,
+):
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    documented_floor = re.search(r"PostgreSQL (\d+)\+", readme)
+
+    assert documented_floor is not None
+    assert int(documented_floor.group(1)) == 12
+    server_version = int(
+        assert_sql_succeeds(postgres_cluster, "SHOW server_version_num")
+    )
+    assert server_version >= 120000
 
 
 def test_postgres_schema_install_is_atomic_and_public(

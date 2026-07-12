@@ -11,6 +11,8 @@ from .store import TraceBackedMemoryStore
 
 
 POSTGRES_SCHEMA_VERSION = 1
+_UNDEFINED_TABLE_SQLSTATE = "42P01"
+_MISSING_SCHEMA_MESSAGE = "PostgreSQL schema is missing or incomplete"
 
 
 _LOCK_SCHEMA_FOR_SHARE = """
@@ -151,7 +153,7 @@ INSERT INTO public.lessons (
 
 _UPDATE_LESSON_STATUS = """
 UPDATE public.lessons
-SET status = %s, updated_at = now()
+SET status = %s, updated_at = CURRENT_TIMESTAMP
 WHERE lesson_id = %s
 """
 
@@ -164,7 +166,7 @@ INSERT INTO public.project_policies (
 
 _UPDATE_PROJECT_POLICY_STATUS = """
 UPDATE public.project_policies
-SET status = %s, updated_at = now()
+SET status = %s, updated_at = CURRENT_TIMESTAMP
 WHERE policy_id = %s
 """
 
@@ -707,6 +709,8 @@ def _sync_row_with_context(
             f"failed to sync {table} row {record_id}: immutable conflict"
         ) from exc
     except driver_error as exc:
+        if getattr(exc, "sqlstate", None) == _UNDEFINED_TABLE_SQLSTATE:
+            raise
         raise PostgresPersistenceError(
             f"failed to sync {table} row {record_id}"
         ) from exc
@@ -723,7 +727,10 @@ class PostgresMemoryRepository:
     @classmethod
     def connect(cls, conninfo: str = "", **kwargs: object) -> "PostgresMemoryRepository":
         psycopg, dict_row, _Jsonb = _load_psycopg()
-        connection = psycopg.connect(conninfo, row_factory=dict_row, **kwargs)
+        try:
+            connection = psycopg.connect(conninfo, row_factory=dict_row, **kwargs)
+        except psycopg.Error as exc:
+            raise PostgresPersistenceError("failed to connect to PostgreSQL") from exc
         return cls(connection, owns_connection=True)
 
     def _require_open(self) -> None:
@@ -869,10 +876,8 @@ class PostgresMemoryRepository:
         except (PostgresConflictError, PostgresSchemaError):
             raise
         except Exception as exc:
-            if getattr(exc, "sqlstate", None) == "42P01":
-                raise PostgresSchemaError(
-                    "PostgreSQL schema metadata is missing"
-                ) from None
+            if getattr(exc, "sqlstate", None) == _UNDEFINED_TABLE_SQLSTATE:
+                raise PostgresSchemaError(_MISSING_SCHEMA_MESSAGE) from exc
             if isinstance(exc, (psycopg.Error, TypeError, ValueError, OverflowError)):
                 raise PostgresPersistenceError(
                     "failed to sync memory store to PostgreSQL"
@@ -898,10 +903,8 @@ class PostgresMemoryRepository:
         except PostgresSchemaError:
             raise
         except Exception as exc:
-            if getattr(exc, "sqlstate", None) == "42P01":
-                raise PostgresSchemaError(
-                    "PostgreSQL schema metadata is missing"
-                ) from None
+            if getattr(exc, "sqlstate", None) == _UNDEFINED_TABLE_SQLSTATE:
+                raise PostgresSchemaError(_MISSING_SCHEMA_MESSAGE) from exc
             if isinstance(exc, (psycopg.Error, TypeError, ValueError, OverflowError)):
                 raise PostgresPersistenceError("failed to load memory store from PostgreSQL") from exc
             raise

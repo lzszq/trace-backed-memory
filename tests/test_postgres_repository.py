@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from dataclasses import is_dataclass
@@ -297,6 +298,64 @@ def test_repository_sync_updates_only_lesson_and_policy_statuses(postgres_cluste
         loaded = repository.load()
         assert loaded.lessons["lesson_sync"].status == "obsolete"
         assert loaded.project_policies["policy_sync"].status == "obsolete"
+
+
+def test_runtime_sql_has_no_unqualified_now_calls():
+    from trace_backed_memory import postgres
+
+    runtime_sql = "\n".join(
+        value
+        for name, value in vars(postgres).items()
+        if name.startswith("_") and name.isupper() and isinstance(value, str)
+    )
+
+    assert re.search(r"(?<![.\w])now\s*\(", runtime_sql, re.IGNORECASE) is None
+
+
+def test_repository_lifecycle_timestamps_resist_hostile_search_path(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    store = _complete_store()
+    hijacked_timestamp = "2001-02-03 04:05:06+00"
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+        connection.execute("CREATE SCHEMA attacker")
+        connection.execute("GRANT USAGE, CREATE ON SCHEMA attacker TO PUBLIC")
+        connection.execute(
+            "CREATE FUNCTION attacker.now() RETURNS timestamptz "
+            "LANGUAGE sql IMMUTABLE AS "
+            "$$ SELECT TIMESTAMPTZ '2001-02-03 04:05:06+00' $$"
+        )
+        connection.commit()
+        connection.execute("SET search_path = attacker, public, pg_catalog")
+        assert connection.execute(
+            "SELECT now() = %s::timestamptz", (hijacked_timestamp,)
+        ).fetchone() == (True,)
+
+        store.obsolete_lesson("lesson_sync")
+        store.obsolete_project_policy("policy_sync")
+        repository.sync(store)
+
+        lifecycle_rows = connection.execute(
+            "SELECT status, updated_at = %s::timestamptz "
+            "FROM public.lessons WHERE lesson_id = %s "
+            "UNION ALL "
+            "SELECT status, updated_at = %s::timestamptz "
+            "FROM public.project_policies WHERE policy_id = %s",
+            (
+                hijacked_timestamp,
+                "lesson_sync",
+                hijacked_timestamp,
+                "policy_sync",
+            ),
+        ).fetchall()
+
+    assert lifecycle_rows == [("obsolete", False), ("obsolete", False)]
 
 
 @pytest.mark.parametrize(
@@ -598,6 +657,143 @@ def test_repository_sync_rolls_back_earlier_inserts_on_late_conflict(postgres_cl
         assert all(trace["trace_id"] != "trace_sync_extra" for trace in loaded["traces"])
 
 
+def test_borrowed_sync_is_removed_by_callers_outer_rollback(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    class RollBackOuterTransaction(Exception):
+        pass
+
+    postgres_cluster.load_schema()
+    store = _draft_case_store(suffix="outer_rollback")
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+
+        with pytest.raises(RollBackOuterTransaction):
+            with connection.transaction():
+                repository.sync(store)
+                assert (
+                    connection.info.transaction_status
+                    == psycopg.pq.TransactionStatus.INTRANS
+                )
+                assert connection.execute(
+                    "SELECT count(*) FROM public.traces WHERE trace_id = %s",
+                    ("trace_outer_rollback",),
+                ).fetchone() == (1,)
+                raise RollBackOuterTransaction
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as observer:
+        assert observer.execute(
+            "SELECT count(*) FROM public.traces WHERE trace_id = %s",
+            ("trace_outer_rollback",),
+        ).fetchone() == (0,)
+
+
+def test_repository_failure_rolls_back_savepoint_and_preserves_outer_work(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+    )
+
+    postgres_cluster.load_schema()
+    baseline = _complete_store()
+    conflicting = _complete_store(
+        decision_reason="savepoint conflict",
+        extra_trace=True,
+    )
+    outer_trace_ids = ("trace_outer_before", "trace_outer_after")
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(baseline)
+
+        with connection.transaction():
+            connection.execute(
+                "INSERT INTO public.traces (trace_id, run_id, commit_sha) "
+                "VALUES (%s, %s, %s)",
+                (outer_trace_ids[0], "run_outer_before", "commit_outer_before"),
+            )
+            with pytest.raises(PostgresConflictError):
+                repository.sync(conflicting)
+
+            assert (
+                connection.info.transaction_status
+                == psycopg.pq.TransactionStatus.INTRANS
+            )
+            assert connection.execute(
+                "SELECT count(*) FROM public.traces WHERE trace_id = %s",
+                (outer_trace_ids[0],),
+            ).fetchone() == (1,)
+            assert connection.execute(
+                "SELECT count(*) FROM public.traces WHERE trace_id = %s",
+                ("trace_sync_extra",),
+            ).fetchone() == (0,)
+            connection.execute(
+                "INSERT INTO public.traces (trace_id, run_id, commit_sha) "
+                "VALUES (%s, %s, %s)",
+                (outer_trace_ids[1], "run_outer_after", "commit_outer_after"),
+            )
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as observer:
+        assert observer.execute(
+            "SELECT trace_id FROM public.traces WHERE trace_id = ANY(%s) "
+            "ORDER BY trace_id",
+            (list(outer_trace_ids),),
+        ).fetchall() == [("trace_outer_after",), ("trace_outer_before",)]
+        assert observer.execute(
+            "SELECT count(*) FROM public.traces WHERE trace_id = %s",
+            ("trace_sync_extra",),
+        ).fetchone() == (0,)
+
+
+@pytest.mark.parametrize(
+    ("holder_operation", "contender_operation"),
+    [("load", "sync"), ("sync", "load")],
+)
+def test_schema_share_and_update_locks_serialize_in_both_directions(
+    postgres_cluster,
+    holder_operation,
+    contender_operation,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresPersistenceError,
+    )
+
+    def operate(repository, operation):
+        if operation == "load":
+            return repository.load()
+        return repository.sync(TraceBackedMemoryStore())
+
+    postgres_cluster.load_schema()
+    with (
+        psycopg.connect(**postgres_cluster.connection_kwargs()) as holder,
+        psycopg.connect(**postgres_cluster.connection_kwargs()) as contender,
+    ):
+        holder_repository = PostgresMemoryRepository(holder)
+        contender_repository = PostgresMemoryRepository(contender)
+        contender.execute("SET lock_timeout = '100ms'")
+        contender.commit()
+
+        with holder.transaction():
+            operate(holder_repository, holder_operation)
+            with pytest.raises(PostgresPersistenceError) as error:
+                operate(contender_repository, contender_operation)
+
+            assert type(error.value.__cause__) is psycopg.errors.LockNotAvailable
+
+        result = operate(contender_repository, contender_operation)
+
+    if contender_operation == "load":
+        assert result.to_snapshot()["traces"] == []
+    else:
+        assert result.traces.inserted == 0
+
+
 def test_repository_sync_preserves_database_only_trace_case_chains(postgres_cluster):
     psycopg = pytest.importorskip("psycopg")
     from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
@@ -887,7 +1083,7 @@ def test_repository_rejects_missing_or_unknown_schema(postgres_cluster):
 
     with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = PostgresMemoryRepository(connection)
-        with pytest.raises(PostgresSchemaError, match="schema metadata"):
+        with pytest.raises(PostgresSchemaError, match="schema is missing or incomplete"):
             repository.load()
 
         postgres_cluster.load_schema()
@@ -906,6 +1102,63 @@ def test_repository_rejects_missing_or_unknown_schema(postgres_cluster):
         connection.commit()
         with pytest.raises(PostgresSchemaError, match="expected 1, found 2"):
             repository.load()
+
+
+@pytest.mark.parametrize("schema_state", ["missing", "incomplete"])
+@pytest.mark.parametrize("operation", ["load", "sync"])
+def test_missing_or_incomplete_schema_keeps_sanitized_driver_cause(
+    postgres_cluster,
+    schema_state,
+    operation,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import Trace, TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresSchemaError,
+    )
+
+    connection_canary = "schema-connection-canary"
+    parameter_canary = "schema-parameter-canary"
+    json_canary = "schema-json-canary"
+    with psycopg.connect(
+        **postgres_cluster.connection_kwargs(),
+        application_name=connection_canary,
+    ) as connection:
+        assert connection_canary in connection.info.dsn
+        if schema_state == "incomplete":
+            connection.execute(
+                "CREATE TABLE public.trace_backed_memory_schema ("
+                "singleton boolean PRIMARY KEY CHECK (singleton), "
+                "schema_version integer NOT NULL)"
+            )
+            connection.execute(
+                "INSERT INTO public.trace_backed_memory_schema "
+                "(singleton, schema_version) VALUES (true, 1)"
+            )
+            connection.commit()
+
+        store = TraceBackedMemoryStore()
+        store.record_trace(
+            Trace(
+                trace_id=parameter_canary,
+                run_id="schema-run-canary",
+                commit_sha="schema-commit-canary",
+                retrieved_context=[{"secret": json_canary}],
+            )
+        )
+        repository = PostgresMemoryRepository(connection)
+
+        with pytest.raises(PostgresSchemaError) as error:
+            if operation == "load":
+                repository.load()
+            else:
+                repository.sync(store)
+
+    assert str(error.value) == "PostgreSQL schema is missing or incomplete"
+    assert type(error.value.__cause__) is psycopg.errors.UndefinedTable
+    for canary in (connection_canary, parameter_canary, json_canary):
+        assert canary not in str(error.value)
 
 
 def test_repository_loads_a_complete_normalized_snapshot(postgres_cluster):
@@ -1201,6 +1454,34 @@ def test_missing_postgres_extra_has_stable_error(monkeypatch: pytest.MonkeyPatch
         postgres._load_psycopg()
 
 
+def test_connect_wraps_driver_failure_without_exposing_conninfo():
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresPersistenceError,
+    )
+
+    canaries = (
+        "conninfo-user-canary",
+        "conninfo-password-canary",
+        "conninfo-database-canary",
+        "conninfo-application-canary",
+    )
+    conninfo = (
+        "host=127.0.0.1 port=not-a-port "
+        f"user={canaries[0]} password={canaries[1]} "
+        f"dbname={canaries[2]} application_name={canaries[3]}"
+    )
+
+    with pytest.raises(PostgresPersistenceError) as error:
+        PostgresMemoryRepository.connect(conninfo)
+
+    assert str(error.value) == "failed to connect to PostgreSQL"
+    assert type(error.value.__cause__) is psycopg.OperationalError
+    for canary in canaries:
+        assert canary not in str(error.value)
+
+
 class _FakeCursor:
     def __init__(self) -> None:
         self.executions: list[str] = []
@@ -1263,6 +1544,20 @@ def test_owned_connection_closes_exactly_once():
     repository.close()
 
     assert connection.close_calls == 1
+    assert connection.closed is True
+
+
+def test_owned_connect_context_closes_real_postgres_connection(postgres_cluster):
+    pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    with PostgresMemoryRepository.connect(
+        **postgres_cluster.connection_kwargs()
+    ) as repository:
+        connection = repository._connection
+        assert connection.closed is False
+        assert connection.execute("SELECT 1").fetchone() == {"?column?": 1}
+
     assert connection.closed is True
 
 

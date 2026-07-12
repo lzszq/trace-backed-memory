@@ -83,6 +83,9 @@ python -m pip install -e ".[postgres]"
 pip install 'trace-backed-memory[postgres]'
 ```
 
+The adapter requires PostgreSQL 12+ because `schemas/postgres.sql` uses
+`jsonb_path_exists` in its hardened JSONB constraints.
+
 Before connecting, install `schemas/postgres.sql` into a fresh `public` schema.
 The adapter requires the schema metadata row at `schema_version` 1. The SQL file
 is a fresh-install schema, not a migration for an existing database.
@@ -98,6 +101,11 @@ with PostgresMemoryRepository.connect("postgresql://...") as repository:
 `connect()` creates an owned connection, and the context manager closes it. Pass
 an existing connection to `PostgresMemoryRepository(connection)` to borrow it;
 closing that repository leaves the caller's connection open.
+
+When the supplied connection already has an active caller transaction, each
+repository operation uses a nested savepoint and does not commit or roll back
+the outer transaction; the caller owns the final commit or rollback. Without an
+outer transaction, the repository transaction commits normally.
 
 `sync(store)` is additive and transactional: it inserts records that are absent
 and never deletes database records. It preserves supported forward lifecycle

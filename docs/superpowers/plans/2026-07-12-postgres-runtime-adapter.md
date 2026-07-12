@@ -6,18 +6,24 @@
 
 **Architecture:** Keep the in-memory domain store unchanged and add `PostgresMemoryRepository` as an explicit persistence boundary. The repository converts one deterministic v2 snapshot into normalized SQL rows, serializes adapter operations through a schema metadata row, detects immutable conflicts, applies only documented forward lifecycle updates, and reconstructs stores exclusively through `TraceBackedMemoryStore.from_snapshot()`.
 
-**Tech Stack:** Python 3.11+, psycopg 3.2+, PostgreSQL 10+, pytest, existing dependency-free domain/store modules.
+**Tech Stack:** Python 3.11+, psycopg 3.2+, PostgreSQL 12+, pytest, existing dependency-free domain/store modules.
 
 ## Global Constraints
 
 - `import trace_backed_memory` must not import psycopg eagerly.
 - The core project dependency list remains empty; psycopg lives in `postgres` and `dev` extras.
 - The adapter supports only the fresh-install `public` schema at adapter schema version `1`.
+- PostgreSQL 12+ is required because the hardened JSONB constraints use `jsonb_path_exists`.
 - Every synchronization is additive and transactional; no adapter operation deletes rows.
 - Traces and usage logs are immutable; failure cases have narrow mutable lifecycle fields; lessons and policies may update only `status`.
 - SQL identifiers are static and schema-qualified; every runtime value uses psycopg parameters.
 - Tests must execute against a real temporary PostgreSQL cluster on this machine.
 - Use TDD for every new behavior and commit each task independently.
+
+When the supplied connection already has an active caller transaction, each
+repository operation uses a nested savepoint and does not commit or roll back
+the outer transaction; the caller owns the final commit or rollback. Without an
+outer transaction, the repository transaction commits normally.
 
 ---
 
@@ -593,8 +599,8 @@ Require every non-status snapshot field to match. If status differs, execute
 only:
 
 ```sql
-UPDATE public.lessons SET status = %s, updated_at = now() WHERE lesson_id = %s
-UPDATE public.project_policies SET status = %s, updated_at = now() WHERE policy_id = %s
+UPDATE public.lessons SET status = %s, updated_at = CURRENT_TIMESTAMP WHERE lesson_id = %s
+UPDATE public.project_policies SET status = %s, updated_at = CURRENT_TIMESTAMP WHERE policy_id = %s
 ```
 
 Return `updated`; allow database triggers to enforce forward-only status.

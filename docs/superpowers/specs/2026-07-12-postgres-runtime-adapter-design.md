@@ -103,9 +103,11 @@ class PostgresMemoryRepository:
 
 `__init__()` borrows a caller-owned connection by default. `connect()` creates
 and owns a psycopg connection configured for dictionary rows. Closing a borrowed
-repository does not close the connection. Both `sync()` and `load()` use
-`connection.transaction()`, so a caller's existing psycopg transaction receives
-a nested savepoint instead of an implicit commit.
+repository does not close the connection. When the supplied connection already
+has an active caller transaction, each repository operation uses a nested
+savepoint and does not commit or roll back the outer transaction; the caller
+owns the final commit or rollback. Without an outer transaction, the repository
+transaction commits normally.
 
 The package root re-exports these types. The module performs no top-level
 psycopg import. `connect()`, `sync()`, and `load()` raise
@@ -124,6 +126,8 @@ dev = ["pytest>=8.0.0", "psycopg[binary]>=3.2,<4"]
 Library users can choose the pure Python, C, or binary psycopg distribution.
 The development extra uses the binary distribution so the live adapter tests
 do not depend on a system `libpq` installation. Python remains `>=3.11`.
+The schema and adapter require PostgreSQL 12+ because hardened JSONB constraints
+use `jsonb_path_exists` SQL/JSON path evaluation.
 
 ## Schema Compatibility
 
@@ -237,7 +241,9 @@ Mapping code is private and table-specific. Each table has:
 
 JSONB parameters use `psycopg.types.json.Jsonb`. SQL identifiers are static;
 only values use `%s` parameters. The adapter always references `public.*` and
-does not accept a caller-provided schema name.
+does not accept a caller-provided schema name. Runtime lifecycle timestamps use
+`CURRENT_TIMESTAMP`, so caller-controlled function resolution cannot replace
+the clock source.
 
 ## Connection and Threading Contract
 

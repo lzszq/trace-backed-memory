@@ -19,6 +19,15 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 _TEST_DATABASE_RE = re.compile(r"tbm_test_[0-9a-f]{32}\Z")
+_POSTGRES_CLEANUP_CALLBACK_ATTR = "_postgres_cleanup_callback"
+_POSTGRES_START_ATTEMPTS = 3
+_POSTGRES_STOP_ATTEMPTS = 2
+_ADDRESS_IN_USE_MARKERS = (
+    "address already in use",
+    "only one usage of each socket address",
+    "wsaeaddrinuse",
+    "eaddrinuse",
+)
 
 
 @dataclass(frozen=True)
@@ -345,6 +354,62 @@ def _free_port() -> int:
         return int(listener.getsockname()[1])
 
 
+def _start_postgres_server(
+    *,
+    pg_ctl: str,
+    data: Path,
+    log: Path,
+    env: Mapping[str, str],
+) -> dict[str, str]:
+    for attempt in range(1, _POSTGRES_START_ATTEMPTS + 1):
+        if log.exists():
+            log.unlink()
+        attempt_env = {**env, "PGPORT": str(_free_port())}
+        start = subprocess.run(
+            [
+                pg_ctl,
+                "-D",
+                str(data),
+                "-o",
+                f"-F -p {attempt_env['PGPORT']} -h 127.0.0.1",
+                "-l",
+                str(log),
+                "-w",
+                "-t",
+                "20",
+                "start",
+            ],
+            env=attempt_env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
+        )
+        if start.returncode == 0:
+            return attempt_env
+
+        details = (
+            log.read_text(encoding="utf-8", errors="replace")
+            if log.exists()
+            else ""
+        )
+        address_in_use = any(
+            marker in details.lower() for marker in _ADDRESS_IN_USE_MARKERS
+        )
+        server_may_be_running = (data / "postmaster.pid").exists()
+        if address_in_use and not server_may_be_running:
+            if attempt < _POSTGRES_START_ATTEMPTS:
+                continue
+            raise RuntimeError(
+                "pg_ctl start failed after "
+                f"{_POSTGRES_START_ATTEMPTS} address-in-use attempts:\n{details}"
+            )
+        raise RuntimeError("pg_ctl start failed:\n" + details)
+
+    raise AssertionError("unreachable PostgreSQL startup retry state")
+
+
 def _remove_postgres_test_root(root: Path, pytest_parent: Path) -> None:
     resolved_root = root.resolve()
     resolved_parent = pytest_parent.resolve()
@@ -423,43 +488,69 @@ def _cleanup_postgres_server_resources(
     *, server: PostgresServer, pytest_parent: Path
 ) -> list[BaseException]:
     cleanup_errors: list[BaseException] = []
+    pid_file = server.data / "postmaster.pid"
+    shutdown_confirmed = not server.data.exists() or not pid_file.exists()
+    last_stop_error: Exception | None = None
 
-    try:
-        if server.data.exists():
-            stop = subprocess.run(
-                [
-                    server.pg_ctl,
-                    "-D",
-                    str(server.data),
-                    "-m",
-                    "immediate",
-                    "-w",
-                    "-t",
-                    "20",
-                    "stop",
-                ],
-                env=dict(server.env),
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-                check=False,
-            )
-            if stop.returncode != 0 and (server.data / "postmaster.pid").exists():
-                raise RuntimeError(
-                    "pg_ctl stop failed:\n" + stop.stdout + "\n" + stop.stderr
+    if not shutdown_confirmed:
+        for _attempt in range(_POSTGRES_STOP_ATTEMPTS):
+            try:
+                stop = subprocess.run(
+                    [
+                        server.pg_ctl,
+                        "-D",
+                        str(server.data),
+                        "-m",
+                        "immediate",
+                        "-w",
+                        "-t",
+                        "20",
+                        "stop",
+                    ],
+                    env=dict(server.env),
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=30,
+                    check=False,
                 )
-    except Exception as exc:
-        exc.add_note("PostgreSQL server cleanup stage")
-        cleanup_errors.append(exc)
+                last_stop_error = None
+                if stop.returncode != 0:
+                    last_stop_error = RuntimeError(
+                        "pg_ctl stop failed:\n" + stop.stdout + "\n" + stop.stderr
+                    )
+            except Exception as exc:
+                last_stop_error = exc
 
-    try:
-        _remove_postgres_test_root(server.root, pytest_parent)
-    except Exception as exc:
-        exc.add_note("PostgreSQL directory cleanup stage")
-        cleanup_errors.append(exc)
+            if not pid_file.exists():
+                shutdown_confirmed = True
+                last_stop_error = None
+                break
+
+        if not shutdown_confirmed:
+            if last_stop_error is None:
+                last_stop_error = RuntimeError(
+                    "PostgreSQL shutdown could not be confirmed: postmaster.pid "
+                    f"remains after {_POSTGRES_STOP_ATTEMPTS} stop attempts"
+                )
+            last_stop_error.add_note("PostgreSQL server cleanup stage")
+            cleanup_errors.append(last_stop_error)
+
+    if shutdown_confirmed:
+        try:
+            _remove_postgres_test_root(server.root, pytest_parent)
+        except Exception as exc:
+            exc.add_note("PostgreSQL directory cleanup stage")
+            cleanup_errors.append(exc)
+    else:
+        skipped_cleanup = RuntimeError(
+            "PostgreSQL directory cleanup skipped because server shutdown "
+            "could not be confirmed"
+        )
+        skipped_cleanup.add_note("PostgreSQL directory cleanup stage")
+        cleanup_errors.append(skipped_cleanup)
 
     return cleanup_errors
 
@@ -495,7 +586,6 @@ def _postgres_server(
     env = {
         **os.environ,
         "PGHOST": "127.0.0.1",
-        "PGPORT": str(_free_port()),
         "PGUSER": "postgres",
         "PGDATABASE": "postgres",
         "PGCONNECT_TIMEOUT": "5",
@@ -529,30 +619,15 @@ def _postgres_server(
                 pytest.skip("initdb cannot legally run as the current user")
             pytest.fail(f"initdb failed:\n{init.stdout}\n{init.stderr}")
 
-        start = subprocess.run(
-            [
-                executables["pg_ctl"],
-                "-D",
-                str(data),
-                "-o",
-                f"-F -p {env['PGPORT']} -h 127.0.0.1",
-                "-l",
-                str(log),
-                "-w",
-                "-t",
-                "20",
-                "start",
-            ],
-            env=env,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            timeout=30,
-            check=False,
-        )
-        if start.returncode != 0:
-            details = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
-            pytest.fail(f"pg_ctl start failed:\n{details}")
+        try:
+            env = _start_postgres_server(
+                pg_ctl=executables["pg_ctl"],
+                data=data,
+                log=log,
+                env=env,
+            )
+        except RuntimeError as exc:
+            pytest.fail(str(exc))
         yield PostgresServer(
             psql=executables["psql"],
             pg_ctl=executables["pg_ctl"],
@@ -585,24 +660,19 @@ def _postgres_server(
 def postgres_cluster(
     _postgres_server: PostgresServer,
     tmp_path: Path,
+    request: pytest.FixtureRequest,
 ) -> Iterator[PostgresCluster]:
     database_name = _new_test_database_name()
     root = tmp_path / "postgres-cluster"
     root.mkdir()
     cluster: PostgresCluster | None = None
-    original_error: BaseException | None = None
-    try:
-        _create_test_database(_postgres_server, database_name)
-        cluster = PostgresCluster(
-            _postgres_server.psql,
-            {**_postgres_server.env, "PGDATABASE": database_name},
-            root,
-        )
-        yield cluster
-    except BaseException as exc:
-        original_error = exc
-        raise
-    finally:
+    cleanup_started = False
+
+    def cleanup(original_error: BaseException | None = None) -> None:
+        nonlocal cleanup_started
+        if cleanup_started:
+            return
+        cleanup_started = True
         _report_cleanup_errors(
             _cleanup_postgres_database_resources(
                 server=_postgres_server,
@@ -613,6 +683,16 @@ def postgres_cluster(
             ),
             original_error,
         )
+
+    setattr(request.node, _POSTGRES_CLEANUP_CALLBACK_ATTR, cleanup)
+    request.addfinalizer(cleanup)
+    _create_test_database(_postgres_server, database_name)
+    cluster = PostgresCluster(
+        _postgres_server.psql,
+        {**_postgres_server.env, "PGDATABASE": database_name},
+        root,
+    )
+    yield cluster
 
 
 def assert_sql_succeeds(cluster: PostgresCluster, sql: str) -> str:

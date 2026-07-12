@@ -16,7 +16,8 @@ using the `PostgresCluster` API unchanged.
 
 ## Goals
 
-- Start `initdb` and `pg_ctl` at most once per pytest process.
+- Run `initdb` once and retain at most one running PostgreSQL server per pytest
+  process; failed address-in-use starts may be retried before a server exists.
 - Give every `postgres_cluster` consumer a unique, empty database.
 - Prevent tables, functions, settings, connections, and newly created roles
   from leaking between tests.
@@ -86,22 +87,31 @@ No production package imports or depends on these test-support values.
 
 ## Server Lifecycle
 
-Session setup performs the current executable discovery, `initdb`, and
-`pg_ctl start` operations once. It then queries and stores the initial role
-set through `psql` against the administrator database. Role discovery returns
-JSON and is decoded with the standard library rather than parsed from ad hoc
-delimited text.
+Session setup performs executable discovery and `initdb` once. It chooses a
+free port immediately before `pg_ctl start`. If startup fails with a
+cross-platform address-in-use diagnostic and `postmaster.pid` is absent, it
+chooses a new port and retries, up to three startup attempts. Other startup
+failures, and failures where a PID file means a server may be running, are not
+retried. The immutable `PostgresServer.env` retains the port from the
+successful attempt. Setup then queries and stores the initial role set through
+`psql` against the administrator database. Role discovery returns JSON and is
+decoded with the standard library rather than parsed from ad hoc delimited
+text.
 
-Session teardown runs independently ordered stages:
+Session teardown runs bounded, ordered stages:
 
-1. stop the server with immediate mode;
-2. verify that the session root remains inside the pytest temporary root;
-3. remove the session directory.
+1. stop the server with immediate mode, retrying at most once while
+   `postmaster.pid` remains;
+2. confirm shutdown through disappearance of `postmaster.pid`;
+3. if shutdown is confirmed, verify that the session root remains inside the
+   pytest temporary root and remove it.
 
-Failures are collected instead of preventing later stages. If a test or setup
-failure is already active, cleanup details are attached to that exception;
-otherwise an `ExceptionGroup` is raised. The current skip semantics remain in
-session setup.
+A nonzero or timed-out stop command is tolerated when the PID file disappears,
+covering a command/termination race. If the PID file remains after both stop
+attempts, the root is retained and cleanup reports both the stop failure and
+the deliberately skipped directory stage. This prevents recursive deletion of
+potentially live server state on POSIX and Windows. The current skip semantics
+remain in session setup.
 
 ## Per-Test Lifecycle
 
@@ -127,8 +137,15 @@ as PostgreSQL identifiers by a dedicated helper. Database identifiers are
 accepted only if they match the fixture's generated-name pattern before SQL is
 constructed.
 
-Each stage records an explanatory exception note. When the test itself fails,
-cleanup errors are added to the original failure instead of replacing it.
+Each stage records an explanatory exception note. The fixture installs an
+idempotent cleanup callback on the pytest item. A `tryfirst` wrapper around
+`pytest_runtest_call` invokes that callback before pytest constructs the call
+report, passing the actual call exception when one exists. Cleanup failures are
+therefore added as `PostgreSQL cleanup also failed` notes to an original test
+failure, while cleanup after a passing call raises the cleanup
+`ExceptionGroup` as a call-phase failure. A fixture finalizer invokes the same
+callback as a fallback when setup prevents the call hook from running; the
+idempotence guard makes every path clean exactly once.
 
 ## Compatibility
 
@@ -160,6 +177,13 @@ database environment, so it can still terminate connections and drop a broken
 test database. A failed client cleanup, connection termination, database drop,
 role cleanup, or directory removal does not suppress subsequent stages.
 
+Server-root removal has a stricter dependency: it is not attempted until
+shutdown is confirmed by absence of `postmaster.pid`. Failure to confirm
+shutdown produces separate server-stop and skipped-directory cleanup errors.
+Startup retry is limited to recognized address-in-use diagnostics, is bounded
+at three attempts, and is disabled whenever a PID file leaves server state
+ambiguous.
+
 ## Testing
 
 Implementation follows red-green-refactor. Focused tests cover:
@@ -172,8 +196,13 @@ Implementation follows red-green-refactor. Focused tests cover:
 - untracked sessions being terminated before database drop;
 - database cleanup stages continuing after injected failures;
 - server cleanup stages continuing after injected failures;
-- cleanup failures preserving an original test error or raising an
-  `ExceptionGroup` when no original error exists;
+- nested pytest call-phase behavior preserving an original test error with a
+  cleanup note, failing a passing test with an `ExceptionGroup`, exercising
+  setup fallback, and running cleanup exactly once;
+- server roots being retained while a PID file survives bounded stop retries,
+  plus removal after shutdown wins a stop-command race;
+- address-in-use startup retry success, three-attempt exhaustion, unrelated
+  startup failure, and ambiguous PID-file state;
 - all existing schema, concurrency, repository load, and repository sync tests
   remaining unchanged in observable behavior.
 

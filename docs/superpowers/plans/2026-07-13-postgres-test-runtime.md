@@ -10,12 +10,19 @@
 
 ## Global Constraints
 
-- Start `initdb` and `pg_ctl` at most once per pytest process.
+- Run `initdb` once and retain at most one running PostgreSQL server per pytest
+  process; failed address-in-use starts may be retried before a server exists.
 - Every test database name must match `tbm_test_[0-9a-f]{32}`.
 - Keep PostgreSQL access local to `127.0.0.1` with trust authentication in a pytest-owned temporary directory.
 - Do not add a runtime or test dependency.
 - Keep `PostgresCluster`'s current public test-helper API behavior unchanged.
 - A failed cleanup stage must not prevent later stages from running.
+- Per-test cleanup must execute inside the pytest call phase when the call runs,
+  with an exactly-once finalizer fallback for setup failures.
+- Never remove the session root until server shutdown is confirmed by absence
+  of `postmaster.pid`.
+- Choose a port immediately before startup and retry only a bounded,
+  unambiguous address-in-use failure.
 - Preserve existing skip behavior when executables are absent or `initdb` cannot run as the current user.
 - Do not change production schemas, persistence formats, or repository behavior.
 - Baseline: 64 PostgreSQL tests pass in 198.06 seconds; their slowest 20 durations are all fixture setup.
@@ -181,9 +188,12 @@ Move executable discovery, temporary server root creation, `initdb`, and
 `_postgres_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[PostgresServer]`
 decorated with `@pytest.fixture(scope="session")`.
 
-Use `tmp_path_factory.mktemp("postgres-server")`, preserve the current host,
-port, user, timeout, statement timeout, no-locale, UTF-8, and skip behavior,
-and capture `baseline_roles` immediately after startup. Export the fixture from
+Use `tmp_path_factory.mktemp("postgres-server")` and preserve the current host,
+user, timeout, statement timeout, no-locale, UTF-8, and skip behavior. Choose a
+port immediately before `pg_ctl start`; on a recognized address-in-use failure
+with no `postmaster.pid`, choose a new port and retry up to three total
+attempts. Store the successful port in `PostgresServer.env`, capture
+`baseline_roles` immediately after startup, and export the fixture from
 `tests/conftest.py` so pytest can resolve the dependency.
 
 - [ ] **Step 4: Create one database for every existing `postgres_cluster` request**
@@ -198,12 +208,13 @@ CREATE DATABASE "tbm_test_<uuid>" TEMPLATE template0
 Change `postgres_cluster` to depend on `_postgres_server` and `tmp_path`, make
 `root = tmp_path / "postgres-cluster"`, copy the administrator environment with
 `PGDATABASE` set to the generated name, and yield the existing
-`PostgresCluster(server.psql, env, root)` object. Track whether database
-creation completed so setup failures do not attempt to drop a database that
-was never created. In `finally`, terminate tracked clients, terminate untracked
-database sessions, drop the created database, and remove the per-test root.
-Task 3 replaces this minimal teardown with independently reported stages and
-cluster-level role restoration.
+`PostgresCluster(server.psql, env, root)` object. Install an idempotent cleanup
+callback on the pytest item before database creation and register the same
+callback as a fixture finalizer fallback. A `tryfirst` `pytest_runtest_call`
+wrapper invokes cleanup with the actual call exception before call reporting;
+the finalizer handles setup paths where the call hook never runs. Task 3 fills
+that callback with independently reported stages and cluster-level role
+restoration.
 
 - [ ] **Step 5: Run identity, schema, and repository smoke tests**
 
@@ -240,10 +251,12 @@ administrator connection termination, database drop, role cleanup, and
 directory removal. Record stage names and assert all five stages execute in
 that order and every raised error is returned with a stage note.
 
-For server cleanup, inject a `pg_ctl` timeout and allow directory deletion to
-succeed. Assert both stages execute, the directory disappears, and only the
-server-stop error is returned. Keep the existing `_report_cleanup_errors()`
-assertions for original-error notes and no-original-error `ExceptionGroup`.
+For server cleanup, inject repeated `pg_ctl` timeouts while `postmaster.pid`
+remains. Assert the root is retained and both the stop failure and skipped
+directory cleanup are returned. Also cover a nonzero stop result racing with
+PID-file disappearance and assert directory cleanup then succeeds. Keep the
+existing `_report_cleanup_errors()` assertions for original-error notes and
+no-original-error `ExceptionGroup`.
 
 - [ ] **Step 2: Run cleanup tests and verify the new boundaries are missing**
 
@@ -271,16 +284,21 @@ do not exist.
    the per-test directory.
 
 Each stage catches `Exception`, adds a precise PostgreSQL cleanup-stage note,
-and appends it without skipping later stages. Call this helper from the
-function fixture's `finally` block.
+and appends it without skipping later stages. The item cleanup callback invokes
+this helper during `pytest_runtest_call`, then passes its errors and the real
+call exception to `_report_cleanup_errors()`. A passing call therefore fails
+with the cleanup `ExceptionGroup`; a failing call retains its original
+exception with a cleanup note.
 
 - [ ] **Step 4: Implement session-server cleanup as independent stages**
 
-`_cleanup_postgres_server_resources()` must preserve the existing immediate
-`pg_ctl stop` behavior, tolerate a missing `postmaster.pid` after an
-unsuccessful stop, verify the root remains under
-`tmp_path_factory.getbasetemp()`, and attempt directory removal even after a
-stop error. Call it from the session fixture's `finally` block.
+`_cleanup_postgres_server_resources()` must preserve immediate `pg_ctl stop`,
+retry it at most once while `postmaster.pid` remains, and tolerate an
+unsuccessful command when the PID file disappears. Only after that confirmation
+may it verify the root remains under `tmp_path_factory.getbasetemp()` and remove
+the directory. If the PID file survives, retain the root and report both stop
+and skipped-directory errors. Call it from the session fixture's `finally`
+block.
 
 - [ ] **Step 5: Add real cleanup tests for untracked sessions and roles**
 
@@ -365,10 +383,12 @@ git commit -m "test: harden postgres fixture lifecycle"
 
 If no correction was required, do not create an empty commit.
 
-- [ ] **Step 5: Merge and push**
+- [ ] **Step 5: Final-review remediation and branch handoff**
 
-After updating local `main` from `origin/main`, merge with `--ff-only` when
-possible. If the remote advanced, rebase the feature branch, resolve conflicts
-by preserving both upstream behavior and this design, rerun the full suite on
-the merge result, push `main`, and verify `git ls-remote origin refs/heads/main`
-matches local `main` exactly.
+Add real nested pytest coverage for simultaneous call and cleanup failure,
+passing-call cleanup failure, setup fallback, and exactly-once cleanup. Add
+focused server-shutdown and startup-retry tests, run them RED then GREEN, and
+repeat the PostgreSQL subset, full suite, `compileall`, branch diff check, and
+leak audit. Commit only the owned runtime, tests, and documentation on the
+feature branch. Merge, rebase, push, worktree removal, and changes to `main`
+remain separate owner actions.

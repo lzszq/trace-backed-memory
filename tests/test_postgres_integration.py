@@ -508,7 +508,87 @@ def test_database_cleanup_stages_are_independent_and_preserve_original_error(
         _report_cleanup_errors(cleanup_errors, None)
 
 
-def test_server_cleanup_stages_are_independent(
+def test_pytest_call_phase_cleanup_preserves_failure_and_runs_once(
+    pytester: pytest.Pytester,
+):
+    cleanup_log = pytester.path / "cleanup.log"
+    pytester.makeconftest(
+        f"""
+        from pathlib import Path
+        import sys
+
+        import pytest
+
+        sys.path.insert(0, {str(ROOT)!r})
+
+        from tests import postgres_support
+        from tests.conftest import pytest_runtest_call
+        from tests.postgres_support import PostgresServer, postgres_cluster
+
+        cleanup_log = Path({str(cleanup_log)!r})
+        cleanup_calls = 0
+
+        postgres_support._create_test_database = lambda *_args, **_kwargs: None
+
+        def fail_cleanup(*_args, **_kwargs):
+            global cleanup_calls
+            cleanup_calls += 1
+            with cleanup_log.open("a", encoding="ascii") as stream:
+                stream.write("cleanup\\n")
+            if cleanup_calls <= 2:
+                return [RuntimeError("forced cleanup failure")]
+            return []
+
+        postgres_support._cleanup_postgres_database_resources = fail_cleanup
+
+        @pytest.fixture(scope="session")
+        def _postgres_server(tmp_path_factory):
+            root = tmp_path_factory.mktemp("fake-postgres-server")
+            return PostgresServer(
+                psql="psql",
+                pg_ctl="pg_ctl",
+                env={{"PGDATABASE": "postgres"}},
+                root=root,
+                data=root / "data",
+                baseline_roles=frozenset({{"postgres"}}),
+            )
+        """
+    )
+    pytester.makepyfile(
+        """
+        import pytest
+
+        @pytest.fixture
+        def failed_setup(postgres_cluster):
+            raise RuntimeError("later fixture setup failure")
+
+        def test_call_and_cleanup_fail(postgres_cluster):
+            raise AssertionError("original call failure")
+
+        def test_only_cleanup_fails(postgres_cluster):
+            pass
+
+        def test_setup_fallback(failed_setup):
+            pass
+        """
+    )
+
+    result = pytester.runpytest_subprocess("-q")
+
+    result.assert_outcomes(failed=2, errors=1)
+    output = result.stdout.str()
+    assert "original call failure" in output
+    assert "PostgreSQL cleanup also failed: RuntimeError: forced cleanup failure" in output
+    assert "ExceptionGroup: PostgreSQL cleanup failed" in output
+    assert "later fixture setup failure" in output
+    assert cleanup_log.read_text(encoding="ascii").splitlines() == [
+        "cleanup",
+        "cleanup",
+        "cleanup",
+    ]
+
+
+def test_server_cleanup_retains_root_until_shutdown_is_confirmed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -531,23 +611,199 @@ def test_server_cleanup_stages_are_independent(
         events.append("server")
         raise subprocess.TimeoutExpired("pg_ctl", 1)
 
+    def fail_if_directory_removed(*_args, **_kwargs) -> None:
+        pytest.fail("server root was removed before shutdown was confirmed")
+
+    monkeypatch.setattr(subprocess, "run", fail_server_stop)
+    monkeypatch.setattr(shutil, "rmtree", fail_if_directory_removed)
+
+    cleanup_errors = _cleanup_postgres_server_resources(
+        server=server, pytest_parent=tmp_path
+    )
+
+    assert events == ["server", "server"]
+    assert [str(error) for error in cleanup_errors] == [
+        "Command 'pg_ctl' timed out after 1 seconds",
+        "PostgreSQL directory cleanup skipped because server shutdown "
+        "could not be confirmed",
+    ]
+    assert [error.__notes__ for error in cleanup_errors] == [
+        ["PostgreSQL server cleanup stage"],
+        ["PostgreSQL directory cleanup stage"],
+    ]
+    assert root.exists() is True
+    real_rmtree(root)
+
+
+def test_server_cleanup_removes_root_when_shutdown_wins_command_race(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "postgres-server"
+    data = root / "data"
+    data.mkdir(parents=True)
+    pid_file = data / "postmaster.pid"
+    pid_file.write_text("123", encoding="ascii")
+    server = PostgresServer(
+        psql="psql",
+        pg_ctl="pg_ctl",
+        env={},
+        root=root,
+        data=data,
+        baseline_roles=frozenset({"postgres"}),
+    )
+    events: list[str] = []
+    real_rmtree = shutil.rmtree
+
+    def raced_server_stop(*args, **_kwargs):
+        events.append("server")
+        pid_file.unlink()
+        return subprocess.CompletedProcess(args[0], 1, "", "server stopped")
+
     def remove_directory(path: Path, *, ignore_errors: bool) -> None:
         events.append("directory")
         real_rmtree(path, ignore_errors=ignore_errors)
 
-    monkeypatch.setattr(subprocess, "run", fail_server_stop)
+    monkeypatch.setattr(subprocess, "run", raced_server_stop)
     monkeypatch.setattr(shutil, "rmtree", remove_directory)
 
     cleanup_errors = _cleanup_postgres_server_resources(
         server=server, pytest_parent=tmp_path
     )
 
+    assert cleanup_errors == []
     assert events == ["server", "directory"]
-    assert [str(error) for error in cleanup_errors] == [
-        "Command 'pg_ctl' timed out after 1 seconds"
-    ]
-    assert cleanup_errors[0].__notes__ == ["PostgreSQL server cleanup stage"]
     assert root.exists() is False
+
+
+def test_postgres_start_retries_address_in_use_and_retains_successful_port(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    data = tmp_path / "data"
+    data.mkdir()
+    log = tmp_path / "postgres.log"
+    ports = iter([41001, 41002])
+    attempted_ports: list[str] = []
+
+    monkeypatch.setattr(postgres_support, "_free_port", lambda: next(ports))
+
+    def start(*args, env, **_kwargs):
+        attempted_ports.append(env["PGPORT"])
+        if len(attempted_ports) == 1:
+            log.write_text(
+                'could not bind IPv4 address "127.0.0.1": Address already in use',
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(args[0], 1)
+        return subprocess.CompletedProcess(args[0], 0)
+
+    monkeypatch.setattr(subprocess, "run", start)
+
+    started_env = postgres_support._start_postgres_server(
+        pg_ctl="pg_ctl",
+        data=data,
+        log=log,
+        env={"PGDATABASE": "postgres"},
+    )
+
+    assert attempted_ports == ["41001", "41002"]
+    assert started_env["PGPORT"] == "41002"
+
+
+def test_postgres_start_bounds_address_in_use_retries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    data = tmp_path / "data"
+    data.mkdir()
+    log = tmp_path / "postgres.log"
+    attempted_ports: list[str] = []
+    ports = iter([42001, 42002, 42003, 42004])
+
+    monkeypatch.setattr(postgres_support, "_free_port", lambda: next(ports))
+
+    def address_in_use(*args, env, **_kwargs):
+        attempted_ports.append(env["PGPORT"])
+        log.write_text("Address already in use", encoding="utf-8")
+        return subprocess.CompletedProcess(args[0], 1)
+
+    monkeypatch.setattr(subprocess, "run", address_in_use)
+
+    with pytest.raises(
+        RuntimeError,
+        match="pg_ctl start failed after 3 address-in-use attempts",
+    ):
+        postgres_support._start_postgres_server(
+            pg_ctl="pg_ctl",
+            data=data,
+            log=log,
+            env={"PGDATABASE": "postgres"},
+        )
+
+    assert attempted_ports == ["42001", "42002", "42003"]
+
+
+def test_postgres_start_does_not_retry_unrelated_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    data = tmp_path / "data"
+    data.mkdir()
+    log = tmp_path / "postgres.log"
+    attempts = 0
+
+    monkeypatch.setattr(postgres_support, "_free_port", lambda: 43001)
+
+    def configuration_failure(*args, **_kwargs):
+        nonlocal attempts
+        attempts += 1
+        log.write_text("invalid value for parameter", encoding="utf-8")
+        return subprocess.CompletedProcess(args[0], 1)
+
+    monkeypatch.setattr(subprocess, "run", configuration_failure)
+
+    with pytest.raises(RuntimeError, match="pg_ctl start failed"):
+        postgres_support._start_postgres_server(
+            pg_ctl="pg_ctl",
+            data=data,
+            log=log,
+            env={"PGDATABASE": "postgres"},
+        )
+
+    assert attempts == 1
+
+
+def test_postgres_start_does_not_retry_when_pid_file_remains(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    data = tmp_path / "data"
+    data.mkdir()
+    log = tmp_path / "postgres.log"
+    attempts = 0
+
+    monkeypatch.setattr(postgres_support, "_free_port", lambda: 44001)
+
+    def ambiguous_start(*args, **_kwargs):
+        nonlocal attempts
+        attempts += 1
+        (data / "postmaster.pid").write_text("123", encoding="ascii")
+        log.write_text("Address already in use", encoding="utf-8")
+        return subprocess.CompletedProcess(args[0], 1)
+
+    monkeypatch.setattr(subprocess, "run", ambiguous_start)
+
+    with pytest.raises(RuntimeError, match="pg_ctl start failed"):
+        postgres_support._start_postgres_server(
+            pg_ctl="pg_ctl",
+            data=data,
+            log=log,
+            env={"PGDATABASE": "postgres"},
+        )
+
+    assert attempts == 1
+    (data / "postmaster.pid").unlink()
 
 
 def test_database_cleanup_removes_untracked_sessions_and_new_roles(

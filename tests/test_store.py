@@ -2209,6 +2209,64 @@ def test_candidate_commit_anchors_are_sorted_and_exclude_project_policies():
     )
 
 
+def test_pr_report_commit_anchors_are_sorted():
+    store = store_with_retrieval_records_in_order(["b", "a"])
+
+    assert store.pr_report_commit_anchors(ancestry_context()) == (
+        "commit_a",
+        "commit_b",
+    )
+
+
+def test_pr_memory_report_excludes_unrelated_git_history_everywhere():
+    store = store_with_retrieval_records_in_order(["b", "a"])
+    evidence = ancestry_evidence("current", commit_a=True, commit_b=False)
+
+    report = store.pr_memory_report(
+        ancestry_context(),
+        changed_fields=["model"],
+        commit_ancestry=evidence,
+    )
+
+    assert report.related_case_ids == ["case_a"]
+    assert [item.case_id for item in report.related_case_provenance] == [
+        "case_a"
+    ]
+    assert len(report.suggested_regression_tests) == 1
+    assert len(report.warnings) == 1
+    assert "case_a" in report.warnings[0]
+
+
+def test_pr_memory_report_rejects_missing_ancestry_evidence():
+    store = store_with_retrieval_records_in_order(["b", "a"])
+    with pytest.raises(
+        ValueError,
+        match="commit ancestry evidence is missing anchors: commit_b",
+    ):
+        store.pr_memory_report(
+            ancestry_context(),
+            changed_fields=["model"],
+            commit_ancestry=ancestry_evidence("current", commit_a=True),
+        )
+
+
+def test_pr_memory_report_without_ancestry_preserves_all_related_cases():
+    store = store_with_retrieval_records_in_order(["b", "a"])
+    legacy_report = store.pr_memory_report(
+        ancestry_context(), changed_fields=["model"]
+    )
+    evidence_report = store.pr_memory_report(
+        ancestry_context(),
+        changed_fields=["model"],
+        commit_ancestry=ancestry_evidence(
+            "current", commit_a=True, commit_b=True
+        ),
+    )
+
+    assert evidence_report == legacy_report
+    assert legacy_report.related_case_ids == ["case_a", "case_b"]
+
+
 def test_candidate_memories_filter_history_but_not_project_policies_by_ancestry():
     store = store_with_retrieval_records_in_order(["b", "a"])
     evidence = ancestry_evidence(

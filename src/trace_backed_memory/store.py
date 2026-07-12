@@ -957,19 +957,58 @@ class TraceBackedMemoryStore:
             ),
         )
 
+    def _pr_related_case_records(
+        self, context: MemoryContext
+    ) -> list[tuple[FailureCase, Trace]]:
+        return [
+            (case, trace)
+            for case in self._failure_cases.values()
+            if (trace := self._traces.get(case.source_trace_id)) is not None
+            and _case_matches_context(case, trace, context)
+        ]
+
     @_synchronized
-    def pr_memory_report(self, context: MemoryContext, *, changed_fields: list[str]) -> PRMemoryReport:
+    def pr_report_commit_anchors(
+        self, context: MemoryContext
+    ) -> tuple[str, ...]:
+        validate_memory_context(context)
+        return tuple(
+            sorted(
+                {
+                    case.commit_sha
+                    for case, _trace in self._pr_related_case_records(context)
+                }
+            )
+        )
+
+    @_synchronized
+    def pr_memory_report(
+        self,
+        context: MemoryContext,
+        *,
+        changed_fields: list[str],
+        commit_ancestry: CommitAncestryEvidence | None = None,
+    ) -> PRMemoryReport:
         validate_memory_context(context)
         if not isinstance(changed_fields, list) or any(
             not isinstance(field_name, str) or not field_name.strip()
             for field_name in changed_fields
         ):
             raise ValueError("changed_fields must be a list of non-empty strings")
-        related_case_records: list[tuple[FailureCase, Trace]] = []
-        for case in self._failure_cases.values():
-            trace = self._traces.get(case.source_trace_id)
-            if trace and _case_matches_context(case, trace, context):
-                related_case_records.append((case, trace))
+        ancestry_relations = _validated_commit_ancestry(
+            context, commit_ancestry
+        )
+        related_case_records = self._pr_related_case_records(context)
+        if ancestry_relations is not None:
+            _require_commit_relations(
+                (case.commit_sha for case, _trace in related_case_records),
+                ancestry_relations,
+            )
+            related_case_records = [
+                record
+                for record in related_case_records
+                if ancestry_relations[record[0].commit_sha]
+            ]
         related_case_records.sort(key=lambda record: record[0].case_id)
 
         related_cases = [case for case, _trace in related_case_records]

@@ -11,6 +11,7 @@ import pytest
 
 import trace_backed_memory.store as store_module
 from trace_backed_memory import (
+    CommitAncestryEvidence,
     FailureCase,
     Lesson,
     MemoryContext,
@@ -125,6 +126,23 @@ def store_with_retrieval_records_in_order(
             )
         )
     return store
+
+
+def ancestry_evidence(current: str, **relations: bool) -> CommitAncestryEvidence:
+    return CommitAncestryEvidence(
+        current_commit_sha=current,
+        commit_relations=tuple(relations.items()),
+    )
+
+
+def ancestry_context() -> MemoryContext:
+    return MemoryContext(
+        mode="debug",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        failure_type="invalid_tool_argument",
+    )
 
 
 def store_with_active_lesson() -> tuple[
@@ -2178,6 +2196,215 @@ def test_candidate_memories_uses_metadata_filter_before_gate():
     context = MemoryContext(mode="repair", repo="agent-harness", commit_sha="abc123", tool="search_docs")
 
     assert [memory.memory_id for memory in store.candidate_memories(context)] == ["matching_lesson"]
+
+
+def test_candidate_commit_anchors_are_sorted_and_exclude_project_policies():
+    store = store_with_retrieval_records_in_order(["b", "a"])
+
+    assert store.candidate_commit_anchors(ancestry_context()) == (
+        "commit_a",
+        "commit_b",
+        "fix_commit_a",
+        "fix_commit_b",
+    )
+
+
+def test_candidate_memories_filter_history_but_not_project_policies_by_ancestry():
+    store = store_with_retrieval_records_in_order(["b", "a"])
+    evidence = ancestry_evidence(
+        "current",
+        commit_a=True,
+        commit_b=False,
+        fix_commit_a=True,
+        fix_commit_b=False,
+        unused_anchor=False,
+    )
+
+    candidates = store.candidate_memories(
+        ancestry_context(), commit_ancestry=evidence
+    )
+
+    assert [memory.memory_id for memory in candidates] == [
+        "case_a",
+        "lesson_a",
+        "policy_a",
+        "policy_b",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("evidence", "message"),
+    [
+        ({}, "commit_ancestry must be a CommitAncestryEvidence or None"),
+        (
+            CommitAncestryEvidence("", ()),
+            "commit ancestry evidence requires current_commit_sha",
+        ),
+        (CommitAncestryEvidence("other", ()), "does not match context commit_sha"),
+        (
+            CommitAncestryEvidence("current", []),  # type: ignore[arg-type]
+            "commit_relations must be a tuple",
+        ),
+        (
+            CommitAncestryEvidence(
+                "current", (["commit_a", True],)  # type: ignore[arg-type]
+            ),
+            "relations must be two-item tuples",
+        ),
+        (
+            CommitAncestryEvidence("current", (("", True),)),
+            "relations require anchor commit",
+        ),
+        (
+            CommitAncestryEvidence(
+                "current", (("commit_a", 1),)  # type: ignore[arg-type]
+            ),
+            "relation values must be booleans",
+        ),
+        (
+            CommitAncestryEvidence(
+                "current", (("commit_a", True), ("commit_a", False))
+            ),
+            "duplicate commit ancestry relation",
+        ),
+    ],
+)
+def test_candidate_memories_rejects_malformed_commit_ancestry(
+    evidence: object, message: str
+):
+    store = store_with_retrieval_records_in_order(["a"])
+    with pytest.raises(ValueError, match=message):
+        store.candidate_memories(
+            ancestry_context(), commit_ancestry=evidence  # type: ignore[arg-type]
+        )
+
+
+def test_candidate_memories_rejects_sorted_missing_ancestry_anchors():
+    store = store_with_retrieval_records_in_order(["b", "a"])
+    evidence = ancestry_evidence("current", commit_a=True)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "commit ancestry evidence is missing anchors: "
+            "commit_b, fix_commit_a, fix_commit_b"
+        ),
+    ):
+        store.candidate_memories(
+            ancestry_context(), query="lesson a", commit_ancestry=evidence
+        )
+
+
+def test_ancestry_filters_before_semantic_ranking():
+    store = store_with_retrieval_records_in_order(["a"])
+    evidence = ancestry_evidence(
+        "current", commit_a=False, fix_commit_a=False
+    )
+
+    candidates = store.candidate_memories(
+        ancestry_context(),
+        semantic_scores={"case_a": 1.0, "lesson_a": 0.9, "policy_a": 0.1},
+        max_candidates=3,
+        commit_ancestry=evidence,
+    )
+
+    assert [memory.memory_id for memory in candidates] == ["policy_a"]
+
+
+def test_semantic_scores_are_validated_even_for_false_ancestry():
+    store = store_with_retrieval_records_in_order(["a"])
+    evidence = ancestry_evidence(
+        "current", commit_a=False, fix_commit_a=False
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="semantic score for 'lesson_a' must be a finite number",
+    ):
+        store.candidate_memories(
+            ancestry_context(),
+            semantic_scores={"lesson_a": "invalid"},  # type: ignore[dict-item]
+            max_candidates=1,
+            commit_ancestry=evidence,
+        )
+
+
+def test_true_ancestry_does_not_bypass_system_gate():
+    store, trace, case, lesson = store_with_active_lesson()
+    sensitive = replace(
+        lesson,
+        lesson_id="lesson_sensitive",
+        lesson_text="Sensitive guidance",
+        sensitive=True,
+    )
+    store.add_lesson(sensitive)
+    assert case.fix_commit_sha is not None
+    evidence = CommitAncestryEvidence(
+        trace.commit_sha,
+        ((case.fix_commit_sha, True),),
+    )
+
+    request = store.prepare_memory(
+        matching_context(trace),
+        task="repair",
+        commit_ancestry=evidence,
+    )
+
+    assert sensitive.lesson_id in request.candidate_memory_ids
+    assert sensitive.lesson_id not in request.system_allowed_memory_ids
+    assert dict(request.system_blocked)[sensitive.lesson_id] == (
+        "memory is marked sensitive"
+    )
+
+
+def test_invalid_ancestry_prepare_does_not_consume_request_id():
+    store = TraceBackedMemoryStore()
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="current")
+
+    with pytest.raises(ValueError, match="does not match context commit_sha"):
+        store.prepare_memory(
+            context,
+            task="repair",
+            commit_ancestry=CommitAncestryEvidence("other", ()),
+        )
+
+    assert store.prepare_memory(context, task="repair").request_id == (
+        "gate_request_000001"
+    )
+
+
+def test_prepare_uses_ancestry_without_persisting_evidence():
+    store = store_with_retrieval_records_in_order(["a"])
+    store.record_trace(
+        Trace(
+            trace_id="trace_current",
+            run_id="run_current",
+            commit_sha="current",
+            repo="repo",
+            tenant="tenant",
+        )
+    )
+    context = ancestry_context()
+    evidence = ancestry_evidence(
+        "current", commit_a=True, fix_commit_a=True
+    )
+    before = store.to_snapshot()
+
+    request = store.prepare_memory(
+        context, task="repair", commit_ancestry=evidence
+    )
+    assert store.to_snapshot() == before
+    result = store.finalize_memory(
+        request,
+        allow_decision("lesson_a"),
+        trace_id="trace_current",
+        eval_result="pass",
+    )
+
+    assert result.allowed_memory_ids == ("lesson_a",)
+    encoded = json.dumps(store.to_snapshot(), sort_keys=True)
+    assert "commit_ancestry" not in encoded
+    assert "commit_relations" not in encoded
 
 
 def test_candidate_memories_ranks_semantic_scores_after_metadata_filter():

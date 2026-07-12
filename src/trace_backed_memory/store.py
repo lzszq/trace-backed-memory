@@ -5,7 +5,7 @@ import math
 import os
 import re
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
@@ -27,6 +27,7 @@ from .lifecycle import (
     verify_failure_case as transition_verify_failure_case,
 )
 from .models import (
+    CommitAncestryEvidence,
     EvalResult,
     FailureCase,
     GatedMemoryResult,
@@ -445,6 +446,7 @@ class TraceBackedMemoryStore:
         semantic_scores: Mapping[str, float] | None = None,
         max_candidates: int | None = None,
         minimum_score: float | None = None,
+        commit_ancestry: CommitAncestryEvidence | None = None,
     ) -> list[MemoryItem]:
         validate_memory_context(context)
         if query is not None and not isinstance(query, str):
@@ -458,26 +460,12 @@ class TraceBackedMemoryStore:
                 self._lessons, self._project_policies
             ),
         )
-        context_values = _context_values(context)
-        candidates: list[MemoryItem] = []
-
-        for lesson in self._lessons.values():
-            if _has_metadata_match(lesson.scope, context_values):
-                candidates.append(memory_item_from_lesson(lesson))
-        for policy in self._project_policies.values():
-            if _has_metadata_match(policy.scope, context_values):
-                candidates.append(memory_item_from_project_policy(policy))
-        if context.mode in {"debug", "repair"}:
-            for case in self._failure_cases.values():
-                trace = self._traces.get(case.source_trace_id)
-                if trace is None or case.status != "verified" or not case.regression_passed:
-                    continue
-                memory = memory_item_from_failure_case(case, trace)
-                trace_tools = _trace_tool_names(trace)
-                if context.tool is not None and trace_tools and context.tool not in trace_tools:
-                    continue
-                if _has_metadata_match(memory.scope, context_values):
-                    candidates.append(memory)
+        commit_relations = _validated_commit_ancestry(context, commit_ancestry)
+        candidates = self._metadata_candidates(context)
+        if commit_relations is not None:
+            candidates = self._filter_candidates_by_ancestry(
+                candidates, commit_relations
+            )
 
         if validated_semantic_scores is not None:
             candidates = [
@@ -507,6 +495,75 @@ class TraceBackedMemoryStore:
 
         return sorted(candidates, key=lambda memory: memory.memory_id)
 
+    def _metadata_candidates(self, context: MemoryContext) -> list[MemoryItem]:
+        context_values = _context_values(context)
+        candidates: list[MemoryItem] = []
+
+        for lesson in self._lessons.values():
+            if _has_metadata_match(lesson.scope, context_values):
+                candidates.append(memory_item_from_lesson(lesson))
+        for policy in self._project_policies.values():
+            if _has_metadata_match(policy.scope, context_values):
+                candidates.append(memory_item_from_project_policy(policy))
+        if context.mode in {"debug", "repair"}:
+            for case in self._failure_cases.values():
+                trace = self._traces.get(case.source_trace_id)
+                if trace is None or case.status != "verified" or not case.regression_passed:
+                    continue
+                memory = memory_item_from_failure_case(case, trace)
+                trace_tools = _trace_tool_names(trace)
+                if context.tool is not None and trace_tools and context.tool not in trace_tools:
+                    continue
+                if _has_metadata_match(memory.scope, context_values):
+                    candidates.append(memory)
+        return candidates
+
+    @_synchronized
+    def candidate_commit_anchors(
+        self, context: MemoryContext
+    ) -> tuple[str, ...]:
+        validate_memory_context(context)
+        return tuple(
+            sorted(
+                {
+                    anchor
+                    for memory in self._metadata_candidates(context)
+                    if (anchor := self._commit_anchor(memory.memory_id)) is not None
+                }
+            )
+        )
+
+    def _commit_anchor(self, memory_id: str) -> str | None:
+        lesson = self._lessons.get(memory_id)
+        if lesson is not None:
+            anchor = self._failure_cases[lesson.source_case_id].fix_commit_sha
+            if not isinstance(anchor, str) or not anchor:
+                raise ValueError(
+                    f"lesson source case lacks fix_commit_sha: {memory_id}"
+                )
+            return anchor
+        case = self._failure_cases.get(memory_id)
+        if case is not None:
+            return case.commit_sha
+        return None
+
+    def _filter_candidates_by_ancestry(
+        self,
+        candidates: list[MemoryItem],
+        relations: dict[str, bool],
+    ) -> list[MemoryItem]:
+        anchors = {
+            memory.memory_id: self._commit_anchor(memory.memory_id)
+            for memory in candidates
+        }
+        _require_commit_relations(anchors.values(), relations)
+        return [
+            memory
+            for memory in candidates
+            if anchors[memory.memory_id] is None
+            or relations[anchors[memory.memory_id]]
+        ]
+
     @_synchronized
     def prepare_memory(
         self,
@@ -518,6 +575,7 @@ class TraceBackedMemoryStore:
         max_candidates: int | None = None,
         minimum_score: float | None = None,
         context_summary: str = "",
+        commit_ancestry: CommitAncestryEvidence | None = None,
     ) -> MemoryGateRequest:
         validate_memory_context(context)
         candidates = self.candidate_memories(
@@ -526,6 +584,7 @@ class TraceBackedMemoryStore:
             semantic_scores=semantic_scores,
             max_candidates=max_candidates,
             minimum_score=minimum_score,
+            commit_ancestry=commit_ancestry,
         )
         system_allowed, system_blocked = system_gate(context, candidates)
         request = MemoryGateRequest(
@@ -1295,6 +1354,66 @@ def _validate_required_string(
         raise ValueError(f"{message_prefix} {field_name}")
     if max_chars is not None and len(value) > max_chars:
         raise ValueError(f"{field_name} must be at most {max_chars} characters")
+
+
+def _validated_commit_ancestry(
+    context: MemoryContext,
+    evidence: CommitAncestryEvidence | None,
+) -> dict[str, bool] | None:
+    if evidence is None:
+        return None
+    if type(evidence) is not CommitAncestryEvidence:
+        raise ValueError(
+            "commit_ancestry must be a CommitAncestryEvidence or None"
+        )
+    _validate_required_string(
+        evidence.current_commit_sha,
+        "current_commit_sha",
+        "commit ancestry evidence requires",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
+    if evidence.current_commit_sha != context.commit_sha:
+        raise ValueError(
+            "commit ancestry current_commit_sha does not match context commit_sha"
+        )
+    if not isinstance(evidence.commit_relations, tuple):
+        raise ValueError("commit ancestry commit_relations must be a tuple")
+
+    relations: dict[str, bool] = {}
+    for relation in evidence.commit_relations:
+        if type(relation) is not tuple or len(relation) != 2:
+            raise ValueError(
+                "commit ancestry relations must be two-item tuples"
+            )
+        anchor, is_ancestor = relation
+        _validate_required_string(
+            anchor,
+            "anchor commit",
+            "commit ancestry relations require",
+            max_chars=METADATA_VALUE_MAX_CHARS,
+        )
+        if type(is_ancestor) is not bool:
+            raise ValueError("commit ancestry relation values must be booleans")
+        if anchor in relations:
+            raise ValueError(f"duplicate commit ancestry relation: {anchor}")
+        relations[anchor] = is_ancestor
+    return relations
+
+
+def _require_commit_relations(
+    anchors: Iterable[str | None], relations: Mapping[str, bool]
+) -> None:
+    missing = sorted(
+        {
+            anchor
+            for anchor in anchors
+            if anchor is not None and anchor not in relations
+        }
+    )
+    if missing:
+        raise ValueError(
+            "commit ancestry evidence is missing anchors: " + ", ".join(missing)
+        )
 
 
 def _validate_optional_string(

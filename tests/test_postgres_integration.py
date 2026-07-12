@@ -11,8 +11,10 @@ import pytest
 from tests import postgres_support
 from tests.postgres_support import (
     PostgresCluster,
+    PostgresServer,
     TrackedClient,
-    _cleanup_postgres_resources,
+    _cleanup_postgres_database_resources,
+    _cleanup_postgres_server_resources,
     _new_test_database_name,
     _quote_identifier,
     _read_role_names,
@@ -421,26 +423,113 @@ def test_per_test_root_cleanup_rejects_root_outside_tmp_path(tmp_path: Path):
     assert marker.read_text(encoding="ascii") == "protected"
 
 
-def test_cleanup_stages_are_independent_and_preserve_original_error(
+def test_database_cleanup_stages_are_independent_and_preserve_original_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
     root = tmp_path / "postgres-cluster"
-    data = root / "data"
-    data.mkdir(parents=True)
-    (data / "postmaster.pid").write_text("123", encoding="ascii")
+    root.mkdir()
     events: list[str] = []
+    server = PostgresServer(
+        psql="psql",
+        pg_ctl="pg_ctl",
+        env={},
+        root=tmp_path / "postgres-server",
+        data=tmp_path / "postgres-server" / "data",
+        baseline_roles=frozenset({"postgres"}),
+    )
+    database_name = _new_test_database_name()
 
     class FailingCluster:
         def terminate_clients(self) -> None:
             events.append("clients")
             raise RuntimeError("client cleanup failed")
 
-    def fail_server_stop(*_args, **_kwargs):
+    def fail_session_cleanup(*_args, **_kwargs) -> None:
+        events.append("sessions")
+        raise RuntimeError("session cleanup failed")
+
+    def fail_database_cleanup(*_args, **_kwargs) -> None:
+        events.append("database")
+        raise RuntimeError("database cleanup failed")
+
+    def extra_role(*_args, **_kwargs) -> frozenset[str]:
+        events.append("roles")
+        return frozenset({"postgres", "memory_cleanup_role"})
+
+    def fail_role_cleanup(*_args, **_kwargs) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(["psql"], 1, "", "role cleanup failed")
+
+    def fail_directory_cleanup(*_args, **_kwargs) -> None:
+        events.append("directory")
+        raise RuntimeError("directory cleanup failed")
+
+    monkeypatch.setattr(
+        postgres_support, "_terminate_database_sessions", fail_session_cleanup
+    )
+    monkeypatch.setattr(postgres_support, "_drop_test_database", fail_database_cleanup)
+    monkeypatch.setattr(postgres_support, "_read_role_names", extra_role)
+    monkeypatch.setattr(postgres_support, "_run_psql", fail_role_cleanup)
+    monkeypatch.setattr(
+        postgres_support, "_remove_postgres_test_root", fail_directory_cleanup
+    )
+
+    cleanup_errors = _cleanup_postgres_database_resources(
+        server=server,
+        cluster=FailingCluster(),  # type: ignore[arg-type]
+        database_name=database_name,
+        root=root,
+        tmp_path=tmp_path,
+    )
+
+    assert events == ["clients", "sessions", "database", "roles", "directory"]
+    assert [str(error) for error in cleanup_errors] == [
+        "client cleanup failed",
+        "session cleanup failed",
+        "database cleanup failed",
+        "PostgreSQL test role removal failed:\nrole cleanup failed",
+        "directory cleanup failed",
+    ]
+    assert [error.__notes__ for error in cleanup_errors] == [
+        ["PostgreSQL client cleanup stage"],
+        ["PostgreSQL database session cleanup stage"],
+        ["PostgreSQL database cleanup stage"],
+        ["PostgreSQL role cleanup stage"],
+        ["PostgreSQL directory cleanup stage"],
+    ]
+    original_error = AssertionError("original test failure")
+    _report_cleanup_errors(cleanup_errors, original_error)
+    assert any(
+        "PostgreSQL cleanup also failed" in note
+        for note in original_error.__notes__
+    )
+
+    with pytest.raises(ExceptionGroup, match="PostgreSQL cleanup failed"):
+        _report_cleanup_errors(cleanup_errors, None)
+
+
+def test_server_cleanup_stages_are_independent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = tmp_path / "postgres-server"
+    data = root / "data"
+    data.mkdir(parents=True)
+    (data / "postmaster.pid").write_text("123", encoding="ascii")
+    server = PostgresServer(
+        psql="psql",
+        pg_ctl="pg_ctl",
+        env={},
+        root=root,
+        data=data,
+        baseline_roles=frozenset({"postgres"}),
+    )
+    events: list[str] = []
+    real_rmtree = shutil.rmtree
+
+    def fail_server_stop(*_args, **_kwargs) -> None:
         events.append("server")
         raise subprocess.TimeoutExpired("pg_ctl", 1)
-
-    real_rmtree = shutil.rmtree
 
     def remove_directory(path: Path, *, ignore_errors: bool) -> None:
         events.append("directory")
@@ -449,24 +538,104 @@ def test_cleanup_stages_are_independent_and_preserve_original_error(
     monkeypatch.setattr(subprocess, "run", fail_server_stop)
     monkeypatch.setattr(shutil, "rmtree", remove_directory)
 
-    cleanup_errors = _cleanup_postgres_resources(
-        cluster=FailingCluster(),  # type: ignore[arg-type]
-        data=data,
-        root=root,
-        tmp_path=tmp_path,
-        pg_ctl="pg_ctl",
-        env={},
+    cleanup_errors = _cleanup_postgres_server_resources(
+        server=server, pytest_parent=tmp_path
     )
 
-    assert events == ["clients", "server", "directory"]
-    assert len(cleanup_errors) == 2
+    assert events == ["server", "directory"]
+    assert [str(error) for error in cleanup_errors] == [
+        "Command 'pg_ctl' timed out after 1 seconds"
+    ]
+    assert cleanup_errors[0].__notes__ == ["PostgreSQL server cleanup stage"]
     assert root.exists() is False
-    original_error = AssertionError("original test failure")
-    _report_cleanup_errors(cleanup_errors, original_error)
-    assert any("PostgreSQL cleanup also failed" in note for note in original_error.__notes__)
 
-    with pytest.raises(ExceptionGroup, match="PostgreSQL cleanup failed"):
-        _report_cleanup_errors(cleanup_errors, None)
+
+def test_database_cleanup_removes_untracked_sessions_and_new_roles(
+    _postgres_server: PostgresServer,
+    tmp_path: Path,
+):
+    server = _postgres_server
+    database_name = _new_test_database_name()
+    root = tmp_path / "postgres-cluster"
+    root.mkdir()
+    untracked: subprocess.Popen[bytes] | None = None
+    database_created = False
+    try:
+        postgres_support._create_test_database(server, database_name)
+        database_created = True
+        cluster = PostgresCluster(
+            server.psql, {**server.env, "PGDATABASE": database_name}, root
+        )
+        untracked = subprocess.Popen(
+            [
+                server.psql,
+                "-X",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-q",
+                "-c",
+                "SELECT pg_sleep(60)",
+            ],
+            env={**cluster.env, "PGAPPNAME": "untracked_cleanup_client"},
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+        )
+        _wait_for_activity(
+            cluster,
+            "untracked_cleanup_client",
+            "Timeout",
+            untracked,
+        )
+        assert_sql_succeeds(cluster, "CREATE ROLE memory_cleanup_role")
+
+        cleanup_errors = _cleanup_postgres_database_resources(
+            server=server,
+            cluster=cluster,
+            database_name=database_name,
+            root=root,
+            tmp_path=tmp_path,
+        )
+
+        assert cleanup_errors == []
+        assert untracked.wait(timeout=5) is not None
+        assert assert_sql_succeeds(
+            PostgresCluster(server.psql, dict(server.env), tmp_path),
+            "SELECT count(*) FROM pg_database "
+            f"WHERE datname = '{database_name}'",
+        ) == "0"
+        assert assert_sql_succeeds(
+            PostgresCluster(server.psql, dict(server.env), tmp_path),
+            "SELECT count(*) FROM pg_roles WHERE rolname = 'memory_cleanup_role'",
+        ) == "0"
+    finally:
+        cleanup_steps = [
+            lambda: (
+                untracked.terminate()
+                if untracked is not None and untracked.poll() is None
+                else None
+            ),
+            lambda: postgres_support._terminate_database_sessions(
+                server, database_name
+            )
+            if database_created
+            else None,
+            lambda: postgres_support._drop_test_database(server, database_name)
+            if database_created
+            else None,
+            lambda: postgres_support._run_psql(
+                server.psql,
+                server.env,
+                "DROP ROLE IF EXISTS \"memory_cleanup_role\"",
+            ),
+            lambda: postgres_support._remove_postgres_test_root(root, tmp_path),
+        ]
+        for cleanup_step in cleanup_steps:
+            try:
+                cleanup_step()
+            except Exception:
+                pass
 
 
 def test_postgres_registry_lifecycle_and_two_session_serialization(

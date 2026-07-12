@@ -133,7 +133,7 @@ def _drop_test_database(server: PostgresServer, database_name: str) -> None:
     result = _run_psql(
         server.psql,
         server.env,
-        f"DROP DATABASE {_quote_identifier(database_name)}",
+        f"DROP DATABASE IF EXISTS {_quote_identifier(database_name)}",
     )
     if result.returncode != 0:
         raise RuntimeError("PostgreSQL test database removal failed:\n" + result.stderr)
@@ -358,14 +358,13 @@ def _remove_postgres_test_root(root: Path, pytest_parent: Path) -> None:
         shutil.rmtree(resolved_root, ignore_errors=False)
 
 
-def _cleanup_postgres_resources(
+def _cleanup_postgres_database_resources(
     *,
+    server: PostgresServer,
     cluster: PostgresCluster | None,
-    data: Path,
+    database_name: str,
     root: Path,
     tmp_path: Path,
-    pg_ctl: str,
-    env: dict[str, str],
 ) -> list[BaseException]:
     cleanup_errors: list[BaseException] = []
 
@@ -377,12 +376,61 @@ def _cleanup_postgres_resources(
         cleanup_errors.append(exc)
 
     try:
-        if data.exists():
+        _terminate_database_sessions(server, database_name)
+    except Exception as exc:
+        exc.add_note("PostgreSQL database session cleanup stage")
+        cleanup_errors.append(exc)
+
+    try:
+        _drop_test_database(server, database_name)
+    except Exception as exc:
+        exc.add_note("PostgreSQL database cleanup stage")
+        cleanup_errors.append(exc)
+
+    try:
+        extra_roles = (
+            _read_role_names(server.psql, server.env) - server.baseline_roles
+        )
+    except Exception as exc:
+        exc.add_note("PostgreSQL role cleanup stage")
+        cleanup_errors.append(exc)
+    else:
+        for role_name in sorted(extra_roles):
+            try:
+                result = _run_psql(
+                    server.psql,
+                    server.env,
+                    f"DROP ROLE {_quote_identifier(role_name)}",
+                )
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        "PostgreSQL test role removal failed:\n" + result.stderr
+                    )
+            except Exception as exc:
+                exc.add_note("PostgreSQL role cleanup stage")
+                cleanup_errors.append(exc)
+
+    try:
+        _remove_postgres_test_root(root, tmp_path)
+    except Exception as exc:
+        exc.add_note("PostgreSQL directory cleanup stage")
+        cleanup_errors.append(exc)
+
+    return cleanup_errors
+
+
+def _cleanup_postgres_server_resources(
+    *, server: PostgresServer, pytest_parent: Path
+) -> list[BaseException]:
+    cleanup_errors: list[BaseException] = []
+
+    try:
+        if server.data.exists():
             stop = subprocess.run(
                 [
-                    pg_ctl,
+                    server.pg_ctl,
                     "-D",
-                    str(data),
+                    str(server.data),
                     "-m",
                     "immediate",
                     "-w",
@@ -390,7 +438,7 @@ def _cleanup_postgres_resources(
                     "20",
                     "stop",
                 ],
-                env=env,
+                env=dict(server.env),
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
@@ -399,7 +447,7 @@ def _cleanup_postgres_resources(
                 timeout=30,
                 check=False,
             )
-            if stop.returncode != 0 and (data / "postmaster.pid").exists():
+            if stop.returncode != 0 and (server.data / "postmaster.pid").exists():
                 raise RuntimeError(
                     "pg_ctl stop failed:\n" + stop.stdout + "\n" + stop.stderr
                 )
@@ -408,7 +456,7 @@ def _cleanup_postgres_resources(
         cleanup_errors.append(exc)
 
     try:
-        _remove_postgres_test_root(root, tmp_path)
+        _remove_postgres_test_root(server.root, pytest_parent)
     except Exception as exc:
         exc.add_note("PostgreSQL directory cleanup stage")
         cleanup_errors.append(exc)
@@ -453,6 +501,7 @@ def _postgres_server(
         "PGCONNECT_TIMEOUT": "5",
         "PGOPTIONS": "-c statement_timeout=10000",
     }
+    original_error: BaseException | None = None
     try:
         init = subprocess.run(
             [
@@ -512,36 +561,24 @@ def _postgres_server(
             data=data,
             baseline_roles=_read_role_names(executables["psql"], env),
         )
+    except BaseException as exc:
+        original_error = exc
+        raise
     finally:
-        try:
-            if data.exists():
-                stop = subprocess.run(
-                    [
-                        executables["pg_ctl"],
-                        "-D",
-                        str(data),
-                        "-m",
-                        "immediate",
-                        "-w",
-                        "-t",
-                        "20",
-                        "stop",
-                    ],
+        _report_cleanup_errors(
+            _cleanup_postgres_server_resources(
+                server=PostgresServer(
+                    psql=executables["psql"],
+                    pg_ctl=executables["pg_ctl"],
                     env=env,
-                    stdin=subprocess.DEVNULL,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=30,
-                    check=False,
-                )
-                if stop.returncode != 0 and (data / "postmaster.pid").exists():
-                    raise RuntimeError(
-                        "pg_ctl stop failed:\n" + stop.stdout + "\n" + stop.stderr
-                    )
-        finally:
-            _remove_postgres_test_root(root, tmp_path_factory.getbasetemp())
+                    root=root,
+                    data=data,
+                    baseline_roles=frozenset(),
+                ),
+                pytest_parent=tmp_path_factory.getbasetemp(),
+            ),
+            original_error,
+        )
 
 
 @pytest.fixture
@@ -552,31 +589,30 @@ def postgres_cluster(
     database_name = _new_test_database_name()
     root = tmp_path / "postgres-cluster"
     root.mkdir()
-    database_created = False
     cluster: PostgresCluster | None = None
+    original_error: BaseException | None = None
     try:
         _create_test_database(_postgres_server, database_name)
-        database_created = True
         cluster = PostgresCluster(
             _postgres_server.psql,
             {**_postgres_server.env, "PGDATABASE": database_name},
             root,
         )
         yield cluster
+    except BaseException as exc:
+        original_error = exc
+        raise
     finally:
-        try:
-            if cluster is not None:
-                cluster.terminate_clients()
-        finally:
-            try:
-                if database_created:
-                    _terminate_database_sessions(_postgres_server, database_name)
-            finally:
-                try:
-                    if database_created:
-                        _drop_test_database(_postgres_server, database_name)
-                finally:
-                    _remove_postgres_test_root(root, tmp_path)
+        _report_cleanup_errors(
+            _cleanup_postgres_database_resources(
+                server=_postgres_server,
+                cluster=cluster,
+                database_name=database_name,
+                root=root,
+                tmp_path=tmp_path,
+            ),
+            original_error,
+        )
 
 
 def assert_sql_succeeds(cluster: PostgresCluster, sql: str) -> str:

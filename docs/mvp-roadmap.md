@@ -119,5 +119,7 @@ Track:
   bound to another current commit, and exclude false ancestry relations.
 - Reuse captured evidence for PR reports before related-case reporting,
   regression suggestions, warnings, and provenance.
+- Keep ancestry as an applicability filter only; System Gate and LLM Gate
+  remain authoritative for safety and semantic relevance.
 - Preserve opt-in backward compatibility and all snapshot, YAML, schema, and
   PostgreSQL persistence contracts.

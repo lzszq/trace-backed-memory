@@ -106,3 +106,18 @@ Track:
 - Support borrowed caller connections and owned connections from `connect()`.
 - Keep in-place migrations, connection pooling, and async repository support as
   explicit non-goals.
+
+## Phase 9: Git ancestry applicability (implemented)
+
+- Discover metadata-scoped runtime anchors and PR-report anchors from the
+  in-memory store.
+- Capture immutable ancestry relations outside the store lock against the
+  current context commit.
+- Use lesson fix commits and failure-case source commits as runtime anchors;
+  leave project policies unanchored for ancestry filtering only.
+- Require complete evidence whenever ancestry is supplied, reject evidence
+  bound to another current commit, and exclude false ancestry relations.
+- Reuse captured evidence for PR reports before related-case reporting,
+  regression suggestions, warnings, and provenance.
+- Preserve opt-in backward compatibility and all snapshot, YAML, schema, and
+  PostgreSQL persistence contracts.

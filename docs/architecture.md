@@ -366,6 +366,38 @@ model, or eval-suite changes touch known failure areas. It also includes
 case-level provenance records with source trace ID, source commit, fix commit,
 trace URI, and failure type.
 
+## Git Ancestry Applicability
+
+`CommitAncestryEvidence` is an immutable request-time record of whether each
+discovered anchor is an ancestor of one exact current commit. Callers first
+obtain the complete metadata-scoped runtime anchor set with
+`candidate_commit_anchors(context)`, then run
+`capture_commit_ancestry(context.commit_sha, anchors, repo_path=...)` outside
+the store lock. Capture evaluates `git merge-base --is-ancestor anchor
+current`: exit 0 is `True`, exit 1 is `False`, and any other command failure
+raises an error that stops the workflow.
+
+Runtime anchor meaning is exact: lesson memory uses its source failure case's
+`fix_commit_sha`; failure-case memory uses its source `commit_sha`; project
+policy has no anchor. Evidence must bind `current_commit_sha` to the exact
+`MemoryContext.commit_sha`, and when evidence is provided it must include a
+relation for every candidate anchor. Missing evidence fails closed before
+filtering, while a recorded `False` excludes the associated historical
+candidate. Unanchored project policies bypass ancestry filtering only and
+still pass metadata filtering, System Gate, and LLM Gate.
+
+The runtime order is metadata candidate discovery, external ancestry capture,
+ancestry filtering, optional keyword or semantic retrieval, System Gate, and
+LLM Gate. Omitting evidence preserves the legacy runtime path. PR callers
+follow the same pattern with `pr_report_commit_anchors(context)`, capture
+against the context commit, and pass the same evidence to
+`pr_memory_report()` before it builds related cases, regression suggestions,
+warnings, or provenance.
+
+Ancestry evidence is never added to snapshots, usage logs, YAML, schemas, or
+the PostgreSQL repository. The feature changes neither persistence contracts
+nor the existing gate contracts.
+
 ## Non-goals
 
 - Do not build generic personalization memory first.

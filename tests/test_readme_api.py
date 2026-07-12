@@ -13,6 +13,7 @@ from trace_backed_memory import (
     TraceMetadataCaptureError,
     TraceBackedMemoryStore,
     build_llm_gate_prompt,
+    capture_commit_ancestry,
     capture_trace_metadata,
     classify_failure_type,
     draft_failure_case,
@@ -174,6 +175,38 @@ def test_readme_semantic_retrieval_example_stays_executable():
     )
 
     assert request.candidate_memory_ids == (lesson.lesson_id,)
+    assert result.allowed_memory_ids == (lesson.lesson_id,)
+
+
+def test_readme_git_ancestry_workflow_stays_executable():
+    store, trace, _case, lesson = readme_store_fixture()
+    context = MemoryContext(
+        mode="repair",
+        repo=trace.repo,
+        tenant=trace.tenant,
+        commit_sha=trace.commit_sha,
+        tool="search_docs",
+    )
+    anchors = store.candidate_commit_anchors(context)
+
+    evidence = capture_commit_ancestry(
+        context.commit_sha,
+        anchors,
+        repo_path=".",
+        runner=lambda _args, _cwd=None: 0,
+    )
+    request = store.prepare_memory(
+        context,
+        task="repair failed search_docs call",
+        commit_ancestry=evidence,
+    )
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=trace.trace_id,
+        eval_result="pass",
+    )
+
     assert result.allowed_memory_ids == (lesson.lesson_id,)
 
 

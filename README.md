@@ -167,6 +167,44 @@ Keyword `query` and `semantic_scores` cannot be combined in one call.
 System Gate and LLM Gate remain
 authoritative, and scores are not persisted in snapshots or PostgreSQL.
 
+### Git ancestry applicability
+
+```python
+from trace_backed_memory import capture_commit_ancestry
+
+anchors = store.candidate_commit_anchors(context)
+commit_ancestry = capture_commit_ancestry(
+    context.commit_sha,
+    anchors,
+    repo_path=".",
+)
+request = store.prepare_memory(
+    context,
+    task="repair failed search_docs call",
+    commit_ancestry=commit_ancestry,
+)
+```
+
+Discover anchors while reading the store, then capture Git evidence outside the
+store lock before calling `prepare_memory()`. The immutable evidence is bound
+to the exact `context.commit_sha`: a lesson anchors to its source case's
+`fix_commit_sha`, and a failure-case memory anchors to its source
+`commit_sha`. Project policies have no commit anchor, so ancestry bypasses
+only that filter for them; their normal metadata scope, System Gate, and LLM
+Gate checks remain unchanged.
+
+`capture_commit_ancestry()` runs `git merge-base --is-ancestor` for every
+anchor. Exit 0 records `True`, exit 1 records `False` and excludes the
+anchored history, and any other command error stops the workflow. When callers
+provide evidence, it must contain a relation for every discovered anchor;
+missing relations fail closed rather than leaving history unfiltered. Omitting
+`commit_ancestry` preserves the pre-ancestry retrieval behavior.
+
+Evidence is request-time input only: it is neither stored in snapshots nor
+persisted to PostgreSQL, and it does not replace either gate. PR callers use
+`pr_report_commit_anchors(context)`, capture against the same context commit,
+and pass that same evidence object to `pr_memory_report()`.
+
 ## Low-level System Gate Helper
 
 ```python
@@ -360,6 +398,7 @@ Implemented pieces:
 
 - Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, and `MemoryMetrics`.
 - Git metadata capture for repo name, commit SHA, branch, and dirty state, with command failure errors wrapped for harness diagnostics.
+- Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
 - Store-level checks that validate both the incoming and copied trace, preserve copy isolation, reject concurrent copy mutation, and reject empty identity fields, unsupported eval results, or malformed nested JSON trace collections, including non-string object keys, non-finite numbers, reference cycles, and excessive nesting.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
@@ -371,7 +410,7 @@ Implemented pieces:
 - Project policy helper that turns manually maintained prompt/tool/eval policy into sourced `MemoryItem` policy memory.
 - Deterministic System Gate with strict source, tenant-aware scope, status, memory-type, confidence, sensitivity, eval-leak, and mode checks.
 - Gate boundary helpers that validate runtime context JSON and direct-call container/record types before use, require non-empty string tasks and string-or-`None` queries, JSON-quote and cap dynamic gate prompt fields, validate LLM decision JSON with non-empty unique IDs and consistent `use_memory` / `recommended_injection` fields, reject contradictory System Gate allowed/blocked inputs, require the final `MemoryDecision` before rendering non-empty runtime snippets, honor `none`/`pointer_only`/`short_summary` injection modes, and prevent the LLM decision from overriding System Gate.
-- In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, debug/repair visibility for verified regression-backed failure cases, optional keyword filtering including short domain tokens, optional bounded caller-provided semantic scores ranked score-descending with memory-ID-ascending ties, and usage decision logs; retrieval cannot bypass System Gate or LLM Gate.
+- In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, optional opt-in Git ancestry filtering before keyword or semantic ranking, debug/repair visibility for verified regression-backed failure cases, optional keyword filtering including short domain tokens, optional bounded caller-provided semantic scores ranked score-descending with memory-ID-ascending ties, and usage decision logs; retrieval cannot bypass System Gate or LLM Gate.
 - Usage-log validation and persisted contract that require trace ID, serialized context, candidate status snapshots, and System Gate block reasons; reject empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
 - Dependency-free strict JSON snapshot save/load for trace, failure case, lesson, project policy, and usage-log records; non-object snapshots, non-finite floats, over-limit integers, and non-standard JSON numeric constants are rejected while JSON-serializable integer costs remain valid.
 - Dependency-free active lesson YAML save/load for the repository's simple `memory/lessons.example.yaml` shape, preserving numeric-looking scope strings.
@@ -380,6 +419,7 @@ Implemented pieces:
 - JSON schemas for stored records and full memory-store snapshots.
 - Postgres schema parity checks for model defaults, an atomic fresh-install transaction pinned to `public`, invariant functions pinned to `pg_catalog`, a trigger-owned shared runtime memory ID registry that rejects direct DML, `TRUNCATE`, helper-shadow bypasses, and ghost usage, non-empty required text, composite case/trace commit provenance, forward-only status updates, `FOR SHARE` parent/lesson lifecycle serialization and cascades, JSONB object/array and element-type checks, required usage-decision audit evidence, and context example parsing.
 - Lesson safety flags for sensitive or eval-leaking memory are preserved through retrieval and blocked by System Gate.
+- PR reports can reuse current-commit-bound ancestry evidence to exclude unrelated historical failure cases before generating report content.
 - PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, and warns on risky prompt/tool/model/eval-suite changes.
 - Basic metrics for decisions, candidates, used/blocked memory, pass rates with/without memory, wrong-memory failures, obsolete attempts, and lesson confidence.
 

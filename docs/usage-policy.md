@@ -160,6 +160,29 @@ For semantic retrieval, compute scores outside the store and pass
 evidence only: sensitive, obsolete, leaking, low-confidence, or out-of-scope
 memory must still be blocked by the normal gates.
 
+## Git Ancestry Opt-in
+
+Callers that opt in must first discover the complete anchor set with
+`candidate_commit_anchors(context)` for runtime retrieval, or
+`pr_report_commit_anchors(context)` for a PR report. They must capture each
+anchor against the exact `context.commit_sha` with
+`capture_commit_ancestry()` outside the store lock, then pass that unchanged
+`CommitAncestryEvidence` object to `candidate_memories()`,
+`prepare_memory()`, or `pr_memory_report()`.
+
+An exit status of 0 from `git merge-base --is-ancestor` means the anchor is an
+ancestor; exit status 1 means it is not and the anchored history is excluded.
+Any command error must stop the workflow. Incomplete evidence is rejected:
+callers must not omit a discovered anchor or substitute evidence captured for
+another current commit. Lesson anchors are their source cases' fix commits,
+failure-case anchors are their source commits, and project policies have no
+anchor. That policy exemption applies only to ancestry; scope, status,
+safety, System Gate, and LLM Gate requirements remain in force.
+
+Passing no ancestry evidence is supported for backward compatibility and
+preserves legacy retrieval and PR-report behavior. Evidence is not persisted
+in snapshots, YAML, usage logs, or PostgreSQL.
+
 When `memory_caused_failure` is true, persisted evidence must include a
 non-null `eval_result` of `fail` or `error` and at least one used memory ID.
 

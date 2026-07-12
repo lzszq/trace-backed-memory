@@ -231,6 +231,13 @@ query. Keyword overlap is only a retrieval aid and does not replace System Gate
 or LLM applicability checks. Short domain tokens such as `AI` and `v2` are
 preserved in keyword filtering.
 
+Callers may alternatively provide precomputed semantic scores keyed by stored
+runtime memory ID. Semantic mode remains metadata-first, requires an explicit
+top-k no greater than 50, accepts only finite numeric scores, and breaks ties by
+memory ID. Scores select candidates only; System Gate and LLM Gate remain the
+approval boundary. The store neither computes nor persists embeddings or raw
+scores.
+
 The safe store workflow is `prepare_memory()` followed by `finalize_memory()`.
 Preparation performs retrieval, System Gate, and bounded LLM prompt creation;
 finalization rechecks current state, narrows the LLM decision, renders the

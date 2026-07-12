@@ -145,6 +145,27 @@ snippet = result.snippet
 Only this store workflow provides ownership, replay, stale-state, trace-link,
 and atomic logging guarantees.
 
+### Semantic retrieval
+
+```python
+# Scores are computed by the caller's embedding index or reranker.
+semantic_scores = {lesson.lesson_id: 0.93}
+
+request = store.prepare_memory(
+    context,
+    task="repair failed search_docs call",
+    semantic_scores=semantic_scores,
+    max_candidates=10,
+    minimum_score=0.70,
+)
+```
+
+Metadata scope is applied before ranking. Scores may use any finite numeric
+scale, but callers must normalize them so larger values mean greater relevance.
+Keyword `query` and `semantic_scores` cannot be combined in one call.
+`max_candidates` is required and capped at 50. System Gate and LLM Gate remain
+authoritative, and scores are not persisted in snapshots or PostgreSQL.
+
 ## Low-level System Gate Helper
 
 ```python
@@ -349,7 +370,7 @@ Implemented pieces:
 - Project policy helper that turns manually maintained prompt/tool/eval policy into sourced `MemoryItem` policy memory.
 - Deterministic System Gate with strict source, tenant-aware scope, status, memory-type, confidence, sensitivity, eval-leak, and mode checks.
 - Gate boundary helpers that validate runtime context JSON and direct-call container/record types before use, require non-empty string tasks and string-or-`None` queries, JSON-quote and cap dynamic gate prompt fields, validate LLM decision JSON with non-empty unique IDs and consistent `use_memory` / `recommended_injection` fields, reject contradictory System Gate allowed/blocked inputs, require the final `MemoryDecision` before rendering non-empty runtime snippets, honor `none`/`pointer_only`/`short_summary` injection modes, and prevent the LLM decision from overriding System Gate.
-- In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, debug/repair visibility for verified regression-backed failure cases, optional keyword filtering including short domain tokens, and usage decision logs.
+- In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, debug/repair visibility for verified regression-backed failure cases, optional keyword filtering including short domain tokens, optional bounded caller-provided semantic scores ranked score-descending with memory-ID-ascending ties, and usage decision logs; retrieval cannot bypass System Gate or LLM Gate.
 - Usage-log validation and persisted contract that require trace ID, serialized context, candidate status snapshots, and System Gate block reasons; reject empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
 - Dependency-free strict JSON snapshot save/load for trace, failure case, lesson, project policy, and usage-log records; non-object snapshots, non-finite floats, over-limit integers, and non-standard JSON numeric constants are rejected while JSON-serializable integer costs remain valid.
 - Dependency-free active lesson YAML save/load for the repository's simple `memory/lessons.example.yaml` shape, preserving numeric-looking scope strings.

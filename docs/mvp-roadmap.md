@@ -58,7 +58,7 @@
 ## Phase 5: Memory retrieval and gating
 
 - Retrieve by metadata filter first, requiring all declared scope fields to match.
-- Optionally add keyword/vector search.
+- Support optional keyword filtering and bounded caller-provided semantic/vector scores after metadata filtering.
 - Preserve short domain tokens in keyword filtering.
 - Run deterministic System Gate.
 - Block zero or out-of-range confidence memory before LLM applicability checks.

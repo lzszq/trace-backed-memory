@@ -148,6 +148,35 @@ def test_readme_safe_workflow_example_stays_executable():
     assert result.decision_id == store.usage_logs[-1].decision_id
 
 
+def test_readme_semantic_retrieval_example_stays_executable():
+    store, trace, _case, lesson = readme_store_fixture()
+    context = MemoryContext(
+        mode="repair",
+        repo=trace.repo,
+        tenant=trace.tenant,
+        commit_sha=trace.commit_sha,
+        tool="search_docs",
+    )
+    semantic_scores = {lesson.lesson_id: 0.93}
+
+    request = store.prepare_memory(
+        context,
+        task="repair failed search_docs call",
+        semantic_scores=semantic_scores,
+        max_candidates=10,
+        minimum_score=0.70,
+    )
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=trace.trace_id,
+        eval_result="pass",
+    )
+
+    assert request.candidate_memory_ids == (lesson.lesson_id,)
+    assert result.allowed_memory_ids == (lesson.lesson_id,)
+
+
 def test_readme_suggested_initial_api_still_works():
     context = MemoryContext(
         mode="repair",

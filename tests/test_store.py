@@ -4,6 +4,7 @@ import threading
 import time
 from copy import deepcopy
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,10 @@ from trace_backed_memory import (
     system_gate,
     verify_failure_case,
 )
+
+
+class IntLike(int):
+    pass
 
 
 def store_with_verified_case(
@@ -254,6 +259,36 @@ def test_prepare_memory_keeps_semantic_rank_and_system_gate_audit_boundaries():
         safe_lesson.lesson_id: "active",
     }
     assert log.system_blocked_reasons == dict(request.system_blocked)
+
+
+def test_semantic_scores_are_not_persisted_by_prepare_or_finalize():
+    store, trace, _case, lesson = store_with_active_lesson()
+    before_prepare = store.to_snapshot()
+    raw_score = 0.3141592653589793
+
+    request = store.prepare_memory(
+        matching_context(trace),
+        task="repair failed call",
+        semantic_scores={lesson.lesson_id: raw_score},
+        max_candidates=1,
+        minimum_score=0.25,
+    )
+
+    assert store.to_snapshot() == before_prepare
+
+    store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=trace.trace_id,
+        eval_result="pass",
+    )
+    snapshot = store.to_snapshot()
+    usage_log = snapshot["usage_logs"][-1]
+    assert usage_log["candidate_memory_ids"] == [lesson.lesson_id]
+    assert "semantic_scores" not in usage_log
+    assert "max_candidates" not in usage_log
+    assert "minimum_score" not in usage_log
+    assert str(raw_score) not in json.dumps(snapshot, sort_keys=True)
 
 
 def test_invalid_semantic_prepare_does_not_consume_request_id():
@@ -2193,6 +2228,30 @@ def test_candidate_memories_accepts_an_empty_semantic_score_mapping():
     ) == []
 
 
+def test_candidate_memories_accepts_the_maximum_semantic_candidate_limit():
+    store = TraceBackedMemoryStore()
+    for index in range(51):
+        store.add_project_policy(
+            ProjectPolicy(
+                policy_id=f"policy_{index:03d}",
+                policy_text=f"Policy {index}",
+                scope={"repo": "repo"},
+            )
+        )
+    context = MemoryContext(mode="planning", repo="repo", commit_sha="current")
+    scores = {f"policy_{index:03d}": 1.0 for index in range(51)}
+
+    candidates = store.candidate_memories(
+        context,
+        semantic_scores=scores,
+        max_candidates=50,
+    )
+
+    assert [memory.memory_id for memory in candidates] == [
+        f"policy_{index:03d}" for index in range(50)
+    ]
+
+
 @pytest.mark.parametrize(
     ("semantic_kwargs", "message"),
     [
@@ -2208,8 +2267,13 @@ def test_candidate_memories_accepts_an_empty_semantic_score_mapping():
         ({"semantic_scores": {}, "max_candidates": 1, "minimum_score": False}, "minimum_score must be a finite number"),
         ({"semantic_scores": {}, "max_candidates": 1, "minimum_score": float("nan")}, "minimum_score must be a finite number"),
         ({"semantic_scores": {}, "max_candidates": 1, "minimum_score": float("inf")}, "minimum_score must be a finite number"),
+        ({"semantic_scores": {}, "max_candidates": 1, "minimum_score": float("-inf")}, "minimum_score must be a finite number"),
         ({"semantic_scores": {"lesson_001": False}, "max_candidates": 1}, "semantic score for 'lesson_001' must be a finite number"),
         ({"semantic_scores": {"lesson_001": float("inf")}, "max_candidates": 1}, "semantic score for 'lesson_001' must be a finite number"),
+        ({"semantic_scores": {"lesson_001": float("-inf")}, "max_candidates": 1}, "semantic score for 'lesson_001' must be a finite number"),
+        ({"semantic_scores": {"lesson_001": "0.5"}, "max_candidates": 1}, "semantic score for 'lesson_001' must be a finite number"),
+        ({"semantic_scores": {"lesson_001": Decimal("0.5")}, "max_candidates": 1}, "semantic score for 'lesson_001' must be a finite number"),
+        ({"semantic_scores": {"lesson_001": IntLike(1)}, "max_candidates": 1}, "semantic score for 'lesson_001' must be a finite number"),
         ({"semantic_scores": {1: 0.5}, "max_candidates": 1}, "semantic score memory IDs must be non-empty strings"),
         ({"semantic_scores": {"": 0.5}, "max_candidates": 1}, "semantic score memory IDs must be non-empty strings"),
         ({"semantic_scores": {"x" * 129: 0.5}, "max_candidates": 1}, "semantic score memory IDs must be at most 128 characters"),
@@ -2225,6 +2289,27 @@ def test_candidate_memories_rejects_invalid_semantic_options(
         store.candidate_memories(
             matching_context(trace),
             **semantic_kwargs,  # type: ignore[arg-type]
+        )
+
+
+def test_candidate_memories_validates_metadata_ineligible_scores():
+    store, trace, _case, lesson = store_with_active_lesson()
+    store.add_project_policy(
+        ProjectPolicy(
+            policy_id="wrong_scope",
+            policy_text="This policy is outside the current repository scope.",
+            scope={"repo": "other"},
+        )
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="semantic score for 'wrong_scope' must be a finite number",
+    ):
+        store.candidate_memories(
+            matching_context(trace),
+            semantic_scores={lesson.lesson_id: 0.8, "wrong_scope": "invalid"},  # type: ignore[dict-item]
+            max_candidates=1,
         )
 
 

@@ -2449,6 +2449,252 @@ def test_pr_change_set_validation_returns_entries_sorted_by_field_name():
     )
 
 
+def test_pr_change_set_matches_complete_endpoints_and_reports_provenance():
+    store = TraceBackedMemoryStore()
+
+    def add_case(
+        suffix: str,
+        *,
+        prompt_version: str,
+        model: str,
+        eval_suite: str = "suite",
+        repo: str = "repo",
+        tenant: str = "tenant",
+        failure_type: str = "tool_error",
+    ) -> None:
+        trace = store.record_trace(
+            Trace(
+                trace_id=f"trace_{suffix}",
+                run_id=f"run_{suffix}",
+                commit_sha=f"commit_{suffix}",
+                repo=repo,
+                tenant=tenant,
+                prompt_version=prompt_version,
+                model=model,
+                eval_suite=eval_suite,
+                eval_result="fail",
+            )
+        )
+        store.add_failure_case(
+            verify_failure_case(
+                draft_failure_case(
+                    trace,
+                    case_id=f"case_{suffix}",
+                    failure_type=failure_type,
+                    symptom=f"symptom {suffix}",
+                ),
+                fix=f"fix {suffix}",
+                fix_commit_sha=f"fix_{suffix}",
+                regression_passed=True,
+            )
+        )
+
+    add_case("old", prompt_version="prompt-old", model="model-old")
+    add_case("new", prompt_version="prompt-new", model="model-new")
+    add_case("old_prompt_new_model", prompt_version="prompt-old", model="model-new")
+    add_case("new_prompt_old_model", prompt_version="prompt-new", model="model-old")
+    add_case("unrelated", prompt_version="other", model="other")
+    add_case("other_eval", prompt_version="prompt-new", model="model-new", eval_suite="other")
+    add_case("other_repo", prompt_version="prompt-new", model="model-new", repo="other")
+    add_case("other_tenant", prompt_version="prompt-new", model="model-new", tenant="other")
+    add_case("other_failure", prompt_version="prompt-new", model="model-new", failure_type="timeout")
+
+    context = MemoryContext(
+        mode="regression",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        prompt_version="prompt-new",
+        model="model-new",
+        eval_suite="suite",
+        failure_type="tool_error",
+    )
+    change_set = PRChangeSet(
+        (
+            ("prompt_version", "prompt-old", "prompt-new"),
+            ("model", "model-old", "model-new"),
+        )
+    )
+
+    report = store.pr_memory_report(context, change_set=change_set)
+    reversed_report = store.pr_memory_report(
+        context, change_set=PRChangeSet(tuple(reversed(change_set.field_changes)))
+    )
+
+    assert report == reversed_report
+    assert report.related_case_ids == ["case_new", "case_old"]
+    assert report.warnings == [
+        "model change touches known failure case case_new for known failure area.",
+        "prompt_version change touches known failure case case_new for known failure area.",
+        "model change touches known failure case case_old for known failure area.",
+        "prompt_version change touches known failure case case_old for known failure area.",
+    ]
+    assert [
+        (provenance.case_id, provenance.matched_change_endpoint)
+        for provenance in report.related_case_provenance
+    ] == [("case_new", "new"), ("case_old", "old")]
+
+
+def test_pr_change_set_matches_optional_and_tool_endpoints():
+    store = TraceBackedMemoryStore()
+
+    def add_case(
+        suffix: str,
+        *,
+        model: str | None = None,
+        tool_calls: list[dict[str, object]] | None = None,
+        eval_suite: str,
+    ) -> None:
+        trace = store.record_trace(
+            Trace(
+                trace_id=f"trace_{suffix}",
+                run_id=f"run_{suffix}",
+                commit_sha=f"commit_{suffix}",
+                repo="repo",
+                tenant="tenant",
+                prompt_version="prompt",
+                model=model,
+                eval_suite=eval_suite,
+                eval_result="fail",
+                tool_calls=tool_calls or [],
+            )
+        )
+        store.add_failure_case(
+            verify_failure_case(
+                draft_failure_case(
+                    trace,
+                    case_id=f"case_{suffix}",
+                    failure_type="tool_error",
+                    symptom=f"symptom {suffix}",
+                ),
+                fix=f"fix {suffix}",
+                fix_commit_sha=f"fix_{suffix}",
+                regression_passed=True,
+            )
+        )
+
+    add_case("model_missing", eval_suite="models")
+    add_case("model_new", model="model-new", eval_suite="models")
+    add_case("model_old", model="model-old", eval_suite="model_removal")
+    add_case("model_removed", eval_suite="model_removal")
+    add_case("tool_old", tool_calls=[{"name": "old_tool"}], eval_suite="tools")
+    add_case("tool_new", tool_calls=[{"name": "new_tool"}], eval_suite="tools")
+    add_case(
+        "tool_both",
+        tool_calls=[{"name": "old_tool"}, {"name": "new_tool"}],
+        eval_suite="tools",
+    )
+    add_case("tool_unnamed", tool_calls=[{"name": ""}], eval_suite="tools")
+
+    addition_context = MemoryContext(
+        mode="regression",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        prompt_version="prompt",
+        model="model-new",
+        eval_suite="models",
+        failure_type="tool_error",
+    )
+    addition_report = store.pr_memory_report(
+        addition_context,
+        change_set=PRChangeSet((("model", None, "model-new"),)),
+    )
+    assert [
+        (provenance.case_id, provenance.matched_change_endpoint)
+        for provenance in addition_report.related_case_provenance
+    ] == [("case_model_missing", "old"), ("case_model_new", "new")]
+
+    removal_model_context = MemoryContext(
+        mode="regression",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        prompt_version="prompt",
+        eval_suite="model_removal",
+        failure_type="tool_error",
+    )
+    removal_model_report = store.pr_memory_report(
+        removal_model_context,
+        change_set=PRChangeSet((("model", "model-old", None),)),
+    )
+    assert [
+        (provenance.case_id, provenance.matched_change_endpoint)
+        for provenance in removal_model_report.related_case_provenance
+    ] == [("case_model_old", "old"), ("case_model_removed", "new")]
+
+    tool_context = MemoryContext(
+        mode="regression",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        prompt_version="prompt",
+        tool="new_tool",
+        eval_suite="tools",
+        failure_type="tool_error",
+    )
+    tool_report = store.pr_memory_report(
+        tool_context,
+        change_set=PRChangeSet((("tool", "old_tool", "new_tool"),)),
+    )
+    assert [
+        (provenance.case_id, provenance.matched_change_endpoint)
+        for provenance in tool_report.related_case_provenance
+    ] == [
+        ("case_tool_both", "both"),
+        ("case_tool_new", "new"),
+        ("case_tool_old", "old"),
+    ]
+
+    removal_context = MemoryContext(
+        mode="regression",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        prompt_version="prompt",
+        eval_suite="tools",
+        failure_type="tool_error",
+    )
+    removal_report = store.pr_memory_report(
+        removal_context,
+        change_set=PRChangeSet((("tool", "old_tool", None),)),
+    )
+    assert [
+        (provenance.case_id, provenance.matched_change_endpoint)
+        for provenance in removal_report.related_case_provenance
+    ] == [
+        ("case_tool_both", "old"),
+        ("case_tool_old", "old"),
+        ("case_tool_unnamed", "new"),
+    ]
+
+
+def test_pr_memory_report_change_inputs_are_exclusive_and_legacy_endpoints_are_none():
+    store = store_with_retrieval_records_in_order(["a"])
+    context = ancestry_context()
+    change_set = PRChangeSet((("model", "gpt-old", None),))
+
+    with pytest.raises(
+        ValueError, match="exactly one of changed_fields or change_set must be provided"
+    ):
+        store.pr_memory_report(context)
+    with pytest.raises(
+        ValueError, match="exactly one of changed_fields or change_set must be provided"
+    ):
+        store.pr_memory_report(
+            context, changed_fields=["model"], change_set=change_set
+        )
+
+    report = store.pr_memory_report(context, changed_fields=[])
+
+    assert report.related_case_ids == ["case_a"]
+    assert report.warnings == []
+    assert all(
+        provenance.matched_change_endpoint is None
+        for provenance in report.related_case_provenance
+    )
+
+
 def test_pr_memory_report_excludes_unrelated_git_history_everywhere():
     store = TraceBackedMemoryStore()
     for suffix, failure_type in [
@@ -5229,7 +5475,7 @@ def test_pr_memory_report_validates_context_before_scanning_empty_store():
 
 @pytest.mark.parametrize(
     "changed_fields",
-    [None, "tool", [""], ["   "], [1], ["tool", None]],
+    ["tool", [""], ["   "], [1], ["tool", None]],
 )
 def test_pr_memory_report_validates_changed_fields_before_scanning_empty_store(
     changed_fields: object,

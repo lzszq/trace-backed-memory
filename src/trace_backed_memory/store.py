@@ -37,6 +37,7 @@ from .models import (
     MemoryGateRequest,
     MemoryItem,
     MemoryMetrics,
+    PRChangeEndpoint,
     PRCaseProvenance,
     MemoryUsageLog,
     PRMemoryReport,
@@ -967,14 +968,27 @@ class TraceBackedMemoryStore:
         )
 
     def _pr_related_case_records(
-        self, context: MemoryContext
-    ) -> list[tuple[FailureCase, Trace]]:
-        return [
-            (case, trace)
-            for case in self._failure_cases.values()
-            if (trace := self._traces.get(case.source_trace_id)) is not None
-            and _case_matches_context(case, trace, context)
-        ]
+        self,
+        context: MemoryContext,
+        *,
+        changes: tuple[tuple[str, str | None, str | None], ...] | None = None,
+    ) -> list[tuple[FailureCase, Trace, PRChangeEndpoint | None]]:
+        changed_fields = frozenset(entry[0] for entry in changes or ())
+        records: list[tuple[FailureCase, Trace, PRChangeEndpoint | None]] = []
+        for case in self._failure_cases.values():
+            trace = self._traces.get(case.source_trace_id)
+            if trace is None or not _case_matches_context(
+                case, trace, context, changed_fields
+            ):
+                continue
+            endpoint = (
+                _matched_pr_change_endpoint(trace, changes)
+                if changes is not None
+                else None
+            )
+            if changes is None or endpoint is not None:
+                records.append((case, trace, endpoint))
+        return records
 
     @_synchronized
     def pr_report_commit_anchors(
@@ -990,7 +1004,9 @@ class TraceBackedMemoryStore:
             sorted(
                 {
                     case.commit_sha
-                    for case, _trace in self._pr_related_case_records(context)
+                    for case, _trace, _endpoint in self._pr_related_case_records(
+                        context
+                    )
                 }
             )
         )
@@ -1000,22 +1016,33 @@ class TraceBackedMemoryStore:
         self,
         context: MemoryContext,
         *,
-        changed_fields: list[str],
+        changed_fields: list[str] | None = None,
+        change_set: PRChangeSet | None = None,
         commit_ancestry: CommitAncestryEvidence | None = None,
     ) -> PRMemoryReport:
         validate_memory_context(context)
-        if not isinstance(changed_fields, list) or any(
-            not isinstance(field_name, str) or not field_name.strip()
-            for field_name in changed_fields
-        ):
-            raise ValueError("changed_fields must be a list of non-empty strings")
+        if (changed_fields is None) == (change_set is None):
+            raise ValueError(
+                "exactly one of changed_fields or change_set must be provided"
+            )
+        changes = None
+        if changed_fields is not None:
+            if not isinstance(changed_fields, list) or any(
+                not isinstance(field_name, str) or not field_name.strip()
+                for field_name in changed_fields
+            ):
+                raise ValueError("changed_fields must be a list of non-empty strings")
+            warning_fields = changed_fields
+        else:
+            changes = _validated_pr_change_set(context, change_set)
+            warning_fields = [field_name for field_name, _old, _new in changes]
         ancestry_relations = _validated_commit_ancestry(
             context, commit_ancestry
         )
-        related_case_records = self._pr_related_case_records(context)
+        related_case_records = self._pr_related_case_records(context, changes=changes)
         if ancestry_relations is not None:
             _require_commit_relations(
-                (case.commit_sha for case, _trace in related_case_records),
+                (case.commit_sha for case, _trace, _endpoint in related_case_records),
                 ancestry_relations,
             )
             related_case_records = [
@@ -1025,13 +1052,13 @@ class TraceBackedMemoryStore:
             ]
         related_case_records.sort(key=lambda record: record[0].case_id)
 
-        related_cases = [case for case, _trace in related_case_records]
+        related_cases = [case for case, _trace, _endpoint in related_case_records]
         related_case_ids = [case.case_id for case in related_cases]
         suggested_regression_tests = [_regression_suggestion(case, context) for case in related_cases]
         warnings = [
             _change_warning(case, context, changed_field)
             for case in related_cases
-            for changed_field in changed_fields
+            for changed_field in warning_fields
             if changed_field
             in {"prompt_version", "prompt_family", "tool_schema_version", "tool", "model", "model_family", "eval_suite"}
         ]
@@ -1041,7 +1068,8 @@ class TraceBackedMemoryStore:
             suggested_regression_tests=_unique(suggested_regression_tests),
             warnings=_unique(warnings),
             related_case_provenance=[
-                _case_provenance(case, trace) for case, trace in related_case_records
+                _case_provenance(case, trace, endpoint)
+                for case, trace, endpoint in related_case_records
             ],
         )
 
@@ -1913,7 +1941,12 @@ def _memory_tokens(memory: MemoryItem) -> set[str]:
     return _tokens(f"{memory.memory_id} {memory.text} {scope_text}")
 
 
-def _case_matches_context(case: FailureCase, trace: Trace, context: MemoryContext) -> bool:
+def _case_matches_context(
+    case: FailureCase,
+    trace: Trace,
+    context: MemoryContext,
+    changed_fields: frozenset[str] = frozenset(),
+) -> bool:
     if case.status != "verified" or not case.regression_passed:
         return False
     if trace.repo != context.repo:
@@ -1922,9 +1955,21 @@ def _case_matches_context(case: FailureCase, trace: Trace, context: MemoryContex
         return False
     if context.failure_type is not None and case.failure_type != context.failure_type:
         return False
-    if context.tool is not None and context.tool not in _trace_tool_names(trace):
+    if (
+        "tool" not in changed_fields
+        and context.tool is not None
+        and context.tool not in _trace_tool_names(trace)
+    ):
         return False
-    for field_name in ["prompt_version", "prompt_family", "tool_schema_version", "model", "eval_suite"]:
+    for field_name in [
+        "prompt_version",
+        "prompt_family",
+        "tool_schema_version",
+        "model",
+        "eval_suite",
+    ]:
+        if field_name in changed_fields:
+            continue
         context_value = getattr(context, field_name)
         if context_value is not None and getattr(trace, field_name) != context_value:
             return False
@@ -1935,12 +1980,46 @@ def _trace_tool_names(trace: Trace) -> set[str]:
     return {str(call["name"]) for call in trace.tool_calls if call.get("name")}
 
 
+def _trace_matches_change_value(
+    trace: Trace, field_name: str, expected: str | None
+) -> bool:
+    if field_name == "tool":
+        tool_names = _trace_tool_names(trace)
+        return not tool_names if expected is None else expected in tool_names
+    return getattr(trace, field_name) == expected
+
+
+def _matched_pr_change_endpoint(
+    trace: Trace,
+    changes: tuple[tuple[str, str | None, str | None], ...],
+) -> PRChangeEndpoint | None:
+    old_matches = all(
+        _trace_matches_change_value(trace, field_name, old_value)
+        for field_name, old_value, _new_value in changes
+    )
+    new_matches = all(
+        _trace_matches_change_value(trace, field_name, new_value)
+        for field_name, _old_value, new_value in changes
+    )
+    if old_matches and new_matches:
+        return "both"
+    if old_matches:
+        return "old"
+    if new_matches:
+        return "new"
+    return None
+
+
 def _regression_suggestion(case: FailureCase, context: MemoryContext) -> str:
     tool = context.tool or "affected tool"
     return f"Run {case.failure_type} regression for tool {tool} before merging."
 
 
-def _case_provenance(case: FailureCase, trace: Trace) -> PRCaseProvenance:
+def _case_provenance(
+    case: FailureCase,
+    trace: Trace,
+    endpoint: PRChangeEndpoint | None = None,
+) -> PRCaseProvenance:
     return PRCaseProvenance(
         case_id=case.case_id,
         source_trace_id=case.source_trace_id,
@@ -1948,6 +2027,7 @@ def _case_provenance(case: FailureCase, trace: Trace) -> PRCaseProvenance:
         fix_commit_sha=case.fix_commit_sha,
         trace_uri=trace.trace_uri,
         failure_type=case.failure_type,
+        matched_change_endpoint=endpoint,
     )
 
 

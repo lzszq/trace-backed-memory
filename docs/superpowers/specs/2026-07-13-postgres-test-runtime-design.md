@@ -67,10 +67,13 @@ nearly the same isolation work.
 
 Add an internal immutable `PostgresServer` value containing:
 
-- resolved `initdb`, `pg_ctl`, and `psql` executable paths;
-- the session root, data directory, and log path;
+- resolved `pg_ctl` and `psql` executable paths;
+- the session root and data directory;
 - an administrator environment targeting the built-in `postgres` database;
 - the role names present immediately after server startup.
+
+The resolved `initdb` path and startup log path remain setup-local values and
+are not retained in `PostgresServer`.
 
 The session-scoped `_postgres_server` fixture owns this value and the server
 process. Its root comes from `tmp_path_factory`, so every pytest process,

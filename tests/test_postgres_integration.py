@@ -511,7 +511,6 @@ def test_database_cleanup_stages_are_independent_and_preserve_original_error(
 def test_pytest_call_phase_cleanup_preserves_failure_and_runs_once(
     pytester: pytest.Pytester,
 ):
-    cleanup_log = pytester.path / "cleanup.log"
     pytester.makeconftest(
         f"""
         from pathlib import Path
@@ -525,19 +524,14 @@ def test_pytest_call_phase_cleanup_preserves_failure_and_runs_once(
         from tests.conftest import pytest_runtest_call
         from tests.postgres_support import PostgresServer, postgres_cluster
 
-        cleanup_log = Path({str(cleanup_log)!r})
-        cleanup_calls = 0
+        cleanup_log = Path({str(pytester.path / "cleanup.log")!r})
 
         postgres_support._create_test_database = lambda *_args, **_kwargs: None
 
         def fail_cleanup(*_args, **_kwargs):
-            global cleanup_calls
-            cleanup_calls += 1
             with cleanup_log.open("a", encoding="ascii") as stream:
                 stream.write("cleanup\\n")
-            if cleanup_calls <= 3:
-                return [RuntimeError("forced cleanup failure")]
-            return []
+            return [RuntimeError("forced cleanup failure")]
 
         postgres_support._cleanup_postgres_database_resources = fail_cleanup
 
@@ -554,7 +548,7 @@ def test_pytest_call_phase_cleanup_preserves_failure_and_runs_once(
             )
         """
     )
-    pytester.makepyfile(
+    test_file = pytester.makepyfile(
         """
         import pytest
 
@@ -577,29 +571,43 @@ def test_pytest_call_phase_cleanup_preserves_failure_and_runs_once(
         """
     )
 
-    result = pytester.runpytest_subprocess("-q")
+    scenarios = (
+        ("test_call_and_cleanup_fail", {"failed": 1}, "original call failure"),
+        (
+            "test_dynamic_call_and_cleanup_fail",
+            {"failed": 1},
+            "original dynamic call failure",
+        ),
+        ("test_only_cleanup_fails", {"failed": 1}, None),
+        ("test_setup_fallback", {"errors": 2}, "later fixture setup failure"),
+    )
+    cleanup_note = (
+        "PostgreSQL cleanup also failed: RuntimeError: forced cleanup failure"
+    )
 
-    result.assert_outcomes(failed=3, errors=1)
-    output = result.stdout.str()
-    assert "original call failure" in output
-    output_lines = output.splitlines()
-    dynamic_failure_line = next(
-        index
-        for index, line in enumerate(output_lines)
-        if "AssertionError: original dynamic call failure" in line
-    )
-    assert "PostgreSQL cleanup also failed: RuntimeError: forced cleanup failure" in (
-        output_lines[dynamic_failure_line + 1]
-    )
-    assert "PostgreSQL cleanup also failed: RuntimeError: forced cleanup failure" in output
-    assert "ExceptionGroup: PostgreSQL cleanup failed" in output
-    assert "later fixture setup failure" in output
-    assert cleanup_log.read_text(encoding="ascii").splitlines() == [
-        "cleanup",
-        "cleanup",
-        "cleanup",
-        "cleanup",
-    ]
+    for node_name, expected_outcomes, original_failure in scenarios:
+        cleanup_log = pytester.path / "cleanup.log"
+        cleanup_log.unlink(missing_ok=True)
+        result = pytester.runpytest_subprocess(
+            "-q", f"{test_file.name}::{node_name}"
+        )
+        result.assert_outcomes(**expected_outcomes)
+        output = result.stdout.str()
+        assert cleanup_log.read_text(encoding="ascii").splitlines() == ["cleanup"]
+
+        if original_failure is not None and node_name != "test_setup_fallback":
+            output_lines = output.splitlines()
+            original_failure_line = next(
+                index
+                for index, line in enumerate(output_lines)
+                if f"AssertionError: {original_failure}" in line
+            )
+            assert cleanup_note in output_lines[original_failure_line + 1]
+        else:
+            assert "ExceptionGroup: PostgreSQL cleanup failed" in output
+
+        if node_name == "test_setup_fallback":
+            assert "later fixture setup failure" in output
 
 
 def test_server_cleanup_retains_root_until_shutdown_is_confirmed(

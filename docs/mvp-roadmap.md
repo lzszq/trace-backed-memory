@@ -357,3 +357,22 @@ Track:
 - Keep `MemoryRunResult` ephemeral and not persisted. Reuse existing PostgreSQL
   transactions and preserve snapshot version 2, JSON Schemas, active-lessons
   YAML, `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 23: Memory-run remediation plan (implemented)
+
+- Export frozen `MemoryRunRemediation` records and the
+  `MemoryRunRemediationAction` alias.
+- Add `memory_run_remediations()` to map every decision-sorted audit to
+  `measure`, `recover`, `recover_with_attribution`, `investigate`, or `none`.
+- Publish raw audit state plus `resolved_eval_result` and
+  `resolved_memory_caused_failure` only when current records establish safe
+  recovery values.
+- Keep plans advisory: stale state is revalidated by `complete_memory_runs()`
+  and `recover_memory_runs()`, shared Trace batch compatibility is rechecked,
+  and conflicts are never auto-repaired.
+- Extend `MemoryRunMetrics` with `auto_recoverable_count` and
+  `attribution_required_count`; their sum equals `recoverable_count`.
+- Keep remediation data derived and not persisted. Reconstruct it after
+  snapshot and PostgreSQL loads while preserving snapshot version 2, JSON
+  Schemas, active-lessons YAML, `schemas/postgres.sql`, and PostgreSQL schema
+  version 1.

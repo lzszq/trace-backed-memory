@@ -262,6 +262,63 @@ def test_readme_batch_memory_run_recovery_workflow_stays_executable():
     assert store.memory_run_metrics().recoverable_count == 0
 
 
+def test_readme_memory_run_remediation_workflow_stays_executable():
+    store, source_trace, _case, lesson = readme_store_fixture()
+    decisions = []
+    for suffix, eval_result in (("pass", "pass"), ("fail", "fail")):
+        current = store.record_trace(
+            replace(
+                source_trace,
+                trace_id=f"trace_remediation_readme_{suffix}",
+                run_id=f"run_remediation_readme_{suffix}",
+                eval_result="unknown",
+                tool_outputs=[],
+            )
+        )
+        context = MemoryContext(
+            mode="repair",
+            repo=current.repo,
+            tenant=current.tenant,
+            commit_sha=current.commit_sha,
+            tool="search_docs",
+        )
+        request = store.prepare_memory(context, task="repair failed tool call")
+        result = store.finalize_memory(
+            request,
+            allow_decision(lesson.lesson_id),
+            trace_id=current.trace_id,
+        )
+        store.complete_trace(current.trace_id, eval_result=eval_result)
+        decisions.append(result.decision_id)
+
+    remediations = store.memory_run_remediations()
+    automatic_ids = tuple(
+        item.decision_id for item in remediations if item.action == "recover"
+    )
+    attribution_ids = tuple(
+        item.decision_id
+        for item in remediations
+        if item.action == "recover_with_attribution"
+    )
+
+    store.recover_memory_runs(automatic_ids)
+    store.recover_memory_runs(
+        attribution_ids,
+        memory_caused_failures={attribution_ids[0]: False},
+    )
+
+    assert automatic_ids == (decisions[0],)
+    assert attribution_ids == (decisions[1],)
+    assert [item.action for item in remediations] == [
+        "recover",
+        "recover_with_attribution",
+    ]
+    assert all(
+        item.action == "none" for item in store.memory_run_remediations()
+    )
+    assert store.memory_run_metrics().recoverable_count == 0
+
+
 def test_readme_batch_memory_run_completion_workflow_stays_executable():
     from trace_backed_memory import MemoryRunResult
 

@@ -319,13 +319,37 @@ to one Trace remain independent rows. The view is derived and not persisted;
 snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
 version 1 remain unchanged.
 
+`memory_run_remediations()` maps each audit under the same lock to a frozen
+`MemoryRunRemediation`. Its `MemoryRunRemediationAction` is `measure` for
+pending, `recover` for passing Trace-only and every decision-only record,
+`recover_with_attribution` for failed or errored Trace-only records,
+`investigate` for conflicts, and `none` for complete records. Decision sorting
+and the one-item-per-decision boundary match the audit view, including shared
+Traces.
+
+The plan repeats raw audit state and adds `resolved_eval_result` plus
+`resolved_memory_caused_failure`. Those fields are populated only when current
+records establish a safe value. In particular, failed or errored Trace-only
+records retain `None` attribution rather than interpreting the unevaluated
+usage row's default false value as evidence.
+
+The planner is read-only and advisory. `complete_memory_runs()` and
+`recover_memory_runs()` still lock and revalidate stale state before writing,
+so a returned action grants no mutation authority. Per-decision `recover`
+actions on one shared Trace can resolve to different outcomes; the batch write
+still rejects that group as incompatible. `MemoryRunRemediation` is derived
+and not persisted; snapshot version 2, JSON Schemas, active-lessons YAML, and
+PostgreSQL schema version 1 remain unchanged.
+
 `memory_run_metrics()` aggregates that same locked view into a frozen
 `MemoryRunMetrics`. Its unit is one usage decision, so decisions that share a
 Trace remain separate. It exposes `decision_count`, `pending_count`,
 `trace_only_count`, `decision_only_count`, `complete_count`, `conflict_count`,
-and `recoverable_count`. The five status counts are mutually exclusive and
-their sum equals `decision_count`; `recoverable_count` is the sum of
-`trace_only_count` and `decision_only_count` only.
+`recoverable_count`, `auto_recoverable_count`, and
+`attribution_required_count`. The five status counts are mutually exclusive
+and their sum equals `decision_count`; `recoverable_count` is the sum of the
+one-sided status counts and also the sum of automatic plus
+attribution-required recovery actions.
 
 This health summary deliberately remains separate from the outcome-oriented
 `metrics()` and per-memory observations. It is derived and not persisted, so

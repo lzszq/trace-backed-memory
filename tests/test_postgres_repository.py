@@ -993,6 +993,30 @@ def test_repository_load_reproduces_derived_memory_run_audits(postgres_cluster):
     assert restored.memory_run_audits() == expected
 
 
+def test_repository_load_reproduces_derived_memory_run_remediations(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    store = _pending_memory_run_store()
+    store.complete_trace("trace_atomic_run", eval_result="error")
+    expected = store.memory_run_remediations()
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+        restored = repository.load()
+
+    assert [item.action for item in expected] == [
+        "investigate",
+        "recover_with_attribution",
+    ]
+    assert restored.memory_run_remediations() == expected
+    assert restored.memory_run_metrics().attribution_required_count == 1
+
+
 def test_repository_load_reproduces_derived_memory_run_metrics(postgres_cluster):
     psycopg = pytest.importorskip("psycopg")
     from trace_backed_memory.postgres import PostgresMemoryRepository
@@ -1011,6 +1035,8 @@ def test_repository_load_reproduces_derived_memory_run_metrics(postgres_cluster)
     assert expected.trace_only_count == 1
     assert expected.conflict_count == 1
     assert expected.recoverable_count == 1
+    assert expected.auto_recoverable_count == 0
+    assert expected.attribution_required_count == 1
     assert restored.memory_run_metrics() == expected
 
 

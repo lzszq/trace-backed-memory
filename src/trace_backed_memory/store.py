@@ -44,6 +44,8 @@ from .models import (
     MemoryRunAuditStatus,
     MemoryRunCompletion,
     MemoryRunMetrics,
+    MemoryRunRemediation,
+    MemoryRunRemediationAction,
     MemoryRunResult,
     PRChangeEndpoint,
     PRCaseProvenance,
@@ -1435,12 +1437,27 @@ class TraceBackedMemoryStore:
         return tuple(audits)
 
     @_synchronized
+    def memory_run_remediations(self) -> tuple[MemoryRunRemediation, ...]:
+        """Map every memory-run audit to its safe next action."""
+        return tuple(
+            _memory_run_remediation(audit)
+            for audit in self.memory_run_audits()
+        )
+
+    @_synchronized
     def memory_run_metrics(self) -> MemoryRunMetrics:
         """Summarize completion consistency for every memory-run decision."""
         audits = self.memory_run_audits()
         status_counts = Counter(audit.status for audit in audits)
+        action_counts = Counter(
+            _memory_run_remediation(audit).action for audit in audits
+        )
         trace_only_count = status_counts["trace_only"]
         decision_only_count = status_counts["decision_only"]
+        auto_recoverable_count = action_counts["recover"]
+        attribution_required_count = action_counts[
+            "recover_with_attribution"
+        ]
         return MemoryRunMetrics(
             decision_count=len(audits),
             pending_count=status_counts["pending"],
@@ -1448,7 +1465,11 @@ class TraceBackedMemoryStore:
             decision_only_count=decision_only_count,
             complete_count=status_counts["complete"],
             conflict_count=status_counts["conflict"],
-            recoverable_count=trace_only_count + decision_only_count,
+            recoverable_count=(
+                auto_recoverable_count + attribution_required_count
+            ),
+            auto_recoverable_count=auto_recoverable_count,
+            attribution_required_count=attribution_required_count,
         )
 
     @_synchronized
@@ -2067,6 +2088,54 @@ def _memory_run_audit_status(
     if trace_eval_result == decision_eval_result:
         return "complete"
     return "conflict"
+
+
+def _memory_run_remediation(audit: MemoryRunAudit) -> MemoryRunRemediation:
+    action: MemoryRunRemediationAction
+    resolved_eval_result: _MeasuredEvalResult | None = None
+    resolved_memory_caused_failure: bool | None = None
+
+    if audit.status == "pending":
+        action = "measure"
+    elif audit.status == "trace_only":
+        resolved_eval_result = cast(
+            _MeasuredEvalResult,
+            audit.trace_eval_result,
+        )
+        if resolved_eval_result == "pass":
+            action = "recover"
+            resolved_memory_caused_failure = False
+        else:
+            action = "recover_with_attribution"
+    elif audit.status == "decision_only":
+        action = "recover"
+        resolved_eval_result = cast(
+            _MeasuredEvalResult,
+            audit.decision_eval_result,
+        )
+        resolved_memory_caused_failure = audit.memory_caused_failure
+    elif audit.status == "complete":
+        action = "none"
+        resolved_eval_result = cast(
+            _MeasuredEvalResult,
+            audit.trace_eval_result,
+        )
+        resolved_memory_caused_failure = audit.memory_caused_failure
+    else:
+        action = "investigate"
+
+    return MemoryRunRemediation(
+        decision_id=audit.decision_id,
+        trace_id=audit.trace_id,
+        run_id=audit.run_id,
+        status=audit.status,
+        action=action,
+        trace_eval_result=audit.trace_eval_result,
+        decision_eval_result=audit.decision_eval_result,
+        memory_caused_failure=audit.memory_caused_failure,
+        resolved_eval_result=resolved_eval_result,
+        resolved_memory_caused_failure=resolved_memory_caused_failure,
+    )
 
 
 def _resolved_memory_run_recovery(

@@ -253,20 +253,63 @@ reproduce it from existing Trace and usage-log fields, so snapshot version 2,
 JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain
 unchanged.
 
+### Memory-run remediation plan
+
+`memory_run_remediations()` turns every audit row into a frozen
+`MemoryRunRemediation` with a `MemoryRunRemediationAction`:
+
+```python
+remediations = store.memory_run_remediations()
+automatic_ids = tuple(
+    item.decision_id
+    for item in remediations
+    if item.action == "recover"
+)
+attribution_ids = tuple(
+    item.decision_id
+    for item in remediations
+    if item.action == "recover_with_attribution"
+)
+```
+
+The decision-sorted view maps `pending` to `measure`, a passing `trace_only`
+or any `decision_only` record to `recover`, and a failed or errored
+`trace_only` record to `recover_with_attribution`. It maps `conflict` to
+`investigate` and `complete` to `none`. Shared Trace decisions remain separate
+items.
+
+Each item retains the raw audit values. `resolved_eval_result` and
+`resolved_memory_caused_failure` contain only values established by current
+records. Failed or errored Trace-only records therefore expose the Trace result
+but leave resolved attribution as `None`; the default false value on the
+unevaluated decision is not treated as causal evidence.
+
+This is an advisory current-state plan. Compatible `recover` items can be sent
+to `recover_memory_runs()`, and `measure` items can be evaluated before
+`complete_memory_runs()`. Per-decision actions do not promise that different
+resolved results for one shared Trace are batch-compatible; both write APIs
+revalidate shared-Trace and stale state. Never automatically process
+`investigate`, and supply an explicit boolean for every
+`recover_with_attribution` item. The plan is derived and not persisted;
+snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
+version 1 remain unchanged.
+
 ### Memory-run health metrics
 
 `memory_run_metrics()` returns one frozen `MemoryRunMetrics` point-in-time
 summary of the audit view. It counts one usage decision per row, including
 separate decisions linked to the same Trace, and exposes `decision_count`,
 `pending_count`, `trace_only_count`, `decision_only_count`, `complete_count`,
-`conflict_count`, and `recoverable_count`.
+`conflict_count`, `recoverable_count`, `auto_recoverable_count`, and
+`attribution_required_count`.
 
 The five status counts are mutually exclusive and their sum always equals
 `decision_count`. `recoverable_count` is the sum of `trace_only_count` and
-`decision_only_count`; pending runs still need a measured result and conflicts
-need manual review. This keeps incomplete work, supported recovery, and
-inconsistent historical writes directly visible without conflating them with
-the outcome-oriented values from `metrics()`.
+`decision_only_count`. It also equals `auto_recoverable_count` plus
+`attribution_required_count`: the former counts passing Trace-only and all
+decision-only records, while the latter counts failed or errored Trace-only
+records whose causal attribution is unresolved. Pending runs still need a
+measured result and conflicts need manual review.
 
 The summary is derived and not persisted. Empty stores return zero for every
 field, and snapshot and PostgreSQL loads reconstruct the same value from the
@@ -753,6 +796,7 @@ from dataclasses import replace
 from trace_backed_memory import (
     MemoryContext,
     MemoryDecision,
+    MemoryRunRemediation,
     MemoryRunResult,
     ProjectPolicy,
     Trace,
@@ -982,7 +1026,8 @@ Implemented pieces:
 
 - Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`,
   `MemoryUsageLog`, `MemoryRunResult`, `MemoryRunCompletion`, `MemoryRunAudit`,
-  `MemoryRunMetrics`, `MemoryMetrics`, and `MemoryOutcomeMetrics`.
+  `MemoryRunRemediation`, `MemoryRunMetrics`, `MemoryMetrics`, and
+  `MemoryOutcomeMetrics`.
 - Git metadata capture for repo name, commit SHA, branch, and dirty state, with command failure errors wrapped for harness diagnostics.
 - Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
@@ -992,7 +1037,12 @@ Implemented pieces:
 - Atomic `complete_memory_runs()` evaluation batches with derived Trace linkage,
   per-run evidence, shared-Trace merging, and all-or-nothing assignment.
 - Derived `memory_run_audits()` visibility for pending, one-sided, complete, and conflicting Trace/decision outcomes without new persistence state.
-- Derived `memory_run_metrics()` health counts with five-state conservation, explicit recoverability, and no redundant persisted aggregate.
+- Derived `memory_run_remediations()` actions with safe resolved recovery
+  values, explicit attribution work, stale-state revalidation, and no persisted
+  plan.
+- Derived `memory_run_metrics()` health counts with five-state conservation,
+  automatic-versus-attributed recovery work, and no redundant persisted
+  aggregate.
 - Safe `recover_memory_run()` orchestration that derives correlated IDs/results, requires explicit failed-run attribution, and reuses atomic completion.
 - Atomic `recover_memory_runs()` orchestration that validates and stages a unique decision tuple before committing any shared-Trace recovery.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.

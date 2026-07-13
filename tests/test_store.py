@@ -6,6 +6,7 @@ from copy import deepcopy
 from dataclasses import FrozenInstanceError, replace
 from decimal import Decimal
 from pathlib import Path
+from typing import get_args
 
 import pytest
 
@@ -2819,6 +2820,225 @@ def test_memory_run_audits_are_decision_oriented_and_empty_store_is_empty():
     assert source_trace.trace_id not in {audit.trace_id for audit in audits}
 
 
+def test_memory_run_remediations_map_every_state_to_an_action():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    pending_trace, pending_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="remediation_pending"
+    )
+    passing_trace, passing_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="remediation_trace_pass"
+    )
+    failed_trace, failed_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="remediation_trace_fail"
+    )
+    _decision_trace, decision_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="remediation_decision"
+    )
+    complete_trace, complete_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="remediation_complete"
+    )
+    conflict_trace, conflict_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="remediation_conflict"
+    )
+
+    store.complete_trace(passing_trace.trace_id, eval_result="pass")
+    store.complete_trace(failed_trace.trace_id, eval_result="error")
+    store.record_decision_outcome(
+        decision_result.decision_id,
+        "fail",
+        memory_caused_failure=True,
+    )
+    store.complete_memory_run(
+        trace_id=complete_trace.trace_id,
+        decision_id=complete_result.decision_id,
+        eval_result="error",
+        memory_caused_failure=False,
+    )
+    store.complete_trace(conflict_trace.trace_id, eval_result="pass")
+    store.record_decision_outcome(
+        conflict_result.decision_id,
+        "error",
+        memory_caused_failure=True,
+    )
+    before = store.to_snapshot()
+
+    remediations = store.memory_run_remediations()
+
+    assert isinstance(remediations, tuple)
+    assert all(
+        isinstance(remediation, tbm.MemoryRunRemediation)
+        for remediation in remediations
+    )
+    assert "MemoryRunRemediation" in tbm.__all__
+    assert "MemoryRunRemediationAction" in tbm.__all__
+    assert set(get_args(tbm.MemoryRunRemediationAction)) == {
+        "measure",
+        "recover",
+        "recover_with_attribution",
+        "investigate",
+        "none",
+    }
+    assert [item.decision_id for item in remediations] == sorted(
+        item.decision_id for item in remediations
+    )
+    by_decision = {item.decision_id: item for item in remediations}
+    assert {
+        decision_id: (
+            item.status,
+            item.action,
+            item.trace_eval_result,
+            item.decision_eval_result,
+            item.memory_caused_failure,
+            item.resolved_eval_result,
+            item.resolved_memory_caused_failure,
+        )
+        for decision_id, item in by_decision.items()
+    } == {
+        pending_result.decision_id: (
+            "pending",
+            "measure",
+            "unknown",
+            None,
+            False,
+            None,
+            None,
+        ),
+        passing_result.decision_id: (
+            "trace_only",
+            "recover",
+            "pass",
+            None,
+            False,
+            "pass",
+            False,
+        ),
+        failed_result.decision_id: (
+            "trace_only",
+            "recover_with_attribution",
+            "error",
+            None,
+            False,
+            "error",
+            None,
+        ),
+        decision_result.decision_id: (
+            "decision_only",
+            "recover",
+            "unknown",
+            "fail",
+            True,
+            "fail",
+            True,
+        ),
+        complete_result.decision_id: (
+            "complete",
+            "none",
+            "error",
+            "error",
+            False,
+            "error",
+            False,
+        ),
+        conflict_result.decision_id: (
+            "conflict",
+            "investigate",
+            "pass",
+            "error",
+            True,
+            None,
+            None,
+        ),
+    }
+    assert by_decision[pending_result.decision_id].trace_id == pending_trace.trace_id
+    assert all(
+        item.run_id == store.traces[item.trace_id].run_id
+        for item in remediations
+    )
+    with pytest.raises(FrozenInstanceError):
+        remediations[0].action = "none"
+    assert store.to_snapshot() == before
+    assert "memory_run_remediations" not in before
+    assert (
+        TraceBackedMemoryStore.from_snapshot(before).memory_run_remediations()
+        == remediations
+    )
+
+
+def test_memory_run_remediations_are_decision_oriented_and_advisory():
+    assert TraceBackedMemoryStore().memory_run_remediations() == ()
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    current, first = add_pending_memory_run(
+        store, source_trace, lesson, suffix="remediation_shared"
+    )
+    request = store.prepare_memory(
+        matching_context(current), task="second remediation decision"
+    )
+    second = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=current.trace_id,
+    )
+    store.complete_trace(current.trace_id, eval_result="pass")
+
+    planned = store.memory_run_remediations()
+
+    assert [item.decision_id for item in planned] == [
+        first.decision_id,
+        second.decision_id,
+    ]
+    assert [item.trace_id for item in planned] == [
+        current.trace_id,
+        current.trace_id,
+    ]
+    assert [item.action for item in planned] == ["recover", "recover"]
+
+    store.record_decision_outcome(first.decision_id, "error")
+    with pytest.raises(ValueError, match="memory run has conflicting outcomes"):
+        store.recover_memory_run(first.decision_id)
+    assert planned[0].action == "recover"
+    assert {
+        item.decision_id: item.action
+        for item in store.memory_run_remediations()
+    } == {
+        first.decision_id: "investigate",
+        second.decision_id: "recover",
+    }
+
+    disagreeing, source_trace, _case, lesson = store_with_active_lesson()
+    shared, first = add_pending_memory_run(
+        disagreeing,
+        source_trace,
+        lesson,
+        suffix="remediation_shared_disagreement",
+    )
+    request = disagreeing.prepare_memory(
+        matching_context(shared), task="second disagreeing decision"
+    )
+    second = disagreeing.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=shared.trace_id,
+    )
+    disagreeing.record_decision_outcome(first.decision_id, "pass")
+    disagreeing.record_decision_outcome(second.decision_id, "error")
+    disagreement_plan = disagreeing.memory_run_remediations()
+    before = disagreeing.to_snapshot()
+
+    assert [item.action for item in disagreement_plan] == [
+        "recover",
+        "recover",
+    ]
+    assert [item.resolved_eval_result for item in disagreement_plan] == [
+        "pass",
+        "error",
+    ]
+    with pytest.raises(ValueError, match="shared trace has conflicting outcomes"):
+        disagreeing.recover_memory_runs(
+            tuple(item.decision_id for item in disagreement_plan)
+        )
+    assert disagreeing.to_snapshot() == before
+
+
 def test_memory_run_metrics_empty_store_is_frozen_and_exported():
     metrics = TraceBackedMemoryStore().memory_run_metrics()
 
@@ -2832,6 +3052,8 @@ def test_memory_run_metrics_empty_store_is_frozen_and_exported():
         recoverable_count=0,
     )
     assert "MemoryRunMetrics" in tbm.__all__
+    assert metrics.auto_recoverable_count == 0
+    assert metrics.attribution_required_count == 0
     with pytest.raises(FrozenInstanceError):
         metrics.pending_count = 1
 
@@ -2884,6 +3106,8 @@ def test_memory_run_metrics_count_every_decision_and_follow_recovery():
         complete_count=1,
         conflict_count=1,
         recoverable_count=2,
+        auto_recoverable_count=2,
+        attribution_required_count=0,
     )
     assert metrics.decision_count == (
         metrics.pending_count
@@ -2895,6 +3119,9 @@ def test_memory_run_metrics_count_every_decision_and_follow_recovery():
     assert metrics.recoverable_count == (
         metrics.trace_only_count + metrics.decision_only_count
     )
+    assert metrics.recoverable_count == (
+        metrics.auto_recoverable_count + metrics.attribution_required_count
+    )
     assert store.to_snapshot() == before
     assert "memory_run_metrics" not in before
     restored = TraceBackedMemoryStore.from_snapshot(before)
@@ -2905,12 +3132,40 @@ def test_memory_run_metrics_count_every_decision_and_follow_recovery():
     assert after_trace_recovery.trace_only_count == 0
     assert after_trace_recovery.complete_count == 2
     assert after_trace_recovery.recoverable_count == 1
+    assert after_trace_recovery.auto_recoverable_count == 1
+    assert after_trace_recovery.attribution_required_count == 0
 
     store.recover_memory_run(decision_only_result.decision_id)
     after_both_recoveries = store.memory_run_metrics()
     assert after_both_recoveries.decision_only_count == 0
     assert after_both_recoveries.complete_count == 3
     assert after_both_recoveries.recoverable_count == 0
+    assert after_both_recoveries.auto_recoverable_count == 0
+    assert after_both_recoveries.attribution_required_count == 0
+
+
+def test_memory_run_metrics_expose_recovery_attribution_work():
+    store, current, result, _lesson = store_with_pending_memory_run()
+    store.complete_trace(current.trace_id, eval_result="fail")
+
+    metrics = store.memory_run_metrics()
+
+    assert metrics.recoverable_count == 1
+    assert metrics.auto_recoverable_count == 0
+    assert metrics.attribution_required_count == 1
+    assert (
+        metrics.recoverable_count
+        == metrics.auto_recoverable_count + metrics.attribution_required_count
+    )
+
+    store.recover_memory_run(
+        result.decision_id,
+        memory_caused_failure=False,
+    )
+    recovered = store.memory_run_metrics()
+    assert recovered.recoverable_count == 0
+    assert recovered.auto_recoverable_count == 0
+    assert recovered.attribution_required_count == 0
 
 
 def test_recover_memory_run_completes_decision_only_and_preserves_attribution():
@@ -3143,6 +3398,8 @@ def test_recover_memory_runs_atomically_recovers_mixed_states_in_input_order():
         complete_count=4,
         conflict_count=0,
         recoverable_count=0,
+        auto_recoverable_count=0,
+        attribution_required_count=0,
     )
     completed_snapshot = store.to_snapshot()
     assert TraceBackedMemoryStore.from_snapshot(

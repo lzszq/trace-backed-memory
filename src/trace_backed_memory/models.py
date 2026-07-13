@@ -14,6 +14,13 @@ PRChangeEndpoint = Literal["old", "new", "both"]
 MemoryRunAuditStatus = Literal[
     "pending", "trace_only", "decision_only", "complete", "conflict"
 ]
+MemoryRunRemediationAction = Literal[
+    "measure",
+    "recover",
+    "recover_with_attribution",
+    "investigate",
+    "none",
+]
 
 
 @dataclass(frozen=True)
@@ -223,6 +230,20 @@ class MemoryRunAudit:
 
 
 @dataclass(frozen=True)
+class MemoryRunRemediation:
+    decision_id: str
+    trace_id: str
+    run_id: str
+    status: MemoryRunAuditStatus
+    action: MemoryRunRemediationAction
+    trace_eval_result: EvalResult
+    decision_eval_result: EvalResult | None
+    memory_caused_failure: bool
+    resolved_eval_result: MeasuredEvalResult | None
+    resolved_memory_caused_failure: bool | None
+
+
+@dataclass(frozen=True)
 class MemoryRunMetrics:
     decision_count: int
     pending_count: int
@@ -231,6 +252,8 @@ class MemoryRunMetrics:
     complete_count: int
     conflict_count: int
     recoverable_count: int
+    auto_recoverable_count: int = 0
+    attribution_required_count: int = 0
 
 
 @dataclass(frozen=True)

@@ -206,14 +206,34 @@ decisions for one Trace remain separate. The audit view is derived and not
 persisted. Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
 schema version 1 remain unchanged.
 
+Use `memory_run_remediations()` rather than duplicating state-to-action rules.
+Each frozen `MemoryRunRemediation` has a `MemoryRunRemediationAction`:
+`measure` means obtain a new evaluator result, `recover` is safe one-sided
+recovery, `recover_with_attribution` requires an explicit causal boolean,
+`investigate` requires manual conflict review, and `none` means no repair.
+
+Read `resolved_eval_result` and `resolved_memory_caused_failure` only as
+current-state evidence. A failed or errored Trace-only run deliberately has no
+resolved attribution. Batch only compatible plain `recover` items through
+`recover_memory_runs()`; decisions sharing one Trace must resolve to the same
+outcome. Complete measured `measure` items through `complete_memory_runs()`.
+Do not execute `investigate` automatically.
+
+Plans can become stale immediately after they are returned. The completion and
+recovery APIs must reclassify and validate under their own lock; callers must
+not treat a plan as authorization to bypass a conflict. Remediations are
+derived and not persisted, leaving snapshot version 2, JSON Schemas,
+active-lessons YAML, and PostgreSQL schema version 1 unchanged.
+
 Use `memory_run_metrics()` for monitoring and alert thresholds rather than
 reimplementing audit aggregation. Its frozen `MemoryRunMetrics` counts one
 usage decision at a time and exposes `decision_count`, `pending_count`,
 `trace_only_count`, `decision_only_count`, `complete_count`, `conflict_count`,
-and `recoverable_count`. The sum of the five status counts must equal
-`decision_count`; `recoverable_count` is the sum of `trace_only_count` and
-`decision_only_count`. Treat pending as awaiting measurement and conflict as
-manual-review work, not as supported automatic recovery.
+`recoverable_count`, `auto_recoverable_count`, and
+`attribution_required_count`. The sum of the five status counts must equal
+`decision_count`. `recoverable_count` is the sum of the one-sided status counts
+and also equals `auto_recoverable_count + attribution_required_count`. Treat
+pending as awaiting measurement and conflict as manual-review work.
 
 These health metrics are derived and not persisted, and they do not replace
 outcome-oriented `metrics()`. Snapshot and PostgreSQL loads reconstruct them

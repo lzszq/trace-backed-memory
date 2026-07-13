@@ -86,6 +86,12 @@ snapshot. It does not invoke recovery, mutate records, or return references to
 mutable store state. A helper maps only validated audit states to actions, so
 the planner and metrics use the same classification rule.
 
+Actions are decision-oriented, not a promise that every selected item is
+jointly batch-compatible. Two `decision_only` records for one shared Trace can
+each be recoverable while resolving to different outcomes. The plan exposes
+both values; `recover_memory_runs()` must reject that incompatible batch under
+its write lock.
+
 Remediation data is advisory current-state evidence. A caller must still use
 the write APIs, which revalidate state under the lock and reject stale plans.
 The plan therefore does not weaken atomic completion or recovery semantics.

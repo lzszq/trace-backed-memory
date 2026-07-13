@@ -376,3 +376,20 @@ Track:
   snapshot and PostgreSQL loads while preserving snapshot version 2, JSON
   Schemas, active-lessons YAML, `schemas/postgres.sql`, and PostgreSQL schema
   version 1.
+
+## Phase 24: Atomic ready memory-run recovery (implemented)
+
+- Add no-argument `recover_ready_memory_runs()` to derive and apply every
+  current remediation whose action is `recover` under one reentrant lock.
+- Preserve `decision_id` order in defensive `MemoryRunCompletion` results and
+  return an empty tuple when no decision is ready.
+- Skip pending, `recover_with_attribution`, conflicting, and complete work;
+  explicit failed-run attribution remains on `recover_memory_run()` and
+  `recover_memory_runs()`.
+- Reuse shared Trace agreement, all-or-nothing candidate staging, and rollback
+  behavior from batch recovery.
+- Serialize concurrent sweeps so a later caller re-plans and does not replay
+  work completed by the first caller.
+- Sweep selection is not persisted; synchronize only existing Trace and usage
+  rows. Preserve snapshot version 2, JSON Schemas, active-lessons YAML,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

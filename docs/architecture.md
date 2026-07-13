@@ -341,6 +341,24 @@ still rejects that group as incompatible. `MemoryRunRemediation` is derived
 and not persisted; snapshot version 2, JSON Schemas, active-lessons YAML, and
 PostgreSQL schema version 1 remain unchanged.
 
+`recover_ready_memory_runs()` closes the plan-to-write race for automatic
+recovery. While holding one reentrant lock in the store, it derives remediations,
+selects only action `recover` in `decision_id` order, and calls
+`recover_memory_runs()` before releasing the lock. An empty selection returns
+an empty tuple; complete records are not replayed by later sweeps.
+
+The delegated batch stager remains the only mutation path. Matching shared
+Trace outcomes commit together, while a shared outcome disagreement or later
+candidate failure rejects the full selected set all-or-nothing. Concurrent
+sweeps serialize and re-plan after an earlier commit. Pending,
+`recover_with_attribution`, conflicting, and complete items are skipped;
+explicit attribution remains caller-owned through the existing recovery APIs.
+
+The sweep selection is not persisted and adds no queue or marker. PostgreSQL
+synchronizes only the existing Trace and usage changes. Snapshot version 2,
+JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain
+unchanged.
+
 `memory_run_metrics()` aggregates that same locked view into a frozen
 `MemoryRunMetrics`. Its unit is one usage decision, so decisions that share a
 Trace remain separate. It exposes `decision_count`, `pending_count`,

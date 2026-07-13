@@ -294,6 +294,34 @@ revalidate shared-Trace and stale state. Never automatically process
 snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
 version 1 remain unchanged.
 
+### Atomic ready memory-run recovery
+
+Use `recover_ready_memory_runs()` for a race-free maintenance sweep:
+
+```python
+completions = store.recover_ready_memory_runs()
+```
+
+The method accepts no arguments. Under one reentrant lock in the store it
+derives the current remediation plan, selects only `action == "recover"`, and
+delegates the decision-ID-sorted tuple to `recover_memory_runs()` without releasing the lock.
+It returns defensive `MemoryRunCompletion` values in that order. No ready work
+returns an empty tuple, so a repeated successful scan is idempotent and does
+not replay complete records.
+
+The sweep automatically handles passing `trace_only` and all `decision_only`
+records. It skips `measure`, `recover_with_attribution`, `investigate`, and
+`none`: failed or errored Trace-only records still require explicit attribution
+through the existing recovery APIs, while pending and conflicting records are
+never guessed through.
+
+Ready decisions sharing one Trace must resolve to the same outcome. A shared
+result disagreement or any later candidate failure rejects the whole selected
+set before mutation. Concurrent sweeps serialize; after one commits, another
+re-plans against the completed state. Selection is not persisted, and only
+existing Trace and usage rows change. Snapshot version 2, JSON Schemas,
+active-lessons YAML, and PostgreSQL schema version 1 remain unchanged.
+
 ### Memory-run health metrics
 
 `memory_run_metrics()` returns one frozen `MemoryRunMetrics` point-in-time
@@ -1040,6 +1068,8 @@ Implemented pieces:
 - Derived `memory_run_remediations()` actions with safe resolved recovery
   values, explicit attribution work, stale-state revalidation, and no persisted
   plan.
+- Atomic `recover_ready_memory_runs()` sweeps that select and commit current
+  automatic recoveries under one lock while skipping unresolved work.
 - Derived `memory_run_metrics()` health counts with five-state conservation,
   automatic-versus-attributed recovery work, and no redundant persisted
   aggregate.

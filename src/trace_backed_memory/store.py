@@ -533,6 +533,18 @@ class TraceBackedMemoryStore:
             self._usage_logs[log_index] = sealed_log
         return completions
 
+    @_synchronized
+    def recover_ready_memory_runs(self) -> tuple[MemoryRunCompletion, ...]:
+        """Atomically recover every decision currently ready without input."""
+        decision_ids = tuple(
+            item.decision_id
+            for item in self.memory_run_remediations()
+            if item.action == "recover"
+        )
+        if not decision_ids:
+            return ()
+        return self.recover_memory_runs(decision_ids)
+
     def _stage_memory_run_completions(
         self,
         rows: list[_MemoryRunCompletionRow],

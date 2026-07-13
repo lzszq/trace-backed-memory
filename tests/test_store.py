@@ -3039,6 +3039,193 @@ def test_memory_run_remediations_are_decision_oriented_and_advisory():
     assert disagreeing.to_snapshot() == before
 
 
+def test_recover_ready_memory_runs_recovers_only_automatic_actions():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    _pending_trace, pending_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="ready_sweep_pending"
+    )
+    passing_trace, passing_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="ready_sweep_passing_trace"
+    )
+    failed_trace, failed_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="ready_sweep_failed_trace"
+    )
+    _decision_trace, decision_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="ready_sweep_decision"
+    )
+    complete_trace, complete_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="ready_sweep_complete"
+    )
+    conflict_trace, conflict_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="ready_sweep_conflict"
+    )
+
+    store.complete_trace(passing_trace.trace_id, eval_result="pass")
+    store.complete_trace(failed_trace.trace_id, eval_result="error")
+    store.record_decision_outcome(
+        decision_result.decision_id,
+        "fail",
+        memory_caused_failure=True,
+    )
+    store.complete_memory_run(
+        trace_id=complete_trace.trace_id,
+        decision_id=complete_result.decision_id,
+        eval_result="pass",
+    )
+    store.complete_trace(conflict_trace.trace_id, eval_result="pass")
+    store.record_decision_outcome(conflict_result.decision_id, "error")
+    before_metrics = store.memory_run_metrics()
+
+    completions = store.recover_ready_memory_runs()
+
+    expected_ids = (
+        passing_result.decision_id,
+        decision_result.decision_id,
+    )
+    assert isinstance(completions, tuple)
+    assert tuple(item.usage_log.decision_id for item in completions) == expected_ids
+    assert [item.trace.eval_result for item in completions] == ["pass", "fail"]
+    assert [item.usage_log.memory_caused_failure for item in completions] == [
+        False,
+        True,
+    ]
+    assert before_metrics.auto_recoverable_count == len(completions) == 2
+    assert {
+        item.decision_id: item.action
+        for item in store.memory_run_remediations()
+    } == {
+        pending_result.decision_id: "measure",
+        passing_result.decision_id: "none",
+        failed_result.decision_id: "recover_with_attribution",
+        decision_result.decision_id: "none",
+        complete_result.decision_id: "none",
+        conflict_result.decision_id: "investigate",
+    }
+    completions[0].usage_log.candidate_memory_ids.append("lesson_spoofed")
+    assert "lesson_spoofed" not in next(
+        log
+        for log in store.usage_logs
+        if log.decision_id == passing_result.decision_id
+    ).candidate_memory_ids
+    after = store.to_snapshot()
+    assert store.recover_ready_memory_runs() == ()
+    assert store.to_snapshot() == after
+    assert store.memory_run_metrics().auto_recoverable_count == 0
+    assert store.memory_run_metrics().attribution_required_count == 1
+    restored = TraceBackedMemoryStore.from_snapshot(after)
+    assert restored.memory_run_remediations() == store.memory_run_remediations()
+    assert restored.recover_ready_memory_runs() == ()
+
+
+def test_recover_ready_memory_runs_has_no_caller_selected_inputs():
+    store = TraceBackedMemoryStore()
+
+    assert store.recover_ready_memory_runs() == ()
+    with pytest.raises(TypeError, match="takes 1 positional argument"):
+        store.recover_ready_memory_runs(("decision_000001",))
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+        store.recover_ready_memory_runs(
+            memory_caused_failures={"decision_000001": False}
+        )
+
+
+def test_recover_ready_memory_runs_preserves_shared_trace_batch_validation():
+    def shared_decision_only_store():
+        store, source_trace, _case, lesson = store_with_active_lesson()
+        current, first = add_pending_memory_run(
+            store, source_trace, lesson, suffix="ready_sweep_shared"
+        )
+        request = store.prepare_memory(
+            matching_context(current), task="second ready shared decision"
+        )
+        second = store.finalize_memory(
+            request,
+            allow_decision(lesson.lesson_id),
+            trace_id=current.trace_id,
+        )
+        return store, current, first, second
+
+    matching, current, first, second = shared_decision_only_store()
+    matching.record_decision_outcome(first.decision_id, "pass")
+    matching.record_decision_outcome(second.decision_id, "pass")
+
+    completions = matching.recover_ready_memory_runs()
+
+    assert tuple(item.usage_log.decision_id for item in completions) == (
+        first.decision_id,
+        second.decision_id,
+    )
+    assert matching.traces[current.trace_id].eval_result == "pass"
+    assert all(
+        item.status == "complete" for item in matching.memory_run_audits()
+    )
+
+    conflicting, _trace, first, second = shared_decision_only_store()
+    conflicting.record_decision_outcome(first.decision_id, "pass")
+    conflicting.record_decision_outcome(second.decision_id, "error")
+    before = conflicting.to_snapshot()
+
+    with pytest.raises(ValueError, match="shared trace has conflicting outcomes"):
+        conflicting.recover_ready_memory_runs()
+    assert conflicting.to_snapshot() == before
+
+
+def test_recover_ready_memory_runs_rolls_back_later_candidate_failure(
+    monkeypatch,
+):
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    first_trace, first = add_pending_memory_run(
+        store, source_trace, lesson, suffix="ready_sweep_candidate_first"
+    )
+    second_trace, second = add_pending_memory_run(
+        store, source_trace, lesson, suffix="ready_sweep_candidate_second"
+    )
+    store.complete_trace(first_trace.trace_id, eval_result="pass")
+    store.complete_trace(second_trace.trace_id, eval_result="pass")
+    before = store.to_snapshot()
+    original_validate = store._validate_usage_log_trace
+
+    def reject_second(log):
+        original_validate(log)
+        if log.decision_id == second.decision_id:
+            raise ValueError("injected ready sweep candidate failure")
+
+    monkeypatch.setattr(store, "_validate_usage_log_trace", reject_second)
+
+    with pytest.raises(ValueError, match="injected ready sweep candidate failure"):
+        store.recover_ready_memory_runs()
+    assert store.to_snapshot() == before
+    assert first.decision_id != second.decision_id
+
+
+def test_concurrent_ready_memory_run_sweeps_commit_once():
+    store, current, result, _lesson = store_with_pending_memory_run()
+    store.complete_trace(current.trace_id, eval_result="pass")
+    start = threading.Barrier(3)
+    outcomes = []
+
+    def recover_ready():
+        start.wait()
+        try:
+            outcomes.append(store.recover_ready_memory_runs())
+        except Exception as exc:  # pragma: no cover - diagnostic capture
+            outcomes.append(exc)
+
+    threads = [threading.Thread(target=recover_ready) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    start.wait()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert all(isinstance(outcome, tuple) for outcome in outcomes)
+    assert sorted(len(outcome) for outcome in outcomes) == [0, 1]
+    completion = next(outcome[0] for outcome in outcomes if outcome)
+    assert completion.usage_log.decision_id == result.decision_id
+    assert store.memory_run_audits()[0].status == "complete"
+
+
 def test_memory_run_metrics_empty_store_is_frozen_and_exported():
     metrics = TraceBackedMemoryStore().memory_run_metrics()
 

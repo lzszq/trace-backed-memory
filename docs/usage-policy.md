@@ -225,6 +225,24 @@ not treat a plan as authorization to bypass a conflict. Remediations are
 derived and not persisted, leaving snapshot version 2, JSON Schemas,
 active-lessons YAML, and PostgreSQL schema version 1 unchanged.
 
+Use no-argument `recover_ready_memory_runs()` when one worker should apply all
+currently automatic recoveries without a plan-to-write race. The store holds
+one reentrant lock while selecting action `recover` in `decision_id` order and
+delegating to `recover_memory_runs()`. No ready work returns an empty tuple, and
+a second scan after success does not replay complete decisions.
+
+The sweep skips pending, `recover_with_attribution`, `investigate`, and `none`
+items. Never use it to avoid explicit attribution for a failed or errored
+Trace-only run. Ready decisions on one shared Trace must resolve to the same
+result; disagreement or any candidate validation failure rejects the selected
+set all-or-nothing. Use explicit recovery APIs when selecting a subset or
+supplying attribution.
+
+Concurrent sweeps serialize and re-plan under the lock. The selection is not
+persisted; only existing Trace and usage rows are synchronized, leaving
+snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
+version 1 unchanged.
+
 Use `memory_run_metrics()` for monitoring and alert thresholds rather than
 reimplementing audit aggregation. Its frozen `MemoryRunMetrics` counts one
 usage decision at a time and exposes `decision_count`, `pending_count`,

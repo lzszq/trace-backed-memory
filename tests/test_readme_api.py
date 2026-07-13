@@ -301,13 +301,16 @@ def test_readme_memory_run_remediation_workflow_stays_executable():
         if item.action == "recover_with_attribution"
     )
 
-    store.recover_memory_runs(automatic_ids)
+    automatic_completions = store.recover_ready_memory_runs()
     store.recover_memory_runs(
         attribution_ids,
         memory_caused_failures={attribution_ids[0]: False},
     )
 
     assert automatic_ids == (decisions[0],)
+    assert tuple(
+        item.usage_log.decision_id for item in automatic_completions
+    ) == automatic_ids
     assert attribution_ids == (decisions[1],)
     assert [item.action for item in remediations] == [
         "recover",

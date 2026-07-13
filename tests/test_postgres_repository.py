@@ -1017,6 +1017,47 @@ def test_repository_load_reproduces_derived_memory_run_remediations(
     assert restored.memory_run_metrics().attribution_required_count == 1
 
 
+def test_repository_sync_persists_ready_memory_run_recovery_sweep(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresSyncCounts,
+    )
+
+    postgres_cluster.load_schema()
+    store = _pending_memory_run_store()
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+
+        store.complete_trace("trace_atomic_run", eval_result="pass")
+        completions = store.recover_ready_memory_runs()
+        updated = repository.sync(store)
+
+        assert [item.usage_log.decision_id for item in completions] == [
+            "decision_000002"
+        ]
+        assert updated.traces == PostgresSyncCounts(updated=1, unchanged=1)
+        assert updated.failure_cases == PostgresSyncCounts(unchanged=1)
+        assert updated.lessons == PostgresSyncCounts(unchanged=1)
+        assert updated.project_policies == PostgresSyncCounts(unchanged=1)
+        assert updated.usage_logs == PostgresSyncCounts(updated=1, unchanged=1)
+
+        restored = repository.load()
+        assert [item.action for item in restored.memory_run_remediations()] == [
+            "investigate",
+            "none",
+        ]
+        assert restored.recover_ready_memory_runs() == ()
+
+        repeated = repository.sync(store)
+        assert repeated.traces == PostgresSyncCounts(unchanged=2)
+        assert repeated.usage_logs == PostgresSyncCounts(unchanged=2)
+
+
 def test_repository_load_reproduces_derived_memory_run_metrics(postgres_cluster):
     psycopg = pytest.importorskip("psycopg")
     from trace_backed_memory.postgres import PostgresMemoryRepository

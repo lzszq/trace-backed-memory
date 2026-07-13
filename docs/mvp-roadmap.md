@@ -319,3 +319,21 @@ Track:
 - Keep the summary derived and not persisted. Reproduce it after snapshot and
   PostgreSQL loads while preserving snapshot version 2, JSON Schemas,
   active-lessons YAML, `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 21: Atomic batch memory-run recovery (implemented)
+
+- Add `recover_memory_runs()` for a non-empty tuple of unique decision IDs and
+  an optional `memory_caused_failures` mapping. It preserves request order in
+  the returned defensive `MemoryRunCompletion` tuple.
+- Resolve only entry-state `trace_only`, `decision_only`, and `complete` items.
+  Reject the whole batch on `pending`, `conflict`, missing failed-run
+  attribution, or invalid input; every failure is all-or-nothing.
+- Group decisions by shared Trace and require their independently derived
+  measured results to agree. Never let an entry-state pending item borrow a
+  result from another item staged in the same batch.
+- Reuse the same recovery-state resolver as `recover_memory_run()`. Batch
+  recovery does not accept `trace_id` or `eval_result` and omits completion
+  evidence; use the single-item API when Trace evidence must be attached.
+- Keep the batch wrapper derived and not persisted. Reuse existing PostgreSQL
+  transactions and preserve snapshot version 2, JSON Schemas, active-lessons
+  YAML, `schemas/postgres.sql`, and PostgreSQL schema version 1.

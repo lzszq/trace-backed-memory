@@ -2695,6 +2695,274 @@ def test_recover_memory_run_rejects_invalid_decision_ids_and_attribution_types()
     assert store.to_snapshot() == before
 
 
+def test_recover_memory_runs_atomically_recovers_mixed_states_in_input_order():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    trace_only_trace, trace_only_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_trace_only"
+    )
+    failed_trace, failed_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_failed_trace_only"
+    )
+    decision_only_trace, decision_only_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_decision_only"
+    )
+    complete_trace, complete_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete"
+    )
+    store.complete_trace(trace_only_trace.trace_id, eval_result="pass")
+    store.complete_trace(failed_trace.trace_id, eval_result="error")
+    store.record_decision_outcome(
+        decision_only_result.decision_id,
+        "fail",
+        memory_caused_failure=True,
+    )
+    store.complete_memory_run(
+        trace_id=complete_trace.trace_id,
+        decision_id=complete_result.decision_id,
+        eval_result="pass",
+        output_hash="sha256:already-complete",
+    )
+    decision_ids = (
+        decision_only_result.decision_id,
+        trace_only_result.decision_id,
+        failed_result.decision_id,
+        complete_result.decision_id,
+    )
+
+    completions = store.recover_memory_runs(
+        decision_ids,
+        memory_caused_failures={failed_result.decision_id: False},
+    )
+
+    assert isinstance(completions, tuple)
+    assert all(isinstance(item, tbm.MemoryRunCompletion) for item in completions)
+    assert tuple(item.usage_log.decision_id for item in completions) == decision_ids
+    assert [item.trace.eval_result for item in completions] == [
+        "fail",
+        "pass",
+        "error",
+        "pass",
+    ]
+    assert [item.usage_log.memory_caused_failure for item in completions] == [
+        True,
+        False,
+        False,
+        False,
+    ]
+    assert completions[0].trace.trace_id == decision_only_trace.trace_id
+    assert [audit.status for audit in store.memory_run_audits()] == [
+        "complete",
+        "complete",
+        "complete",
+        "complete",
+    ]
+    assert store.memory_run_metrics() == tbm.MemoryRunMetrics(
+        decision_count=4,
+        pending_count=0,
+        trace_only_count=0,
+        decision_only_count=0,
+        complete_count=4,
+        conflict_count=0,
+        recoverable_count=0,
+    )
+    completed_snapshot = store.to_snapshot()
+    assert TraceBackedMemoryStore.from_snapshot(
+        completed_snapshot
+    ).memory_run_metrics() == store.memory_run_metrics()
+
+    replayed = store.recover_memory_runs(
+        decision_ids,
+        memory_caused_failures={failed_result.decision_id: False},
+    )
+    assert replayed == completions
+    assert store.to_snapshot() == completed_snapshot
+
+    completions[0].trace.tool_outputs.append({"mutated": True})
+    completions[0].usage_log.candidate_memory_ids.append("lesson_spoofed")
+    assert store.traces[decision_only_trace.trace_id].tool_outputs == []
+    assert "lesson_spoofed" not in next(
+        log
+        for log in store.usage_logs
+        if log.decision_id == decision_only_result.decision_id
+    ).candidate_memory_ids
+
+
+def test_recover_memory_runs_rejects_any_ineligible_item_without_mutation():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    recoverable_trace, recoverable_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_recoverable"
+    )
+    _pending_trace, pending_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_pending"
+    )
+    conflict_trace, conflict_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_conflict"
+    )
+    failed_trace, failed_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_missing_attribution"
+    )
+    store.complete_trace(recoverable_trace.trace_id, eval_result="pass")
+    store.complete_trace(conflict_trace.trace_id, eval_result="pass")
+    store.record_decision_outcome(conflict_result.decision_id, "error")
+    store.complete_trace(failed_trace.trace_id, eval_result="fail")
+    before = store.to_snapshot()
+
+    invalid_batches = [
+        (
+            (recoverable_result.decision_id, pending_result.decision_id),
+            {},
+            "no measured outcome",
+        ),
+        (
+            (recoverable_result.decision_id, conflict_result.decision_id),
+            {},
+            "conflicting outcomes",
+        ),
+        (
+            (recoverable_result.decision_id, failed_result.decision_id),
+            {},
+            "requires explicit memory_caused_failure",
+        ),
+        (
+            (recoverable_result.decision_id,),
+            {recoverable_result.decision_id: True},
+            "memory_caused_failure requires eval_result fail or error",
+        ),
+    ]
+    for decision_ids, attributions, error in invalid_batches:
+        with pytest.raises(ValueError, match=error):
+            store.recover_memory_runs(
+                decision_ids,
+                memory_caused_failures=attributions,
+            )
+        assert store.to_snapshot() == before
+
+
+def test_recover_memory_runs_rolls_back_on_later_candidate_validation_failure(
+    monkeypatch,
+):
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    first_trace, first_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_candidate_first"
+    )
+    second_trace, second_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_candidate_second"
+    )
+    store.complete_trace(first_trace.trace_id, eval_result="pass")
+    store.complete_trace(second_trace.trace_id, eval_result="pass")
+    before = store.to_snapshot()
+    original_validate = store._validate_usage_log_trace
+
+    def reject_second(log):
+        original_validate(log)
+        if log.decision_id == second_result.decision_id:
+            raise ValueError("injected second candidate failure")
+
+    monkeypatch.setattr(store, "_validate_usage_log_trace", reject_second)
+
+    with pytest.raises(ValueError, match="injected second candidate failure"):
+        store.recover_memory_runs(
+            (first_result.decision_id, second_result.decision_id)
+        )
+    assert store.to_snapshot() == before
+
+
+def test_recover_memory_runs_validates_batch_inputs_before_mutation():
+    store, current, result, _lesson = store_with_pending_memory_run()
+    store.complete_trace(current.trace_id, eval_result="pass")
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="non-empty decision_id tuple"):
+        store.recover_memory_runs([])  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="non-empty decision_id tuple"):
+        store.recover_memory_runs(())
+    with pytest.raises(ValueError, match="unique decision_ids"):
+        store.recover_memory_runs((result.decision_id, result.decision_id))
+    with pytest.raises(ValueError, match="unknown decision_id: decision_missing"):
+        store.recover_memory_runs((result.decision_id, "decision_missing"))
+    with pytest.raises(ValueError, match="must be a mapping"):
+        store.recover_memory_runs(
+            (result.decision_id,),
+            memory_caused_failures=[],  # type: ignore[arg-type]
+        )
+    with pytest.raises(ValueError, match="must contain decision_id keys"):
+        store.recover_memory_runs(
+            (result.decision_id,),
+            memory_caused_failures={1: False},  # type: ignore[dict-item]
+        )
+    with pytest.raises(ValueError, match="must contain boolean values"):
+        store.recover_memory_runs(
+            (result.decision_id,),
+            memory_caused_failures={result.decision_id: None},  # type: ignore[dict-item]
+        )
+    with pytest.raises(ValueError, match="unrequested decision_id"):
+        store.recover_memory_runs(
+            (result.decision_id,),
+            memory_caused_failures={"decision_other": False},
+        )
+    with pytest.raises(TypeError, match="unexpected keyword argument 'trace_id'"):
+        store.recover_memory_runs(
+            (result.decision_id,),
+            trace_id=current.trace_id,  # type: ignore[call-arg]
+        )
+    with pytest.raises(TypeError, match="unexpected keyword argument 'eval_result'"):
+        store.recover_memory_runs(
+            (result.decision_id,),
+            eval_result="pass",  # type: ignore[call-arg]
+        )
+    assert store.to_snapshot() == before
+
+
+def test_recover_memory_runs_handles_shared_traces_consistently_from_entry_state():
+    def shared_pending_store():
+        store, source_trace, _case, lesson = store_with_active_lesson()
+        current, first = add_pending_memory_run(
+            store, source_trace, lesson, suffix="batch_shared"
+        )
+        request = store.prepare_memory(
+            matching_context(current), task="second shared decision"
+        )
+        second = store.finalize_memory(
+            request,
+            allow_decision(lesson.lesson_id),
+            trace_id=current.trace_id,
+        )
+        return store, current, first, second
+
+    matching, current, first, second = shared_pending_store()
+    matching.record_decision_outcome(first.decision_id, "pass")
+    matching.record_decision_outcome(second.decision_id, "pass")
+
+    completions = matching.recover_memory_runs(
+        (second.decision_id, first.decision_id)
+    )
+
+    assert tuple(item.usage_log.decision_id for item in completions) == (
+        second.decision_id,
+        first.decision_id,
+    )
+    assert matching.traces[current.trace_id].eval_result == "pass"
+    assert [audit.status for audit in matching.memory_run_audits()] == [
+        "complete",
+        "complete",
+    ]
+
+    conflicting, _trace, first, second = shared_pending_store()
+    conflicting.record_decision_outcome(first.decision_id, "pass")
+    conflicting.record_decision_outcome(second.decision_id, "error")
+    conflicting_before = conflicting.to_snapshot()
+    with pytest.raises(ValueError, match="shared trace has conflicting outcomes"):
+        conflicting.recover_memory_runs((first.decision_id, second.decision_id))
+    assert conflicting.to_snapshot() == conflicting_before
+
+    pending, _trace, first, second = shared_pending_store()
+    pending.record_decision_outcome(first.decision_id, "pass")
+    pending_before = pending.to_snapshot()
+    with pytest.raises(ValueError, match="no measured outcome"):
+        pending.recover_memory_runs((first.decision_id, second.decision_id))
+    assert pending.to_snapshot() == pending_before
+
+
 def test_mutating_public_collection_copy_does_not_change_store():
     store = TraceBackedMemoryStore()
     trace = store.record_trace(

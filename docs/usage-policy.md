@@ -214,6 +214,26 @@ Do not treat the default false value on an unevaluated usage log as causal
 evidence. Recovery changes no persistence shape: snapshot version 2, JSON
 Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain unchanged.
 
+Use `recover_memory_runs()` only for a preselected non-empty tuple of unique
+decision IDs when the whole recovery set must be all-or-nothing. It preserves
+request order in the returned completion tuple. Each item must already be
+`trace_only`, `decision_only`, or `complete`; any `pending` or `conflict` item
+rejects the batch without changing an earlier valid item.
+
+Supply `memory_caused_failures` for every failed or errored Trace-only item.
+Omission remains safe only for passing `trace_only` and for preserving sealed
+attribution on `decision_only` or `complete`. Results derived by decisions
+linked to a shared Trace must agree. Eligibility is fixed at method entry, so a
+pending item cannot become recoverable because another item completes that
+Trace during candidate staging.
+
+The batch method does not accept `trace_id` or `eval_result` and does not attach
+completion evidence. Use `recover_memory_run()` for an individual recovery that
+must add output hash, tool outputs, latency, cost, error, or Trace URI. A batch
+wrapper is not persisted; only the existing Trace and usage records are
+synchronized. Snapshot version 2, JSON Schemas, active-lessons YAML, and
+PostgreSQL schema version 1 remain unchanged.
+
 `complete_trace()` accepts only `pass`, `fail`, or `error` and can fill
 `output_hash`, `tool_outputs`, `latency_ms`, `cost_usd`, `error`, and
 `trace_uri`. Existing non-empty completion evidence and every other Trace

@@ -1014,6 +1014,83 @@ def test_repository_load_reproduces_derived_memory_run_metrics(postgres_cluster)
     assert restored.memory_run_metrics() == expected
 
 
+def test_repository_sync_persists_atomic_batch_memory_run_recovery(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import MemoryContext, MemoryDecision
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresSyncCounts,
+    )
+
+    postgres_cluster.load_schema()
+    store = _pending_memory_run_store()
+    first = store.traces["trace_atomic_run"]
+    second = store.record_trace(
+        replace(
+            first,
+            trace_id="trace_atomic_run_second",
+            run_id="run_atomic_run_second",
+            created_at="2025-07-13T10:00:00Z",
+        )
+    )
+    store.log_decision(
+        second.run_id,
+        MemoryContext(
+            mode="repair",
+            repo=second.repo or "repo_sync",
+            tenant=second.tenant,
+            commit_sha=second.commit_sha,
+        ),
+        ["lesson_sync"],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=["lesson_sync"],
+            blocked_memory_ids=[],
+            reason="second atomic batch run pending",
+            risk="low",
+            recommended_injection="short_summary",
+        ),
+    )
+    store.record_decision_outcome(
+        "decision_000002",
+        "error",
+        memory_caused_failure=True,
+    )
+    store.record_decision_outcome("decision_000003", "pass")
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+
+        completions = store.recover_memory_runs(
+            ("decision_000003", "decision_000002")
+        )
+        updated = repository.sync(store)
+
+        assert [item.trace.eval_result for item in completions] == ["pass", "error"]
+        assert completions[1].usage_log.memory_caused_failure is True
+        assert updated.traces == PostgresSyncCounts(updated=2, unchanged=1)
+        assert updated.failure_cases == PostgresSyncCounts(unchanged=1)
+        assert updated.lessons == PostgresSyncCounts(unchanged=1)
+        assert updated.project_policies == PostgresSyncCounts(unchanged=1)
+        assert updated.usage_logs == PostgresSyncCounts(unchanged=3)
+
+        restored = repository.load()
+        assert [audit.status for audit in restored.memory_run_audits()] == [
+            "conflict",
+            "complete",
+            "complete",
+        ]
+        assert restored.memory_run_metrics().complete_count == 2
+        assert restored.memory_run_metrics().recoverable_count == 0
+
+        repeated = repository.sync(store)
+        assert repeated.traces == PostgresSyncCounts(unchanged=3)
+        assert repeated.usage_logs == PostgresSyncCounts(unchanged=3)
+
+
 def test_repository_sync_persists_recovered_decision_only_memory_run(
     postgres_cluster,
 ):

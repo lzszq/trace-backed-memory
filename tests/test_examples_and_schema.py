@@ -1414,6 +1414,56 @@ def test_docs_publish_memory_run_metrics_and_compatibility():
     assert "memory_run_metrics" not in postgres_schema
 
 
+def test_docs_publish_atomic_batch_memory_run_recovery_and_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`recover_memory_runs()`",
+        "non-empty tuple",
+        "unique",
+        "`memory_caused_failures`",
+        "`trace_only`",
+        "`decision_only`",
+        "`complete`",
+        "`pending`",
+        "`conflict`",
+        "preserves request order",
+        "all-or-nothing",
+        "shared Trace",
+        "does not accept `trace_id` or `eval_result`",
+        "completion evidence",
+        "`recover_memory_run()`",
+        "not persisted",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        normalized_lower = normalized.lower()
+        for contract in required_contracts:
+            assert contract.lower() in normalized_lower, (
+                f"{name} should publish: {contract}"
+            )
+
+    assert (
+        "Phase 21: Atomic batch memory-run recovery (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "memory_run_recovery_batches" not in snapshot_schema["properties"]
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert "memory_run_recovery_batches" not in postgres_schema
+
+
 def test_postgres_memory_id_registry_rejects_direct_dml():
     schema = _postgres_schema()
 

@@ -265,6 +265,40 @@ both records unchanged. It changes only existing persisted fields: snapshot
 version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1
 remain unchanged.
 
+### Atomic batch memory-run recovery
+
+Use `recover_memory_runs()` when one worker must repair several audited runs as
+one all-or-nothing operation:
+
+```python
+recoverable_ids = tuple(
+    audit.decision_id
+    for audit in store.memory_run_audits()
+    if audit.status in {"trace_only", "decision_only"}
+)
+completions = store.recover_memory_runs(recoverable_ids)
+```
+
+The first argument must be a non-empty tuple of unique decision IDs. The method
+preserves request order in its returned tuple of defensive
+`MemoryRunCompletion` values. Every item is classified from state at method
+entry: `trace_only`, `decision_only`, and `complete` are eligible, while one
+`pending` or `conflict` item rejects the whole batch without mutation.
+
+For each failed or errored `trace_only` item, pass an exact boolean in the
+`memory_caused_failures` mapping. Passing `trace_only` defaults to false;
+`decision_only` and `complete` preserve sealed attribution unless an equal
+value is supplied. Decisions linked to a shared Trace must independently
+derive the same result, and a pending decision cannot become eligible through
+another item in the same batch.
+
+Batch recovery does not accept `trace_id` or `eval_result`, and it also omits
+Trace completion evidence parameters. Use `recover_memory_run()` for one item
+when output hash, tool outputs, latency, cost, error, or Trace URI must be
+attached. The batch result is not persisted; only existing Trace and usage rows
+change. Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
+schema version 1 remain unchanged.
+
 ### Deferred Trace completion
 
 Register the current Trace before memory finalization with all known identity,
@@ -903,7 +937,7 @@ old_lesson = obsolete_lesson(lesson)
 
 Implemented pieces:
 
-- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, `MemoryRunCompletion`, `MemoryRunAudit`, `MemoryMetrics`, and `MemoryOutcomeMetrics`.
+- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, `MemoryRunCompletion`, `MemoryRunAudit`, `MemoryRunMetrics`, `MemoryMetrics`, and `MemoryOutcomeMetrics`.
 - Git metadata capture for repo name, commit SHA, branch, and dirty state, with command failure errors wrapped for harness diagnostics.
 - Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
@@ -913,6 +947,7 @@ Implemented pieces:
 - Derived `memory_run_audits()` visibility for pending, one-sided, complete, and conflicting Trace/decision outcomes without new persistence state.
 - Derived `memory_run_metrics()` health counts with five-state conservation, explicit recoverability, and no redundant persisted aggregate.
 - Safe `recover_memory_run()` orchestration that derives correlated IDs/results, requires explicit failed-run attribution, and reuses atomic completion.
+- Atomic `recover_memory_runs()` orchestration that validates and stages a unique decision tuple before committing any shared-Trace recovery.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
 - Failure extraction helpers that load the failure taxonomy, classify failed traces against it with ordered conservative heuristics, and draft failure cases.
 - Manual review helper that records reviewer, root cause, notes, and review timestamp on draft failure cases.

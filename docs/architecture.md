@@ -324,6 +324,26 @@ incompatible results. Only existing Trace and decision fields change, so
 snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
 version 1 remain unchanged.
 
+`recover_memory_runs()` extends the same resolver to a non-empty tuple of
+unique decision IDs and an optional `memory_caused_failures` mapping. It
+preserves request order in the returned `MemoryRunCompletion` tuple. Every
+request is classified from entry state: `trace_only`, `decision_only`, and
+`complete` proceed, but `pending` and `conflict` reject the whole batch.
+
+The method groups requested decisions by shared Trace and requires every
+derived result in a group to agree. It then builds all Trace candidates, all
+sealed decision candidates, and all defensive return copies before assigning
+any private state. Candidate failure is therefore all-or-nothing and request
+order cannot change eligibility; in particular, a pending decision cannot
+borrow a result staged by another decision in the same batch.
+
+Batch recovery does not accept `trace_id` or `eval_result` and has no Trace
+completion evidence parameters. Call `recover_memory_run()` when one recovery
+must attach output hash, tool output, latency, cost, error, or Trace URI. The
+batch wrapper is not persisted; existing PostgreSQL transactions synchronize
+the resulting Trace and usage rows. Snapshot version 2, JSON Schemas,
+active-lessons YAML, and PostgreSQL schema version 1 remain unchanged.
+
 At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
 match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
 `tool_schema_version`, `model`, and `eval_suite` bind only when the context

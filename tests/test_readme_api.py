@@ -219,6 +219,49 @@ def test_readme_memory_run_recovery_workflow_stays_executable():
     assert store.memory_run_audits()[0].status == "complete"
 
 
+def test_readme_batch_memory_run_recovery_workflow_stays_executable():
+    store, source_trace, _case, lesson = readme_store_fixture()
+    decision_ids = []
+    for suffix in ("a", "b"):
+        current = store.record_trace(
+            replace(
+                source_trace,
+                trace_id=f"trace_batch_recovery_readme_{suffix}",
+                run_id=f"run_batch_recovery_readme_{suffix}",
+                eval_result="unknown",
+                tool_outputs=[],
+            )
+        )
+        context = MemoryContext(
+            mode="repair",
+            repo=current.repo,
+            tenant=current.tenant,
+            commit_sha=current.commit_sha,
+            tool="search_docs",
+        )
+        request = store.prepare_memory(context, task="repair failed tool call")
+        result = store.finalize_memory(
+            request,
+            allow_decision(lesson.lesson_id),
+            trace_id=current.trace_id,
+        )
+        store.complete_trace(current.trace_id, eval_result="pass")
+        decision_ids.append(result.decision_id)
+
+    recoverable_ids = tuple(
+        audit.decision_id
+        for audit in store.memory_run_audits()
+        if audit.status in {"trace_only", "decision_only"}
+    )
+    completions = store.recover_memory_runs(recoverable_ids)
+
+    assert recoverable_ids == tuple(decision_ids)
+    assert tuple(item.usage_log.decision_id for item in completions) == recoverable_ids
+    assert all(item.trace.eval_result == "pass" for item in completions)
+    assert store.memory_run_metrics().complete_count == 2
+    assert store.memory_run_metrics().recoverable_count == 0
+
+
 def test_readme_benchmark_safe_workflow_stays_executable():
     readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
         encoding="utf-8"

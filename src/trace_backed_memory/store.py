@@ -417,39 +417,13 @@ class TraceBackedMemoryStore:
         current_log = self._usage_logs[log_index]
         trace_id = cast(str, current_log.trace_id)
         current_trace = self._traces[trace_id]
-        status = _memory_run_audit_status(
-            current_trace.eval_result,
-            current_log.eval_result,
+        _status, eval_result, resolved_memory_caused_failure = (
+            _resolved_memory_run_recovery(
+                current_trace,
+                current_log,
+                memory_caused_failure,
+            )
         )
-        if status == "pending":
-            raise ValueError(
-                f"memory run has no measured outcome: {decision_id}"
-            )
-        if status == "conflict":
-            raise ValueError(
-                f"memory run has conflicting outcomes: {decision_id}"
-            )
-
-        eval_result: _MeasuredEvalResult
-        resolved_memory_caused_failure: bool
-        if status == "trace_only":
-            eval_result = cast(_MeasuredEvalResult, current_trace.eval_result)
-            if memory_caused_failure is _UNSET:
-                if eval_result in {"fail", "error"}:
-                    raise ValueError(
-                        "failed or errored trace requires explicit "
-                        "memory_caused_failure"
-                    )
-                resolved_memory_caused_failure = False
-            else:
-                resolved_memory_caused_failure = memory_caused_failure
-        else:
-            eval_result = cast(_MeasuredEvalResult, current_log.eval_result)
-            resolved_memory_caused_failure = (
-                current_log.memory_caused_failure
-                if memory_caused_failure is _UNSET
-                else memory_caused_failure
-            )
 
         return self.complete_memory_run(
             trace_id=trace_id,
@@ -463,6 +437,90 @@ class TraceBackedMemoryStore:
             error=error,
             trace_uri=trace_uri,
         )
+
+    @_synchronized
+    def recover_memory_runs(
+        self,
+        decision_ids: tuple[str, ...],
+        *,
+        memory_caused_failures: Mapping[str, bool] | None = None,
+    ) -> tuple[MemoryRunCompletion, ...]:
+        """Atomically recover a batch of already eligible memory runs."""
+        validated_ids = _validated_batch_recovery_decision_ids(decision_ids)
+        attributions = _validated_batch_recovery_attributions(
+            memory_caused_failures,
+            validated_ids,
+        )
+
+        recovery_rows: list[tuple[int, str, _MeasuredEvalResult, bool]] = []
+        trace_results: dict[str, _MeasuredEvalResult] = {}
+        log_indexes = {
+            log.decision_id: index for index, log in enumerate(self._usage_logs)
+        }
+        for decision_id in validated_ids:
+            log_index = log_indexes.get(decision_id)
+            if log_index is None:
+                raise ValueError(f"unknown decision_id: {decision_id}")
+            current_log = self._usage_logs[log_index]
+            trace_id = cast(str, current_log.trace_id)
+            current_trace = self._traces[trace_id]
+            _status, eval_result, memory_caused_failure = (
+                _resolved_memory_run_recovery(
+                    current_trace,
+                    current_log,
+                    attributions.get(decision_id, _UNSET),
+                )
+            )
+            existing_result = trace_results.get(trace_id)
+            if existing_result is not None and existing_result != eval_result:
+                raise ValueError(
+                    f"shared trace has conflicting outcomes: {trace_id}"
+                )
+            trace_results[trace_id] = eval_result
+            recovery_rows.append(
+                (
+                    log_index,
+                    trace_id,
+                    eval_result,
+                    memory_caused_failure,
+                )
+            )
+
+        completed_traces = {
+            trace_id: _completed_trace_candidate(
+                self._traces[trace_id],
+                eval_result,
+                {},
+            )
+            for trace_id, eval_result in trace_results.items()
+        }
+        sealed_logs: dict[int, MemoryUsageLog] = {}
+        for (
+            log_index,
+            _trace_id,
+            eval_result,
+            memory_caused_failure,
+        ) in recovery_rows:
+            sealed_log = _sealed_usage_outcome_candidate(
+                self._usage_logs[log_index],
+                eval_result,
+                memory_caused_failure,
+            )
+            self._validate_usage_log_memory_ids(sealed_log)
+            self._validate_usage_log_trace(sealed_log)
+            sealed_logs[log_index] = sealed_log
+
+        completions = tuple(
+            MemoryRunCompletion(
+                trace=deepcopy(completed_traces[trace_id]),
+                usage_log=deepcopy(sealed_logs[log_index]),
+            )
+            for log_index, trace_id, _eval_result, _failure in recovery_rows
+        )
+        self._traces.update(completed_traces)
+        for log_index, sealed_log in sealed_logs.items():
+            self._usage_logs[log_index] = sealed_log
+        return completions
 
     @_synchronized
     def add_failure_case(self, case: FailureCase) -> FailureCase:
@@ -1915,6 +1973,107 @@ def _memory_run_audit_status(
     if trace_eval_result == decision_eval_result:
         return "complete"
     return "conflict"
+
+
+def _resolved_memory_run_recovery(
+    current_trace: Trace,
+    current_log: MemoryUsageLog,
+    memory_caused_failure: Any,
+) -> tuple[MemoryRunAuditStatus, _MeasuredEvalResult, bool]:
+    if (
+        memory_caused_failure is not _UNSET
+        and type(memory_caused_failure) is not bool
+    ):
+        raise ValueError("memory_caused_failure must be a boolean")
+
+    status = _memory_run_audit_status(
+        current_trace.eval_result,
+        current_log.eval_result,
+    )
+    if status == "pending":
+        raise ValueError(
+            f"memory run has no measured outcome: {current_log.decision_id}"
+        )
+    if status == "conflict":
+        raise ValueError(
+            f"memory run has conflicting outcomes: {current_log.decision_id}"
+        )
+
+    if status == "trace_only":
+        eval_result = cast(_MeasuredEvalResult, current_trace.eval_result)
+        if memory_caused_failure is _UNSET:
+            if eval_result in {"fail", "error"}:
+                raise ValueError(
+                    "failed or errored trace requires explicit "
+                    "memory_caused_failure"
+                )
+            resolved_memory_caused_failure = False
+        else:
+            resolved_memory_caused_failure = memory_caused_failure
+    else:
+        eval_result = cast(_MeasuredEvalResult, current_log.eval_result)
+        resolved_memory_caused_failure = (
+            current_log.memory_caused_failure
+            if memory_caused_failure is _UNSET
+            else memory_caused_failure
+        )
+
+    _validate_measured_outcome(eval_result, resolved_memory_caused_failure)
+    return status, eval_result, resolved_memory_caused_failure
+
+
+def _validated_batch_recovery_decision_ids(
+    decision_ids: Any,
+) -> tuple[str, ...]:
+    if type(decision_ids) is not tuple or not decision_ids:
+        raise ValueError(
+            "memory run batch recovery requires a non-empty decision_id tuple"
+        )
+    for decision_id in decision_ids:
+        _validate_required_string(
+            decision_id,
+            "decision_id",
+            "memory run batch recovery requires",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+    if len(set(decision_ids)) != len(decision_ids):
+        raise ValueError("memory run batch recovery requires unique decision_ids")
+    return decision_ids
+
+
+def _validated_batch_recovery_attributions(
+    memory_caused_failures: Any,
+    decision_ids: tuple[str, ...],
+) -> dict[str, bool]:
+    if memory_caused_failures is None:
+        return {}
+    if not isinstance(memory_caused_failures, Mapping):
+        raise ValueError("memory_caused_failures must be a mapping or None")
+
+    attributions: dict[str, bool] = {}
+    for decision_id, attribution in memory_caused_failures.items():
+        if (
+            not isinstance(decision_id, str)
+            or not decision_id
+            or len(decision_id) > MEMORY_ID_MAX_CHARS
+        ):
+            raise ValueError(
+                "memory_caused_failures must contain decision_id keys"
+            )
+        if type(attribution) is not bool:
+            raise ValueError(
+                "memory_caused_failures must contain boolean values"
+            )
+        attributions[decision_id] = attribution
+
+    requested_ids = set(decision_ids)
+    unexpected_ids = sorted(set(attributions).difference(requested_ids))
+    if unexpected_ids:
+        raise ValueError(
+            "memory_caused_failures contains unrequested decision_id: "
+            + ", ".join(unexpected_ids)
+        )
+    return attributions
 
 
 def _provided_trace_completion_values(

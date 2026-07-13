@@ -28,6 +28,7 @@ class MemoryContext:
     task_type: str | None = None
     failure_type: str | None = None
     tenant: str | None = None
+    input_hash: str | None = None
 
 
 @dataclass(frozen=True)
@@ -128,6 +129,8 @@ class MemoryItem:
     sensitive: bool = False
     eval_leaking: bool = False
     source_policy_id: str | None = None
+    source_eval_suite: str | None = None
+    source_input_hash: str | None = None
 
 
 @dataclass(frozen=True)

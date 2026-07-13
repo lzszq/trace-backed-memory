@@ -14,6 +14,7 @@ from trace_backed_memory import (
     parse_memory_decision,
     system_gate,
 )
+from trace_backed_memory.policy import validate_memory_context
 
 
 def test_package_exports_gate_boundary_models():
@@ -244,6 +245,132 @@ def test_memory_context_preserves_original_positional_argument_order():
     assert context.tenant is None
 
 
+def test_memory_context_appends_input_hash_without_changing_positional_values():
+    context = MemoryContext(
+        "repair",
+        "repo",
+        "abc",
+        "branch",
+        "prompt-v1",
+        "prompt-family",
+        "search_docs",
+        "tool-v1",
+        "model",
+        "model-family",
+        "eval-suite",
+        "task-type",
+        "failure-type",
+        "tenant",
+    )
+
+    assert context == MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        branch="branch",
+        prompt_version="prompt-v1",
+        prompt_family="prompt-family",
+        tool="search_docs",
+        tool_schema_version="tool-v1",
+        model="model",
+        model_family="model-family",
+        eval_suite="eval-suite",
+        task_type="task-type",
+        failure_type="failure-type",
+        tenant="tenant",
+    )
+    assert context.input_hash is None
+
+
+def test_context_input_hash_accepts_complete_pair_directly_and_when_parsed():
+    direct = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        eval_suite="suite",
+        input_hash="sha256:example",
+    )
+    validate_memory_context(direct)
+
+    parsed = parse_memory_context(
+        {
+            "mode": "repair",
+            "repo": "repo",
+            "commit_sha": "abc",
+            "eval_suite": "suite",
+            "input_hash": "sha256:example",
+        }
+    )
+    assert parsed.input_hash == "sha256:example"
+    assert parsed.eval_suite == "suite"
+
+
+def test_context_eval_suite_without_input_hash_remains_valid():
+    context = MemoryContext(
+        mode="repair", repo="repo", commit_sha="abc", eval_suite="suite"
+    )
+
+    validate_memory_context(context)
+    assert parse_memory_context(
+        {
+            "mode": "repair",
+            "repo": "repo",
+            "commit_sha": "abc",
+            "eval_suite": "suite",
+        }
+    ).input_hash is None
+
+
+def test_context_input_hash_requires_eval_suite():
+    context = MemoryContext(
+        mode="repair", repo="repo", commit_sha="abc", input_hash="sha256:example"
+    )
+
+    with pytest.raises(ValueError, match="context input_hash requires eval_suite"):
+        validate_memory_context(context)
+    with pytest.raises(ValueError, match="context input_hash requires eval_suite"):
+        parse_memory_context(
+            {
+                "mode": "repair",
+                "repo": "repo",
+                "commit_sha": "abc",
+                "input_hash": "sha256:example",
+            }
+        )
+
+
+@pytest.mark.parametrize("invalid_input_hash", [True, b"hash", 42, [], {}, "", "h" * 513])
+def test_context_input_hash_uses_existing_bounded_string_contract(
+    invalid_input_hash: object,
+):
+    payload = {
+        "mode": "repair",
+        "repo": "repo",
+        "commit_sha": "abc",
+        "eval_suite": "suite",
+        "input_hash": invalid_input_hash,
+    }
+
+    with pytest.raises(ValueError):
+        parse_memory_context(payload)
+
+
+def test_context_input_hash_is_not_rendered_in_llm_context_lines():
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        eval_suite="suite",
+        input_hash="sha256:secret-example",
+    )
+    memory = _budget_memory("lesson_001")
+
+    prompt = build_llm_gate_prompt(context, [memory], task="repair")
+
+    assert "input_hash" not in prompt
+    assert "sha256:secret-example" not in prompt
+
+
 def test_memory_item_preserves_original_positional_argument_order():
     memory = MemoryItem(
         "lesson_001",
@@ -264,6 +391,127 @@ def test_memory_item_preserves_original_positional_argument_order():
     assert memory.sensitive is True
     assert memory.eval_leaking is False
     assert memory.source_policy_id is None
+
+
+def test_benchmark_source_identity_pair_is_ephemeral_and_contract_valid():
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        eval_suite="current-suite",
+        input_hash="sha256:current",
+    )
+    memory = MemoryItem(
+        memory_id="lesson_001",
+        status="active",
+        memory_type="procedural",
+        scope={"repo": "repo"},
+        text="rule",
+        source_case_id="case_001",
+        source_eval_suite="source-suite",
+        source_input_hash="sha256:source",
+    )
+
+    allowed, blocked = system_gate(context, [memory])
+
+    assert allowed == [memory]
+    assert blocked == {}
+
+
+@pytest.mark.parametrize(
+    "field_name, field_value",
+    [
+        ("source_eval_suite", None),
+        ("source_input_hash", None),
+        ("source_eval_suite", True),
+        ("source_input_hash", b"hash"),
+        ("source_eval_suite", 42),
+        ("source_input_hash", []),
+        ("source_eval_suite", {}),
+        ("source_input_hash", ""),
+        ("source_eval_suite", "s" * 513),
+        ("source_input_hash", "h" * 513),
+    ],
+)
+def test_benchmark_source_identity_requires_bounded_non_empty_string_pair(
+    field_name: str, field_value: object
+):
+    values: dict[str, object] = {
+        "memory_id": "lesson_001",
+        "status": "active",
+        "memory_type": "procedural",
+        "scope": {"repo": "repo"},
+        "text": "rule",
+        "source_case_id": "case_001",
+        "source_eval_suite": "suite",
+        "source_input_hash": "sha256:example",
+    }
+    if field_value is None:
+        values["source_eval_suite"] = None
+        values["source_input_hash"] = "sha256:example"
+    else:
+        values[field_name] = field_value
+
+    memory = MemoryItem(**values)  # type: ignore[arg-type]
+    _allowed, blocked = system_gate(
+        MemoryContext(mode="repair", repo="repo", commit_sha="abc"), [memory]
+    )
+
+    assert "lesson_001" in blocked
+    assert blocked["lesson_001"]
+
+
+def test_benchmark_source_identity_pair_rejects_partial_values():
+    for source_eval_suite, source_input_hash in [
+        ("suite", None),
+        (None, "sha256:example"),
+    ]:
+        memory = MemoryItem(
+            memory_id="lesson_001",
+            status="active",
+            memory_type="procedural",
+            scope={"repo": "repo"},
+            text="rule",
+            source_case_id="case_001",
+            source_eval_suite=source_eval_suite,
+            source_input_hash=source_input_hash,
+        )
+        _allowed, blocked = system_gate(
+            MemoryContext(mode="repair", repo="repo", commit_sha="abc"), [memory]
+        )
+
+        assert blocked["lesson_001"] == (
+            "source_eval_suite and source_input_hash must be provided together"
+        )
+
+
+def test_benchmark_source_identity_is_not_allowed_in_memory_scope():
+    memory = MemoryItem(
+        memory_id="lesson_001",
+        status="active",
+        memory_type="procedural",
+        scope={"repo": "repo", "input_hash": "sha256:example"},  # type: ignore[dict-item]
+        text="rule",
+        source_case_id="case_001",
+    )
+
+    _allowed, blocked = system_gate(
+        MemoryContext(mode="repair", repo="repo", commit_sha="abc"), [memory]
+    )
+
+    assert blocked["lesson_001"] == "scope field 'input_hash' is not allowed"
+
+
+def test_legacy_memory_without_benchmark_source_identity_preserves_current_behavior():
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+    memory = _budget_memory("lesson_001")
+
+    allowed, blocked = system_gate(context, [memory])
+
+    assert allowed == [memory]
+    assert memory.source_eval_suite is None
+    assert memory.source_input_hash is None
+    assert blocked == {}
 
 
 def test_system_gate_rejects_non_boolean_safety_flags():

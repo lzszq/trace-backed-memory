@@ -24,6 +24,7 @@ CONTEXT_STRING_FIELDS = {
     "eval_suite",
     "task_type",
     "failure_type",
+    "input_hash",
 }
 ALLOWED_STATUSES = {"active", "verified"}
 ALLOWED_MEMORY_TYPES = {"procedural", "semantic", "episodic", "policy"}
@@ -126,7 +127,7 @@ def _memory_item_contract_error(memory: MemoryItem) -> str | None:
     if not isinstance(memory.scope, dict):
         return "scope must be a mapping of known non-empty string fields"
     for key, value in memory.scope.items():
-        if key not in CONTEXT_STRING_FIELDS or key in {"mode", "commit_sha"}:
+        if key not in CONTEXT_STRING_FIELDS or key in {"mode", "commit_sha", "input_hash"}:
             return f"scope field {key!r} is not allowed"
         if not isinstance(value, str) or not value:
             return f"scope field {key!r} must be a non-empty string"
@@ -135,6 +136,21 @@ def _memory_item_contract_error(memory: MemoryItem) -> str | None:
                 f"scope field {key!r} must be at most "
                 f"{METADATA_VALUE_MAX_CHARS} characters"
             )
+    source_identity_values = {
+        "source_eval_suite": memory.source_eval_suite,
+        "source_input_hash": memory.source_input_hash,
+    }
+    for field_name, value in source_identity_values.items():
+        if value is not None and (type(value) is not str or not value):
+            return f"{field_name} must be a non-empty string"
+        if value is not None and len(value) > METADATA_VALUE_MAX_CHARS:
+            return (
+                f"{field_name} must be at most "
+                f"{METADATA_VALUE_MAX_CHARS} characters"
+            )
+    if (memory.source_eval_suite is None) != (memory.source_input_hash is None):
+        return "source_eval_suite and source_input_hash must be provided together"
+
     source_values = [memory.source_case_id, memory.source_trace_id, memory.source_policy_id]
     for source in source_values:
         if source is not None and (not isinstance(source, str) or not source):
@@ -174,6 +190,8 @@ def _context_contract_error(context: MemoryContext) -> str | None:
             )
     if context.mode not in CONTEXT_MODES:
         return "context mode must be one of: debug, eval, planning, production, regression, repair"
+    if context.input_hash is not None and context.eval_suite is None:
+        return "context input_hash requires eval_suite"
     return None
 
 
@@ -377,6 +395,8 @@ def parse_memory_context(payload: str | Mapping[str, Any]) -> MemoryContext:
 
     if context_values["mode"] not in CONTEXT_MODES:
         raise ValueError("mode must be one of: debug, eval, planning, production, regression, repair")
+    if "input_hash" in context_values and "eval_suite" not in context_values:
+        raise ValueError("context input_hash requires eval_suite")
 
     return MemoryContext(**context_values)
 

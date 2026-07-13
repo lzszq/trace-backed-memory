@@ -853,6 +853,39 @@ def test_memory_context_example_matches_parser_contract():
     assert context.commit_sha == payload["commit_sha"]
 
 
+def test_memory_context_schema_requires_complete_input_hash_identity_pair():
+    schema = _json_schema("memory_context.schema.json")
+    properties = _schema_properties(schema)
+
+    assert properties["input_hash"] == {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 512,
+    }
+    assert schema["allOf"] == [
+        {
+            "if": {"required": ["input_hash"]},
+            "then": {"required": ["eval_suite"]},
+        }
+    ]
+
+    legacy_context = {"mode": "repair", "repo": "repo", "commit_sha": "abc"}
+    complete_context = {
+        **legacy_context,
+        "eval_suite": "suite",
+        "input_hash": "sha256:example",
+    }
+    input_hash_only_context = {
+        **legacy_context,
+        "input_hash": "sha256:example",
+    }
+
+    assert set(legacy_context).issubset(properties)
+    assert set(complete_context).issubset(properties)
+    assert "eval_suite" not in input_hash_only_context
+    assert "input_hash" in properties
+
+
 def test_postgres_memory_id_registry_rejects_direct_dml():
     schema = _postgres_schema()
 

@@ -19,8 +19,15 @@
     "model": {"type": "string", "minLength": 1, "maxLength": 512},
     "model_family": {"type": "string", "minLength": 1, "maxLength": 512},
     "eval_suite": {"type": "string", "minLength": 1, "maxLength": 512},
+    "input_hash": {"type": "string", "minLength": 1, "maxLength": 512},
     "task_type": {"type": "string", "minLength": 1, "maxLength": 512},
     "failure_type": {"type": "string", "minLength": 1, "maxLength": 512}
   },
+  "allOf": [
+    {
+      "if": {"required": ["input_hash"]},
+      "then": {"required": ["eval_suite"]}
+    }
+  ],
   "additionalProperties": true
 }

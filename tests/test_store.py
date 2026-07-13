@@ -2539,13 +2539,13 @@ def test_pr_change_set_anchors_and_ancestry_use_only_endpoint_cases():
     def store_with_endpoint_cases(order: list[str]) -> TraceBackedMemoryStore:
         store = TraceBackedMemoryStore()
         endpoint_values = {
-            "old": ("prompt-old", "model-old"),
-            "new": ("prompt-new", "model-new"),
-            "mixed": ("prompt-old", "model-new"),
-            "unrelated": ("other", "other"),
+            "old": ("prompt-old", "model-old", "old_endpoint_error"),
+            "new": ("prompt-new", "model-new", "new_endpoint_error"),
+            "mixed": ("prompt-old", "model-new", "mixed_endpoint_error"),
+            "unrelated": ("other", "other", "unrelated_endpoint_error"),
         }
         for suffix in order:
-            prompt_version, model = endpoint_values[suffix]
+            prompt_version, model, failure_type = endpoint_values[suffix]
             trace = store.record_trace(
                 Trace(
                     trace_id=f"trace_{suffix}",
@@ -2564,7 +2564,7 @@ def test_pr_change_set_anchors_and_ancestry_use_only_endpoint_cases():
                     draft_failure_case(
                         trace,
                         case_id=f"case_{suffix}",
-                        failure_type="tool_error",
+                        failure_type=failure_type,
                         symptom=f"symptom {suffix}",
                     ),
                     fix=f"fix {suffix}",
@@ -2582,13 +2582,19 @@ def test_pr_change_set_anchors_and_ancestry_use_only_endpoint_cases():
         prompt_version="prompt-new",
         model="model-new",
         eval_suite="suite",
-        failure_type="tool_error",
+        failure_type=None,
     )
     change_set = PRChangeSet(
         (
             ("prompt_version", "prompt-old", "prompt-new"),
             ("model", "model-old", "model-new"),
         )
+    )
+    new_suggestion = (
+        "Run new_endpoint_error regression for tool affected tool before merging."
+    )
+    old_suggestion = (
+        "Run old_endpoint_error regression for tool affected tool before merging."
     )
     store = store_with_endpoint_cases(["unrelated", "new", "mixed", "old"])
 
@@ -2626,9 +2632,8 @@ def test_pr_change_set_anchors_and_ancestry_use_only_endpoint_cases():
     )
 
     assert report.related_case_ids == ["case_new"]
-    assert report.suggested_regression_tests == [
-        "Run tool_error regression for tool affected tool before merging."
-    ]
+    assert report.suggested_regression_tests == [new_suggestion]
+    assert old_suggestion not in report.suggested_regression_tests
     assert report.warnings == [
         "model change touches known failure case case_new for known failure area.",
         "prompt_version change touches known failure case case_new for known failure area.",
@@ -2640,6 +2645,10 @@ def test_pr_change_set_anchors_and_ancestry_use_only_endpoint_cases():
 
     unfiltered_report = store.pr_memory_report(context, change_set=change_set)
     assert unfiltered_report.related_case_ids == ["case_new", "case_old"]
+    assert unfiltered_report.suggested_regression_tests == [
+        new_suggestion,
+        old_suggestion,
+    ]
     assert [
         (provenance.case_id, provenance.matched_change_endpoint)
         for provenance in unfiltered_report.related_case_provenance

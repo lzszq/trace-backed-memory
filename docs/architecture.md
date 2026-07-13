@@ -266,16 +266,21 @@ usage logs while Python keeps defaults to migrate exact legacy snapshots.
 Benchmark leakage identity is the exact pair `(eval_suite, input_hash)`.
 Callers choose a stable suite name, canonicalize one benchmark example
 deterministically, compute a collision-resistant privacy-preserving hash, and
-attach the same opaque value to source/current traces and the current
-`MemoryContext`. Exact comparison is the library boundary; digest selection,
-encoding, collision handling, canonicalization stability, and suite-name
-stability are caller responsibilities.
+attach it to the trace for that example. Each trace carries the hash of its own
+example, and the current `MemoryContext` must match the current trace. Source
+and current traces use the same hash only when they represent the same
+canonical example; different examples keep their own hashes. Exact comparison
+is the library boundary; digest selection, encoding, collision handling,
+canonicalization stability, and suite-name stability are caller
+responsibilities.
 
 The store resolves lesson provenance through lesson -> failure case -> trace
 and enriches lessons and failure cases with ephemeral `source_eval_suite` and
 `source_input_hash`. These values are used only by runtime contract validation
-and the System Gate; they are never rendered in LLM prompts or injection
-snippets. Complete pair equality blocks in every mode with
+and the System Gate. Candidate `source_eval_suite` and `source_input_hash`
+fields are not serialized into prompts or snippets. The builders do not render
+structured `input_hash` fields; `eval_suite` remains ordinary prompt context
+and may also appear in memory scope. Complete pair equality blocks in every mode with
 `memory originates from current benchmark example`. Static `sensitive` and
 `eval_leaking` checks retain precedence and their existing reasons.
 

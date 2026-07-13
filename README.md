@@ -150,10 +150,13 @@ and atomic logging guarantees.
 Benchmark example identity is the exact pair `(eval_suite, input_hash)`. To opt
 in, the caller must choose a stable suite name, canonicalize one benchmark
 example deterministically, compute a collision-resistant privacy-preserving
-hash, and put the same opaque value on the source `Trace`, current `Trace`, and
-current `MemoryContext`. The library compares strings exactly; hash algorithm,
-encoding, collision handling, canonicalization stability, and suite-name
-stability remain caller responsibilities.
+hash, and attach it to the trace for that example. Each trace carries the hash
+of its own example, and the current `MemoryContext` must match the current
+trace. Source and current traces use the same hash only when they represent the
+same canonical example; different examples keep their own hashes. The library
+compares strings exactly; hash algorithm, encoding, collision handling,
+canonicalization stability, and suite-name stability remain caller
+responsibilities.
 
 The complete same-example workflow is executable:
 
@@ -266,10 +269,13 @@ assert usage.system_blocked_reasons == {
 
 Derived lesson and failure-case candidates are enriched only at runtime with
 ephemeral `source_eval_suite` and `source_input_hash`. They are checked against
-the complete context pair before LLM narrowing and are never rendered in LLM
-prompts or injection snippets. Exact equality blocks in every mode with the
-automatic block reason shown above. Static `sensitive` and `eval_leaking`
-checks retain precedence and their existing reasons.
+the complete context pair before LLM narrowing. Candidate `source_eval_suite`
+and `source_input_hash` fields are not serialized into prompts or snippets.
+The builders do not render structured `input_hash` fields; `eval_suite` remains
+ordinary prompt context and may also appear in memory scope. Exact equality
+blocks in every mode with the automatic block reason shown above. Static
+`sensitive` and `eval_leaking` checks retain precedence and their existing
+reasons.
 
 Incomplete identities never trigger a guessed match. `eval_suite` without
 `input_hash` remains valid, context `input_hash` without `eval_suite` is

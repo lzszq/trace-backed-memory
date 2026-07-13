@@ -143,9 +143,15 @@ Track:
 - Define exact benchmark identity as `(eval_suite, input_hash)` and require
   callers to use a stable suite name, canonicalize each example
   deterministically, and compute a collision-resistant privacy-preserving hash.
+  Each trace carries the hash of its own example, and the current
+  `MemoryContext` must match the current trace. Source and current traces use
+  the same hash only when they represent the same canonical example; different
+  examples keep their own hashes.
 - Enrich source-derived memory at runtime with ephemeral `source_eval_suite` and
-  `source_input_hash`; these values are never rendered in LLM prompts or
-  injection snippets.
+  `source_input_hash`. Candidate `source_eval_suite` and `source_input_hash`
+  fields are not serialized into prompts or snippets. The builders do not
+  render structured `input_hash` fields; `eval_suite` remains ordinary prompt
+  context and may also appear in memory scope.
 - Block a complete exact pair in every mode with the automatic block reason
   `memory originates from current benchmark example`. Static `sensitive` and
   `eval_leaking` checks retain precedence and their existing reasons.

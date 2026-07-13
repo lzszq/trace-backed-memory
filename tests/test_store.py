@@ -16,6 +16,7 @@ from trace_backed_memory import (
     Lesson,
     MemoryContext,
     MemoryDecision,
+    MemoryMetrics,
     MemoryUsageLog,
     METADATA_VALUE_MAX_CHARS,
     PRCaseProvenance,
@@ -4315,6 +4316,76 @@ def test_store_metrics_track_pass_rates_and_wrong_memory_failures():
     assert metrics.pass_rate_with_memory == 0.5
     assert metrics.pass_rate_without_memory == 1.0
     assert metrics.wrong_memory_failure_count == 1
+
+
+def test_memory_metrics_appends_outcome_counts_without_positional_breakage():
+    metrics = MemoryMetrics(1, 2, 3, 4, 5, 0.5, 0.75, 0.25, 6)
+
+    assert metrics.decision_count == 1
+    assert metrics.pass_rate_with_memory == 0.75
+    assert metrics.pass_rate_without_memory == 0.25
+    assert metrics.wrong_memory_failure_count == 6
+    assert metrics.evaluated_with_memory_count == 0
+    assert metrics.evaluated_without_memory_count == 0
+    assert metrics.unevaluated_decision_count == 0
+
+
+def test_store_metrics_exclude_unknown_and_missing_outcomes_from_pass_rates():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    context = matching_context(source_trace)
+    observations = [
+        ("with_pass", True, "pass"),
+        ("with_fail", True, "fail"),
+        ("with_error", True, "error"),
+        ("with_unknown", True, "unknown"),
+        ("with_missing", True, None),
+        ("without_pass", False, "pass"),
+        ("without_fail", False, "fail"),
+        ("without_unknown", False, "unknown"),
+        ("without_missing", False, None),
+    ]
+
+    for suffix, use_memory, eval_result in observations:
+        trace = store.record_trace(
+            Trace(
+                trace_id=f"trace_metrics_{suffix}",
+                run_id=f"run_metrics_{suffix}",
+                commit_sha=source_trace.commit_sha,
+                repo=source_trace.repo,
+                tenant=source_trace.tenant,
+            )
+        )
+        candidate_ids = [lesson.lesson_id] if use_memory else []
+        decision = MemoryDecision(
+            use_memory=use_memory,
+            allowed_memory_ids=candidate_ids,
+            blocked_memory_ids=[],
+            reason="outcome metrics observation",
+            risk="low" if use_memory else "none",
+            recommended_injection="short_summary" if use_memory else "none",
+        )
+        store.log_decision(
+            trace.run_id,
+            context,
+            candidate_ids,
+            decision,
+            eval_result=eval_result,  # type: ignore[arg-type]
+        )
+
+    metrics = store.metrics()
+
+    assert metrics.decision_count == 9
+    assert metrics.evaluated_with_memory_count == 3
+    assert metrics.evaluated_without_memory_count == 2
+    assert metrics.unevaluated_decision_count == 4
+    assert (
+        metrics.evaluated_with_memory_count
+        + metrics.evaluated_without_memory_count
+        + metrics.unevaluated_decision_count
+        == metrics.decision_count
+    )
+    assert metrics.pass_rate_with_memory == pytest.approx(1 / 3)
+    assert metrics.pass_rate_without_memory == 0.5
 
 
 def test_store_rejects_usage_log_with_used_memory_outside_candidates():

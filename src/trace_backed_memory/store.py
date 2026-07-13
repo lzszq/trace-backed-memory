@@ -60,6 +60,7 @@ from .policy import (
 
 Snapshot = dict[str, Any]
 EVAL_RESULTS = {"pass", "fail", "error", "unknown"}
+EVALUATED_RESULTS = {"pass", "fail", "error"}
 FAILURE_CASE_STATUSES = {"draft", "verified", "obsolete"}
 LESSON_STATUSES = {"active", "obsolete"}
 MEMORY_TYPES = {"procedural", "semantic", "episodic", "policy"}
@@ -968,13 +969,18 @@ class TraceBackedMemoryStore:
         with_memory_results = [
             log.eval_result
             for log in self._usage_logs
-            if log.used_memory_ids and log.eval_result
+            if log.used_memory_ids and log.eval_result in EVALUATED_RESULTS
         ]
         without_memory_results = [
             log.eval_result
             for log in self._usage_logs
-            if not log.used_memory_ids and log.eval_result
+            if not log.used_memory_ids and log.eval_result in EVALUATED_RESULTS
         ]
+        unevaluated_decision_count = sum(
+            1
+            for log in self._usage_logs
+            if log.eval_result not in EVALUATED_RESULTS
+        )
 
         return MemoryMetrics(
             decision_count=len(self._usage_logs),
@@ -988,6 +994,9 @@ class TraceBackedMemoryStore:
             wrong_memory_failure_count=sum(
                 1 for log in self._usage_logs if log.memory_caused_failure
             ),
+            evaluated_with_memory_count=len(with_memory_results),
+            evaluated_without_memory_count=len(without_memory_results),
+            unevaluated_decision_count=unevaluated_decision_count,
         )
 
     def _pr_related_case_records(

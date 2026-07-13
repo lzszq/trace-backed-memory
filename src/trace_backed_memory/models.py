@@ -199,6 +199,9 @@ class MemoryMetrics:
     pass_rate_with_memory: float | None = None
     pass_rate_without_memory: float | None = None
     wrong_memory_failure_count: int = 0
+    evaluated_with_memory_count: int = 0
+    evaluated_without_memory_count: int = 0
+    unevaluated_decision_count: int = 0
 
 
 @dataclass(frozen=True)

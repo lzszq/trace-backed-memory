@@ -175,6 +175,29 @@ def matching_context(trace: Trace) -> MemoryContext:
     )
 
 
+def store_with_usage_decision(
+    *,
+    eval_result: str | None = None,
+    use_memory: bool = True,
+) -> tuple[TraceBackedMemoryStore, MemoryUsageLog, Lesson]:
+    store, trace, _case, lesson = store_with_active_lesson()
+    log = store.log_decision(
+        trace.run_id,
+        matching_context(trace),
+        [lesson.lesson_id],
+        MemoryDecision(
+            use_memory=use_memory,
+            allowed_memory_ids=[lesson.lesson_id] if use_memory else [],
+            blocked_memory_ids=[],
+            reason="directly relevant" if use_memory else "not needed",
+            risk="low" if use_memory else "none",
+            recommended_injection="short_summary" if use_memory else "none",
+        ),
+        eval_result=eval_result,
+    )
+    return store, log, lesson
+
+
 def store_with_declared_trace_provenance() -> tuple[
     TraceBackedMemoryStore,
     Trace,
@@ -847,6 +870,192 @@ def test_legacy_usage_log_rejects_mismatched_supplied_trace_provenance():
 
     with pytest.raises(ValueError, match="context model does not match trace"):
         TraceBackedMemoryStore.from_snapshot(legacy)
+
+
+@pytest.mark.parametrize(
+    ("initial_result", "sealed_result"),
+    [(None, "pass"), ("unknown", "fail"), (None, "error")],
+    ids=["missing-to-pass", "unknown-to-fail", "missing-to-error"],
+)
+def test_record_decision_outcome_seals_unevaluated_log_and_round_trips(
+    initial_result: str | None,
+    sealed_result: str,
+):
+    store, log, _lesson = store_with_usage_decision(eval_result=initial_result)
+
+    sealed = store.record_decision_outcome(log.decision_id, sealed_result)
+
+    assert sealed.eval_result == sealed_result
+    assert sealed.memory_caused_failure is False
+    assert store.usage_logs[0] == sealed
+    restored = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    assert restored.usage_logs[0] == sealed
+
+    sealed.context["repo"] = "mutated-return-value"
+    sealed.candidate_memory_ids.clear()
+    assert store.usage_logs[0].context["repo"] == "repo"
+    assert store.usage_logs[0].candidate_memory_ids == ["lesson_001"]
+
+
+def test_record_decision_outcome_moves_global_and_per_memory_metrics():
+    store, log, lesson = store_with_usage_decision()
+
+    before = store.metrics()
+    before_memory = {
+        item.memory_id: item for item in store.memory_outcome_metrics()
+    }[lesson.lesson_id]
+    assert before.unevaluated_decision_count == 1
+    assert before.evaluated_with_memory_count == 0
+    assert before.pass_rate_with_memory is None
+    assert before_memory.unevaluated_use_count == 1
+    assert before_memory.evaluated_use_count == 0
+
+    store.record_decision_outcome(log.decision_id, "pass")
+
+    after = store.metrics()
+    after_memory = {
+        item.memory_id: item for item in store.memory_outcome_metrics()
+    }[lesson.lesson_id]
+    assert after.unevaluated_decision_count == 0
+    assert after.evaluated_with_memory_count == 1
+    assert after.pass_rate_with_memory == 1.0
+    assert after_memory.unevaluated_use_count == 0
+    assert after_memory.evaluated_use_count == 1
+    assert after_memory.passed_use_count == 1
+    assert after_memory.observed_pass_rate == 1.0
+
+
+def test_finalize_then_record_decision_outcome_uses_returned_decision_id():
+    store, trace, _case, lesson = store_with_active_lesson()
+    request = store.prepare_memory(matching_context(trace), task="repair")
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=trace.trace_id,
+    )
+
+    assert store.usage_logs[0].eval_result is None
+    sealed = store.record_decision_outcome(result.decision_id, "pass")
+
+    assert sealed.decision_id == result.decision_id
+    assert sealed.eval_result == "pass"
+    assert store.usage_logs[0] == sealed
+
+
+def test_record_decision_outcome_exact_replay_is_idempotent_and_conflicts_fail():
+    store, log, _lesson = store_with_usage_decision()
+    sealed = store.record_decision_outcome(
+        log.decision_id,
+        "fail",
+        memory_caused_failure=True,
+    )
+    after_seal = store.to_snapshot()
+
+    replayed = store.record_decision_outcome(
+        log.decision_id,
+        "fail",
+        memory_caused_failure=True,
+    )
+
+    assert replayed == sealed
+    assert store.to_snapshot() == after_seal
+    for eval_result, caused_failure in (("error", True), ("fail", False)):
+        with pytest.raises(ValueError, match="decision outcome already sealed"):
+            store.record_decision_outcome(
+                log.decision_id,
+                eval_result,
+                memory_caused_failure=caused_failure,
+            )
+        assert store.to_snapshot() == after_seal
+
+
+@pytest.mark.parametrize("invalid_result", [None, "unknown", "pending", True])
+def test_record_decision_outcome_requires_measured_result_without_mutation(
+    invalid_result: object,
+):
+    store, log, _lesson = store_with_usage_decision()
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="measured eval_result"):
+        store.record_decision_outcome(log.decision_id, invalid_result)
+
+    assert store.to_snapshot() == before
+
+
+def test_record_decision_outcome_rejects_invalid_failure_attribution_atomically():
+    store, log, _lesson = store_with_usage_decision()
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="memory_caused_failure requires eval_result fail or error"):
+        store.record_decision_outcome(
+            log.decision_id,
+            "pass",
+            memory_caused_failure=True,
+        )
+    with pytest.raises(ValueError, match="memory_caused_failure must be a boolean"):
+        store.record_decision_outcome(
+            log.decision_id,
+            "fail",
+            memory_caused_failure=1,
+        )
+    assert store.to_snapshot() == before
+
+    no_use_store, no_use_log, _lesson = store_with_usage_decision(use_memory=False)
+    no_use_before = no_use_store.to_snapshot()
+    with pytest.raises(ValueError, match="requires failed or errored memory use"):
+        no_use_store.record_decision_outcome(
+            no_use_log.decision_id,
+            "fail",
+            memory_caused_failure=True,
+        )
+    assert no_use_store.to_snapshot() == no_use_before
+
+
+def test_record_decision_outcome_rejects_unknown_or_invalid_decision_id():
+    store, _log, _lesson = store_with_usage_decision()
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="unknown decision_id: decision_missing"):
+        store.record_decision_outcome("decision_missing", "pass")
+    with pytest.raises(ValueError, match="decision outcome requires decision_id"):
+        store.record_decision_outcome("", "pass")
+
+    assert store.to_snapshot() == before
+
+
+def test_concurrent_conflicting_decision_outcome_seals_exactly_once():
+    store, log, _lesson = store_with_usage_decision()
+    start = threading.Barrier(3)
+    outcomes: list[object] = []
+
+    def seal(eval_result: str) -> None:
+        start.wait()
+        try:
+            outcomes.append(
+                store.record_decision_outcome(log.decision_id, eval_result)
+            )
+        except ValueError as exc:
+            outcomes.append(exc)
+
+    threads = [
+        threading.Thread(target=seal, args=(eval_result,))
+        for eval_result in ("pass", "fail")
+    ]
+    for thread in threads:
+        thread.start()
+    start.wait()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert all(not thread.is_alive() for thread in threads)
+    successes = [
+        outcome for outcome in outcomes if isinstance(outcome, MemoryUsageLog)
+    ]
+    failures = [outcome for outcome in outcomes if isinstance(outcome, ValueError)]
+    assert len(successes) == 1
+    assert len(failures) == 1
+    assert "decision outcome already sealed" in str(failures[0])
+    assert store.usage_logs[0].eval_result == successes[0].eval_result
 
 
 def test_prepare_and_finalize_memory_is_trace_linked_and_audited():

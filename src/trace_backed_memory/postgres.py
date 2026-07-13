@@ -11,6 +11,7 @@ from .store import TraceBackedMemoryStore
 
 
 POSTGRES_SCHEMA_VERSION = 1
+_MEASURED_EVAL_RESULTS = frozenset({"pass", "fail", "error"})
 _UNDEFINED_TABLE_SQLSTATE = "42P01"
 _MISSING_SCHEMA_MESSAGE = "PostgreSQL schema is missing or incomplete"
 
@@ -107,6 +108,7 @@ SELECT decision_id, run_id, mode, candidate_memory_ids, used_memory_ids,
        system_blocked_reasons, created_at
 FROM public.memory_usage_decisions
 WHERE decision_id = %s
+FOR UPDATE
 """
 
 _INSERT_TRACE = """
@@ -179,6 +181,14 @@ INSERT INTO public.memory_usage_decisions (
 ) VALUES (
     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
 )
+"""
+
+_UPDATE_USAGE_LOG_OUTCOME = """
+UPDATE public.memory_usage_decisions
+SET eval_result = %s,
+    memory_caused_failure = %s
+WHERE decision_id = %s
+  AND (eval_result IS NULL OR eval_result = 'unknown')
 """
 
 
@@ -650,6 +660,65 @@ def _sync_failure_case_row(
     return "updated"
 
 
+def _sync_usage_log_row(
+    cursor: object,
+    *,
+    record_id: str,
+    incoming: dict[str, object],
+) -> Literal["inserted", "updated", "unchanged"]:
+    canonical_incoming = _canonical_incoming_record(
+        "memory_usage_decisions", incoming
+    )
+    cursor.execute(_SELECT_USAGE_LOG_BY_ID, (record_id,))
+    rows = cursor.fetchall()
+    if not rows:
+        _psycopg, _dict_row, Jsonb = _load_psycopg()
+        cursor.execute(
+            _INSERT_USAGE_LOG,
+            _encode_usage_log(canonical_incoming, Jsonb),
+        )
+        return "inserted"
+    if len(rows) != 1:
+        raise PostgresConflictError(
+            f"PostgreSQL conflict for memory_usage_decisions row {record_id}"
+        )
+
+    stored = _decode_usage_log(rows[0])
+    outcome_fields = frozenset({"eval_result", "memory_caused_failure"})
+    if any(
+        field not in outcome_fields
+        and not _canonical_values_equal(stored[field], canonical_incoming[field])
+        for field in canonical_incoming
+    ):
+        raise PostgresConflictError(
+            f"PostgreSQL conflict for memory_usage_decisions row {record_id}"
+        )
+    if _canonical_values_equal(stored, canonical_incoming):
+        return "unchanged"
+
+    if (
+        stored["eval_result"] not in _MEASURED_EVAL_RESULTS
+        and canonical_incoming["eval_result"] in _MEASURED_EVAL_RESULTS
+    ):
+        cursor.execute(
+            _UPDATE_USAGE_LOG_OUTCOME,
+            (
+                canonical_incoming["eval_result"],
+                canonical_incoming["memory_caused_failure"],
+                record_id,
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise PostgresConflictError(
+                f"PostgreSQL conflict for memory_usage_decisions row {record_id}"
+            )
+        return "updated"
+
+    raise PostgresConflictError(
+        f"PostgreSQL conflict for memory_usage_decisions row {record_id}"
+    )
+
+
 def _sync_status_row(
     cursor: object,
     *,
@@ -850,13 +919,10 @@ class PostgresMemoryRepository:
                     ]
                     usage_logs = [
                         _sync_row_with_context(
-                            lambda record=record: _sync_immutable_row(
+                            lambda record=record: _sync_usage_log_row(
                                 cursor,
-                                table="memory_usage_decisions",
                                 record_id=record["decision_id"],
                                 incoming=record,
-                                select_sql=_SELECT_USAGE_LOG_BY_ID,
-                                insert_sql=_INSERT_USAGE_LOG,
                             ),
                             table="memory_usage_decisions",
                             record_id=record["decision_id"],

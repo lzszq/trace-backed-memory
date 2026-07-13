@@ -759,6 +759,53 @@ class TraceBackedMemoryStore:
         self._usage_logs.append(log)
         return deepcopy(log)
 
+    @_synchronized
+    def record_decision_outcome(
+        self,
+        decision_id: str,
+        eval_result: EvalResult,
+        *,
+        memory_caused_failure: bool = False,
+    ) -> MemoryUsageLog:
+        _validate_required_string(
+            decision_id,
+            "decision_id",
+            "decision outcome requires",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        _validate_measured_outcome(eval_result, memory_caused_failure)
+
+        log_index = next(
+            (
+                index
+                for index, log in enumerate(self._usage_logs)
+                if log.decision_id == decision_id
+            ),
+            None,
+        )
+        if log_index is None:
+            raise ValueError(f"unknown decision_id: {decision_id}")
+
+        current = self._usage_logs[log_index]
+        if current.eval_result in EVALUATED_RESULTS:
+            if (
+                current.eval_result == eval_result
+                and current.memory_caused_failure is memory_caused_failure
+            ):
+                return deepcopy(current)
+            raise ValueError(f"decision outcome already sealed: {decision_id}")
+
+        sealed = replace(
+            current,
+            eval_result=eval_result,
+            memory_caused_failure=memory_caused_failure,
+        )
+        _validate_usage_log(sealed)
+        self._validate_usage_log_memory_ids(sealed)
+        self._validate_usage_log_trace(sealed)
+        self._usage_logs[log_index] = sealed
+        return deepcopy(sealed)
+
     def _trace_for_run_id(self, run_id: str) -> Trace:
         _validate_required_string(
             run_id,
@@ -1622,6 +1669,21 @@ def _validate_runtime_outcome(
         raise ValueError("eval_result must be one of: error, fail, pass, unknown, or None")
     if type(memory_caused_failure) is not bool:
         raise ValueError("memory_caused_failure must be a boolean")
+
+
+def _validate_measured_outcome(
+    eval_result: EvalResult, memory_caused_failure: bool
+) -> None:
+    if not isinstance(eval_result, str) or eval_result not in EVALUATED_RESULTS:
+        raise ValueError(
+            "decision outcome requires measured eval_result: error, fail, or pass"
+        )
+    if type(memory_caused_failure) is not bool:
+        raise ValueError("memory_caused_failure must be a boolean")
+    if memory_caused_failure and eval_result not in {"fail", "error"}:
+        raise ValueError(
+            "memory_caused_failure requires eval_result fail or error"
+        )
 
 
 def _validate_required_string(

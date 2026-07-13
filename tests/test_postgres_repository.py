@@ -13,6 +13,7 @@ import pytest
 def _complete_store(
     *,
     decision_reason: str = "directly relevant",
+    decision_eval_result: str | None = "pass",
     extra_trace: bool = False,
     offset_timestamps: bool = False,
     benchmark_identity: bool = False,
@@ -147,7 +148,7 @@ def _complete_store(
             risk="low",
             recommended_injection="short_summary",
         ),
-        eval_result="pass",
+        eval_result=decision_eval_result,
     )
     return store
 
@@ -599,6 +600,139 @@ def test_repository_sync_round_trips_and_is_idempotent(postgres_cluster):
         assert second.lessons == PostgresSyncCounts(unchanged=1)
         assert second.project_policies == PostgresSyncCounts(unchanged=1)
         assert second.usage_logs == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_sync_updates_deferred_usage_outcome_and_is_idempotent(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store = _complete_store(decision_eval_result=None)
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+
+        sealed = store.record_decision_outcome(
+            "decision_000001",
+            "fail",
+            memory_caused_failure=True,
+        )
+        updated = repository.sync(store)
+
+        assert updated.traces == PostgresSyncCounts(unchanged=1)
+        assert updated.failure_cases == PostgresSyncCounts(unchanged=1)
+        assert updated.lessons == PostgresSyncCounts(unchanged=1)
+        assert updated.project_policies == PostgresSyncCounts(unchanged=1)
+        assert updated.usage_logs == PostgresSyncCounts(updated=1)
+        assert connection.execute(
+            "SELECT eval_result, memory_caused_failure "
+            "FROM public.memory_usage_decisions WHERE decision_id = %s",
+            ("decision_000001",),
+        ).fetchone() == ("fail", True)
+        assert repository.load().usage_logs[0] == sealed
+
+        repeated = repository.sync(store)
+        assert repeated.usage_logs == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_sync_rejects_stale_or_conflicting_sealed_outcome(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+    )
+
+    postgres_cluster.load_schema()
+    store = _complete_store(decision_eval_result="unknown")
+    stale = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    replay = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    conflicting = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+        store.record_decision_outcome("decision_000001", "pass")
+        repository.sync(store)
+
+        replay.record_decision_outcome("decision_000001", "pass")
+        replayed = repository.sync(replay)
+        assert replayed.usage_logs.updated == 0
+        assert replayed.usage_logs.unchanged == 1
+
+        with pytest.raises(
+            PostgresConflictError,
+            match="memory_usage_decisions.*decision_000001.*immutable conflict",
+        ):
+            repository.sync(stale)
+
+        conflicting.record_decision_outcome("decision_000001", "error")
+        with pytest.raises(
+            PostgresConflictError,
+            match="memory_usage_decisions.*decision_000001.*immutable conflict",
+        ):
+            repository.sync(conflicting)
+
+        loaded = repository.load().usage_logs[0]
+        assert loaded.eval_result == "pass"
+        assert loaded.memory_caused_failure is False
+
+
+def test_repository_rolls_back_outcome_update_on_later_usage_conflict(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import (
+        MemoryContext,
+        MemoryDecision,
+        TraceBackedMemoryStore,
+    )
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+    )
+
+    postgres_cluster.load_schema()
+    baseline = _complete_store(decision_eval_result=None)
+    baseline.log_decision(
+        "run_sync",
+        MemoryContext(
+            mode="repair",
+            repo="repo_sync",
+            tenant="tenant_sync",
+            commit_sha="commit_sync",
+        ),
+        ["lesson_sync"],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=["lesson_sync"],
+            blocked_memory_ids=[],
+            reason="second decision",
+            risk="low",
+            recommended_injection="short_summary",
+        ),
+    )
+    incoming = TraceBackedMemoryStore.from_snapshot(baseline.to_snapshot())
+    incoming.record_decision_outcome("decision_000001", "pass")
+    conflicting_snapshot = incoming.to_snapshot()
+    conflicting_snapshot["usage_logs"][1]["reason"] = "conflicting second decision"
+    conflicting = TraceBackedMemoryStore.from_snapshot(conflicting_snapshot)
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(baseline)
+
+        with pytest.raises(
+            PostgresConflictError,
+            match="memory_usage_decisions.*decision_000002.*immutable conflict",
+        ):
+            repository.sync(conflicting)
+
+        loaded = repository.load()
+        assert [log.eval_result for log in loaded.usage_logs] == [None, None]
 
 
 def test_repository_round_trips_benchmark_identity_audit_without_new_columns(

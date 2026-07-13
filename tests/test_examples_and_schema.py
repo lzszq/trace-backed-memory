@@ -133,6 +133,16 @@ def test_docs_publish_postgres_repository_operational_boundaries():
     )
 
 
+def test_docs_publish_pr_change_set_ephemeral_persistence_contract():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    architecture = _doc("architecture.md")
+
+    assert "PRChangeSet" in readme
+    assert "endpoint tags are ephemeral" in architecture
+    assert "snapshot version remains 2" in architecture
+    assert "PostgreSQL schema version remains 1" in architecture
+
+
 def test_docs_publish_exact_postgres_transaction_ownership_contract():
     documents = [
         (ROOT / "README.md").read_text(encoding="utf-8"),

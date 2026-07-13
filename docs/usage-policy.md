@@ -183,6 +183,27 @@ Passing no ancestry evidence is supported for backward compatibility and
 preserves legacy retrieval and PR-report behavior. Evidence is not persisted
 in snapshots, YAML, usage logs, or PostgreSQL.
 
+## PR Change-Set Policy
+
+For value-aware PR reporting, callers must supply exact old and new values in
+an immutable `PRChangeSet` and bind every new value to the post-change
+`MemoryContext`, including `None`. Use the same change set first with
+`pr_report_commit_anchors()` and then with `pr_memory_report()`; ancestry
+evidence must cover every resulting anchor for the exact context commit.
+
+The report accepts only complete old or complete new endpoints. Callers must
+not interpret a trace containing a mixture of old and new values as related.
+Repo and tenant remain exact isolation boundaries, and unchanged declared
+trace-backed context metadata remains exact-match. Exact value-aware change
+sets support only `prompt_version`, `prompt_family`, `tool`,
+`tool_schema_version`, `model`, and `eval_suite`. Callers must not claim exact
+`model_family` provenance: it is unsupported because traces do not record it.
+
+Existing `changed_fields` reports remain available for legacy broad
+field-name-only behavior, including legacy `model_family` warnings. Change
+sets and endpoint tags are ephemeral report inputs and outputs, not persisted
+records or schema extensions.
+
 When `memory_caused_failure` is true, persisted evidence must include a
 non-null `eval_result` of `fail` or `error` and at least one used memory ID.
 

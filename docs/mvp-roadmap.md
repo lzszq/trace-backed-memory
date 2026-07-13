@@ -123,3 +123,17 @@ Track:
   remain authoritative for safety and semantic relevance.
 - Preserve opt-in backward compatibility and all snapshot, YAML, schema, and
   PostgreSQL persistence contracts.
+
+## Phase 10: PR change-set endpoint matching (implemented)
+
+- Accept immutable `PRChangeSet` values for exact old/new endpoint matching on
+  prompt, tool, model, and eval trace provenance fields.
+- Bind every new endpoint value to the post-change `MemoryContext`, match only
+  complete old or complete new configurations, and report `old`, `new`, or
+  `both` provenance.
+- Reuse the same change set for PR anchor discovery and reporting so ancestry
+  evidence is complete for endpoint-matched cases and fails closed when it is
+  missing.
+- Preserve legacy broad `changed_fields` behavior, reject unsupported exact
+  `model_family` matching, and leave snapshot version 2, JSON Schemas,
+  active-lessons YAML, and PostgreSQL schema version 1 unchanged.

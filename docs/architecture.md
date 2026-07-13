@@ -358,13 +358,48 @@ outer transaction, the repository transaction commits normally.
 
 The in-memory MVP can generate a PR-oriented memory report from the same trace
 and failure-case stores. It only treats verified, regression-backed failure
-cases with trace `repo` matching the current context as reportable historical
-failures for the current repo/tenant/tool/failure type/eval suite. Traces
-without repo provenance are not eligible for PR reports. The report suggests
-targeted regression tests and emits warnings when prompt, tool schema, tool,
-model, or eval-suite changes touch known failure areas. It also includes
-case-level provenance records with source trace ID, source commit, fix commit,
-trace URI, and failure type.
+cases with trace `repo` and `tenant` exactly matching the current context as
+reportable historical failures. Traces without repo provenance are not eligible
+for PR reports. The report suggests targeted regression tests and emits
+warnings when prompt, tool schema, tool, model, or eval-suite changes touch
+known failure areas. It also includes case-level provenance records with source
+trace ID, source commit, fix commit, trace URI, failure type, and optional
+endpoint-match provenance.
+
+`pr_memory_report()` accepts exactly one change input. The legacy
+`changed_fields` list retains its existing broad field-name-only matching,
+warning order, and `None` endpoint provenance, including legacy
+`model_family` warning behavior. Value-aware matching instead accepts an
+immutable `PRChangeSet` of `(field_name, old_value, new_value)` tuples. Store
+boundaries validate an exact non-empty tuple shape, supported unique field
+names, non-blank bounded endpoint strings or `None`, and different old/new
+values. The only supported exact-provenance fields are `prompt_version`,
+`prompt_family`, `tool`, `tool_schema_version`, `model`, and `eval_suite`.
+`model_family` is rejected for a change set because traces do not store exact
+model-family provenance.
+
+Every change-set new value must exactly equal the post-change `MemoryContext`,
+including `None`; validation never mutates the caller-owned change set. The
+common matcher first applies the verified/regression-backed, repo, tenant,
+failure-type, and unchanged declared trace-backed context checks. It then
+requires all changed fields to match the full old endpoint or all to match the
+full new endpoint. A mixed old/new trace is excluded. `tool` compares exact
+non-empty tool-call names, while the other fields compare direct trace
+metadata. A match is tagged `old`, `new`, or `both`; `both` can occur for a
+tool-only change when the trace invoked both endpoint tool names.
+
+`pr_report_commit_anchors(context, change_set=...)` uses that same complete
+endpoint matcher and returns sorted unique source commits. Callers must reuse
+the same immutable change set when they capture ancestry and call
+`pr_memory_report(change_set=..., commit_ancestry=...)`. The report first
+matches endpoints, then requires complete ancestry evidence for every matched
+source commit, and finally excludes explicitly false relations before building
+case IDs, suggestions, warnings, and provenance. Missing evidence therefore
+fails closed, while harmless extra valid evidence remains allowed.
+
+Change sets and endpoint tags are ephemeral report-boundary values. They are
+not exported or stored: snapshot version remains 2, JSON Schemas and
+active-lessons YAML remain unchanged, and PostgreSQL schema version remains 1.
 
 ## Git Ancestry Applicability
 

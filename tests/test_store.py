@@ -2663,6 +2663,58 @@ def test_pr_change_set_anchors_and_ancestry_use_only_endpoint_cases():
     assert legacy_report.related_case_provenance[0].matched_change_endpoint is None
 
 
+def test_pr_change_set_report_does_not_persist_endpoint_metadata():
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_old_endpoint",
+            run_id="run_old_endpoint",
+            commit_sha="commit-old",
+            repo="repo",
+            tenant="tenant",
+            prompt_version="prompt-old",
+            model="model-old",
+            eval_result="fail",
+        )
+    )
+    store.add_failure_case(
+        verify_failure_case(
+            draft_failure_case(
+                trace,
+                case_id="case_old_endpoint",
+                failure_type="invalid_tool_argument",
+                symptom="old endpoint regression",
+            ),
+            fix="update prompt",
+            fix_commit_sha="fix-old",
+            regression_passed=True,
+        )
+    )
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        prompt_version="prompt-new",
+        model="model-new",
+        failure_type="invalid_tool_argument",
+    )
+    change_set = PRChangeSet(
+        (
+            ("prompt_version", "prompt-old", "prompt-new"),
+            ("model", "model-old", "model-new"),
+        )
+    )
+    before = store.to_snapshot()
+
+    report = store.pr_memory_report(context, change_set=change_set)
+
+    assert report.related_case_provenance[0].matched_change_endpoint == "old"
+    assert store.to_snapshot() == before
+    assert "matched_change_endpoint" not in json.dumps(before, sort_keys=True)
+    assert "matched_change_endpoint" not in json.dumps(store.to_snapshot(), sort_keys=True)
+
+
 def test_pr_change_set_matches_optional_and_tool_endpoints():
     store = TraceBackedMemoryStore()
 

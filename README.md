@@ -205,6 +205,109 @@ persisted to PostgreSQL, and it does not replace either gate. PR callers use
 `pr_report_commit_anchors(context)`, capture against the same context commit,
 and pass that same evidence object to `pr_memory_report()`.
 
+## Endpoint-aware PR reports
+
+Use an immutable `PRChangeSet` when a PR changes trace-backed metadata values.
+Each tuple is `(field_name, old_value, new_value)` and supports only
+`prompt_version`, `prompt_family`, `tool`, `tool_schema_version`, `model`, and
+`eval_suite`. `new_value` must exactly equal the post-change `MemoryContext`
+value, including `None`. Repo and tenant remain hard exact-match isolation
+boundaries, and unchanged declared context metadata continues to match exactly.
+
+The store matches every changed field against a complete old endpoint and a
+complete new endpoint. It excludes mixed configurations. Report provenance
+records `old`, `new`, or `both`; `both` is possible for a tool-only change when
+one trace invoked both endpoint tool names. Reuse the same immutable change set
+for `pr_report_commit_anchors()` and `pr_memory_report()` so ancestry evidence
+is captured for exactly the cases the report can include.
+
+The existing `changed_fields=[...]` input remains supported with its broad,
+field-name-only behavior and legacy provenance of `None`, including its
+existing `model_family` warning behavior. Exact value-aware `model_family`
+matching is unsupported because traces do not store that provenance. Change
+sets and endpoint provenance are report-only values: they are not persisted and
+do not change snapshot version 2, JSON schemas, active-lessons YAML, or
+PostgreSQL schema version 1.
+
+```python
+# PR_CHANGE_SET_WORKFLOW_START
+from trace_backed_memory import (
+    MemoryContext,
+    PRChangeSet,
+    Trace,
+    TraceBackedMemoryStore,
+    capture_commit_ancestry,
+    draft_failure_case,
+    verify_failure_case,
+)
+
+store = TraceBackedMemoryStore()
+
+def add_case(case_id, commit_sha, prompt_version, tool_schema_version):
+    trace = store.record_trace(
+        Trace(
+            trace_id=f"trace-{case_id}",
+            run_id=f"run-{case_id}",
+            commit_sha=commit_sha,
+            repo="agent-harness",
+            tenant="tenant_a",
+            prompt_version=prompt_version,
+            tool_schema_version=tool_schema_version,
+            eval_result="fail",
+            tool_calls=[{"name": "search_docs"}],
+        )
+    )
+    store.add_failure_case(
+        verify_failure_case(
+            draft_failure_case(
+                trace,
+                case_id=case_id,
+                failure_type="invalid_tool_argument",
+                symptom="search_docs rejected an empty query",
+            ),
+            fix="require a non-empty query",
+            fix_commit_sha=f"fix-{case_id}",
+            regression_passed=True,
+        )
+    )
+
+
+add_case("case-old", "commit-old", "planner-v1", "search-docs-v1")
+add_case("case-new", "commit-new", "planner-v2", "search-docs-v2")
+add_case("case-mixed", "commit-mixed", "planner-v1", "search-docs-v2")
+
+context = MemoryContext(
+    mode="regression",
+    repo="agent-harness",
+    tenant="tenant_a",
+    commit_sha="pr-head",
+    prompt_version="planner-v2",
+    tool="search_docs",
+    tool_schema_version="search-docs-v2",
+    failure_type="invalid_tool_argument",
+)
+change_set = PRChangeSet(
+    (
+        ("prompt_version", "planner-v1", "planner-v2"),
+        ("tool_schema_version", "search-docs-v1", "search-docs-v2"),
+    )
+)
+anchors = store.pr_report_commit_anchors(context, change_set=change_set)
+commit_ancestry = capture_commit_ancestry(
+    context.commit_sha,
+    anchors,
+    repo_path=".",
+    runner=lambda _args, _cwd=None: 0,
+)
+report = store.pr_memory_report(
+    context,
+    change_set=change_set,
+    commit_ancestry=commit_ancestry,
+)
+# report: case-new/new and case-old/old; case-mixed is excluded.
+# PR_CHANGE_SET_WORKFLOW_END
+```
+
 ## Low-level System Gate Helper
 
 ```python
@@ -420,7 +523,7 @@ Implemented pieces:
 - Postgres schema parity checks for model defaults, an atomic fresh-install transaction pinned to `public`, invariant functions pinned to `pg_catalog`, a trigger-owned shared runtime memory ID registry that rejects direct DML, `TRUNCATE`, helper-shadow bypasses, and ghost usage, non-empty required text, composite case/trace commit provenance, forward-only status updates, `FOR SHARE` parent/lesson lifecycle serialization and cascades, JSONB object/array and element-type checks, required usage-decision audit evidence, and context example parsing.
 - Lesson safety flags for sensitive or eval-leaking memory are preserved through retrieval and blocked by System Gate.
 - PR reports can reuse current-commit-bound ancestry evidence to exclude unrelated historical failure cases before generating report content.
-- PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, and warns on risky prompt/tool/model/eval-suite changes.
+- PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, warns on risky prompt/tool/model/eval-suite changes, and supports immutable complete-endpoint `PRChangeSet` matching with old/new/both provenance.
 - Basic metrics for decisions, candidates, used/blocked memory, pass rates with/without memory, wrong-memory failures, obsolete attempts, and lesson confidence.
 
 ## Repository layout

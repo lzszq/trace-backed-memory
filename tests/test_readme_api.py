@@ -210,6 +210,32 @@ def test_readme_git_ancestry_workflow_stays_executable():
     assert result.allowed_memory_ids == (lesson.lesson_id,)
 
 
+def test_readme_pr_change_set_workflow_stays_executable():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    match = re.search(
+        r"```python\n"
+        r"(# PR_CHANGE_SET_WORKFLOW_START\n.*?# PR_CHANGE_SET_WORKFLOW_END\n)"
+        r"```",
+        readme,
+        re.DOTALL,
+    )
+    assert match is not None, "README should include the PR change-set workflow"
+
+    namespace: dict[str, object] = {}
+    exec(match.group(1), namespace)
+
+    report = namespace["report"]
+    assert namespace["anchors"] == ("commit-new", "commit-old")
+    assert report.related_case_ids == ["case-new", "case-old"]
+    assert [
+        (provenance.case_id, provenance.matched_change_endpoint)
+        for provenance in report.related_case_provenance
+    ] == [("case-new", "new"), ("case-old", "old")]
+    assert "case-mixed" not in report.related_case_ids
+
+
 def test_readme_suggested_initial_api_still_works():
     context = MemoryContext(
         mode="repair",

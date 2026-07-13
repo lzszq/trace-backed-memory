@@ -148,7 +148,7 @@ def test_docs_publish_pr_change_set_ephemeral_persistence_contract():
     )
     assert (
         "Change sets and endpoint tags are ephemeral report-boundary values. "
-        "They are not exported or stored"
+        "They are not serialized or stored"
         in architecture_contract
     )
     assert (

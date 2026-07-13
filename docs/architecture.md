@@ -398,7 +398,7 @@ case IDs, suggestions, warnings, and provenance. Missing evidence therefore
 fails closed, while harmless extra valid evidence remains allowed.
 
 Change sets and endpoint tags are ephemeral report-boundary values. They are
-not exported or stored: snapshot version remains 2, JSON Schemas and
+not serialized or stored: snapshot version remains 2, JSON Schemas and
 active-lessons YAML remain unchanged, and PostgreSQL schema version remains 1.
 
 ## Git Ancestry Applicability

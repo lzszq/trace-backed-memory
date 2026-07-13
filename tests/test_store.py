@@ -1912,6 +1912,54 @@ def test_legacy_usage_log_is_migrated_to_complete_audit_evidence():
     }
     assert migrated_log.candidate_memory_statuses == {"lesson_001": "active"}
     assert migrated_log.system_blocked_reasons == {}
+    metrics = restored.metrics()
+    assert metrics.evaluated_with_memory_count == 1
+    assert metrics.evaluated_without_memory_count == 0
+    assert metrics.unevaluated_decision_count == 0
+    assert metrics.pass_rate_with_memory == 1.0
+
+
+@pytest.mark.parametrize(
+    ("used_memory", "include_eval_result", "eval_result"),
+    [
+        (True, True, "unknown"),
+        (True, False, None),
+        (False, True, "unknown"),
+        (False, False, None),
+    ],
+    ids=["with-unknown", "with-missing", "without-unknown", "without-missing"],
+)
+def test_legacy_usage_log_metrics_keep_unknown_and_missing_outcomes_unevaluated(
+    used_memory: bool,
+    include_eval_result: bool,
+    eval_result: str | None,
+):
+    legacy = v2_snapshot_with_usage_log()
+    legacy.pop("snapshot_version")
+    legacy_log = _snapshot_record(legacy, "usage_logs")
+    for field_name in (
+        "trace_id",
+        "context",
+        "candidate_memory_statuses",
+        "system_blocked_reasons",
+    ):
+        legacy_log.pop(field_name)
+    if not used_memory:
+        legacy_log["used_memory_ids"] = []
+        legacy_log["recommended_injection"] = "none"
+    if include_eval_result:
+        legacy_log["eval_result"] = eval_result
+    else:
+        legacy_log.pop("eval_result")
+
+    metrics = TraceBackedMemoryStore.from_snapshot(legacy).metrics()
+
+    assert metrics.decision_count == 1
+    assert metrics.evaluated_with_memory_count == 0
+    assert metrics.evaluated_without_memory_count == 0
+    assert metrics.unevaluated_decision_count == 1
+    assert metrics.pass_rate_with_memory is None
+    assert metrics.pass_rate_without_memory is None
 
 
 def test_legacy_usage_log_prefers_valid_supplied_trace_id_over_ambiguous_run_id():
@@ -4328,6 +4376,17 @@ def test_memory_metrics_appends_outcome_counts_without_positional_breakage():
     assert metrics.evaluated_with_memory_count == 0
     assert metrics.evaluated_without_memory_count == 0
     assert metrics.unevaluated_decision_count == 0
+
+
+def test_store_metrics_empty_cohorts_have_no_pass_rate():
+    metrics = TraceBackedMemoryStore().metrics()
+
+    assert metrics.decision_count == 0
+    assert metrics.evaluated_with_memory_count == 0
+    assert metrics.evaluated_without_memory_count == 0
+    assert metrics.unevaluated_decision_count == 0
+    assert metrics.pass_rate_with_memory is None
+    assert metrics.pass_rate_without_memory is None
 
 
 def test_store_metrics_exclude_unknown_and_missing_outcomes_from_pass_rates():

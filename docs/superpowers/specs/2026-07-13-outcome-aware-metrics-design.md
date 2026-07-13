@@ -57,6 +57,10 @@ decision_count
 + unevaluated_decision_count
 ```
 
+This invariant applies to values returned by `store.metrics()`. Direct legacy
+construction remains accepted and cannot infer denominators omitted by the
+caller, so the appended fields retain their zero defaults in that case.
+
 ## Verification
 
 Tests cover:

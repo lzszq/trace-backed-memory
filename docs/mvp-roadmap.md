@@ -171,8 +171,9 @@ Track:
   evaluated non-pass. `unknown` and `None` are unevaluated and stay outside
   pass-rate denominators.
 - Expose `evaluated_with_memory_count`, `evaluated_without_memory_count`, and
-  `unevaluated_decision_count`; together they equal `decision_count` and make
-  both pass-rate sample sizes auditable.
+  `unevaluated_decision_count`; for values returned by `store.metrics()`,
+  together they equal `decision_count` and make both pass-rate sample sizes
+  auditable.
 - Keep the with/without split tied to audited `used_memory_ids`. These are
   decision counts, not per-memory causal attribution.
 - Metrics remain derived and are not persisted; preserve snapshot version 2,

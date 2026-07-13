@@ -268,7 +268,9 @@ non-pass. `unknown` and `None` are unevaluated and are excluded from pass-rate
 denominators. `evaluated_with_memory_count` and
 `evaluated_without_memory_count` expose the two measured sample sizes, and
 `unevaluated_decision_count` reports the remainder. Their sum equals
-`decision_count`.
+`decision_count` for values returned by `store.metrics()`. Legacy positional
+construction cannot infer historical denominators and keeps the appended
+fields at their zero defaults.
 
 These are decision counts, not per-memory causal attribution. The existing
 with/without split is determined by whether a usage record has non-empty

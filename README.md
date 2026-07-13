@@ -629,7 +629,9 @@ non-pass. `unknown` and `None` are unevaluated and are excluded from pass-rate
 denominators. `evaluated_with_memory_count` and
 `evaluated_without_memory_count` expose the two denominators, while
 `unevaluated_decision_count` identifies decisions that still lack a usable
-outcome. Their sum equals `decision_count`.
+outcome. For values returned by `store.metrics()`, their sum equals
+`decision_count`; legacy positional construction leaves the appended counts at
+their compatible zero defaults.
 
 These are decision counts, not per-memory causal attribution. A decision is
 classified as with-memory when its usage log has non-empty `used_memory_ids`.

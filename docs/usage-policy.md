@@ -189,7 +189,9 @@ in snapshots, YAML, usage logs, or PostgreSQL.
 non-pass. `unknown` and `None` are unevaluated and must not depress pass rates.
 Use `evaluated_with_memory_count` and `evaluated_without_memory_count` as the
 rate denominators and `unevaluated_decision_count` as the missing-outcome count.
-Together they equal `decision_count`.
+For values returned by `store.metrics()`, together they equal
+`decision_count`; directly constructed legacy values retain zero defaults for
+the appended fields.
 
 These are decision counts, not per-memory causal attribution. With-memory means
 the audited decision has at least one `used_memory_id`; it does not prove that

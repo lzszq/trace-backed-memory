@@ -350,7 +350,10 @@ def test_context_input_hash_uses_existing_bounded_string_contract(
         "eval_suite": "suite",
         "input_hash": invalid_input_hash,
     }
+    context = MemoryContext(**payload)  # type: ignore[arg-type]
 
+    with pytest.raises(ValueError):
+        validate_memory_context(context)
     with pytest.raises(ValueError):
         parse_memory_context(payload)
 
@@ -419,18 +422,19 @@ def test_benchmark_source_identity_pair_is_ephemeral_and_contract_valid():
 
 
 @pytest.mark.parametrize(
-    "field_name, field_value",
+    "field_name",
+    ["source_eval_suite", "source_input_hash"],
+)
+@pytest.mark.parametrize(
+    "field_value",
     [
-        ("source_eval_suite", None),
-        ("source_input_hash", None),
-        ("source_eval_suite", True),
-        ("source_input_hash", b"hash"),
-        ("source_eval_suite", 42),
-        ("source_input_hash", []),
-        ("source_eval_suite", {}),
-        ("source_input_hash", ""),
-        ("source_eval_suite", "s" * 513),
-        ("source_input_hash", "h" * 513),
+        True,
+        b"hash",
+        42,
+        [],
+        {},
+        "",
+        "x" * 513,
     ],
 )
 def test_benchmark_source_identity_requires_bounded_non_empty_string_pair(
@@ -446,11 +450,7 @@ def test_benchmark_source_identity_requires_bounded_non_empty_string_pair(
         "source_eval_suite": "suite",
         "source_input_hash": "sha256:example",
     }
-    if field_value is None:
-        values["source_eval_suite"] = None
-        values["source_input_hash"] = "sha256:example"
-    else:
-        values[field_name] = field_value
+    values[field_name] = field_value
 
     memory = MemoryItem(**values)  # type: ignore[arg-type]
     _allowed, blocked = system_gate(

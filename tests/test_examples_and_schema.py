@@ -193,6 +193,55 @@ def _json_schema(name: str) -> dict[str, object]:
     return json.loads(schema_path.read_text(encoding="utf-8"))
 
 
+def _json_schema_accepts(schema: dict[str, object], instance: object) -> bool:
+    schema_type = schema.get("type")
+    if schema_type == "object" and not isinstance(instance, dict):
+        return False
+    if schema_type == "string" and not isinstance(instance, str):
+        return False
+
+    enum = schema.get("enum")
+    if isinstance(enum, list) and instance not in enum:
+        return False
+
+    if isinstance(instance, str):
+        min_length = schema.get("minLength")
+        max_length = schema.get("maxLength")
+        if isinstance(min_length, int) and len(instance) < min_length:
+            return False
+        if isinstance(max_length, int) and len(instance) > max_length:
+            return False
+
+    if isinstance(instance, dict):
+        required = schema.get("required", [])
+        if isinstance(required, list) and not set(required).issubset(instance):
+            return False
+        properties = schema.get("properties", {})
+        if isinstance(properties, dict):
+            for field_name, field_schema in properties.items():
+                if field_name in instance and isinstance(field_schema, dict):
+                    if not _json_schema_accepts(field_schema, instance[field_name]):
+                        return False
+
+    all_of = schema.get("allOf", [])
+    if isinstance(all_of, list):
+        for subschema in all_of:
+            if isinstance(subschema, dict) and not _json_schema_accepts(
+                subschema, instance
+            ):
+                return False
+
+    condition = schema.get("if")
+    if isinstance(condition, dict) and _json_schema_accepts(condition, instance):
+        consequence = schema.get("then")
+        if isinstance(consequence, dict) and not _json_schema_accepts(
+            consequence, instance
+        ):
+            return False
+
+    return True
+
+
 def _postgres_schema() -> str:
     return (ROOT / "schemas" / "postgres.sql").read_text(encoding="utf-8")
 
@@ -869,21 +918,26 @@ def test_memory_context_schema_requires_complete_input_hash_identity_pair():
         }
     ]
 
-    legacy_context = {"mode": "repair", "repo": "repo", "commit_sha": "abc"}
-    complete_context = {
-        **legacy_context,
+    eval_suite_only_context = {
+        "mode": "repair",
+        "repo": "repo",
+        "commit_sha": "abc",
         "eval_suite": "suite",
+    }
+    complete_context = {
+        **eval_suite_only_context,
         "input_hash": "sha256:example",
     }
     input_hash_only_context = {
-        **legacy_context,
+        "mode": "repair",
+        "repo": "repo",
+        "commit_sha": "abc",
         "input_hash": "sha256:example",
     }
 
-    assert set(legacy_context).issubset(properties)
-    assert set(complete_context).issubset(properties)
-    assert "eval_suite" not in input_hash_only_context
-    assert "input_hash" in properties
+    assert _json_schema_accepts(schema, complete_context)
+    assert _json_schema_accepts(schema, eval_suite_only_context)
+    assert not _json_schema_accepts(schema, input_hash_only_context)
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

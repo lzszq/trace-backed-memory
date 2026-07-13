@@ -2535,6 +2535,125 @@ def test_pr_change_set_matches_complete_endpoints_and_reports_provenance():
     ] == [("case_new", "new"), ("case_old", "old")]
 
 
+def test_pr_change_set_anchors_and_ancestry_use_only_endpoint_cases():
+    def store_with_endpoint_cases(order: list[str]) -> TraceBackedMemoryStore:
+        store = TraceBackedMemoryStore()
+        endpoint_values = {
+            "old": ("prompt-old", "model-old"),
+            "new": ("prompt-new", "model-new"),
+            "mixed": ("prompt-old", "model-new"),
+            "unrelated": ("other", "other"),
+        }
+        for suffix in order:
+            prompt_version, model = endpoint_values[suffix]
+            trace = store.record_trace(
+                Trace(
+                    trace_id=f"trace_{suffix}",
+                    run_id=f"run_{suffix}",
+                    commit_sha=f"commit_{suffix}",
+                    repo="repo",
+                    tenant="tenant",
+                    prompt_version=prompt_version,
+                    model=model,
+                    eval_suite="suite",
+                    eval_result="fail",
+                )
+            )
+            store.add_failure_case(
+                verify_failure_case(
+                    draft_failure_case(
+                        trace,
+                        case_id=f"case_{suffix}",
+                        failure_type="tool_error",
+                        symptom=f"symptom {suffix}",
+                    ),
+                    fix=f"fix {suffix}",
+                    fix_commit_sha=f"fix_{suffix}",
+                    regression_passed=True,
+                )
+            )
+        return store
+
+    context = MemoryContext(
+        mode="regression",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        prompt_version="prompt-new",
+        model="model-new",
+        eval_suite="suite",
+        failure_type="tool_error",
+    )
+    change_set = PRChangeSet(
+        (
+            ("prompt_version", "prompt-old", "prompt-new"),
+            ("model", "model-old", "model-new"),
+        )
+    )
+    store = store_with_endpoint_cases(["unrelated", "new", "mixed", "old"])
+
+    assert store.pr_report_commit_anchors(context, change_set=change_set) == (
+        "commit_new",
+        "commit_old",
+    )
+    assert store.pr_report_commit_anchors(context) == ("commit_new",)
+    reverse_order_anchors = store_with_endpoint_cases(
+        ["old", "mixed", "new", "unrelated"]
+    ).pr_report_commit_anchors(
+        context,
+        change_set=PRChangeSet(tuple(reversed(change_set.field_changes))),
+    )
+    assert reverse_order_anchors == ("commit_new", "commit_old")
+
+    with pytest.raises(
+        ValueError,
+        match="commit ancestry evidence is missing anchors: commit_new, commit_old",
+    ):
+        store.pr_memory_report(
+            context,
+            change_set=change_set,
+            commit_ancestry=ancestry_evidence("current"),
+        )
+
+    report = store.pr_memory_report(
+        context,
+        change_set=change_set,
+        commit_ancestry=ancestry_evidence(
+            "current",
+            commit_new=True,
+            commit_old=False,
+        ),
+    )
+
+    assert report.related_case_ids == ["case_new"]
+    assert report.suggested_regression_tests == [
+        "Run tool_error regression for tool affected tool before merging."
+    ]
+    assert report.warnings == [
+        "model change touches known failure case case_new for known failure area.",
+        "prompt_version change touches known failure case case_new for known failure area.",
+    ]
+    assert [
+        (provenance.case_id, provenance.matched_change_endpoint)
+        for provenance in report.related_case_provenance
+    ] == [("case_new", "new")]
+
+    unfiltered_report = store.pr_memory_report(context, change_set=change_set)
+    assert unfiltered_report.related_case_ids == ["case_new", "case_old"]
+    assert [
+        (provenance.case_id, provenance.matched_change_endpoint)
+        for provenance in unfiltered_report.related_case_provenance
+    ] == [("case_new", "new"), ("case_old", "old")]
+
+    legacy_report = store.pr_memory_report(
+        context,
+        changed_fields=["model"],
+        commit_ancestry=ancestry_evidence("current", commit_new=True),
+    )
+    assert legacy_report.related_case_ids == ["case_new"]
+    assert legacy_report.related_case_provenance[0].matched_change_endpoint is None
+
+
 def test_pr_change_set_matches_optional_and_tool_endpoints():
     store = TraceBackedMemoryStore()
 

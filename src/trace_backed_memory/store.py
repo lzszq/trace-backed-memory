@@ -998,14 +998,15 @@ class TraceBackedMemoryStore:
         change_set: PRChangeSet | None = None,
     ) -> tuple[str, ...]:
         validate_memory_context(context)
+        changes = None
         if change_set is not None:
-            _validated_pr_change_set(context, change_set)
+            changes = _validated_pr_change_set(context, change_set)
         return tuple(
             sorted(
                 {
                     case.commit_sha
                     for case, _trace, _endpoint in self._pr_related_case_records(
-                        context
+                        context, changes=changes
                     )
                 }
             )

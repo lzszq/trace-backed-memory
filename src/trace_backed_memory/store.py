@@ -14,7 +14,7 @@ from functools import wraps
 from pathlib import Path
 from threading import RLock
 from types import MappingProxyType
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from .lifecycle import (
     memory_item_from_failure_case,
@@ -37,12 +37,14 @@ from .models import (
     MemoryDecision,
     MemoryGateRequest,
     MemoryItem,
+    MeasuredEvalResult,
     MemoryMetrics,
     MemoryOutcomeMetrics,
     MemoryRunAudit,
     MemoryRunAuditStatus,
     MemoryRunCompletion,
     MemoryRunMetrics,
+    MemoryRunResult,
     PRChangeEndpoint,
     PRCaseProvenance,
     MemoryUsageLog,
@@ -65,7 +67,14 @@ from .policy import (
 )
 
 Snapshot = dict[str, Any]
-_MeasuredEvalResult = Literal["pass", "fail", "error"]
+_MeasuredEvalResult = MeasuredEvalResult
+_MemoryRunCompletionRow = tuple[
+    int,
+    str,
+    _MeasuredEvalResult,
+    bool,
+    dict[str, Any],
+]
 _UNSET = object()
 EVAL_RESULTS = {"pass", "fail", "error", "unknown"}
 EVALUATED_RESULTS = {"pass", "fail", "error"}
@@ -388,6 +397,40 @@ class TraceBackedMemoryStore:
         )
 
     @_synchronized
+    def complete_memory_runs(
+        self,
+        results: tuple[MemoryRunResult, ...],
+    ) -> tuple[MemoryRunCompletion, ...]:
+        """Atomically complete a batch of newly measured memory runs."""
+        validated_results = _validated_memory_run_results(results)
+        log_indexes = {
+            log.decision_id: index for index, log in enumerate(self._usage_logs)
+        }
+        completion_rows: list[_MemoryRunCompletionRow] = []
+        for result in validated_results:
+            log_index = log_indexes.get(result.decision_id)
+            if log_index is None:
+                raise ValueError(f"unknown decision_id: {result.decision_id}")
+            current_log = self._usage_logs[log_index]
+            completion_rows.append(
+                (
+                    log_index,
+                    cast(str, current_log.trace_id),
+                    result.eval_result,
+                    result.memory_caused_failure,
+                    _memory_run_result_completion_values(result),
+                )
+            )
+
+        completed_traces, sealed_logs, completions = (
+            self._stage_memory_run_completions(completion_rows)
+        )
+        self._traces.update(completed_traces)
+        for log_index, sealed_log in sealed_logs.items():
+            self._usage_logs[log_index] = sealed_log
+        return completions
+
+    @_synchronized
     def recover_memory_run(
         self,
         decision_id: str,
@@ -452,8 +495,7 @@ class TraceBackedMemoryStore:
             validated_ids,
         )
 
-        recovery_rows: list[tuple[int, str, _MeasuredEvalResult, bool]] = []
-        trace_results: dict[str, _MeasuredEvalResult] = {}
+        recovery_rows: list[_MemoryRunCompletionRow] = []
         log_indexes = {
             log.decision_id: index for index, log in enumerate(self._usage_logs)
         }
@@ -471,26 +513,74 @@ class TraceBackedMemoryStore:
                     attributions.get(decision_id, _UNSET),
                 )
             )
-            existing_result = trace_results.get(trace_id)
-            if existing_result is not None and existing_result != eval_result:
-                raise ValueError(
-                    f"shared trace has conflicting outcomes: {trace_id}"
-                )
-            trace_results[trace_id] = eval_result
             recovery_rows.append(
                 (
                     log_index,
                     trace_id,
                     eval_result,
                     memory_caused_failure,
+                    {},
                 )
             )
+
+        completed_traces, sealed_logs, completions = (
+            self._stage_memory_run_completions(recovery_rows)
+        )
+        self._traces.update(completed_traces)
+        for log_index, sealed_log in sealed_logs.items():
+            self._usage_logs[log_index] = sealed_log
+        return completions
+
+    def _stage_memory_run_completions(
+        self,
+        rows: list[_MemoryRunCompletionRow],
+    ) -> tuple[
+        dict[str, Trace],
+        dict[int, MemoryUsageLog],
+        tuple[MemoryRunCompletion, ...],
+    ]:
+        """Build batch candidates without mutation while the caller holds the lock."""
+        trace_results: dict[str, _MeasuredEvalResult] = {}
+        trace_completion_values: dict[str, dict[str, Any]] = {}
+        for (
+            _log_index,
+            trace_id,
+            eval_result,
+            _memory_caused_failure,
+            completion_values,
+        ) in rows:
+            existing_result = trace_results.get(trace_id)
+            if existing_result is not None and existing_result != eval_result:
+                raise ValueError(
+                    f"shared trace has conflicting outcomes: {trace_id}"
+                )
+            trace_results[trace_id] = eval_result
+
+            normalized_trace = _completed_trace_candidate(
+                self._traces[trace_id],
+                eval_result,
+                completion_values,
+            )
+            merged_values = trace_completion_values.setdefault(trace_id, {})
+            for field_name in completion_values:
+                normalized_value = deepcopy(
+                    getattr(normalized_trace, field_name)
+                )
+                if (
+                    field_name in merged_values
+                    and merged_values[field_name] != normalized_value
+                ):
+                    raise ValueError(
+                        "shared trace has conflicting completion evidence "
+                        f"for {field_name}: {trace_id}"
+                    )
+                merged_values[field_name] = normalized_value
 
         completed_traces = {
             trace_id: _completed_trace_candidate(
                 self._traces[trace_id],
                 eval_result,
-                {},
+                trace_completion_values[trace_id],
             )
             for trace_id, eval_result in trace_results.items()
         }
@@ -500,7 +590,8 @@ class TraceBackedMemoryStore:
             _trace_id,
             eval_result,
             memory_caused_failure,
-        ) in recovery_rows:
+            _completion_values,
+        ) in rows:
             sealed_log = _sealed_usage_outcome_candidate(
                 self._usage_logs[log_index],
                 eval_result,
@@ -515,12 +606,15 @@ class TraceBackedMemoryStore:
                 trace=deepcopy(completed_traces[trace_id]),
                 usage_log=deepcopy(sealed_logs[log_index]),
             )
-            for log_index, trace_id, _eval_result, _failure in recovery_rows
+            for (
+                log_index,
+                trace_id,
+                _eval_result,
+                _failure,
+                _completion_values,
+            ) in rows
         )
-        self._traces.update(completed_traces)
-        for log_index, sealed_log in sealed_logs.items():
-            self._usage_logs[log_index] = sealed_log
-        return completions
+        return completed_traces, sealed_logs, completions
 
     @_synchronized
     def add_failure_case(self, case: FailureCase) -> FailureCase:
@@ -2020,6 +2114,59 @@ def _resolved_memory_run_recovery(
 
     _validate_measured_outcome(eval_result, resolved_memory_caused_failure)
     return status, eval_result, resolved_memory_caused_failure
+
+
+def _validated_memory_run_results(
+    results: Any,
+) -> tuple[MemoryRunResult, ...]:
+    if type(results) is not tuple or not results:
+        raise ValueError(
+            "memory run batch completion requires a non-empty "
+            "MemoryRunResult tuple"
+        )
+
+    decision_ids: list[str] = []
+    for result in results:
+        _require_exact_record(result, MemoryRunResult, "memory run result")
+        _validate_required_string(
+            result.decision_id,
+            "decision_id",
+            "memory run results require",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        _validate_measured_outcome(
+            result.eval_result,
+            result.memory_caused_failure,
+        )
+        if (
+            result.tool_outputs is not None
+            and type(result.tool_outputs) is not tuple
+        ):
+            raise ValueError("memory run result tool_outputs must be a tuple or None")
+        decision_ids.append(result.decision_id)
+
+    if len(set(decision_ids)) != len(decision_ids):
+        raise ValueError("memory run batch completion requires unique decision_ids")
+    return results
+
+
+def _memory_run_result_completion_values(
+    result: MemoryRunResult,
+) -> dict[str, Any]:
+    completion_values = {
+        field_name: getattr(result, field_name)
+        for field_name in (
+            "output_hash",
+            "latency_ms",
+            "cost_usd",
+            "error",
+            "trace_uri",
+        )
+        if getattr(result, field_name) is not None
+    }
+    if result.tool_outputs is not None:
+        completion_values["tool_outputs"] = list(result.tool_outputs)
+    return completion_values
 
 
 def _validated_batch_recovery_decision_ids(

@@ -6,6 +6,7 @@ from typing import Literal
 Mode = Literal["debug", "repair", "regression", "planning", "eval", "production"]
 Status = Literal["draft", "verified", "active", "obsolete"]
 MemoryType = Literal["procedural", "semantic", "episodic", "policy"]
+MeasuredEvalResult = Literal["pass", "fail", "error"]
 EvalResult = Literal["pass", "fail", "error", "unknown"]
 FailureCaseStatus = Literal["draft", "verified", "obsolete"]
 LessonStatus = Literal["active", "obsolete"]
@@ -189,6 +190,19 @@ class MemoryUsageLog:
     candidate_memory_statuses: dict[str, Status] = field(default_factory=dict)
     system_blocked_reasons: dict[str, str] = field(default_factory=dict)
     created_at: str | None = None
+
+
+@dataclass(frozen=True)
+class MemoryRunResult:
+    decision_id: str
+    eval_result: MeasuredEvalResult
+    memory_caused_failure: bool = False
+    output_hash: str | None = None
+    tool_outputs: tuple[dict[str, object], ...] | None = None
+    latency_ms: int | None = None
+    cost_usd: float | None = None
+    error: str | None = None
+    trace_uri: str | None = None
 
 
 @dataclass(frozen=True)

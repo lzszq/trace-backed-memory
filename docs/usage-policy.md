@@ -171,6 +171,26 @@ for partial recovery, or both may match for exact replay. A result, attribution,
 Trace evidence, or linkage conflict leaves both records unchanged. Use this
 high-level operation for normal memory execution.
 
+Use `complete_memory_runs()` for a batch of newly evaluated runs only when the
+whole set must be all-or-nothing. Supply a non-empty tuple of unique frozen
+`MemoryRunResult` commands. `MeasuredEvalResult` permits only `pass`, `fail`, or
+`error`; the store derives `trace_id` from each decision and preserves request
+order in returned completions.
+
+Optional evidence follows the single-run rules: `None` means omitted, while
+`tool_outputs` must be a tuple and becomes a Trace list. Results for decisions
+on a shared Trace must agree. Evidence fields merge only when disjoint or equal;
+never submit different values for the same shared field. Invalid results,
+attribution, evidence, partial state, or linkage reject the entire batch before
+any Trace or decision changes.
+
+Use `complete_memory_run()` for one new result. Use `recover_memory_runs()` only
+when the measured result already exists on the Trace or decision side and must
+be derived rather than supplied. Both batch paths share candidate staging, but
+recovery retains its stricter eligibility checks. `MemoryRunResult` is not
+persisted; snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
+schema version 1 remain unchanged.
+
 Use `memory_run_audits()` to locate work that did not finish through the normal
 path. It returns one record for every usage decision, sorted by `decision_id`.
 Each frozen `MemoryRunAudit` carries `trace_id`, `run_id`, both raw result

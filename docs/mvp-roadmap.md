@@ -337,3 +337,23 @@ Track:
 - Keep the batch wrapper derived and not persisted. Reuse existing PostgreSQL
   transactions and preserve snapshot version 2, JSON Schemas, active-lessons
   YAML, `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 22: Atomic batch memory-run completion (implemented)
+
+- Export `MeasuredEvalResult` and frozen `MemoryRunResult` commands carrying a
+  decision ID, measured outcome, attribution, and optional Trace evidence.
+- Add `complete_memory_runs()` for a non-empty tuple with unique decision IDs.
+  It derives `trace_id` from validated decision linkage and preserves request
+  order in defensive `MemoryRunCompletion` values.
+- Define evidence omission explicitly: `None` means omitted, while
+  `tool_outputs` is a request tuple converted to a Trace list.
+- Require outcomes on a shared Trace to agree. Normalize each request against
+  original state and merge only disjoint or equal evidence fields; reject all
+  result, already sealed per-decision attribution, evidence, or partial-state
+  conflicts all-or-nothing.
+- Reuse one non-mutating stager for `complete_memory_runs()` and
+  `recover_memory_runs()` while preserving the recovery API's stricter derived
+  result semantics and existing `complete_memory_run()` behavior.
+- Keep `MemoryRunResult` ephemeral and not persisted. Reuse existing PostgreSQL
+  transactions and preserve snapshot version 2, JSON Schemas, active-lessons
+  YAML, `schemas/postgres.sql`, and PostgreSQL schema version 1.

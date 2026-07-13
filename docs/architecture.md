@@ -271,6 +271,31 @@ changing either record. `complete_trace()` and `record_decision_outcome()`
 remain independent low-level APIs for callers that deliberately own separate
 lifecycles and for recovery; legacy records are not reinterpreted.
 
+`complete_memory_runs()` applies the same state machine to a non-empty tuple of
+unique frozen `MemoryRunResult` commands. `MeasuredEvalResult` limits each
+command to `pass`, `fail`, or `error`. The store derives `trace_id` from the
+validated decision linkage and preserves request order in the returned
+`MemoryRunCompletion` tuple, so batch callers cannot spoof correlated IDs.
+
+Each result may supply output hash, `tool_outputs`, latency, cost, error, and
+Trace URI. `None` means omitted; tool outputs use a tuple on the command and a
+list on the Trace. For decisions linked to a shared Trace, measured results must
+agree and normalized evidence fields merge only when disjoint or equal. Every
+request is first validated against the original Trace, then one final candidate
+is built from merged evidence, making shared behavior order independent.
+
+The common batch stager builds all Trace candidates, sealed usage candidates,
+and defensive returns without mutation. `complete_memory_runs()` commits those
+new evaluator results all-or-nothing. `recover_memory_runs()` reuses the stager
+only after its stricter entry-state recovery resolver has derived existing
+results, so recovery cannot introduce a caller-selected outcome. Single
+`complete_memory_run()` behavior remains unchanged.
+
+`MemoryRunResult` is ephemeral and not persisted. Existing PostgreSQL
+transactions synchronize the resulting Trace and usage rows. Snapshot version
+2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain
+unchanged.
+
 An unevaluated usage log supports its low-level store-owned transition through
 `record_decision_outcome()`: `None` or `unknown` may become `pass`, `fail`, or
 `error` together with its `memory_caused_failure` value. Exact replay is

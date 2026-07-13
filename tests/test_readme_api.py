@@ -262,6 +262,59 @@ def test_readme_batch_memory_run_recovery_workflow_stays_executable():
     assert store.memory_run_metrics().recoverable_count == 0
 
 
+def test_readme_batch_memory_run_completion_workflow_stays_executable():
+    from trace_backed_memory import MemoryRunResult
+
+    store, source_trace, _case, lesson = readme_store_fixture()
+    decisions = []
+    for suffix in ("pass", "error"):
+        current = store.record_trace(
+            replace(
+                source_trace,
+                trace_id=f"trace_batch_completion_readme_{suffix}",
+                run_id=f"run_batch_completion_readme_{suffix}",
+                eval_result="unknown",
+                tool_outputs=[],
+            )
+        )
+        context = MemoryContext(
+            mode="repair",
+            repo=current.repo,
+            tenant=current.tenant,
+            commit_sha=current.commit_sha,
+            tool="search_docs",
+        )
+        request = store.prepare_memory(context, task="repair failed tool call")
+        decision = store.finalize_memory(
+            request,
+            allow_decision(lesson.lesson_id),
+            trace_id=current.trace_id,
+        )
+        decisions.append(decision)
+
+    completions = store.complete_memory_runs(
+        (
+            MemoryRunResult(
+                decision_id=decisions[0].decision_id,
+                eval_result="pass",
+                tool_outputs=({"documents": 3},),
+                latency_ms=125,
+            ),
+            MemoryRunResult(
+                decision_id=decisions[1].decision_id,
+                eval_result="error",
+                memory_caused_failure=False,
+                error="executor failed",
+            ),
+        )
+    )
+
+    assert [item.trace.eval_result for item in completions] == ["pass", "error"]
+    assert completions[0].trace.tool_outputs == [{"documents": 3}]
+    assert completions[1].trace.error == "executor failed"
+    assert store.memory_run_metrics().complete_count == 2
+
+
 def test_readme_benchmark_safe_workflow_stays_executable():
     readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
         encoding="utf-8"

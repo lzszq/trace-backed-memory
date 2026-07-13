@@ -2309,6 +2309,385 @@ def test_concurrent_conflicting_memory_run_completion_has_one_consistent_winner(
     assert store.traces[current.trace_id].eval_result == successes[0].trace.eval_result
 
 
+def test_memory_run_result_is_exported_frozen_and_uses_immutable_tool_tuple():
+    result = tbm.MemoryRunResult(
+        decision_id="decision_000001",
+        eval_result="pass",
+        output_hash="sha256:output",
+        tool_outputs=({"documents": 3},),
+        latency_ms=25,
+    )
+
+    assert result.tool_outputs == ({"documents": 3},)
+    assert "MeasuredEvalResult" in tbm.__all__
+    assert "MemoryRunResult" in tbm.__all__
+    with pytest.raises(FrozenInstanceError):
+        result.eval_result = "error"
+
+
+def test_complete_memory_runs_atomically_records_mixed_results_and_evidence():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    pass_trace, pass_decision = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_pass"
+    )
+    fail_trace, fail_decision = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_fail"
+    )
+    error_trace, error_decision = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_error"
+    )
+    results = (
+        tbm.MemoryRunResult(
+            decision_id=error_decision.decision_id,
+            eval_result="error",
+            cost_usd=0.03,
+            error="executor failed",
+            trace_uri="trace://error",
+        ),
+        tbm.MemoryRunResult(
+            decision_id=pass_decision.decision_id,
+            eval_result="pass",
+            output_hash="sha256:pass-output",
+            tool_outputs=({"documents": 3},),
+            latency_ms=25,
+        ),
+        tbm.MemoryRunResult(
+            decision_id=fail_decision.decision_id,
+            eval_result="fail",
+            memory_caused_failure=True,
+            output_hash="sha256:fail-output",
+            error="memory instruction was wrong",
+        ),
+    )
+
+    completions = store.complete_memory_runs(results)
+
+    assert isinstance(completions, tuple)
+    assert tuple(item.usage_log.decision_id for item in completions) == tuple(
+        result.decision_id for result in results
+    )
+    assert [item.trace.trace_id for item in completions] == [
+        error_trace.trace_id,
+        pass_trace.trace_id,
+        fail_trace.trace_id,
+    ]
+    assert [item.trace.eval_result for item in completions] == [
+        "error",
+        "pass",
+        "fail",
+    ]
+    assert completions[0].trace.cost_usd == 0.03
+    assert completions[0].trace.error == "executor failed"
+    assert completions[0].trace.trace_uri == "trace://error"
+    assert completions[1].trace.output_hash == "sha256:pass-output"
+    assert completions[1].trace.tool_outputs == [{"documents": 3}]
+    assert completions[1].trace.latency_ms == 25
+    assert completions[2].usage_log.memory_caused_failure is True
+    assert [audit.status for audit in store.memory_run_audits()] == [
+        "complete",
+        "complete",
+        "complete",
+    ]
+    assert store.memory_run_metrics().complete_count == 3
+    assert store.metrics().evaluated_with_memory_count == 3
+    completed_snapshot = store.to_snapshot()
+    assert "memory_run_results" not in completed_snapshot
+    assert TraceBackedMemoryStore.from_snapshot(
+        completed_snapshot
+    ).memory_run_audits() == store.memory_run_audits()
+
+    replayed = store.complete_memory_runs(results)
+    assert replayed == completions
+    assert store.to_snapshot() == completed_snapshot
+
+    completions[1].trace.tool_outputs.append({"mutated": True})
+    completions[1].usage_log.candidate_memory_ids.append("lesson_spoofed")
+    assert store.traces[pass_trace.trace_id].tool_outputs == [{"documents": 3}]
+    assert "lesson_spoofed" not in next(
+        log
+        for log in store.usage_logs
+        if log.decision_id == pass_decision.decision_id
+    ).candidate_memory_ids
+
+
+def test_complete_memory_runs_supports_matching_partial_and_complete_states():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    trace_only_trace, trace_only_decision = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_trace_only"
+    )
+    decision_only_trace, decision_only_decision = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_decision_only"
+    )
+    complete_trace, complete_decision = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_replay"
+    )
+    store.complete_trace(
+        trace_only_trace.trace_id,
+        eval_result="pass",
+        output_hash="sha256:trace-first",
+        tool_outputs=[{"prefilled": True}],
+    )
+    store.record_decision_outcome(
+        decision_only_decision.decision_id,
+        "error",
+        memory_caused_failure=True,
+    )
+    store.complete_memory_run(
+        trace_id=complete_trace.trace_id,
+        decision_id=complete_decision.decision_id,
+        eval_result="fail",
+        error="already complete",
+    )
+
+    completions = store.complete_memory_runs(
+        (
+            tbm.MemoryRunResult(
+                decision_id=decision_only_decision.decision_id,
+                eval_result="error",
+                memory_caused_failure=True,
+                trace_uri="trace://decision-first",
+                tool_outputs=(),
+            ),
+            tbm.MemoryRunResult(
+                decision_id=trace_only_decision.decision_id,
+                eval_result="pass",
+            ),
+            tbm.MemoryRunResult(
+                decision_id=complete_decision.decision_id,
+                eval_result="fail",
+            ),
+        )
+    )
+
+    assert [item.trace.eval_result for item in completions] == [
+        "error",
+        "pass",
+        "fail",
+    ]
+    assert completions[0].trace.trace_id == decision_only_trace.trace_id
+    assert completions[0].trace.trace_uri == "trace://decision-first"
+    assert completions[0].trace.tool_outputs == []
+    assert completions[1].trace.output_hash == "sha256:trace-first"
+    assert completions[1].trace.tool_outputs == [{"prefilled": True}]
+    assert completions[2].trace.error == "already complete"
+    assert all(
+        audit.status == "complete" for audit in store.memory_run_audits()
+    )
+
+
+def test_complete_memory_runs_merges_compatible_shared_trace_evidence():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    current, first = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_shared"
+    )
+    request = store.prepare_memory(
+        matching_context(current), task="second shared completion"
+    )
+    second = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=current.trace_id,
+    )
+
+    completions = store.complete_memory_runs(
+        (
+            tbm.MemoryRunResult(
+                decision_id=second.decision_id,
+                eval_result="pass",
+                output_hash="sha256:shared",
+                tool_outputs=({"documents": 2},),
+            ),
+            tbm.MemoryRunResult(
+                decision_id=first.decision_id,
+                eval_result="pass",
+                output_hash="sha256:shared",
+                latency_ms=40,
+                cost_usd=0.01,
+            ),
+        )
+    )
+
+    assert tuple(item.usage_log.decision_id for item in completions) == (
+        second.decision_id,
+        first.decision_id,
+    )
+    assert completions[0].trace == completions[1].trace
+    assert completions[0].trace.output_hash == "sha256:shared"
+    assert completions[0].trace.tool_outputs == [{"documents": 2}]
+    assert completions[0].trace.latency_ms == 40
+    assert completions[0].trace.cost_usd == 0.01
+    assert store.traces[current.trace_id] == completions[0].trace
+
+
+@pytest.mark.parametrize(
+    ("first_result", "second_result", "message"),
+    [
+        (
+            {"eval_result": "pass", "output_hash": "sha256:first"},
+            {"eval_result": "pass", "output_hash": "sha256:second"},
+            "shared trace has conflicting completion evidence",
+        ),
+        (
+            {"eval_result": "pass"},
+            {"eval_result": "error"},
+            "shared trace has conflicting outcomes",
+        ),
+    ],
+)
+def test_complete_memory_runs_rejects_shared_trace_disagreement_atomically(
+    first_result: dict[str, object],
+    second_result: dict[str, object],
+    message: str,
+):
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    current, first = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_shared_conflict"
+    )
+    request = store.prepare_memory(
+        matching_context(current), task="second conflicting completion"
+    )
+    second = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=current.trace_id,
+    )
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match=message):
+        store.complete_memory_runs(
+            (
+                tbm.MemoryRunResult(
+                    decision_id=first.decision_id,
+                    **first_result,
+                ),
+                tbm.MemoryRunResult(
+                    decision_id=second.decision_id,
+                    **second_result,
+                ),
+            )
+        )
+    assert store.to_snapshot() == before
+
+
+def test_complete_memory_runs_validates_inputs_without_partial_mutation():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    _first_trace, first = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_valid"
+    )
+    _second_trace, second = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_invalid"
+    )
+    valid = tbm.MemoryRunResult(decision_id=first.decision_id, eval_result="pass")
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="non-empty MemoryRunResult tuple"):
+        store.complete_memory_runs([])  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="non-empty MemoryRunResult tuple"):
+        store.complete_memory_runs(())
+    with pytest.raises(ValueError, match="exactly a MemoryRunResult"):
+        store.complete_memory_runs((valid, {"decision_id": second.decision_id}))
+    with pytest.raises(ValueError, match="unique decision_ids"):
+        store.complete_memory_runs((valid, valid))
+    with pytest.raises(ValueError, match="unknown decision_id: decision_missing"):
+        store.complete_memory_runs(
+            (
+                valid,
+                tbm.MemoryRunResult(
+                    decision_id="decision_missing",
+                    eval_result="pass",
+                ),
+            )
+        )
+    with pytest.raises(ValueError, match="requires measured eval_result"):
+        store.complete_memory_runs(
+            (
+                valid,
+                tbm.MemoryRunResult(
+                    decision_id=second.decision_id,
+                    eval_result="unknown",  # type: ignore[arg-type]
+                ),
+            )
+        )
+    with pytest.raises(ValueError, match="memory_caused_failure must be a boolean"):
+        store.complete_memory_runs(
+            (
+                valid,
+                tbm.MemoryRunResult(
+                    decision_id=second.decision_id,
+                    eval_result="error",
+                    memory_caused_failure=None,  # type: ignore[arg-type]
+                ),
+            )
+        )
+    with pytest.raises(ValueError, match="tool_outputs must be a tuple or None"):
+        store.complete_memory_runs(
+            (
+                valid,
+                tbm.MemoryRunResult(
+                    decision_id=second.decision_id,
+                    eval_result="pass",
+                    tool_outputs=[],  # type: ignore[arg-type]
+                ),
+            )
+        )
+    with pytest.raises(ValueError):
+        store.complete_memory_runs(
+            (
+                valid,
+                tbm.MemoryRunResult(
+                    decision_id=second.decision_id,
+                    eval_result="pass",
+                    tool_outputs=({1: "invalid key"},),  # type: ignore[dict-item]
+                ),
+            )
+        )
+    with pytest.raises(TypeError, match="unexpected keyword argument 'trace_id'"):
+        tbm.MemoryRunResult(
+            decision_id=second.decision_id,
+            eval_result="pass",
+            trace_id="trace_spoofed",  # type: ignore[call-arg]
+        )
+    assert store.to_snapshot() == before
+
+
+def test_complete_memory_runs_rolls_back_on_later_candidate_validation_failure(
+    monkeypatch,
+):
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    _first_trace, first = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_candidate_first"
+    )
+    _second_trace, second = add_pending_memory_run(
+        store, source_trace, lesson, suffix="batch_complete_candidate_second"
+    )
+    before = store.to_snapshot()
+    original_validate = store._validate_usage_log_trace
+
+    def reject_second(log):
+        original_validate(log)
+        if log.decision_id == second.decision_id:
+            raise ValueError("injected second completion candidate failure")
+
+    monkeypatch.setattr(store, "_validate_usage_log_trace", reject_second)
+
+    with pytest.raises(
+        ValueError, match="injected second completion candidate failure"
+    ):
+        store.complete_memory_runs(
+            (
+                tbm.MemoryRunResult(
+                    decision_id=first.decision_id,
+                    eval_result="pass",
+                ),
+                tbm.MemoryRunResult(
+                    decision_id=second.decision_id,
+                    eval_result="pass",
+                ),
+            )
+        )
+    assert store.to_snapshot() == before
+
+
 def test_memory_run_audits_classify_every_state_and_round_trip_stably():
     store, source_trace, _case, lesson = store_with_active_lesson()
     pending_trace, pending_result = add_pending_memory_run(

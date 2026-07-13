@@ -184,6 +184,48 @@ and rolls the Trace update back if the usage update conflicts. Snapshot version
 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain
 unchanged.
 
+### Atomic batch memory-run completion
+
+Use `complete_memory_runs()` when an evaluator finishes several new results
+that must commit all-or-nothing:
+
+```python
+from trace_backed_memory import MemoryRunResult
+
+completions = store.complete_memory_runs(
+    (
+        MemoryRunResult(
+            decision_id="decision_000002",
+            eval_result="pass",
+            output_hash="sha256:output",
+            tool_outputs=({"documents": 3},),
+            latency_ms=125,
+        ),
+    )
+)
+```
+
+`MeasuredEvalResult` contains only `pass`, `fail`, and `error`. Each frozen
+`MemoryRunResult` carries one decision ID, its result and failure attribution,
+plus optional Trace evidence. The API requires a non-empty tuple with unique
+decision IDs, derives `trace_id` from each validated usage decision, and
+preserves request order in defensive `MemoryRunCompletion` results.
+
+For evidence fields, `None` means omitted and preserves an existing value.
+`tool_outputs` uses an optional tuple at the request boundary and becomes a
+list on the Trace; an explicit empty tuple requests an empty list. Results for
+a shared Trace must agree. Evidence fields merge when disjoint or equal, while
+an outcome, existing per-decision attribution, immutable-evidence, or same-field
+evidence conflict rejects the whole batch before mutation.
+
+`complete_memory_runs()` handles new pending, matching partial, and exact replay
+states using the same candidate validators as `complete_memory_run()`. It also
+shares its non-mutating staging engine with `recover_memory_runs()`, while the
+recovery API remains limited to results already measured on one side.
+`MemoryRunResult` is not persisted; snapshots and PostgreSQL store only existing
+Trace and usage rows. Snapshot version 2, JSON Schemas, active-lessons YAML, and
+PostgreSQL schema version 1 remain unchanged.
+
 ### Memory-run audit view
 
 `memory_run_audits()` returns an immutable tuple of frozen `MemoryRunAudit`
@@ -711,6 +753,7 @@ from dataclasses import replace
 from trace_backed_memory import (
     MemoryContext,
     MemoryDecision,
+    MemoryRunResult,
     ProjectPolicy,
     Trace,
     TraceMetadataCaptureError,
@@ -937,13 +980,17 @@ old_lesson = obsolete_lesson(lesson)
 
 Implemented pieces:
 
-- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, `MemoryRunCompletion`, `MemoryRunAudit`, `MemoryRunMetrics`, `MemoryMetrics`, and `MemoryOutcomeMetrics`.
+- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`,
+  `MemoryUsageLog`, `MemoryRunResult`, `MemoryRunCompletion`, `MemoryRunAudit`,
+  `MemoryRunMetrics`, `MemoryMetrics`, and `MemoryOutcomeMetrics`.
 - Git metadata capture for repo name, commit SHA, branch, and dirty state, with command failure errors wrapped for harness diagnostics.
 - Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
 - Store-level checks that validate both the incoming and copied trace, preserve copy isolation, reject concurrent copy mutation, and reject empty identity fields, unsupported eval results, or malformed nested JSON trace collections, including non-string object keys, non-finite numbers, reference cycles, and excessive nesting.
 - Atomic deferred Trace completion for measured output identity, tool outputs, latency, cost, error, and trace URI evidence, with immutable provenance and input fields, exact replay, copy isolation, and PostgreSQL forward synchronization.
 - Atomic memory-run completion by linked `trace_id` and `decision_id`, with one measured result, exact replay, partial recovery, defensive return values, and transactional PostgreSQL synchronization.
+- Atomic `complete_memory_runs()` evaluation batches with derived Trace linkage,
+  per-run evidence, shared-Trace merging, and all-or-nothing assignment.
 - Derived `memory_run_audits()` visibility for pending, one-sided, complete, and conflicting Trace/decision outcomes without new persistence state.
 - Derived `memory_run_metrics()` health counts with five-state conservation, explicit recoverability, and no redundant persisted aggregate.
 - Safe `recover_memory_run()` orchestration that derives correlated IDs/results, requires explicit failed-run attribution, and reuses atomic completion.

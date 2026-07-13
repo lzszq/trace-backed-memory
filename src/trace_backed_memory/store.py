@@ -39,6 +39,7 @@ from .models import (
     MemoryItem,
     MemoryMetrics,
     MemoryOutcomeMetrics,
+    MemoryRunCompletion,
     PRChangeEndpoint,
     PRCaseProvenance,
     MemoryUsageLog,
@@ -297,46 +298,91 @@ class TraceBackedMemoryStore:
         if current is None:
             raise ValueError(f"unknown trace_id: {trace_id}")
 
-        supplied_values = {
-            "output_hash": output_hash,
-            "tool_outputs": tool_outputs,
-            "latency_ms": latency_ms,
-            "cost_usd": cost_usd,
-            "error": error,
-            "trace_uri": trace_uri,
-        }
-        completion_values = {
-            field_name: value
-            for field_name, value in supplied_values.items()
-            if value is not _UNSET
-        }
-        candidate = replace(
+        completed = _completed_trace_candidate(
             current,
-            eval_result=eval_result,
-            **completion_values,
+            eval_result,
+            _provided_trace_completion_values(
+                output_hash=output_hash,
+                tool_outputs=tool_outputs,
+                latency_ms=latency_ms,
+                cost_usd=cost_usd,
+                error=error,
+                trace_uri=trace_uri,
+            ),
         )
-        _validate_trace(candidate)
-        completed = _copy_trace_for_storage(candidate)
-        _validate_trace(completed)
-
-        if current.eval_result in EVALUATED_RESULTS:
-            if completed == current:
-                return deepcopy(current)
-            raise ValueError(f"trace execution already completed: {trace_id}")
-
-        for field_name in completion_values:
-            current_value = getattr(current, field_name)
-            completed_value = getattr(completed, field_name)
-            if (
-                not _trace_completion_slot_is_empty(field_name, current_value)
-                and current_value != completed_value
-            ):
-                raise ValueError(
-                    f"trace completion cannot rewrite {field_name}: {trace_id}"
-                )
 
         self._traces[trace_id] = completed
         return deepcopy(completed)
+
+    @_synchronized
+    def complete_memory_run(
+        self,
+        *,
+        trace_id: str,
+        decision_id: str,
+        eval_result: _MeasuredEvalResult,
+        memory_caused_failure: bool = False,
+        output_hash: str | None = cast(Any, _UNSET),
+        tool_outputs: list[dict[str, object]] = cast(Any, _UNSET),
+        latency_ms: int | None = cast(Any, _UNSET),
+        cost_usd: float | None = cast(Any, _UNSET),
+        error: str | None = cast(Any, _UNSET),
+        trace_uri: str | None = cast(Any, _UNSET),
+    ) -> MemoryRunCompletion:
+        """Atomically complete a Trace and its linked memory decision."""
+        _validate_required_string(
+            trace_id,
+            "trace_id",
+            "memory run completion requires",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        _validate_required_string(
+            decision_id,
+            "decision_id",
+            "memory run completion requires",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        _validate_measured_outcome(eval_result, memory_caused_failure)
+
+        current_trace = self._traces.get(trace_id)
+        if current_trace is None:
+            raise ValueError(f"unknown trace_id: {trace_id}")
+        log_index = self._usage_log_index(decision_id)
+        current_log = self._usage_logs[log_index]
+        if (
+            current_log.trace_id != trace_id
+            or current_log.run_id != current_trace.run_id
+        ):
+            raise ValueError(
+                f"decision_id {decision_id} does not belong to trace_id {trace_id}"
+            )
+
+        completed_trace = _completed_trace_candidate(
+            current_trace,
+            eval_result,
+            _provided_trace_completion_values(
+                output_hash=output_hash,
+                tool_outputs=tool_outputs,
+                latency_ms=latency_ms,
+                cost_usd=cost_usd,
+                error=error,
+                trace_uri=trace_uri,
+            ),
+        )
+        sealed_log = _sealed_usage_outcome_candidate(
+            current_log,
+            eval_result,
+            memory_caused_failure,
+        )
+        self._validate_usage_log_memory_ids(sealed_log)
+        self._validate_usage_log_trace(sealed_log)
+
+        self._traces[trace_id] = completed_trace
+        self._usage_logs[log_index] = sealed_log
+        return MemoryRunCompletion(
+            trace=deepcopy(completed_trace),
+            usage_log=deepcopy(sealed_log),
+        )
 
     @_synchronized
     def add_failure_case(self, case: FailureCase) -> FailureCase:
@@ -844,6 +890,19 @@ class TraceBackedMemoryStore:
         )
         _validate_measured_outcome(eval_result, memory_caused_failure)
 
+        log_index = self._usage_log_index(decision_id)
+        current = self._usage_logs[log_index]
+        sealed = _sealed_usage_outcome_candidate(
+            current,
+            eval_result,
+            memory_caused_failure,
+        )
+        self._validate_usage_log_memory_ids(sealed)
+        self._validate_usage_log_trace(sealed)
+        self._usage_logs[log_index] = sealed
+        return deepcopy(sealed)
+
+    def _usage_log_index(self, decision_id: str) -> int:
         log_index = next(
             (
                 index
@@ -854,26 +913,7 @@ class TraceBackedMemoryStore:
         )
         if log_index is None:
             raise ValueError(f"unknown decision_id: {decision_id}")
-
-        current = self._usage_logs[log_index]
-        if current.eval_result in EVALUATED_RESULTS:
-            if (
-                current.eval_result == eval_result
-                and current.memory_caused_failure is memory_caused_failure
-            ):
-                return deepcopy(current)
-            raise ValueError(f"decision outcome already sealed: {decision_id}")
-
-        sealed = replace(
-            current,
-            eval_result=eval_result,
-            memory_caused_failure=memory_caused_failure,
-        )
-        _validate_usage_log(sealed)
-        self._validate_usage_log_memory_ids(sealed)
-        self._validate_usage_log_trace(sealed)
-        self._usage_logs[log_index] = sealed
-        return deepcopy(sealed)
+        return log_index
 
     def _trace_for_run_id(self, run_id: str) -> Trace:
         _validate_required_string(
@@ -1738,6 +1778,90 @@ def _validate_runtime_outcome(
         raise ValueError("eval_result must be one of: error, fail, pass, unknown, or None")
     if type(memory_caused_failure) is not bool:
         raise ValueError("memory_caused_failure must be a boolean")
+
+
+def _provided_trace_completion_values(
+    *,
+    output_hash: Any,
+    tool_outputs: Any,
+    latency_ms: Any,
+    cost_usd: Any,
+    error: Any,
+    trace_uri: Any,
+) -> dict[str, Any]:
+    supplied_values = {
+        "output_hash": output_hash,
+        "tool_outputs": tool_outputs,
+        "latency_ms": latency_ms,
+        "cost_usd": cost_usd,
+        "error": error,
+        "trace_uri": trace_uri,
+    }
+    return {
+        field_name: value
+        for field_name, value in supplied_values.items()
+        if value is not _UNSET
+    }
+
+
+def _completed_trace_candidate(
+    current: Trace,
+    eval_result: _MeasuredEvalResult,
+    completion_values: Mapping[str, Any],
+) -> Trace:
+    candidate = replace(
+        current,
+        eval_result=eval_result,
+        **completion_values,
+    )
+    _validate_trace(candidate)
+    completed = _copy_trace_for_storage(candidate)
+    _validate_trace(completed)
+
+    if current.eval_result in EVALUATED_RESULTS:
+        if completed == current:
+            return current
+        raise ValueError(
+            f"trace execution already completed: {current.trace_id}"
+        )
+
+    for field_name in completion_values:
+        current_value = getattr(current, field_name)
+        completed_value = getattr(completed, field_name)
+        if (
+            not _trace_completion_slot_is_empty(field_name, current_value)
+            and current_value != completed_value
+        ):
+            raise ValueError(
+                "trace completion cannot rewrite "
+                f"{field_name}: {current.trace_id}"
+            )
+    return completed
+
+
+def _sealed_usage_outcome_candidate(
+    current: MemoryUsageLog,
+    eval_result: _MeasuredEvalResult,
+    memory_caused_failure: bool,
+) -> MemoryUsageLog:
+    if current.eval_result in EVALUATED_RESULTS:
+        if (
+            current.eval_result == eval_result
+            and current.memory_caused_failure is memory_caused_failure
+        ):
+            _validate_usage_log(current)
+            return current
+        raise ValueError(
+            f"decision outcome already sealed: {current.decision_id}"
+        )
+
+    sealed = replace(
+        current,
+        eval_result=eval_result,
+        memory_caused_failure=memory_caused_failure,
+    )
+    _validate_usage_log(sealed)
+    return sealed
 
 
 def _validate_measured_outcome(

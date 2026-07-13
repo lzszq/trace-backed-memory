@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
-from dataclasses import is_dataclass
+from dataclasses import is_dataclass, replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -203,6 +203,47 @@ def _pending_trace_store(*, suffix: str = "completion"):
             eval_result="unknown",
             created_at="2025-07-13T08:00:00Z",
         )
+    )
+    return store
+
+
+def _pending_memory_run_store():
+    from trace_backed_memory import MemoryContext, MemoryDecision
+
+    store = _complete_store()
+    source = store.traces["trace_sync"]
+    current = store.record_trace(
+        replace(
+            source,
+            trace_id="trace_atomic_run",
+            run_id="run_atomic_run",
+            output_hash=None,
+            tool_outputs=[],
+            eval_result="unknown",
+            latency_ms=None,
+            cost_usd=None,
+            error=None,
+            trace_uri=None,
+            created_at="2025-07-13T09:00:00Z",
+        )
+    )
+    store.log_decision(
+        current.run_id,
+        MemoryContext(
+            mode="repair",
+            repo=current.repo or "repo_sync",
+            tenant=current.tenant,
+            commit_sha=current.commit_sha,
+        ),
+        ["lesson_sync"],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=["lesson_sync"],
+            blocked_memory_ids=[],
+            reason="atomic run pending",
+            risk="low",
+            recommended_injection="short_summary",
+        ),
     )
     return store
 
@@ -846,6 +887,92 @@ def test_repository_sync_updates_deferred_usage_outcome_and_is_idempotent(
 
         repeated = repository.sync(store)
         assert repeated.usage_logs == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_sync_persists_atomic_memory_run_completion(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store = _pending_memory_run_store()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+
+        completion = store.complete_memory_run(
+            trace_id="trace_atomic_run",
+            decision_id="decision_000002",
+            eval_result="pass",
+            output_hash="sha256:atomic-output",
+            tool_outputs=[{"documents": 4}],
+            latency_ms=80,
+        )
+        updated = repository.sync(store)
+
+        assert updated.traces == PostgresSyncCounts(updated=1, unchanged=1)
+        assert updated.failure_cases == PostgresSyncCounts(unchanged=1)
+        assert updated.lessons == PostgresSyncCounts(unchanged=1)
+        assert updated.project_policies == PostgresSyncCounts(unchanged=1)
+        assert updated.usage_logs == PostgresSyncCounts(updated=1, unchanged=1)
+
+        loaded = repository.load()
+        assert loaded.traces["trace_atomic_run"] == completion.trace
+        assert next(
+            log
+            for log in loaded.usage_logs
+            if log.decision_id == "decision_000002"
+        ) == completion.usage_log
+
+        repeated = repository.sync(store)
+        assert repeated.traces == PostgresSyncCounts(unchanged=2)
+        assert repeated.usage_logs == PostgresSyncCounts(unchanged=2)
+
+
+def test_repository_rolls_back_trace_update_on_atomic_run_usage_conflict(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+    )
+
+    postgres_cluster.load_schema()
+    baseline = _pending_memory_run_store()
+    incoming = TraceBackedMemoryStore.from_snapshot(baseline.to_snapshot())
+    incoming.complete_memory_run(
+        trace_id="trace_atomic_run",
+        decision_id="decision_000002",
+        eval_result="pass",
+        output_hash="sha256:atomic-output",
+    )
+    conflicting_snapshot = incoming.to_snapshot()
+    conflicting_log = next(
+        log
+        for log in conflicting_snapshot["usage_logs"]
+        if log["decision_id"] == "decision_000002"
+    )
+    conflicting_log["reason"] = "conflicting atomic decision"
+    conflicting = TraceBackedMemoryStore.from_snapshot(conflicting_snapshot)
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(baseline)
+
+        with pytest.raises(
+            PostgresConflictError,
+            match="memory_usage_decisions.*decision_000002.*immutable conflict",
+        ):
+            repository.sync(conflicting)
+
+        loaded = repository.load()
+        assert loaded.traces["trace_atomic_run"].eval_result == "unknown"
+        assert next(
+            log
+            for log in loaded.usage_logs
+            if log.decision_id == "decision_000002"
+        ).eval_result is None
 
 
 def test_repository_sync_rejects_stale_or_conflicting_sealed_outcome(

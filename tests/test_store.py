@@ -14,6 +14,7 @@ import trace_backed_memory.store as store_module
 from trace_backed_memory import (
     CommitAncestryEvidence,
     FailureCase,
+    GatedMemoryResult,
     Lesson,
     MemoryContext,
     MemoryDecision,
@@ -225,6 +226,42 @@ def store_with_usage_decision(
         eval_result=eval_result,
     )
     return store, log, lesson
+
+
+def store_with_pending_memory_run(
+    *,
+    use_memory: bool = True,
+    current_trace_changes: dict[str, object] | None = None,
+) -> tuple[TraceBackedMemoryStore, Trace, GatedMemoryResult, Lesson]:
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    current = store.record_trace(
+        replace(
+            source_trace,
+            trace_id="trace_pending_memory_run",
+            run_id="run_pending_memory_run",
+            eval_result="unknown",
+            **(current_trace_changes or {}),
+        )
+    )
+    request = store.prepare_memory(matching_context(current), task="repair")
+    payload = (
+        allow_decision(lesson.lesson_id)
+        if use_memory
+        else {
+            "use_memory": False,
+            "allowed_memory_ids": [],
+            "blocked_memory_ids": [],
+            "reason": "memory not needed",
+            "risk": "none",
+            "recommended_injection": "none",
+        }
+    )
+    result = store.finalize_memory(
+        request,
+        payload,
+        trace_id=current.trace_id,
+    )
+    return store, current, result, lesson
 
 
 def store_with_declared_trace_provenance() -> tuple[
@@ -2013,6 +2050,233 @@ def test_trace_and_decision_can_be_completed_after_memory_execution():
     assert completed_decision.eval_result == "pass"
     assert store.traces[current.trace_id].eval_result == "pass"
     assert store.metrics().pass_rate_with_memory == 1.0
+
+
+def test_complete_memory_run_atomically_completes_both_records_and_round_trips():
+    store, current, result, lesson = store_with_pending_memory_run()
+
+    completion = store.complete_memory_run(
+        trace_id=current.trace_id,
+        decision_id=result.decision_id,
+        eval_result="pass",
+        output_hash="sha256:atomic-output",
+        tool_outputs=[{"status": "ok"}],
+        latency_ms=30,
+        cost_usd=0.003,
+        trace_uri="trace://atomic-run",
+    )
+
+    assert isinstance(completion, tbm.MemoryRunCompletion)
+    assert "MemoryRunCompletion" in tbm.__all__
+    with pytest.raises(FrozenInstanceError):
+        completion.trace = current
+    assert completion.trace.eval_result == "pass"
+    assert completion.trace.output_hash == "sha256:atomic-output"
+    assert completion.usage_log.eval_result == "pass"
+    assert completion.usage_log.decision_id == result.decision_id
+    assert store.traces[current.trace_id] == completion.trace
+    assert store.usage_logs[0] == completion.usage_log
+    assert store.metrics().pass_rate_with_memory == 1.0
+    assert {
+        item.memory_id: item for item in store.memory_outcome_metrics()
+    }[lesson.lesson_id].observed_pass_rate == 1.0
+
+    restored = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    assert restored.traces[current.trace_id] == completion.trace
+    assert restored.usage_logs[0] == completion.usage_log
+
+    completion.trace.tool_outputs[0]["status"] = "mutated"
+    completion.usage_log.context["repo"] = "mutated"
+    assert store.traces[current.trace_id].tool_outputs == [{"status": "ok"}]
+    assert store.usage_logs[0].context["repo"] == "repo"
+
+
+def test_complete_memory_run_exact_replay_is_idempotent_and_conflicts_are_atomic():
+    store, current, result, _lesson = store_with_pending_memory_run()
+    completed = store.complete_memory_run(
+        trace_id=current.trace_id,
+        decision_id=result.decision_id,
+        eval_result="pass",
+        output_hash="sha256:atomic-output",
+    )
+    after_completion = store.to_snapshot()
+
+    replayed = store.complete_memory_run(
+        trace_id=current.trace_id,
+        decision_id=result.decision_id,
+        eval_result="pass",
+    )
+
+    assert replayed == completed
+    assert store.to_snapshot() == after_completion
+    conflicting_calls = [
+        {"eval_result": "fail"},
+        {"eval_result": "pass", "output_hash": "sha256:other"},
+        {"eval_result": "pass", "memory_caused_failure": True},
+    ]
+    for changes in conflicting_calls:
+        with pytest.raises(ValueError):
+            store.complete_memory_run(
+                trace_id=current.trace_id,
+                decision_id=result.decision_id,
+                **changes,
+            )
+        assert store.to_snapshot() == after_completion
+
+
+def test_complete_memory_run_requires_exact_decision_trace_linkage():
+    store, current, result, _lesson = store_with_pending_memory_run()
+    other_trace = store.record_trace(
+        replace(
+            current,
+            trace_id="trace_other_memory_run",
+            run_id="run_other_memory_run",
+        )
+    )
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="decision_id .* does not belong to trace_id"):
+        store.complete_memory_run(
+            trace_id=other_trace.trace_id,
+            decision_id=result.decision_id,
+            eval_result="pass",
+        )
+    with pytest.raises(ValueError, match="unknown decision_id: decision_missing"):
+        store.complete_memory_run(
+            trace_id=current.trace_id,
+            decision_id="decision_missing",
+            eval_result="pass",
+        )
+
+    assert store.to_snapshot() == before
+
+
+def test_complete_memory_run_trace_candidate_failure_leaves_both_pending():
+    store, current, result, _lesson = store_with_pending_memory_run(
+        current_trace_changes={"output_hash": "sha256:prefilled"}
+    )
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="trace completion cannot rewrite output_hash"):
+        store.complete_memory_run(
+            trace_id=current.trace_id,
+            decision_id=result.decision_id,
+            eval_result="pass",
+            output_hash="sha256:other",
+        )
+
+    assert store.to_snapshot() == before
+    assert store.traces[current.trace_id].eval_result == "unknown"
+    assert store.usage_logs[0].eval_result is None
+
+
+def test_complete_memory_run_usage_candidate_failure_leaves_trace_pending():
+    store, current, result, _lesson = store_with_pending_memory_run(
+        use_memory=False
+    )
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="requires failed or errored memory use"):
+        store.complete_memory_run(
+            trace_id=current.trace_id,
+            decision_id=result.decision_id,
+            eval_result="fail",
+            memory_caused_failure=True,
+            output_hash="sha256:would-be-valid",
+        )
+
+    assert store.to_snapshot() == before
+    assert store.traces[current.trace_id].eval_result == "unknown"
+    assert store.usage_logs[0].eval_result is None
+
+
+def test_complete_memory_run_recovers_either_matching_partial_state():
+    trace_first, trace, trace_result, _lesson = store_with_pending_memory_run()
+    trace_first.complete_trace(
+        trace.trace_id,
+        eval_result="pass",
+        output_hash="sha256:trace-first",
+    )
+
+    recovered_trace_first = trace_first.complete_memory_run(
+        trace_id=trace.trace_id,
+        decision_id=trace_result.decision_id,
+        eval_result="pass",
+    )
+
+    assert recovered_trace_first.trace.output_hash == "sha256:trace-first"
+    assert recovered_trace_first.usage_log.eval_result == "pass"
+
+    decision_first, trace, decision_result, _lesson = store_with_pending_memory_run()
+    decision_first.record_decision_outcome(decision_result.decision_id, "error")
+
+    recovered_decision_first = decision_first.complete_memory_run(
+        trace_id=trace.trace_id,
+        decision_id=decision_result.decision_id,
+        eval_result="error",
+        error="executor failed",
+    )
+
+    assert recovered_decision_first.trace.eval_result == "error"
+    assert recovered_decision_first.trace.error == "executor failed"
+    assert recovered_decision_first.usage_log.eval_result == "error"
+
+
+def test_complete_memory_run_rejects_conflicting_partial_states_atomically():
+    store, current, result, _lesson = store_with_pending_memory_run()
+    store.complete_trace(current.trace_id, eval_result="pass")
+    store.record_decision_outcome(result.decision_id, "error")
+    before = store.to_snapshot()
+
+    for eval_result in ("pass", "error"):
+        with pytest.raises(ValueError):
+            store.complete_memory_run(
+                trace_id=current.trace_id,
+                decision_id=result.decision_id,
+                eval_result=eval_result,
+            )
+        assert store.to_snapshot() == before
+
+
+def test_concurrent_conflicting_memory_run_completion_has_one_consistent_winner():
+    store, current, result, _lesson = store_with_pending_memory_run()
+    start = threading.Barrier(3)
+    outcomes: list[object] = []
+
+    def complete(eval_result: str) -> None:
+        start.wait()
+        try:
+            outcomes.append(
+                store.complete_memory_run(
+                    trace_id=current.trace_id,
+                    decision_id=result.decision_id,
+                    eval_result=eval_result,
+                )
+            )
+        except ValueError as exc:
+            outcomes.append(exc)
+
+    threads = [
+        threading.Thread(target=complete, args=(eval_result,))
+        for eval_result in ("pass", "fail")
+    ]
+    for thread in threads:
+        thread.start()
+    start.wait()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert all(not thread.is_alive() for thread in threads)
+    successes = [
+        outcome
+        for outcome in outcomes
+        if type(outcome).__name__ == "MemoryRunCompletion"
+    ]
+    failures = [outcome for outcome in outcomes if isinstance(outcome, ValueError)]
+    assert len(successes) == 1
+    assert len(failures) == 1
+    assert store.traces[current.trace_id].eval_result == store.usage_logs[0].eval_result
+    assert store.traces[current.trace_id].eval_result == successes[0].trace.eval_result
 
 
 def test_mutating_public_collection_copy_does_not_change_store():

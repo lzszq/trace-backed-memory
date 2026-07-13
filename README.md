@@ -143,17 +143,41 @@ result = store.finalize_memory(
 )
 snippet = result.snippet
 # Execute the task with snippet, then evaluate it.
-completed_trace = store.complete_trace(
-    trace.trace_id,
+completion = store.complete_memory_run(
+    trace_id=trace.trace_id,
+    decision_id=result.decision_id,
     eval_result="pass",
     tool_outputs=[{"documents": 3}],
     latency_ms=125,
 )
-sealed_log = store.record_decision_outcome(result.decision_id, "pass")
+completed_trace = completion.trace
+sealed_log = completion.usage_log
 ```
 
 Only this store workflow provides ownership, replay, stale-state, trace-link,
 and atomic logging guarantees.
+
+### Atomic memory-run completion
+
+After execution, `complete_memory_run()` is the preferred way to record the
+result. It requires the exact linked `trace_id` and `decision_id`, applies one
+measured `eval_result` to both records, validates both candidates under one
+store lock, and returns a frozen `MemoryRunCompletion` containing defensive
+copies of the completed Trace and sealed usage log.
+
+Both records may be pending, either record may already contain the same result
+for partial recovery, or both may already match for exact replay. A conflicting
+result, failure attribution, Trace field, or linkage rejects the operation
+without changing either record. `complete_trace()` and
+`record_decision_outcome()` remain public low-level operations for separately
+owned lifecycles and explicit recovery, but normal memory runs should use the
+atomic high-level method.
+
+Snapshots persist the existing Trace and usage-log records rather than the
+return wrapper. PostgreSQL synchronization updates both rows in one transaction
+and rolls the Trace update back if the usage update conflicts. Snapshot version
+2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain
+unchanged.
 
 ### Deferred Trace completion
 
@@ -170,22 +194,22 @@ metadata, input hash, retrieved context, tool calls, and `created_at`, remains
 immutable. Exact replay is idempotent; a different completion fails without
 mutation.
 
-Trace completion and decision-outcome sealing are separate audit operations:
-neither updates the other record. Normal memory runs call both after execution
-with the same measured evaluator result when the Trace and decision describe
-that evaluation. PostgreSQL synchronization supports the same forward Trace
+`complete_trace()` is the low-level Trace-only transition: it never updates a
+usage log. Use it when the caller intentionally owns separate audit lifecycles
+or needs partial recovery before calling `complete_memory_run()` with the same
+measured result. PostgreSQL synchronization supports the same forward Trace
 transition and rejects stale, reverse, or conflicting updates atomically.
 Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
 version 1 remain unchanged.
 
 ### Deferred decision outcome sealing
 
-`finalize_memory()` may log an outcome immediately when one is already known,
-but normal runtime callers should finalize first, execute with the returned
-snippet, and then call `record_decision_outcome()`. The sealable measured
-results are `pass`, `fail`, and `error`; initial `None` or `unknown` values are
-unevaluated. A measured result and its `memory_caused_failure` value form one
-outcome pair.
+`finalize_memory()` may log an outcome immediately when one is already known.
+`record_decision_outcome()` remains the low-level decision-only transition for
+separately owned lifecycles and partial recovery; normal runtime callers use
+`complete_memory_run()` after execution. The sealable measured results are
+`pass`, `fail`, and `error`; initial `None` or `unknown` values are unevaluated.
+A measured result and its `memory_caused_failure` value form one outcome pair.
 
 An unevaluated decision can be sealed once. Exact replay of the same pair is
 idempotent; a different result, a different failure attribution, a downgrade
@@ -691,15 +715,17 @@ result = store.finalize_memory(
     trace_id=current_trace.trace_id,
 )
 snippet = result.snippet
-completed_trace = store.complete_trace(
-    current_trace.trace_id,
+completion = store.complete_memory_run(
+    trace_id=current_trace.trace_id,
+    decision_id=result.decision_id,
     eval_result="pass",
     output_hash="sha256:current-output",
     tool_outputs=[{"documents": 3}],
     latency_ms=125,
     cost_usd=0.002,
 )
-outcome_log = store.record_decision_outcome(result.decision_id, "pass")
+completed_trace = completion.trace
+outcome_log = completion.usage_log
 metrics = store.metrics()
 assert metrics.evaluated_with_memory_count == 1
 assert metrics.evaluated_without_memory_count == 0
@@ -735,9 +761,11 @@ outcome. For values returned by `store.metrics()`, their sum equals
 their compatible zero defaults.
 
 When evaluation finishes after memory finalization, use
-`record_decision_outcome()` to seal the result before reading metrics or
-persisting the completed audit. The transition is atomic and updates these
-derived metrics without persisting separate counters.
+`complete_memory_run()` to complete the Trace and seal the decision before
+reading metrics or persisting the completed audit. Use
+`record_decision_outcome()` only when the caller deliberately owns the Trace
+transition separately. Both transitions update these derived metrics without
+persisting separate counters.
 
 These are decision counts, not per-memory causal attribution. A decision is
 classified as with-memory when its usage log has non-empty `used_memory_ids`.
@@ -789,12 +817,13 @@ old_lesson = obsolete_lesson(lesson)
 
 Implemented pieces:
 
-- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, `MemoryMetrics`, and `MemoryOutcomeMetrics`.
+- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, `MemoryRunCompletion`, `MemoryMetrics`, and `MemoryOutcomeMetrics`.
 - Git metadata capture for repo name, commit SHA, branch, and dirty state, with command failure errors wrapped for harness diagnostics.
 - Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
 - Store-level checks that validate both the incoming and copied trace, preserve copy isolation, reject concurrent copy mutation, and reject empty identity fields, unsupported eval results, or malformed nested JSON trace collections, including non-string object keys, non-finite numbers, reference cycles, and excessive nesting.
 - Atomic deferred Trace completion for measured output identity, tool outputs, latency, cost, error, and trace URI evidence, with immutable provenance and input fields, exact replay, copy isolation, and PostgreSQL forward synchronization.
+- Atomic memory-run completion by linked `trace_id` and `decision_id`, with one measured result, exact replay, partial recovery, defensive return values, and transactional PostgreSQL synchronization.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
 - Failure extraction helpers that load the failure taxonomy, classify failed traces against it with ordered conservative heuristics, and draft failure cases.
 - Manual review helper that records reviewer, root cause, notes, and review timestamp on draft failure cases.

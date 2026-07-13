@@ -189,6 +189,12 @@ class MemoryUsageLog:
 
 
 @dataclass(frozen=True)
+class MemoryRunCompletion:
+    trace: Trace
+    usage_log: MemoryUsageLog
+
+
+@dataclass(frozen=True)
 class MemoryMetrics:
     decision_count: int
     candidate_memory_count: int

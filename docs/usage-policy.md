@@ -161,8 +161,15 @@ own equivalent orchestration.
 The usual chronology is decision first and evaluation later. Call
 `record_trace()` first with an `unknown` current Trace, call
 `finalize_memory()` without an outcome, execute the task with the returned
-snippet, complete the Trace, then call `record_decision_outcome()` with the
-returned decision ID.
+snippet, then call `complete_memory_run()` with the returned `trace_id` and
+`decision_id`. One measured result completes the Trace and seals the decision
+atomically. The frozen `MemoryRunCompletion` return value exposes defensive
+copies of both records.
+
+Both records may be pending, either one may already contain the matching result
+for partial recovery, or both may match for exact replay. A result, attribution,
+Trace evidence, or linkage conflict leaves both records unchanged. Use this
+high-level operation for normal memory execution.
 
 `complete_trace()` accepts only `pass`, `fail`, or `error` and can fill
 `output_hash`, `tool_outputs`, `latency_ms`, `cost_usd`, `error`, and
@@ -172,7 +179,9 @@ partial post-completion rewrites are rejected atomically.
 
 Trace completion never seals a usage decision automatically, and decision
 outcome sealing never changes a Trace. Use the same evaluator result for both
-when they describe the same evaluation.
+when using these low-level transitions for separately owned lifecycles or
+recovery. `complete_trace()` and `record_decision_outcome()` remain available,
+but they are not the preferred normal post-execution workflow.
 
 Only `pass`, `fail`, and `error` can seal an initial `None` or `unknown` result.
 The result and `memory_caused_failure` flag are one pair: exact replay is
@@ -198,6 +207,12 @@ The store validates this evidence before pending request consumption or
 usage-log append. Imported version-2 and supplied legacy context evidence is
 subject to the same checks. No persistence contract changes: snapshot version
 2 and PostgreSQL schema version 1 remain current.
+
+`MemoryRunCompletion` itself is not persisted. Snapshots retain the existing
+Trace and usage log, and PostgreSQL synchronization updates their linked
+`trace_id` and `decision_id` rows inside one transaction. A usage-row conflict
+therefore rolls back an earlier Trace update. Snapshot version 2, JSON Schemas,
+active-lessons YAML, and PostgreSQL schema version 1 remain unchanged.
 
 ## Git Ancestry Opt-in
 
@@ -232,10 +247,11 @@ For values returned by `store.metrics()`, together they equal
 `decision_count`; directly constructed legacy values retain zero defaults for
 the appended fields.
 
-Use `record_decision_outcome()` after evaluation and before reading completed
-metrics or synchronizing the completed audit. Sealing moves the decision from
-the unevaluated bucket to exactly one evaluated denominator; it does not create
-or persist a separate metric record.
+Use `complete_memory_run()` after evaluation and before reading completed
+metrics or synchronizing the completed audit. It moves the decision from the
+unevaluated bucket to exactly one evaluated denominator while completing the
+linked Trace. Use `record_decision_outcome()` only when Trace completion is
+owned separately; neither path creates or persists a separate metric record.
 
 These are decision counts, not per-memory causal attribution. With-memory means
 the audited decision has at least one `used_memory_id`; it does not prove that

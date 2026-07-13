@@ -257,20 +257,26 @@ provides ownership, replay, stale-state, trace-link, and atomic logging
 guarantees. Low-level helpers remain public for callers that own equivalent
 orchestration.
 
-Execution normally finishes after the decision is logged. An unevaluated usage
-log therefore supports one store-owned transition through
-`record_decision_outcome()`: `None` or `unknown` may become `pass`, `fail`, or
-`error` together with its `memory_caused_failure` value. Validation and
-replacement occur under the store lock. Exact replay is idempotent; changing
-either member of an already sealed pair is rejected without mutation. The
-returned log is a defensive copy.
+Execution normally finishes after the decision is logged. The chronological
+runtime path registers an `unknown` current Trace, finalizes memory, executes,
+then calls `complete_memory_run()` with the linked `trace_id`, `decision_id`,
+and one measured result. Under one store lock, it validates a completed Trace
+candidate and a sealed usage-log candidate before assigning either. The frozen
+`MemoryRunCompletion` return value contains defensive copies of both records.
 
-Trace completion and usage-outcome sealing remain separate. Completing a Trace
-does not mutate linked usage logs, and sealing a decision outcome does not
-mutate its Trace. The chronological runtime path registers an `unknown` current
-Trace, finalizes memory, executes, completes the Trace, and seals the decision
-outcome. Callers use the same measured evaluator result when both records
-describe that evaluation; legacy records are not reinterpreted.
+Both records may be pending, one matching record may already be complete for
+partial recovery, or both may match for an idempotent exact replay. A result,
+attribution, evidence, or linkage conflict rejects the atomic operation without
+changing either record. `complete_trace()` and `record_decision_outcome()`
+remain independent low-level APIs for callers that deliberately own separate
+lifecycles and for recovery; legacy records are not reinterpreted.
+
+An unevaluated usage log supports its low-level store-owned transition through
+`record_decision_outcome()`: `None` or `unknown` may become `pass`, `fail`, or
+`error` together with its `memory_caused_failure` value. Exact replay is
+idempotent; changing either member of an already sealed pair is rejected
+without mutation. `complete_trace()` likewise changes only its Trace when used
+directly.
 
 At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
 match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
@@ -455,6 +461,14 @@ update only diagnosis
 Their identity, source provenance, and creation timestamp remain immutable. For
 existing rows, lessons and project policies may update only `status`; a
 difference in any other field is a conflict.
+
+A store completed through `complete_memory_run()` still contains the same two
+persisted records; `MemoryRunCompletion` is not stored. `sync(store)` processes
+the linked `trace_id` and `decision_id` updates in its existing transaction, so
+an atomic synchronization either commits both forward transitions or rolls the
+Trace update back when the usage row conflicts. This also supports persistence
+after partial recovery. Snapshot version 2, JSON Schemas, active-lessons YAML,
+and PostgreSQL schema version 1 remain unchanged.
 
 Database triggers still enforce forward-only status transitions. Failure cases
 may move from `draft` to `verified` or `obsolete`, and from `verified` to

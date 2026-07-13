@@ -157,18 +157,18 @@ def test_readme_safe_workflow_example_stays_executable():
     result = store.finalize_memory(
         request, allow_decision(lesson.lesson_id), trace_id=trace.trace_id,
     )
-    completed = store.complete_trace(
-        trace.trace_id,
+    completion = store.complete_memory_run(
+        trace_id=trace.trace_id,
+        decision_id=result.decision_id,
         eval_result="pass",
         tool_outputs=[{"documents": 3}],
         latency_ms=125,
     )
-    sealed = store.record_decision_outcome(result.decision_id, "pass")
     assert result.use_memory
     assert result.decision_id == store.usage_logs[-1].decision_id
     assert store.traces[source_trace.trace_id].eval_result == "fail"
-    assert completed.eval_result == "pass"
-    assert sealed.eval_result == "pass"
+    assert completion.trace.eval_result == "pass"
+    assert completion.usage_log.eval_result == "pass"
     assert store.metrics().evaluated_with_memory_count == 1
     assert store.metrics().unevaluated_decision_count == 0
 

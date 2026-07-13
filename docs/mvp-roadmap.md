@@ -241,11 +241,28 @@ Track:
 - Keep Trace identity, repo/commit/tenant provenance, prompt/tool/model and eval
   metadata, input hash, retrieved context, tool calls, and creation time
   immutable. Make exact completion replay idempotent and every failure atomic.
-- Keep Trace completion separate from `record_decision_outcome()`; the normal
-  runtime completes both records after execution without silently mutating one
-  from the other.
+- Keep low-level Trace completion separate from `record_decision_outcome()` so
+  advanced callers can still own either lifecycle and recover legacy partial
+  states without silently mutating the other record.
 - Let PostgreSQL synchronization perform the same row-locked forward Trace
   completion, reject stale or conflicting states, and roll back on any later
   synchronization conflict.
 - Preserve `Trace`, snapshot version 2, JSON Schemas, active-lessons YAML,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 17: Atomic memory-run completion (implemented)
+
+- Add `complete_memory_run()` as the preferred post-execution API. Require the
+  exact linked `trace_id` and `decision_id`, apply one measured result to both
+  records, and return a frozen `MemoryRunCompletion` with defensive copies.
+- Build and validate both candidates under one store lock before either
+  assignment. Reject conflicting results, attribution, Trace evidence, or
+  linkage atomically without leaving a half-completed audit.
+- Support exact replay and partial recovery when `complete_trace()` or
+  `record_decision_outcome()` already recorded the same result. Keep both
+  low-level methods public for separately owned lifecycles and recovery.
+- Reuse the existing PostgreSQL transaction so linked Trace and usage updates
+  commit together; prove a usage conflict rolls the earlier Trace update back.
+- Persist no `MemoryRunCompletion` wrapper or new field. Preserve snapshot
+  version 2, JSON Schemas, active-lessons YAML, `schemas/postgres.sql`, and
+  PostgreSQL schema version 1.

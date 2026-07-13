@@ -109,10 +109,11 @@ outer transaction, the repository transaction commits normally.
 
 `sync(store)` is additive and transactional: it inserts records that are absent
 and never deletes database records. It preserves supported forward lifecycle
-updates, including sealing a previously unevaluated decision outcome, compares
-records in canonical form, and rejects immutable ID conflicts. Any conflict
-rolls back the whole synchronization. `repository.load()` returns a normalized,
-validated `TraceBackedMemoryStore`, not a snapshot object.
+updates, including completing a pending Trace and sealing a previously
+unevaluated decision outcome, compares records in canonical form, and rejects
+immutable ID conflicts. Any conflict rolls back the whole synchronization.
+`repository.load()` returns a normalized, validated
+`TraceBackedMemoryStore`, not a snapshot object.
 
 ## Safe Store Workflow
 
@@ -120,6 +121,7 @@ Use the store's two-phase workflow for runtime memory. `prepare_memory()`
 retrieves candidates, applies System Gate, and creates the bounded LLM gate
 prompt. After the LLM returns a decision payload, `finalize_memory()` rechecks
 state, renders the allowed snippet, and records one trace-linked audit event.
+The linked current Trace must already exist with `eval_result="unknown"`.
 
 ```python
 request = store.prepare_memory(
@@ -141,11 +143,40 @@ result = store.finalize_memory(
 )
 snippet = result.snippet
 # Execute the task with snippet, then evaluate it.
+completed_trace = store.complete_trace(
+    trace.trace_id,
+    eval_result="pass",
+    tool_outputs=[{"documents": 3}],
+    latency_ms=125,
+)
 sealed_log = store.record_decision_outcome(result.decision_id, "pass")
 ```
 
 Only this store workflow provides ownership, replay, stale-state, trace-link,
 and atomic logging guarantees.
+
+### Deferred Trace completion
+
+Register the current Trace before memory finalization with all known identity,
+input, provenance, retrieved-context, and tool-call evidence plus
+an `eval_result` of `unknown`. After execution, `complete_trace()` requires
+`pass`, `fail`, or `error` and can fill `output_hash`, `tool_outputs`,
+`latency_ms`, `cost_usd`, `error`, and `trace_uri` once.
+
+Omitted completion fields preserve their initial values. Existing non-empty
+execution evidence may be repeated exactly but cannot be replaced. Every other
+Trace field, including identity, repo/commit/tenant provenance, prompt/tool/model
+metadata, input hash, retrieved context, tool calls, and `created_at`, remains
+immutable. Exact replay is idempotent; a different completion fails without
+mutation.
+
+Trace completion and decision-outcome sealing are separate audit operations:
+neither updates the other record. Normal memory runs call both after execution
+with the same measured evaluator result when the Trace and decision describe
+that evaluation. PostgreSQL synchronization supports the same forward Trace
+transition and rejects stale, reverse, or conflicting updates atomically.
+Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
+version 1 remain unchanged.
 
 ### Deferred decision outcome sealing
 
@@ -531,6 +562,8 @@ allowed, blocked = system_gate(context, candidates)
 The package now implements the README pipeline as dependency-free Python objects and helpers:
 
 ```python
+from dataclasses import replace
+
 from trace_backed_memory import (
     MemoryContext,
     MemoryDecision,
@@ -613,6 +646,22 @@ lesson = lesson_from_failure_case(
 )
 store.add_lesson(lesson)
 
+current_trace = store.record_trace(
+    replace(
+        trace,
+        trace_id="trace_002",
+        run_id="run_002",
+        eval_result="unknown",
+        tool_calls=[
+            {
+                "name": "search_docs",
+                "arguments": {"query": "trace-backed memory"},
+            }
+        ],
+        error=None,
+    )
+)
+
 context = parse_memory_context(
     {
         "mode": "repair",
@@ -639,9 +688,17 @@ result = store.finalize_memory(
         "risk": "low",
         "recommended_injection": "short_summary",
     },
-    trace_id=trace.trace_id,
+    trace_id=current_trace.trace_id,
 )
 snippet = result.snippet
+completed_trace = store.complete_trace(
+    current_trace.trace_id,
+    eval_result="pass",
+    output_hash="sha256:current-output",
+    tool_outputs=[{"documents": 3}],
+    latency_ms=125,
+    cost_usd=0.002,
+)
 outcome_log = store.record_decision_outcome(result.decision_id, "pass")
 metrics = store.metrics()
 assert metrics.evaluated_with_memory_count == 1
@@ -737,6 +794,7 @@ Implemented pieces:
 - Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
 - Store-level checks that validate both the incoming and copied trace, preserve copy isolation, reject concurrent copy mutation, and reject empty identity fields, unsupported eval results, or malformed nested JSON trace collections, including non-string object keys, non-finite numbers, reference cycles, and excessive nesting.
+- Atomic deferred Trace completion for measured output/tool/latency/cost/error/URI evidence, with immutable provenance and input fields, exact replay, copy isolation, and PostgreSQL forward synchronization.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
 - Failure extraction helpers that load the failure taxonomy, classify failed traces against it with ordered conservative heuristics, and draft failure cases.
 - Manual review helper that records reviewer, root cause, notes, and review timestamp on draft failure cases.

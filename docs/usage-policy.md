@@ -20,9 +20,12 @@ hardened JSONB constraints use `jsonb_path_exists`. Install
 
 Synchronization is additive and atomic. A sync retains database records absent
 from the submitted store, permits only supported forward lifecycle updates, and
-rolls back the entire transaction on an immutable ID conflict. A usage decision
-may advance only from `NULL` or `unknown` to a measured outcome pair; every
-other usage field remains immutable. Loading normalizes persisted values and
+rolls back the entire transaction on an immutable ID conflict. A pending Trace
+may complete only from `unknown` to a measured result while preserving its
+provenance and existing execution evidence. A usage decision may separately
+advance only from `NULL` or `unknown` to a measured outcome pair; every other
+usage field remains immutable. All other protected Trace fields also remain
+immutable. Loading normalizes persisted values and
 reconstructs the regular validated store. A repository created from a caller
 connection borrows it; `connect()` owns and closes the connection. Schema
 migration, connection pooling, and async access are outside this repository's
@@ -156,8 +159,21 @@ atomic logging guarantees. Low-level helpers remain available for callers that
 own equivalent orchestration.
 
 The usual chronology is decision first and evaluation later. Call
+`record_trace()` first with an `unknown` current Trace, call
 `finalize_memory()` without an outcome, execute the task with the returned
-snippet, then call `record_decision_outcome()` with the returned decision ID.
+snippet, complete the Trace, then call `record_decision_outcome()` with the
+returned decision ID.
+
+`complete_trace()` accepts only `pass`, `fail`, or `error` and can fill
+`output_hash`, `tool_outputs`, `latency_ms`, `cost_usd`, `error`, and
+`trace_uri`. Existing non-empty completion evidence and every other Trace
+field remain immutable. Exact replay is idempotent; conflicting, reverse, and
+partial post-completion rewrites are rejected atomically.
+
+Trace completion never seals a usage decision automatically, and decision
+outcome sealing never changes a Trace. Use the same evaluator result for both
+when they describe the same evaluation.
+
 Only `pass`, `fail`, and `error` can seal an initial `None` or `unknown` result.
 The result and `memory_caused_failure` flag are one pair: exact replay is
 idempotent, while any rewrite of a sealed pair is rejected atomically. A true

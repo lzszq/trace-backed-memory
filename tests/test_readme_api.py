@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 import re
 
@@ -136,7 +137,18 @@ def allow_decision(memory_id: str) -> dict[str, object]:
 
 
 def test_readme_safe_workflow_example_stays_executable():
-    store, trace, _case, lesson = readme_store_fixture()
+    store, source_trace, _case, lesson = readme_store_fixture()
+    trace = store.record_trace(
+        replace(
+            source_trace,
+            trace_id="trace_current_readme",
+            run_id="run_current_readme",
+            eval_result="unknown",
+            tool_calls=[
+                {"name": "search_docs", "arguments": {"query": "memory"}}
+            ],
+        )
+    )
     context = MemoryContext(
         mode="repair", repo=trace.repo, tenant=trace.tenant,
         commit_sha=trace.commit_sha, tool="search_docs",
@@ -145,9 +157,17 @@ def test_readme_safe_workflow_example_stays_executable():
     result = store.finalize_memory(
         request, allow_decision(lesson.lesson_id), trace_id=trace.trace_id,
     )
+    completed = store.complete_trace(
+        trace.trace_id,
+        eval_result="pass",
+        tool_outputs=[{"documents": 3}],
+        latency_ms=125,
+    )
     sealed = store.record_decision_outcome(result.decision_id, "pass")
     assert result.use_memory
     assert result.decision_id == store.usage_logs[-1].decision_id
+    assert store.traces[source_trace.trace_id].eval_result == "fail"
+    assert completed.eval_result == "pass"
     assert sealed.eval_result == "pass"
     assert store.metrics().evaluated_with_memory_count == 1
     assert store.metrics().unevaluated_decision_count == 0

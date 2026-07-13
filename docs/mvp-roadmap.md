@@ -228,3 +228,24 @@ Track:
   conflict.
 - Preserve `MemoryUsageLog`, snapshot version 2, JSON Schemas, active-lessons
   YAML, `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 16: Deferred Trace completion (implemented)
+
+- Add `complete_trace()` so callers can register a current Trace with
+  `eval_result` set to `unknown` before memory finalization and attach measured
+  execution evidence afterward.
+- Allow one transition to `pass`, `fail`, or `error`, filling only
+  `output_hash`, `tool_outputs`, `latency_ms`, `cost_usd`, `error`, and
+  `trace_uri`. Preserve omitted and already equal values, and reject rewrites
+  of populated completion evidence.
+- Keep Trace identity, repo/commit/tenant provenance, prompt/tool/model and eval
+  metadata, input hash, retrieved context, tool calls, and creation time
+  immutable. Make exact completion replay idempotent and every failure atomic.
+- Keep Trace completion separate from `record_decision_outcome()`; the normal
+  runtime completes both records after execution without silently mutating one
+  from the other.
+- Let PostgreSQL synchronization perform the same row-locked forward Trace
+  completion, reject stale or conflicting states, and roll back on any later
+  synchronization conflict.
+- Preserve `Trace`, snapshot version 2, JSON Schemas, active-lessons YAML,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

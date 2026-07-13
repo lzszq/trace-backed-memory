@@ -84,6 +84,16 @@ The store validates the caller-owned `Trace`, deep-copies it, validates the
 copy again, and only then inserts it. Expected concurrent copy mutation fails
 with `ValueError`, while unrelated copy programming errors remain visible.
 
+A current execution may be registered before runtime with
+`eval_result="unknown"`. After execution, `complete_trace()` performs one
+atomic transition to `pass`, `fail`, or `error` and may fill `output_hash`,
+`tool_outputs`, `latency_ms`, `cost_usd`, `error`, and `trace_uri`. Omitted
+completion fields preserve their existing values. A populated completion slot
+must remain exactly equal, and every non-completion Trace field is immutable.
+The candidate Trace is validated, copied, and validated again before
+replacement. Exact replay is idempotent and the returned Trace is a defensive
+copy.
+
 ## Layer 2: Failure Case Store
 
 Failure cases are structured postmortems derived from failed traces.
@@ -255,6 +265,13 @@ replacement occur under the store lock. Exact replay is idempotent; changing
 either member of an already sealed pair is rejected without mutation. The
 returned log is a defensive copy.
 
+Trace completion and usage-outcome sealing remain separate. Completing a Trace
+does not mutate linked usage logs, and sealing a decision outcome does not
+mutate its Trace. The chronological runtime path registers an `unknown` current
+Trace, finalizes memory, executes, completes the Trace, and seals the decision
+outcome. Callers use the same measured evaluator result when both records
+describe that evaluation; legacy records are not reinterpreted.
+
 At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
 match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
 `tool_schema_version`, `model`, and `eval_suite` bind only when the context
@@ -422,13 +439,16 @@ compared in canonical form before a write. Immutable ID conflicts abort the
 operation, so the transaction rolls back every earlier insert or lifecycle
 update in that synchronization.
 
-The repository treats traces as immutable. Usage logs are also immutable except
-for one forward outcome transition: a stored `NULL` or `unknown` `eval_result`
-may become `pass`, `fail`, or `error` together with its validated
-`memory_caused_failure` value. The target row is locked, exact replay is
-unchanged, and downgrades, measured-result rewrites, attribution rewrites, or
-changes to every other usage field conflict. The usage log's identity and
-`created_at` remain immutable. Failure cases may update only diagnosis
+Trace identity, provenance, input hash, retrieved context, tool calls, and
+creation time are immutable. A stored `unknown` Trace may complete once to a
+measured result while filling only empty `output_hash`, `tool_outputs`,
+`latency_ms`, `cost_usd`, `error`, and `trace_uri` slots or preserving
+populated slots exactly. Usage logs are immutable except for their separate
+forward outcome transition from `NULL` or `unknown`; every other usage field
+remains immutable. Target rows are locked; exact replay is unchanged, and
+downgrades, measured-result rewrites, populated-evidence rewrites, attribution
+rewrites, or changes to every other protected field conflict. Failure cases may
+update only diagnosis
 (`failure_type`, `symptom`, and `root_cause`), review (`reviewed_by`,
 `review_notes`, and `reviewed_at`), fix and regression (`fix`,
 `fix_commit_sha`, and `regression_passed`), and `status`.

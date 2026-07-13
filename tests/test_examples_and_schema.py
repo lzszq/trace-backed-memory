@@ -104,9 +104,18 @@ def test_docs_publish_postgres_repository_operational_boundaries():
     assert "synchronous" in roadmap.lower()
     assert "postgres" in usage_policy.lower()
 
-    assert "treats traces as immutable" in architecture_contract
     assert (
-        "Usage logs are also immutable except for one forward outcome transition"
+        "Trace identity, provenance, input hash, retrieved context, tool calls, "
+        "and creation time are immutable"
+        in architecture_contract
+    )
+    assert (
+        "A stored `unknown` Trace may complete once"
+        in architecture_contract
+    )
+    assert (
+        "Usage logs are immutable except for their separate forward outcome "
+        "transition"
         in architecture_contract
     )
     assert (
@@ -1164,6 +1173,60 @@ def test_docs_publish_deferred_outcome_sealing_and_compatibility():
     assert "eval_result" in usage_schema["properties"]
     assert "memory_caused_failure" in usage_schema["properties"]
     assert "outcome_sealed" not in usage_schema["properties"]
+    assert "VALUES (true, 1)" in _postgres_schema()
+
+
+def test_docs_publish_deferred_trace_completion_and_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`complete_trace()`",
+        "`output_hash`",
+        "`tool_outputs`",
+        "`eval_result`",
+        "`latency_ms`",
+        "`cost_usd`",
+        "`error`",
+        "`trace_uri`",
+        "`unknown`",
+        "exact replay",
+        "`record_decision_outcome()`",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        normalized_lower = normalized.lower()
+        for contract in required_contracts:
+            assert contract.lower() in normalized_lower, (
+                f"{name} should publish: {contract}"
+            )
+
+    assert (
+        "Phase 16: Deferred Trace completion (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    trace_schema = _json_schema("trace.schema.json")
+    for field_name in (
+        "output_hash",
+        "tool_outputs",
+        "eval_result",
+        "latency_ms",
+        "cost_usd",
+        "error",
+        "trace_uri",
+    ):
+        assert field_name in trace_schema["properties"]
+    assert "execution_completed" not in trace_schema["properties"]
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
     assert "VALUES (true, 1)" in _postgres_schema()
 
 

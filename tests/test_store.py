@@ -184,6 +184,295 @@ def allow_decision(memory_id: str) -> dict[str, object]:
     }
 
 
+BENCHMARK_BLOCK_REASON = "memory originates from current benchmark example"
+
+
+def store_with_benchmark_source_identity(
+    *,
+    eval_suite: str | None = "benchmark-suite",
+    input_hash: str | None = "sha256:source-example",
+) -> tuple[TraceBackedMemoryStore, Trace, FailureCase, Lesson, ProjectPolicy]:
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_benchmark_source",
+            run_id="run_benchmark_source",
+            commit_sha="abc",
+            repo="repo",
+            tenant="tenant_a",
+            eval_suite=eval_suite,
+            input_hash=input_hash,
+            eval_result="fail",
+            tool_calls=[{"name": "search_docs"}],
+        )
+    )
+    case = store.add_failure_case(
+        verify_failure_case(
+            draft_failure_case(
+                trace,
+                case_id="case_benchmark_source",
+                failure_type="invalid_tool_argument",
+                symptom="search_docs received an empty query",
+            ),
+            fix="require a non-empty query",
+            fix_commit_sha="def",
+            regression_passed=True,
+        )
+    )
+    lesson = store.add_lesson(
+        lesson_from_failure_case(
+            case,
+            lesson_id="lesson_benchmark_source",
+            lesson_text="Always pass a non-empty query to search_docs.",
+            memory_type="procedural",
+            scope={"repo": "repo", "tenant": "tenant_a", "tool": "search_docs"},
+        )
+    )
+    policy = store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_project",
+            policy_text="Tool calls must follow their declared schema.",
+            scope={"repo": "repo", "tenant": "tenant_a"},
+        )
+    )
+    return store, trace, case, lesson, policy
+
+
+def benchmark_context(
+    trace: Trace,
+    *,
+    mode: str = "repair",
+    eval_suite: str = "benchmark-suite",
+    input_hash: str = "sha256:source-example",
+) -> MemoryContext:
+    return MemoryContext(
+        mode=mode,  # type: ignore[arg-type]
+        repo=trace.repo or "repo",
+        tenant=trace.tenant,
+        commit_sha=trace.commit_sha,
+        tool="search_docs",
+        eval_suite=eval_suite,
+        input_hash=input_hash,
+        failure_type="invalid_tool_argument",
+    )
+
+
+@pytest.mark.parametrize("mode", ["debug", "repair"])
+def test_candidate_memories_enrich_source_identity_for_benchmark_example(
+    mode: str,
+):
+    store, trace, case, lesson, policy = store_with_benchmark_source_identity()
+
+    candidates = store.candidate_memories(benchmark_context(trace, mode=mode))
+    by_id = {memory.memory_id: memory for memory in candidates}
+
+    assert set(by_id) == {case.case_id, lesson.lesson_id, policy.policy_id}
+    for memory_id in (case.case_id, lesson.lesson_id):
+        assert (
+            by_id[memory_id].source_eval_suite,
+            by_id[memory_id].source_input_hash,
+        ) == ("benchmark-suite", "sha256:source-example")
+    assert (
+        by_id[policy.policy_id].source_eval_suite,
+        by_id[policy.policy_id].source_input_hash,
+    ) == (None, None)
+
+
+def test_candidate_memories_omit_incomplete_source_identity_pair():
+    store, trace, case, lesson, policy = store_with_benchmark_source_identity(
+        input_hash=None
+    )
+
+    candidates = store.candidate_memories(
+        benchmark_context(trace, input_hash="sha256:current-example")
+    )
+    by_id = {memory.memory_id: memory for memory in candidates}
+
+    assert set(by_id) == {case.case_id, lesson.lesson_id, policy.policy_id}
+    assert all(
+        (memory.source_eval_suite, memory.source_input_hash) == (None, None)
+        for memory in candidates
+    )
+
+
+def test_prepare_and_finalize_audit_current_benchmark_example_blocks():
+    store, trace, case, lesson, policy = store_with_benchmark_source_identity()
+    context = benchmark_context(trace)
+
+    request = store.prepare_memory(context, task="repair failed tool call")
+
+    assert set(request.candidate_memory_ids) == {
+        case.case_id,
+        lesson.lesson_id,
+        policy.policy_id,
+    }
+    assert request.system_allowed_memory_ids == (policy.policy_id,)
+    assert dict(request.system_blocked) == {
+        case.case_id: BENCHMARK_BLOCK_REASON,
+        lesson.lesson_id: BENCHMARK_BLOCK_REASON,
+    }
+    assert case.case_id not in request.prompt
+    assert lesson.lesson_id not in request.prompt
+    assert policy.policy_id in request.prompt
+    assert trace.input_hash not in request.prompt
+
+    result = store.finalize_memory(
+        request,
+        allow_decision(policy.policy_id),
+        trace_id=trace.trace_id,
+        eval_result="pass",
+    )
+
+    assert result.allowed_memory_ids == (policy.policy_id,)
+    log = store.usage_logs[-1]
+    assert log.context["eval_suite"] == trace.eval_suite
+    assert log.context["input_hash"] == trace.input_hash
+    assert set(log.candidate_memory_ids) == {
+        case.case_id,
+        lesson.lesson_id,
+        policy.policy_id,
+    }
+    assert log.candidate_memory_statuses == {
+        case.case_id: "verified",
+        lesson.lesson_id: "active",
+        policy.policy_id: "active",
+    }
+    assert log.system_blocked_reasons == {
+        case.case_id: BENCHMARK_BLOCK_REASON,
+        lesson.lesson_id: BENCHMARK_BLOCK_REASON,
+    }
+    snapshot_text = json.dumps(store.to_snapshot(), sort_keys=True)
+    assert "source_eval_suite" not in snapshot_text
+    assert "source_input_hash" not in snapshot_text
+
+
+def test_different_benchmark_example_allows_lesson_and_omits_hashes_from_snippet():
+    store, source_trace, _case, lesson, _policy = store_with_benchmark_source_identity()
+    current_trace = store.record_trace(
+        replace(
+            source_trace,
+            trace_id="trace_current_example",
+            run_id="run_current_example",
+            input_hash="sha256:current-example",
+            eval_result="unknown",
+        )
+    )
+    context = benchmark_context(
+        current_trace, input_hash="sha256:current-example"
+    )
+    request = store.prepare_memory(context, task="repair failed tool call")
+
+    assert lesson.lesson_id in request.system_allowed_memory_ids
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=current_trace.trace_id,
+    )
+
+    assert result.allowed_memory_ids == (lesson.lesson_id,)
+    assert "Always pass a non-empty query" in result.snippet
+    assert "sha256:source-example" not in result.snippet
+    assert "sha256:current-example" not in result.snippet
+
+
+@pytest.mark.parametrize(
+    ("trace_changes", "expected_message"),
+    [
+        ({"eval_suite": "other-suite"}, "trace eval_suite does not match memory context"),
+        ({"input_hash": "sha256:other-example"}, "trace input_hash does not match memory context"),
+    ],
+    ids=["eval-suite", "input-hash"],
+)
+def test_finalize_binds_benchmark_example_before_pending_request_consumption(
+    trace_changes: dict[str, str], expected_message: str
+):
+    store, source_trace, _case, _lesson, policy = store_with_benchmark_source_identity()
+    mismatched_trace = store.record_trace(
+        replace(
+            source_trace,
+            trace_id="trace_mismatched_example",
+            run_id="run_mismatched_example",
+            **trace_changes,
+        )
+    )
+    request = store.prepare_memory(
+        benchmark_context(source_trace), task="repair failed tool call"
+    )
+
+    with pytest.raises(ValueError, match=expected_message):
+        store.finalize_memory(
+            request,
+            allow_decision(policy.policy_id),
+            trace_id=mismatched_trace.trace_id,
+        )
+
+    assert store.usage_logs == []
+    result = store.finalize_memory(
+        request,
+        allow_decision(policy.policy_id),
+        trace_id=source_trace.trace_id,
+    )
+    assert result.allowed_memory_ids == (policy.policy_id,)
+    assert len(store.usage_logs) == 1
+
+
+def benchmark_input_hash_audit_snapshot() -> dict[str, object]:
+    store, trace, _case, lesson, _policy = store_with_benchmark_source_identity()
+    store.log_decision(
+        trace.run_id,
+        benchmark_context(trace),
+        [lesson.lesson_id],
+        MemoryDecision(
+            use_memory=False,
+            allowed_memory_ids=[],
+            blocked_memory_ids=[],
+            reason="current benchmark example is blocked",
+            risk="none",
+            recommended_injection="none",
+        ),
+    )
+    return store.to_snapshot()
+
+
+@pytest.mark.parametrize(
+    ("context_changes", "expected_message"),
+    [
+        ({"eval_suite": None}, "input_hash requires eval_suite"),
+        ({"eval_suite": "other-suite"}, "context eval_suite does not match trace"),
+        ({"input_hash": "sha256:other-example"}, "context input_hash does not match trace"),
+    ],
+    ids=["missing-pair", "eval-suite-mismatch", "input-hash-mismatch"],
+)
+def test_imported_usage_log_validates_input_hash_audit_identity(
+    context_changes: dict[str, str | None], expected_message: str
+):
+    snapshot = benchmark_input_hash_audit_snapshot()
+    usage_log = _snapshot_record(snapshot, "usage_logs")
+    context = usage_log["context"]
+    assert isinstance(context, dict)
+    for field_name, value in context_changes.items():
+        if value is None:
+            context.pop(field_name)
+        else:
+            context[field_name] = value
+
+    with pytest.raises(ValueError, match=expected_message):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+def test_imported_usage_log_without_input_hash_audit_remains_compatible():
+    snapshot = benchmark_input_hash_audit_snapshot()
+    usage_log = _snapshot_record(snapshot, "usage_logs")
+    context = usage_log["context"]
+    assert isinstance(context, dict)
+    context.pop("input_hash")
+
+    restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+
+    assert "input_hash" not in restored.usage_logs[0].context
+    assert restored.usage_logs[0].context["eval_suite"] == "benchmark-suite"
+
+
 def test_prepare_and_finalize_memory_is_trace_linked_and_audited():
     store, trace, _case, lesson = store_with_active_lesson()
     context = MemoryContext(

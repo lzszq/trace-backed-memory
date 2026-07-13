@@ -511,7 +511,7 @@ class TraceBackedMemoryStore:
 
         for lesson in self._lessons.values():
             if _has_metadata_match(lesson.scope, context_values):
-                candidates.append(memory_item_from_lesson(lesson))
+                candidates.append(self._memory_item_from_lesson(lesson))
         for policy in self._project_policies.values():
             if _has_metadata_match(policy.scope, context_values):
                 candidates.append(memory_item_from_project_policy(policy))
@@ -662,7 +662,11 @@ class TraceBackedMemoryStore:
         final_allowed, final_decision = apply_llm_gate_decision(
             system_allowed, system_blocked, decision
         )
-        snippet = build_injection_snippet(final_allowed, decision=final_decision)
+        snippet = build_injection_snippet(
+            final_allowed,
+            decision=final_decision,
+            context=request.context,
+        )
         log = self._new_usage_log(
             trace=trace,
             context=request.context,
@@ -760,7 +764,7 @@ class TraceBackedMemoryStore:
         unknown_ids: list[str] = []
         for memory_id in memory_ids:
             if memory_id in self._lessons:
-                items.append(memory_item_from_lesson(self._lessons[memory_id]))
+                items.append(self._memory_item_from_lesson(self._lessons[memory_id]))
             elif memory_id in self._project_policies:
                 items.append(memory_item_from_project_policy(self._project_policies[memory_id]))
             elif memory_id in self._failure_cases:
@@ -777,6 +781,11 @@ class TraceBackedMemoryStore:
                 f"usage log references unknown memory IDs: {', '.join(sorted(unknown_ids))}"
             )
         return items
+
+    def _memory_item_from_lesson(self, lesson: Lesson) -> MemoryItem:
+        source_case = self._failure_cases[lesson.source_case_id]
+        source_trace = self._traces[source_case.source_trace_id]
+        return memory_item_from_lesson(lesson, source_trace=source_trace)
 
     def _new_usage_log(
         self,
@@ -814,6 +823,7 @@ class TraceBackedMemoryStore:
         )
         _validate_usage_log(log)
         self._validate_usage_log_memory_ids(log)
+        self._validate_usage_log_trace(log)
         if any(existing.decision_id == log.decision_id for existing in self._usage_logs):
             raise ValueError(f"duplicate usage log decision_id: {log.decision_id}")
         return log
@@ -859,6 +869,16 @@ class TraceBackedMemoryStore:
             raise ValueError(
                 f"usage log context tenant does not match trace or mode: {log.trace_id}"
             )
+        if "input_hash" in log.context:
+            if "eval_suite" not in log.context:
+                raise ValueError(
+                    f"usage log context input_hash requires eval_suite: {log.trace_id}"
+                )
+            for field_name in ("eval_suite", "input_hash"):
+                if log.context[field_name] != getattr(trace, field_name):
+                    raise ValueError(
+                        f"usage log context {field_name} does not match trace: {log.trace_id}"
+                    )
 
     def _migrate_legacy_usage_log(self, log_data: dict[str, Any]) -> dict[str, Any]:
         legacy_log = _snapshot_record_instance(
@@ -1190,6 +1210,12 @@ def _validate_trace_context(trace: Trace, context: MemoryContext) -> None:
             raise ValueError(
                 f"trace {field_name} does not match memory context: {trace.trace_id}"
             )
+    if context.input_hash is not None:
+        for field_name in ("eval_suite", "input_hash"):
+            if getattr(trace, field_name) != getattr(context, field_name):
+                raise ValueError(
+                    f"trace {field_name} does not match memory context: {trace.trace_id}"
+                )
 
 
 def _snapshot_records(data: Mapping[str, Any], key: str) -> list[dict[str, Any]]:

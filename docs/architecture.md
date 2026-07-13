@@ -294,6 +294,20 @@ to one Trace remain independent rows. The view is derived and not persisted;
 snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
 version 1 remain unchanged.
 
+`memory_run_metrics()` aggregates that same locked view into a frozen
+`MemoryRunMetrics`. Its unit is one usage decision, so decisions that share a
+Trace remain separate. It exposes `decision_count`, `pending_count`,
+`trace_only_count`, `decision_only_count`, `complete_count`, `conflict_count`,
+and `recoverable_count`. The five status counts are mutually exclusive and
+their sum equals `decision_count`; `recoverable_count` is the sum of
+`trace_only_count` and `decision_only_count` only.
+
+This health summary deliberately remains separate from the outcome-oriented
+`metrics()` and per-memory observations. It is derived and not persisted, so
+snapshot and PostgreSQL reconstruction use existing Trace and usage rows.
+Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
+version 1 remain unchanged.
+
 `recover_memory_run()` consumes a `decision_id` from that view and does not
 accept `trace_id` or `eval_result`. Under the store lock it reclassifies current
 state, derives the result from the measured side, and delegates all mutation to

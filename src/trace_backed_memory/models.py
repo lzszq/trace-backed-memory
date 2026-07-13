@@ -209,6 +209,17 @@ class MemoryRunAudit:
 
 
 @dataclass(frozen=True)
+class MemoryRunMetrics:
+    decision_count: int
+    pending_count: int
+    trace_only_count: int
+    decision_only_count: int
+    complete_count: int
+    conflict_count: int
+    recoverable_count: int
+
+
+@dataclass(frozen=True)
 class MemoryMetrics:
     decision_count: int
     candidate_memory_count: int

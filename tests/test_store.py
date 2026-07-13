@@ -2440,6 +2440,100 @@ def test_memory_run_audits_are_decision_oriented_and_empty_store_is_empty():
     assert source_trace.trace_id not in {audit.trace_id for audit in audits}
 
 
+def test_memory_run_metrics_empty_store_is_frozen_and_exported():
+    metrics = TraceBackedMemoryStore().memory_run_metrics()
+
+    assert metrics == tbm.MemoryRunMetrics(
+        decision_count=0,
+        pending_count=0,
+        trace_only_count=0,
+        decision_only_count=0,
+        complete_count=0,
+        conflict_count=0,
+        recoverable_count=0,
+    )
+    assert "MemoryRunMetrics" in tbm.__all__
+    with pytest.raises(FrozenInstanceError):
+        metrics.pending_count = 1
+
+
+def test_memory_run_metrics_count_every_decision_and_follow_recovery():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    pending_trace, _pending_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="metrics_pending"
+    )
+    trace_only_trace, trace_only_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="metrics_trace_only"
+    )
+    _decision_only_trace, decision_only_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="metrics_decision_only"
+    )
+    complete_trace, complete_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="metrics_complete"
+    )
+    conflict_trace, conflict_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="metrics_conflict"
+    )
+    shared_request = store.prepare_memory(
+        matching_context(pending_trace), task="second decision on one trace"
+    )
+    store.finalize_memory(
+        shared_request,
+        allow_decision(lesson.lesson_id),
+        trace_id=pending_trace.trace_id,
+    )
+
+    store.complete_trace(trace_only_trace.trace_id, eval_result="pass")
+    store.record_decision_outcome(decision_only_result.decision_id, "error")
+    store.complete_memory_run(
+        trace_id=complete_trace.trace_id,
+        decision_id=complete_result.decision_id,
+        eval_result="fail",
+        memory_caused_failure=True,
+    )
+    store.complete_trace(conflict_trace.trace_id, eval_result="pass")
+    store.record_decision_outcome(conflict_result.decision_id, "error")
+    before = store.to_snapshot()
+
+    metrics = store.memory_run_metrics()
+
+    assert metrics == tbm.MemoryRunMetrics(
+        decision_count=6,
+        pending_count=2,
+        trace_only_count=1,
+        decision_only_count=1,
+        complete_count=1,
+        conflict_count=1,
+        recoverable_count=2,
+    )
+    assert metrics.decision_count == (
+        metrics.pending_count
+        + metrics.trace_only_count
+        + metrics.decision_only_count
+        + metrics.complete_count
+        + metrics.conflict_count
+    )
+    assert metrics.recoverable_count == (
+        metrics.trace_only_count + metrics.decision_only_count
+    )
+    assert store.to_snapshot() == before
+    assert "memory_run_metrics" not in before
+    restored = TraceBackedMemoryStore.from_snapshot(before)
+    assert restored.memory_run_metrics() == metrics
+
+    store.recover_memory_run(trace_only_result.decision_id)
+    after_trace_recovery = store.memory_run_metrics()
+    assert after_trace_recovery.trace_only_count == 0
+    assert after_trace_recovery.complete_count == 2
+    assert after_trace_recovery.recoverable_count == 1
+
+    store.recover_memory_run(decision_only_result.decision_id)
+    after_both_recoveries = store.memory_run_metrics()
+    assert after_both_recoveries.decision_only_count == 0
+    assert after_both_recoveries.complete_count == 3
+    assert after_both_recoveries.recoverable_count == 0
+
+
 def test_recover_memory_run_completes_decision_only_and_preserves_attribution():
     store, current, result, _lesson = store_with_pending_memory_run()
     sealed = store.record_decision_outcome(

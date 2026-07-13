@@ -186,6 +186,20 @@ decisions for one Trace remain separate. The audit view is derived and not
 persisted. Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
 schema version 1 remain unchanged.
 
+Use `memory_run_metrics()` for monitoring and alert thresholds rather than
+reimplementing audit aggregation. Its frozen `MemoryRunMetrics` counts one
+usage decision at a time and exposes `decision_count`, `pending_count`,
+`trace_only_count`, `decision_only_count`, `complete_count`, `conflict_count`,
+and `recoverable_count`. The sum of the five status counts must equal
+`decision_count`; `recoverable_count` is the sum of `trace_only_count` and
+`decision_only_count`. Treat pending as awaiting measurement and conflict as
+manual-review work, not as supported automatic recovery.
+
+These health metrics are derived and not persisted, and they do not replace
+outcome-oriented `metrics()`. Snapshot and PostgreSQL loads reconstruct them
+from existing records, leaving snapshot version 2, JSON Schemas, active-lessons
+YAML, and PostgreSQL schema version 1 unchanged.
+
 Recover only audited one-sided states with `recover_memory_run()` using their
 `decision_id`. The method does not accept `trace_id` or `eval_result`; it derives
 them from the linked validated records, delegates to atomic

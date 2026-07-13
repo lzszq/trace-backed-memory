@@ -173,6 +173,10 @@ def test_readme_safe_workflow_example_stays_executable():
     assert audit.trace_id == trace.trace_id
     assert audit.decision_id == result.decision_id
     assert audit.status == "complete"
+    run_metrics = store.memory_run_metrics()
+    assert run_metrics.decision_count == 1
+    assert run_metrics.complete_count == 1
+    assert run_metrics.recoverable_count == 0
     assert store.metrics().evaluated_with_memory_count == 1
     assert store.metrics().unevaluated_decision_count == 0
 

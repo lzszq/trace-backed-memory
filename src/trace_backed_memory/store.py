@@ -42,6 +42,7 @@ from .models import (
     MemoryRunAudit,
     MemoryRunAuditStatus,
     MemoryRunCompletion,
+    MemoryRunMetrics,
     PRChangeEndpoint,
     PRCaseProvenance,
     MemoryUsageLog,
@@ -1280,6 +1281,23 @@ class TraceBackedMemoryStore:
                 )
             )
         return tuple(audits)
+
+    @_synchronized
+    def memory_run_metrics(self) -> MemoryRunMetrics:
+        """Summarize completion consistency for every memory-run decision."""
+        audits = self.memory_run_audits()
+        status_counts = Counter(audit.status for audit in audits)
+        trace_only_count = status_counts["trace_only"]
+        decision_only_count = status_counts["decision_only"]
+        return MemoryRunMetrics(
+            decision_count=len(audits),
+            pending_count=status_counts["pending"],
+            trace_only_count=trace_only_count,
+            decision_only_count=decision_only_count,
+            complete_count=status_counts["complete"],
+            conflict_count=status_counts["conflict"],
+            recoverable_count=trace_only_count + decision_only_count,
+        )
 
     @_synchronized
     def memory_outcome_metrics(self) -> tuple[MemoryOutcomeMetrics, ...]:

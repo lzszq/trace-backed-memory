@@ -154,6 +154,9 @@ completed_trace = completion.trace
 sealed_log = completion.usage_log
 (audit,) = store.memory_run_audits()
 assert audit.status == "complete"
+run_metrics = store.memory_run_metrics()
+assert run_metrics.complete_count == 1
+assert run_metrics.recoverable_count == 0
 ```
 
 Only this store workflow provides ownership, replay, stale-state, trace-link,
@@ -207,6 +210,26 @@ The view is derived and not persisted. Snapshot and PostgreSQL round trips
 reproduce it from existing Trace and usage-log fields, so snapshot version 2,
 JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain
 unchanged.
+
+### Memory-run health metrics
+
+`memory_run_metrics()` returns one frozen `MemoryRunMetrics` point-in-time
+summary of the audit view. It counts one usage decision per row, including
+separate decisions linked to the same Trace, and exposes `decision_count`,
+`pending_count`, `trace_only_count`, `decision_only_count`, `complete_count`,
+`conflict_count`, and `recoverable_count`.
+
+The five status counts are mutually exclusive and their sum always equals
+`decision_count`. `recoverable_count` is the sum of `trace_only_count` and
+`decision_only_count`; pending runs still need a measured result and conflicts
+need manual review. This keeps incomplete work, supported recovery, and
+inconsistent historical writes directly visible without conflating them with
+the outcome-oriented values from `metrics()`.
+
+The summary is derived and not persisted. Empty stores return zero for every
+field, and snapshot and PostgreSQL loads reconstruct the same value from the
+underlying records. Snapshot version 2, JSON Schemas, active-lessons YAML, and
+PostgreSQL schema version 1 remain unchanged.
 
 ### Safe memory-run recovery
 
@@ -888,6 +911,7 @@ Implemented pieces:
 - Atomic deferred Trace completion for measured output identity, tool outputs, latency, cost, error, and trace URI evidence, with immutable provenance and input fields, exact replay, copy isolation, and PostgreSQL forward synchronization.
 - Atomic memory-run completion by linked `trace_id` and `decision_id`, with one measured result, exact replay, partial recovery, defensive return values, and transactional PostgreSQL synchronization.
 - Derived `memory_run_audits()` visibility for pending, one-sided, complete, and conflicting Trace/decision outcomes without new persistence state.
+- Derived `memory_run_metrics()` health counts with five-state conservation, explicit recoverability, and no redundant persisted aggregate.
 - Safe `recover_memory_run()` orchestration that derives correlated IDs/results, requires explicit failed-run attribution, and reuses atomic completion.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
 - Failure extraction helpers that load the failure taxonomy, classify failed traces against it with ordered conservative heuristics, and draft failure cases.

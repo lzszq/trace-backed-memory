@@ -301,3 +301,21 @@ Track:
 - Reuse existing PostgreSQL forward updates and preserve snapshot version 2,
   JSON Schemas, active-lessons YAML, `schemas/postgres.sql`, and PostgreSQL
   schema version 1.
+
+## Phase 20: Memory-run health metrics (implemented)
+
+- Add and export frozen `MemoryRunMetrics` from `memory_run_metrics()`. Count
+  one usage decision per audit row, including separate decisions linked to the
+  same Trace.
+- Expose `decision_count`, `pending_count`, `trace_only_count`,
+  `decision_only_count`, `complete_count`, `conflict_count`, and
+  `recoverable_count` without changing existing outcome-oriented metrics.
+- Keep the five statuses mutually exclusive so their sum equals
+  `decision_count`. `recoverable_count` is the sum of
+  `trace_only_count` and `decision_only_count`; never classify pending or
+  conflicting runs as automatically recoverable.
+- Reuse the locked `memory_run_audits()` view as the classification source so
+  per-run details and aggregate health cannot drift.
+- Keep the summary derived and not persisted. Reproduce it after snapshot and
+  PostgreSQL loads while preserving snapshot version 2, JSON Schemas,
+  active-lessons YAML, `schemas/postgres.sql`, and PostgreSQL schema version 1.

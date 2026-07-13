@@ -13,13 +13,14 @@ pytest_plugins = ["pytester"]
 
 @pytest.hookimpl(wrapper=True, tryfirst=True)
 def pytest_runtest_call(item: pytest.Item) -> Generator[None, object, object]:
-    cleanup = getattr(item, _POSTGRES_CLEANUP_CALLBACK_ATTR, None)
     try:
         result = yield
     except BaseException as exc:
+        cleanup = getattr(item, _POSTGRES_CLEANUP_CALLBACK_ATTR, None)
         if cleanup is not None:
             cleanup(exc)
         raise
+    cleanup = getattr(item, _POSTGRES_CLEANUP_CALLBACK_ATTR, None)
     if cleanup is not None:
         cleanup(None)
     return result

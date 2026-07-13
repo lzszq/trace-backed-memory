@@ -535,7 +535,7 @@ def test_pytest_call_phase_cleanup_preserves_failure_and_runs_once(
             cleanup_calls += 1
             with cleanup_log.open("a", encoding="ascii") as stream:
                 stream.write("cleanup\\n")
-            if cleanup_calls <= 2:
+            if cleanup_calls <= 3:
                 return [RuntimeError("forced cleanup failure")]
             return []
 
@@ -565,6 +565,10 @@ def test_pytest_call_phase_cleanup_preserves_failure_and_runs_once(
         def test_call_and_cleanup_fail(postgres_cluster):
             raise AssertionError("original call failure")
 
+        def test_dynamic_call_and_cleanup_fail(request):
+            request.getfixturevalue("postgres_cluster")
+            raise AssertionError("original dynamic call failure")
+
         def test_only_cleanup_fails(postgres_cluster):
             pass
 
@@ -575,13 +579,23 @@ def test_pytest_call_phase_cleanup_preserves_failure_and_runs_once(
 
     result = pytester.runpytest_subprocess("-q")
 
-    result.assert_outcomes(failed=2, errors=1)
+    result.assert_outcomes(failed=3, errors=1)
     output = result.stdout.str()
     assert "original call failure" in output
+    output_lines = output.splitlines()
+    dynamic_failure_line = next(
+        index
+        for index, line in enumerate(output_lines)
+        if "AssertionError: original dynamic call failure" in line
+    )
+    assert "PostgreSQL cleanup also failed: RuntimeError: forced cleanup failure" in (
+        output_lines[dynamic_failure_line + 1]
+    )
     assert "PostgreSQL cleanup also failed: RuntimeError: forced cleanup failure" in output
     assert "ExceptionGroup: PostgreSQL cleanup failed" in output
     assert "later fixture setup failure" in output
     assert cleanup_log.read_text(encoding="ascii").splitlines() == [
+        "cleanup",
         "cleanup",
         "cleanup",
         "cleanup",

@@ -104,7 +104,11 @@ def test_docs_publish_postgres_repository_operational_boundaries():
     assert "synchronous" in roadmap.lower()
     assert "postgres" in usage_policy.lower()
 
-    assert "treats traces and usage logs as immutable" in architecture_contract
+    assert "treats traces as immutable" in architecture_contract
+    assert (
+        "Usage logs are also immutable except for one forward outcome transition"
+        in architecture_contract
+    )
     assert (
         "diagnosis (`failure_type`, `symptom`, and `root_cause`)"
         in architecture_contract
@@ -1117,6 +1121,50 @@ def test_docs_publish_declared_trace_provenance_binding_and_compatibility():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
+
+
+def test_docs_publish_deferred_outcome_sealing_and_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`record_decision_outcome()`",
+        "`None` or `unknown`",
+        "`pass`",
+        "`fail`",
+        "`error`",
+        "`memory_caused_failure`",
+        "exact replay",
+        "every other usage",
+        "immutable",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        normalized_lower = normalized.lower()
+        for contract in required_contracts:
+            assert contract.lower() in normalized_lower, (
+                f"{name} should publish: {contract}"
+            )
+
+    assert (
+        "Phase 15: Deferred decision outcome sealing (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    usage_schema = _json_schema("memory_usage_log.schema.json")
+    assert "eval_result" in usage_schema["properties"]
+    assert "memory_caused_failure" in usage_schema["properties"]
+    assert "outcome_sealed" not in usage_schema["properties"]
+    assert "VALUES (true, 1)" in _postgres_schema()
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

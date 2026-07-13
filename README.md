@@ -109,9 +109,10 @@ outer transaction, the repository transaction commits normally.
 
 `sync(store)` is additive and transactional: it inserts records that are absent
 and never deletes database records. It preserves supported forward lifecycle
-updates, compares records in canonical form, and rejects immutable ID conflicts.
-Any conflict rolls back the whole synchronization. `repository.load()` returns
-a normalized, validated `TraceBackedMemoryStore`, not a snapshot object.
+updates, including sealing a previously unevaluated decision outcome, compares
+records in canonical form, and rejects immutable ID conflicts. Any conflict
+rolls back the whole synchronization. `repository.load()` returns a normalized,
+validated `TraceBackedMemoryStore`, not a snapshot object.
 
 ## Safe Store Workflow
 
@@ -137,13 +138,34 @@ result = store.finalize_memory(
         "recommended_injection": "short_summary",
     },
     trace_id=trace.trace_id,
-    eval_result="pass",
 )
 snippet = result.snippet
+# Execute the task with snippet, then evaluate it.
+sealed_log = store.record_decision_outcome(result.decision_id, "pass")
 ```
 
 Only this store workflow provides ownership, replay, stale-state, trace-link,
 and atomic logging guarantees.
+
+### Deferred decision outcome sealing
+
+`finalize_memory()` may log an outcome immediately when one is already known,
+but normal runtime callers should finalize first, execute with the returned
+snippet, and then call `record_decision_outcome()`. The sealable measured
+results are `pass`, `fail`, and `error`; initial `None` or `unknown` values are
+unevaluated. A measured result and its `memory_caused_failure` value form one
+outcome pair.
+
+An unevaluated decision can be sealed once. Exact replay of the same pair is
+idempotent; a different result, a different failure attribution, a downgrade
+to unevaluated, or an invalid wrong-memory claim is rejected without changing
+the log. Metrics immediately move the decision out of the unevaluated bucket.
+
+JSON snapshots already persist the outcome pair. PostgreSQL synchronization
+allows only the same forward pair update while keeping every other usage-log
+field, including `created_at`, immutable. A stale or conflicting sync fails and
+rolls back atomically. Snapshot version 2, JSON Schemas, active-lessons YAML,
+and PostgreSQL schema version 1 remain unchanged.
 
 ### Declared Trace provenance binding
 
@@ -618,9 +640,9 @@ result = store.finalize_memory(
         "recommended_injection": "short_summary",
     },
     trace_id=trace.trace_id,
-    eval_result="pass",
 )
 snippet = result.snippet
+outcome_log = store.record_decision_outcome(result.decision_id, "pass")
 metrics = store.metrics()
 assert metrics.evaluated_with_memory_count == 1
 assert metrics.evaluated_without_memory_count == 0
@@ -654,6 +676,11 @@ denominators. `evaluated_with_memory_count` and
 outcome. For values returned by `store.metrics()`, their sum equals
 `decision_count`; legacy positional construction leaves the appended counts at
 their compatible zero defaults.
+
+When evaluation finishes after memory finalization, use
+`record_decision_outcome()` to seal the result before reading metrics or
+persisting the completed audit. The transition is atomic and updates these
+derived metrics without persisting separate counters.
 
 These are decision counts, not per-memory causal attribution. A decision is
 classified as with-memory when its usage log has non-empty `used_memory_ids`.
@@ -730,7 +757,7 @@ Implemented pieces:
 - Lesson safety flags for sensitive or eval-leaking memory are preserved through retrieval and blocked by System Gate.
 - PR reports can reuse current-commit-bound ancestry evidence to exclude unrelated historical failure cases before generating report content.
 - PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, warns on risky prompt/tool/model/eval-suite changes, and supports immutable complete-endpoint `PRChangeSet` matching with old/new/both provenance.
-- Outcome-aware metrics for decisions, candidates, used/blocked memory, measured pass rates with explicit denominators, unevaluated decisions, wrong-memory failures, obsolete attempts, and lesson confidence.
+- Deferred, idempotent decision-outcome sealing plus outcome-aware metrics for decisions, candidates, used/blocked memory, measured pass rates with explicit denominators, unevaluated decisions, wrong-memory failures, obsolete attempts, and lesson confidence.
 
 ## Repository layout
 

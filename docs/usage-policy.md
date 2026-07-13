@@ -20,11 +20,13 @@ hardened JSONB constraints use `jsonb_path_exists`. Install
 
 Synchronization is additive and atomic. A sync retains database records absent
 from the submitted store, permits only supported forward lifecycle updates, and
-rolls back the entire transaction on an immutable ID conflict. Loading
-normalizes persisted values and reconstructs the regular validated store. A
-repository created from a caller connection borrows it; `connect()` owns and
-closes the connection. Schema migration, connection pooling, and async access
-are outside this repository's current policy and implementation.
+rolls back the entire transaction on an immutable ID conflict. A usage decision
+may advance only from `NULL` or `unknown` to a measured outcome pair; every
+other usage field remains immutable. Loading normalizes persisted values and
+reconstructs the regular validated store. A repository created from a caller
+connection borrows it; `connect()` owns and closes the connection. Schema
+migration, connection pooling, and async access are outside this repository's
+current policy and implementation.
 
 When the supplied connection already has an active caller transaction, each
 repository operation uses a nested savepoint and does not commit or roll back
@@ -153,6 +155,14 @@ Only this workflow provides ownership, replay, stale-state, trace-link, and
 atomic logging guarantees. Low-level helpers remain available for callers that
 own equivalent orchestration.
 
+The usual chronology is decision first and evaluation later. Call
+`finalize_memory()` without an outcome, execute the task with the returned
+snippet, then call `record_decision_outcome()` with the returned decision ID.
+Only `pass`, `fail`, and `error` can seal an initial `None` or `unknown` result.
+The result and `memory_caused_failure` flag are one pair: exact replay is
+idempotent, while any rewrite of a sealed pair is rejected atomically. A true
+wrong-memory attribution still requires failed or errored use of memory.
+
 For semantic retrieval, compute scores outside the store and pass
 `semantic_scores` with an explicit `max_candidates` that must be an integer from
 1 through 50 inclusive, and optional `minimum_score`. Do not combine it with
@@ -205,6 +215,11 @@ rate denominators and `unevaluated_decision_count` as the missing-outcome count.
 For values returned by `store.metrics()`, together they equal
 `decision_count`; directly constructed legacy values retain zero defaults for
 the appended fields.
+
+Use `record_decision_outcome()` after evaluation and before reading completed
+metrics or synchronizing the completed audit. Sealing moves the decision from
+the unevaluated bucket to exactly one evaluated denominator; it does not create
+or persist a separate metric record.
 
 These are decision counts, not per-memory causal attribution. With-memory means
 the audited decision has at least one `used_memory_id`; it does not prove that

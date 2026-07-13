@@ -247,6 +247,14 @@ provides ownership, replay, stale-state, trace-link, and atomic logging
 guarantees. Low-level helpers remain public for callers that own equivalent
 orchestration.
 
+Execution normally finishes after the decision is logged. An unevaluated usage
+log therefore supports one store-owned transition through
+`record_decision_outcome()`: `None` or `unknown` may become `pass`, `fail`, or
+`error` together with its `memory_caused_failure` value. Validation and
+replacement occur under the store lock. Exact replay is idempotent; changing
+either member of an already sealed pair is rejected without mutation. The
+returned log is a defensive copy.
+
 At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
 match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
 `tool_schema_version`, `model`, and `eval_suite` bind only when the context
@@ -291,6 +299,11 @@ with/without split is determined by whether a usage record has non-empty
 `used_memory_ids`. Metrics remain derived and are not persisted; snapshot
 version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1
 remain unchanged.
+
+Sealing a deferred outcome moves the decision from the unevaluated count to an
+evaluated denominator immediately. Callers can therefore finalize before task
+execution, seal by the returned decision ID after evaluation, and only then
+read completed metrics or persist the completed audit.
 
 `memory_outcome_metrics()` returns a memory-ID-sorted tuple for every stored
 failure case, lesson, and project policy, including IDs with no observations.
@@ -409,11 +422,16 @@ compared in canonical form before a write. Immutable ID conflicts abort the
 operation, so the transaction rolls back every earlier insert or lifecycle
 update in that synchronization.
 
-The repository treats traces and usage logs as immutable: an existing row must
-be canonically equal to the incoming record or synchronization conflicts.
-Failure cases may update only diagnosis (`failure_type`, `symptom`, and
-`root_cause`), review (`reviewed_by`, `review_notes`, and `reviewed_at`), fix and
-regression (`fix`, `fix_commit_sha`, and `regression_passed`), and `status`.
+The repository treats traces as immutable. Usage logs are also immutable except
+for one forward outcome transition: a stored `NULL` or `unknown` `eval_result`
+may become `pass`, `fail`, or `error` together with its validated
+`memory_caused_failure` value. The target row is locked, exact replay is
+unchanged, and downgrades, measured-result rewrites, attribution rewrites, or
+changes to every other usage field conflict. The usage log's identity and
+`created_at` remain immutable. Failure cases may update only diagnosis
+(`failure_type`, `symptom`, and `root_cause`), review (`reviewed_by`,
+`review_notes`, and `reviewed_at`), fix and regression (`fix`,
+`fix_commit_sha`, and `regression_passed`), and `status`.
 Their identity, source provenance, and creation timestamp remain immutable. For
 existing rows, lessons and project policies may update only `status`; a
 difference in any other field is a conflict.

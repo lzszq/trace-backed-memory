@@ -145,8 +145,12 @@ def test_readme_safe_workflow_example_stays_executable():
     result = store.finalize_memory(
         request, allow_decision(lesson.lesson_id), trace_id=trace.trace_id,
     )
+    sealed = store.record_decision_outcome(result.decision_id, "pass")
     assert result.use_memory
     assert result.decision_id == store.usage_logs[-1].decision_id
+    assert sealed.eval_result == "pass"
+    assert store.metrics().evaluated_with_memory_count == 1
+    assert store.metrics().unevaluated_decision_count == 0
 
 
 def test_readme_benchmark_safe_workflow_stays_executable():

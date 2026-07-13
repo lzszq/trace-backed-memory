@@ -414,6 +414,9 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
     assert "When calling search_docs" in result.snippet
     assert metrics.decision_count == 1
     assert metrics.pass_rate_with_memory == 1.0
+    assert metrics.evaluated_with_memory_count == 1
+    assert metrics.evaluated_without_memory_count == 0
+    assert metrics.unevaluated_decision_count == 0
     assert restored.lessons == store.lessons
     assert restored_from_disk.usage_logs == store.usage_logs
     assert loaded_yaml_lessons == [lesson]

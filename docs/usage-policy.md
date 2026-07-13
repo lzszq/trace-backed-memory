@@ -183,6 +183,20 @@ Passing no ancestry evidence is supported for backward compatibility and
 preserves legacy retrieval and PR-report behavior. Evidence is not persisted
 in snapshots, YAML, usage logs, or PostgreSQL.
 
+## Outcome Metrics
+
+`pass`, `fail`, and `error` are evaluated outcomes; `error` is an evaluated
+non-pass. `unknown` and `None` are unevaluated and must not depress pass rates.
+Use `evaluated_with_memory_count` and `evaluated_without_memory_count` as the
+rate denominators and `unevaluated_decision_count` as the missing-outcome count.
+Together they equal `decision_count`.
+
+These are decision counts, not per-memory causal attribution. With-memory means
+the audited decision has at least one `used_memory_id`; it does not prove that
+one particular memory caused the result. Metrics remain derived and are not
+persisted; snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
+schema version 1 do not change.
+
 ## PR Change-Set Policy
 
 For value-aware PR reporting, callers must supply exact old and new values in

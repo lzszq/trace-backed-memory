@@ -605,6 +605,9 @@ result = store.finalize_memory(
 )
 snippet = result.snippet
 metrics = store.metrics()
+assert metrics.evaluated_with_memory_count == 1
+assert metrics.evaluated_without_memory_count == 0
+assert metrics.unevaluated_decision_count == 0
 
 snapshot = store.to_snapshot()
 restored = TraceBackedMemoryStore.from_snapshot(snapshot)
@@ -618,6 +621,20 @@ lesson_only_store.load_lessons_yaml("lessons.active.yaml")
 
 pr_report = store.pr_memory_report(context, changed_fields=["tool_schema_version", "eval_suite"])
 ```
+
+## Outcome-aware metrics
+
+`pass`, `fail`, and `error` are evaluated outcomes; `error` is an evaluated
+non-pass. `unknown` and `None` are unevaluated and are excluded from pass-rate
+denominators. `evaluated_with_memory_count` and
+`evaluated_without_memory_count` expose the two denominators, while
+`unevaluated_decision_count` identifies decisions that still lack a usable
+outcome. Their sum equals `decision_count`.
+
+These are decision counts, not per-memory causal attribution. A decision is
+classified as with-memory when its usage log has non-empty `used_memory_ids`.
+Metrics remain derived and are not persisted; snapshot version 2, active-lessons
+YAML, JSON Schemas, and PostgreSQL schema version 1 are unchanged.
 
 Low-level helpers remain public for callers that own equivalent orchestration,
 but only the store workflow provides ownership, replay, stale-state,
@@ -671,7 +688,7 @@ Implemented pieces:
 - Lesson safety flags for sensitive or eval-leaking memory are preserved through retrieval and blocked by System Gate.
 - PR reports can reuse current-commit-bound ancestry evidence to exclude unrelated historical failure cases before generating report content.
 - PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, warns on risky prompt/tool/model/eval-suite changes, and supports immutable complete-endpoint `PRChangeSet` matching with old/new/both provenance.
-- Basic metrics for decisions, candidates, used/blocked memory, pass rates with/without memory, wrong-memory failures, obsolete attempts, and lesson confidence.
+- Outcome-aware metrics for decisions, candidates, used/blocked memory, measured pass rates with explicit denominators, unevaluated decisions, wrong-memory failures, obsolete attempts, and lesson confidence.
 
 ## Repository layout
 

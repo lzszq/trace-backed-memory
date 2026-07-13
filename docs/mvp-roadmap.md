@@ -164,3 +164,16 @@ Track:
 - Preserve snapshot version 2 and PostgreSQL schema version 1 with no new
   persisted memory fields; source provenance stays ephemeral and existing trace
   and usage storage carry the required evidence.
+
+## Phase 12: Outcome-aware metrics (implemented)
+
+- Define that `pass`, `fail`, and `error` are evaluated outcomes; `error` is an
+  evaluated non-pass. `unknown` and `None` are unevaluated and stay outside
+  pass-rate denominators.
+- Expose `evaluated_with_memory_count`, `evaluated_without_memory_count`, and
+  `unevaluated_decision_count`; together they equal `decision_count` and make
+  both pass-rate sample sizes auditable.
+- Keep the with/without split tied to audited `used_memory_ids`. These are
+  decision counts, not per-memory causal attribution.
+- Metrics remain derived and are not persisted; preserve snapshot version 2,
+  JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1.

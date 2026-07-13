@@ -998,6 +998,44 @@ def test_docs_publish_benchmark_leakage_contract_and_persistence_boundaries():
     assert "source_input_hash" not in postgres_schema
 
 
+def test_docs_publish_outcome_aware_metrics_and_ephemeral_boundary():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`pass`, `fail`, and `error` are evaluated outcomes",
+        "`error` is an evaluated non-pass",
+        "`unknown` and `None` are unevaluated",
+        "`evaluated_with_memory_count`",
+        "`evaluated_without_memory_count`",
+        "`unevaluated_decision_count`",
+        "decision counts, not per-memory causal attribution",
+        "Metrics remain derived and are not persisted",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert (
+        "Phase 12: Outcome-aware metrics (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert "metrics" not in _schema_properties(snapshot_schema)
+    postgres_schema = _postgres_schema()
+    for field_name in (
+        "evaluated_with_memory_count",
+        "evaluated_without_memory_count",
+        "unevaluated_decision_count",
+    ):
+        assert field_name not in postgres_schema
+
+
 def test_postgres_memory_id_registry_rejects_direct_dml():
     schema = _postgres_schema()
 

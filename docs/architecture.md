@@ -261,6 +261,21 @@ recommended injection, or optional `eval_result` values are unsupported.
 The JSON Schema requires the four safe-workflow audit fields for persisted
 usage logs while Python keeps defaults to migrate exact legacy snapshots.
 
+### Outcome-aware metrics
+
+`pass`, `fail`, and `error` are evaluated outcomes; `error` is an evaluated
+non-pass. `unknown` and `None` are unevaluated and are excluded from pass-rate
+denominators. `evaluated_with_memory_count` and
+`evaluated_without_memory_count` expose the two measured sample sizes, and
+`unevaluated_decision_count` reports the remainder. Their sum equals
+`decision_count`.
+
+These are decision counts, not per-memory causal attribution. The existing
+with/without split is determined by whether a usage record has non-empty
+`used_memory_ids`. Metrics remain derived and are not persisted; snapshot
+version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1
+remain unchanged.
+
 ### Benchmark example identity boundary
 
 Benchmark leakage identity is the exact pair `(eval_suite, input_hash)`.

@@ -175,6 +175,79 @@ def matching_context(trace: Trace) -> MemoryContext:
     )
 
 
+def store_with_declared_trace_provenance() -> tuple[
+    TraceBackedMemoryStore,
+    Trace,
+    Lesson,
+    MemoryContext,
+]:
+    store = TraceBackedMemoryStore()
+    source_trace = store.record_trace(
+        Trace(
+            trace_id="trace_provenance_source",
+            run_id="run_provenance_source",
+            commit_sha="abc",
+            repo="repo",
+            tenant="tenant_a",
+            branch="main",
+            prompt_version="planner_v3",
+            prompt_family="planner",
+            tool_schema_version="search_docs_v2",
+            model="gpt-test",
+            eval_suite="tool_regression",
+            eval_result="fail",
+            tool_calls=[{"name": "search_docs"}],
+        )
+    )
+    case = store.add_failure_case(
+        verify_failure_case(
+            draft_failure_case(
+                source_trace,
+                case_id="case_provenance",
+                failure_type="invalid_tool_argument",
+                symptom="search_docs received an empty query",
+            ),
+            fix="require a non-empty query",
+            fix_commit_sha="def",
+            regression_passed=True,
+        )
+    )
+    lesson = store.add_lesson(
+        lesson_from_failure_case(
+            case,
+            lesson_id="lesson_provenance",
+            lesson_text="Always pass a non-empty query to search_docs.",
+            memory_type="procedural",
+            scope={"repo": "repo", "tenant": "tenant_a"},
+        )
+    )
+    current_trace = store.record_trace(
+        replace(
+            source_trace,
+            trace_id="trace_provenance_current",
+            run_id="run_provenance_current",
+            eval_result="unknown",
+        )
+    )
+    context = MemoryContext(
+        mode="production",
+        repo="repo",
+        tenant="tenant_a",
+        commit_sha="abc",
+        branch="main",
+        prompt_version="planner_v3",
+        prompt_family="planner",
+        tool="search_docs",
+        tool_schema_version="search_docs_v2",
+        model="gpt-test",
+        model_family="gpt",
+        eval_suite="tool_regression",
+        task_type="tool_repair",
+        failure_type="invalid_tool_argument",
+    )
+    return store, current_trace, lesson, context
+
+
 def allow_decision(memory_id: str) -> dict[str, object]:
     return {
         "use_memory": True,
@@ -551,6 +624,229 @@ def test_imported_usage_log_rejects_persisted_memory_source_identity(
         match="usage log context must not persist memory source identity",
     ):
         TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+DECLARED_PROVENANCE_MISMATCHES = [
+    ("branch", {"branch": "other"}, "trace branch does not match memory context"),
+    (
+        "prompt-version",
+        {"prompt_version": "planner_other"},
+        "trace prompt_version does not match memory context",
+    ),
+    (
+        "prompt-family",
+        {"prompt_family": "other"},
+        "trace prompt_family does not match memory context",
+    ),
+    (
+        "tool-schema-version",
+        {"tool_schema_version": "search_docs_other"},
+        "trace tool_schema_version does not match memory context",
+    ),
+    ("model", {"model": "other"}, "trace model does not match memory context"),
+    (
+        "eval-suite",
+        {"eval_suite": "other"},
+        "trace eval_suite does not match memory context",
+    ),
+    (
+        "tool",
+        {"tool_calls": [{"name": "other"}]},
+        "trace tool does not match memory context",
+    ),
+    (
+        "non-string-tool",
+        {"tool_calls": [{"name": 7}]},
+        "trace tool does not match memory context",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("case_id", "trace_changes", "expected_message"),
+    DECLARED_PROVENANCE_MISMATCHES,
+    ids=[entry[0] for entry in DECLARED_PROVENANCE_MISMATCHES],
+)
+def test_finalize_binds_every_declared_trace_provenance_field_before_consumption(
+    case_id: str,
+    trace_changes: dict[str, object],
+    expected_message: str,
+):
+    store, current_trace, lesson, context = store_with_declared_trace_provenance()
+    mismatched_trace = store.record_trace(
+        replace(
+            current_trace,
+            trace_id=f"trace_provenance_mismatch_{case_id}",
+            run_id=f"run_provenance_mismatch_{case_id}",
+            **trace_changes,
+        )
+    )
+    request = store.prepare_memory(context, task="answer with verified memory")
+
+    with pytest.raises(ValueError, match=expected_message):
+        store.finalize_memory(
+            request,
+            allow_decision(lesson.lesson_id),
+            trace_id=mismatched_trace.trace_id,
+        )
+
+    assert store.usage_logs == []
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=current_trace.trace_id,
+    )
+    assert result.allowed_memory_ids == (lesson.lesson_id,)
+    assert len(store.usage_logs) == 1
+
+
+def test_finalize_allows_richer_trace_when_optional_context_provenance_is_omitted():
+    store, current_trace, lesson, _context = store_with_declared_trace_provenance()
+    broad_context = MemoryContext(
+        mode="production",
+        repo=current_trace.repo or "repo",
+        tenant=current_trace.tenant,
+        commit_sha=current_trace.commit_sha,
+    )
+    request = store.prepare_memory(
+        broad_context,
+        task="answer with broad trace provenance",
+    )
+
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=current_trace.trace_id,
+    )
+
+    assert result.allowed_memory_ids == (lesson.lesson_id,)
+
+
+@pytest.mark.parametrize(
+    ("case_id", "trace_changes", "expected_message"),
+    [DECLARED_PROVENANCE_MISMATCHES[1], DECLARED_PROVENANCE_MISMATCHES[6]],
+    ids=["prompt-version", "tool"],
+)
+def test_low_level_logging_binds_declared_provenance_before_append(
+    case_id: str,
+    trace_changes: dict[str, object],
+    expected_message: str,
+):
+    store, current_trace, lesson, context = store_with_declared_trace_provenance()
+    mismatched_trace = store.record_trace(
+        replace(
+            current_trace,
+            trace_id=f"trace_log_mismatch_{case_id}",
+            run_id=f"run_log_mismatch_{case_id}",
+            **trace_changes,
+        )
+    )
+    decision = MemoryDecision(
+        use_memory=True,
+        allowed_memory_ids=[lesson.lesson_id],
+        blocked_memory_ids=[],
+        reason="directly relevant",
+        risk="low",
+        recommended_injection="short_summary",
+    )
+
+    with pytest.raises(ValueError, match=expected_message):
+        store.log_decision(
+            mismatched_trace.run_id,
+            context,
+            [lesson.lesson_id],
+            decision,
+        )
+
+    assert store.usage_logs == []
+    store.log_decision(
+        current_trace.run_id,
+        context,
+        [lesson.lesson_id],
+        decision,
+    )
+    assert len(store.usage_logs) == 1
+
+
+def snapshot_with_declared_trace_provenance_log() -> dict[str, object]:
+    store, current_trace, lesson, context = store_with_declared_trace_provenance()
+    store.log_decision(
+        current_trace.run_id,
+        context,
+        [lesson.lesson_id],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=[lesson.lesson_id],
+            blocked_memory_ids=[],
+            reason="directly relevant",
+            risk="low",
+            recommended_injection="short_summary",
+        ),
+        eval_result="pass",
+    )
+    return store.to_snapshot()
+
+
+@pytest.mark.parametrize(
+    ("field_name", "replacement"),
+    [
+        ("branch", "other"),
+        ("prompt_version", "planner_other"),
+        ("prompt_family", "other"),
+        ("tool_schema_version", "search_docs_other"),
+        ("model", "other"),
+        ("eval_suite", "other"),
+        ("tool", "other"),
+    ],
+)
+def test_imported_usage_log_binds_present_declared_trace_provenance(
+    field_name: str,
+    replacement: str,
+):
+    snapshot = snapshot_with_declared_trace_provenance_log()
+    log = _snapshot_record(snapshot, "usage_logs")
+    context = log["context"]
+    assert isinstance(context, dict)
+    context[field_name] = replacement
+
+    with pytest.raises(
+        ValueError,
+        match=rf"context {field_name} does not match trace",
+    ):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+def test_imported_usage_log_allows_omitted_optional_trace_provenance():
+    snapshot = snapshot_with_declared_trace_provenance_log()
+    log = _snapshot_record(snapshot, "usage_logs")
+    context = log["context"]
+    assert isinstance(context, dict)
+    for field_name in (
+        "branch",
+        "prompt_version",
+        "prompt_family",
+        "tool",
+        "tool_schema_version",
+        "model",
+        "eval_suite",
+    ):
+        context.pop(field_name)
+
+    restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+
+    assert restored.usage_logs[0].context == context
+
+
+def test_legacy_usage_log_rejects_mismatched_supplied_trace_provenance():
+    legacy = snapshot_with_declared_trace_provenance_log()
+    legacy.pop("snapshot_version")
+    log = _snapshot_record(legacy, "usage_logs")
+    context = log["context"]
+    assert isinstance(context, dict)
+    context["model"] = "other"
+
+    with pytest.raises(ValueError, match="context model does not match trace"):
+        TraceBackedMemoryStore.from_snapshot(legacy)
 
 
 def test_prepare_and_finalize_memory_is_trace_linked_and_audited():
@@ -2347,6 +2643,7 @@ def test_store_retrieves_by_metadata_then_logs_usage_decision():
             commit_sha="abc123",
             repo="agent-harness",
             eval_result="fail",
+            tool_calls=[{"name": "search_docs"}],
         )
     )
     case = verify_failure_case(
@@ -4220,6 +4517,7 @@ def test_store_metrics_summarize_usage_logs_and_lesson_confidence():
             commit_sha="abc123",
             repo="agent-harness",
             eval_result="fail",
+            tool_calls=[{"name": "search_docs"}],
         )
     )
     case = verify_failure_case(
@@ -4324,6 +4622,7 @@ def test_store_metrics_track_pass_rates_and_wrong_memory_failures():
                 run_id=run_id,
                 commit_sha="abc123",
                 repo="agent-harness",
+                tool_calls=[{"name": "search_docs"}],
             )
         )
     context = MemoryContext(mode="repair", repo="agent-harness", commit_sha="abc123", tool="search_docs")
@@ -4456,6 +4755,7 @@ def test_store_memory_outcome_metrics_are_sorted_complete_and_noncausal():
                 commit_sha=source_trace.commit_sha,
                 repo=source_trace.repo,
                 tenant=source_trace.tenant,
+                tool_calls=[{"name": "search_docs"}],
             )
         )
         candidate_ids = [*allowed_ids, *blocked_ids]
@@ -4550,6 +4850,7 @@ def test_store_metrics_exclude_unknown_and_missing_outcomes_from_pass_rates():
                 commit_sha=source_trace.commit_sha,
                 repo=source_trace.repo,
                 tenant=source_trace.tenant,
+                tool_calls=[{"name": "search_docs"}],
             )
         )
         candidate_ids = [lesson.lesson_id] if use_memory else []
@@ -4754,6 +5055,7 @@ def test_store_rejects_usage_logs_with_impossible_injection_modes():
             commit_sha="abc123",
             repo="agent-harness",
             eval_result="fail",
+            tool_calls=[{"name": "search_docs"}],
         )
     )
     case = verify_failure_case(
@@ -4818,6 +5120,7 @@ def test_store_rejects_wrong_memory_failure_without_failed_memory_use():
             commit_sha="abc123",
             repo="agent-harness",
             eval_result="fail",
+            tool_calls=[{"name": "search_docs"}],
         )
     )
     case = verify_failure_case(
@@ -4888,6 +5191,7 @@ def test_store_metrics_count_obsolete_project_policy_attempts():
             run_id="run_001",
             commit_sha="abc123",
             repo="agent-harness",
+            prompt_family="planner",
         )
     )
     store.add_project_policy(
@@ -6097,6 +6401,7 @@ def test_log_decision_avoids_duplicate_decision_ids_after_sparse_snapshot_import
             run_id="run_004",
             commit_sha="abc123",
             repo="agent-harness",
+            tool_calls=[{"name": "search_docs"}],
         )
     )
     snapshot = seed.to_snapshot()

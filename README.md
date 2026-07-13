@@ -224,6 +224,7 @@ current_trace = store.record_trace(
         tenant="tenant_a",
         eval_suite="tool_calling_regression",
         input_hash=current_input_hash,
+        tool_calls=[{"name": "search_docs"}],
     )
 )
 context = MemoryContext(

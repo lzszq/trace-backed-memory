@@ -77,6 +77,14 @@ PR_CHANGE_SET_FIELDS = (
     "model",
     "eval_suite",
 )
+DECLARED_TRACE_CONTEXT_FIELDS = (
+    "branch",
+    "prompt_version",
+    "prompt_family",
+    "tool_schema_version",
+    "model",
+    "eval_suite",
+)
 MEMORY_SOURCE_IDENTITY_CONTEXT_FIELDS = frozenset(
     {"source_eval_suite", "source_input_hash"}
 )
@@ -875,16 +883,30 @@ class TraceBackedMemoryStore:
             raise ValueError(
                 f"usage log context tenant does not match trace or mode: {log.trace_id}"
             )
+        for field_name in DECLARED_TRACE_CONTEXT_FIELDS:
+            if (
+                field_name in log.context
+                and log.context[field_name] != getattr(trace, field_name)
+            ):
+                raise ValueError(
+                    f"usage log context {field_name} does not match trace: {log.trace_id}"
+                )
+        if (
+            "tool" in log.context
+            and log.context["tool"] not in _trace_change_set_tool_names(trace)
+        ):
+            raise ValueError(
+                f"usage log context tool does not match trace: {log.trace_id}"
+            )
         if "input_hash" in log.context:
             if "eval_suite" not in log.context:
                 raise ValueError(
                     f"usage log context input_hash requires eval_suite: {log.trace_id}"
                 )
-            for field_name in ("eval_suite", "input_hash"):
-                if log.context[field_name] != getattr(trace, field_name):
-                    raise ValueError(
-                        f"usage log context {field_name} does not match trace: {log.trace_id}"
-                    )
+            if log.context["input_hash"] != trace.input_hash:
+                raise ValueError(
+                    f"usage log context input_hash does not match trace: {log.trace_id}"
+                )
 
     def _migrate_legacy_usage_log(self, log_data: dict[str, Any]) -> dict[str, Any]:
         legacy_log = _snapshot_record_instance(
@@ -1275,12 +1297,24 @@ def _validate_trace_context(trace: Trace, context: MemoryContext) -> None:
             raise ValueError(
                 f"trace {field_name} does not match memory context: {trace.trace_id}"
             )
+    for field_name in DECLARED_TRACE_CONTEXT_FIELDS:
+        context_value = getattr(context, field_name)
+        if context_value is not None and getattr(trace, field_name) != context_value:
+            raise ValueError(
+                f"trace {field_name} does not match memory context: {trace.trace_id}"
+            )
+    if (
+        context.tool is not None
+        and context.tool not in _trace_change_set_tool_names(trace)
+    ):
+        raise ValueError(
+            f"trace tool does not match memory context: {trace.trace_id}"
+        )
     if context.input_hash is not None:
-        for field_name in ("eval_suite", "input_hash"):
-            if getattr(trace, field_name) != getattr(context, field_name):
-                raise ValueError(
-                    f"trace {field_name} does not match memory context: {trace.trace_id}"
-                )
+        if trace.input_hash != context.input_hash:
+            raise ValueError(
+                f"trace input_hash does not match memory context: {trace.trace_id}"
+            )
 
 
 def _snapshot_records(data: Mapping[str, Any], key: str) -> list[dict[str, Any]]:

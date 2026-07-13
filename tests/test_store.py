@@ -2440,6 +2440,167 @@ def test_memory_run_audits_are_decision_oriented_and_empty_store_is_empty():
     assert source_trace.trace_id not in {audit.trace_id for audit in audits}
 
 
+def test_recover_memory_run_completes_decision_only_and_preserves_attribution():
+    store, current, result, _lesson = store_with_pending_memory_run()
+    sealed = store.record_decision_outcome(
+        result.decision_id,
+        "error",
+        memory_caused_failure=True,
+    )
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="decision outcome already sealed"):
+        store.recover_memory_run(
+            result.decision_id,
+            memory_caused_failure=False,
+        )
+    assert store.to_snapshot() == before
+
+    recovered = store.recover_memory_run(
+        result.decision_id,
+        output_hash="sha256:recovered-output",
+        tool_outputs=[{"status": "failed"}],
+        error="executor failed",
+    )
+
+    assert isinstance(recovered, tbm.MemoryRunCompletion)
+    assert recovered.trace.trace_id == current.trace_id
+    assert recovered.trace.eval_result == "error"
+    assert recovered.trace.output_hash == "sha256:recovered-output"
+    assert recovered.trace.error == "executor failed"
+    assert recovered.usage_log == sealed
+    assert recovered.usage_log.memory_caused_failure is True
+    assert store.memory_run_audits()[0].status == "complete"
+    restored = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    assert restored.memory_run_audits() == store.memory_run_audits()
+    assert restored.traces[current.trace_id] == recovered.trace
+
+
+def test_recover_memory_run_completes_trace_only_pass_without_attribution():
+    store, current, result, _lesson = store_with_pending_memory_run()
+    completed = store.complete_trace(
+        current.trace_id,
+        eval_result="pass",
+        output_hash="sha256:trace-first",
+    )
+    before = store.to_snapshot()
+
+    with pytest.raises(
+        ValueError,
+        match="memory_caused_failure requires eval_result fail or error",
+    ):
+        store.recover_memory_run(
+            result.decision_id,
+            memory_caused_failure=True,
+        )
+    assert store.to_snapshot() == before
+
+    recovered = store.recover_memory_run(result.decision_id)
+
+    assert recovered.trace == completed
+    assert recovered.usage_log.eval_result == "pass"
+    assert recovered.usage_log.memory_caused_failure is False
+    assert store.memory_run_audits()[0].status == "complete"
+
+
+@pytest.mark.parametrize(
+    ("eval_result", "memory_caused_failure"),
+    [("fail", True), ("error", False)],
+)
+def test_recover_memory_run_requires_explicit_failed_trace_attribution(
+    eval_result: str,
+    memory_caused_failure: bool,
+):
+    store, current, result, _lesson = store_with_pending_memory_run()
+    completed = store.complete_trace(
+        current.trace_id,
+        eval_result=eval_result,  # type: ignore[arg-type]
+    )
+    before = store.to_snapshot()
+
+    with pytest.raises(
+        ValueError,
+        match="failed or errored trace requires explicit memory_caused_failure",
+    ):
+        store.recover_memory_run(result.decision_id)
+    assert store.to_snapshot() == before
+
+    recovered = store.recover_memory_run(
+        result.decision_id,
+        memory_caused_failure=memory_caused_failure,
+    )
+
+    assert recovered.trace == completed
+    assert recovered.usage_log.eval_result == eval_result
+    assert (
+        recovered.usage_log.memory_caused_failure is memory_caused_failure
+    )
+
+
+def test_recover_memory_run_rejects_pending_and_conflicting_states_atomically():
+    pending_store, _trace, pending_result, _lesson = store_with_pending_memory_run()
+    pending_before = pending_store.to_snapshot()
+
+    with pytest.raises(ValueError, match="memory run has no measured outcome"):
+        pending_store.recover_memory_run(pending_result.decision_id)
+    assert pending_store.to_snapshot() == pending_before
+
+    conflict_store, trace, conflict_result, _lesson = store_with_pending_memory_run()
+    conflict_store.complete_trace(trace.trace_id, eval_result="pass")
+    conflict_store.record_decision_outcome(conflict_result.decision_id, "error")
+    conflict_before = conflict_store.to_snapshot()
+
+    with pytest.raises(ValueError, match="memory run has conflicting outcomes"):
+        conflict_store.recover_memory_run(conflict_result.decision_id)
+    assert conflict_store.to_snapshot() == conflict_before
+
+
+def test_recover_memory_run_replays_complete_state_and_rejects_evidence_rewrite():
+    store, current, result, _lesson = store_with_pending_memory_run()
+    completed = store.complete_memory_run(
+        trace_id=current.trace_id,
+        decision_id=result.decision_id,
+        eval_result="pass",
+        output_hash="sha256:complete",
+    )
+    before = store.to_snapshot()
+
+    assert store.recover_memory_run(result.decision_id) == completed
+    assert store.to_snapshot() == before
+    with pytest.raises(ValueError, match="trace execution already completed"):
+        store.recover_memory_run(
+            result.decision_id,
+            output_hash="sha256:other",
+        )
+    assert store.to_snapshot() == before
+
+
+def test_recover_memory_run_rejects_invalid_decision_ids_and_attribution_types():
+    store, _current, result, _lesson = store_with_pending_memory_run()
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="memory run recovery requires decision_id"):
+        store.recover_memory_run("")
+    with pytest.raises(ValueError, match="unknown decision_id: decision_missing"):
+        store.recover_memory_run("decision_missing")
+    with pytest.raises(ValueError, match="memory_caused_failure must be a boolean"):
+        store.recover_memory_run(
+            result.decision_id,
+            memory_caused_failure=None,  # type: ignore[arg-type]
+        )
+    with pytest.raises(TypeError, match="unexpected keyword argument 'trace_id'"):
+        store.recover_memory_run(
+            result.decision_id,
+            trace_id="trace_spoofed",  # type: ignore[call-arg]
+        )
+    with pytest.raises(TypeError, match="unexpected keyword argument 'eval_result'"):
+        store.recover_memory_run(
+            result.decision_id,
+            eval_result="pass",  # type: ignore[call-arg]
+        )
+    assert store.to_snapshot() == before
+
+
 def test_mutating_public_collection_copy_does_not_change_store():
     store = TraceBackedMemoryStore()
     trace = store.record_trace(

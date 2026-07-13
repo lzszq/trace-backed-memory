@@ -177,6 +177,44 @@ def test_readme_safe_workflow_example_stays_executable():
     assert store.metrics().unevaluated_decision_count == 0
 
 
+def test_readme_memory_run_recovery_workflow_stays_executable():
+    store, source_trace, _case, lesson = readme_store_fixture()
+    current = store.record_trace(
+        replace(
+            source_trace,
+            trace_id="trace_recovery_readme",
+            run_id="run_recovery_readme",
+            eval_result="unknown",
+            tool_calls=[
+                {"name": "search_docs", "arguments": {"query": "memory"}}
+            ],
+        )
+    )
+    context = MemoryContext(
+        mode="repair",
+        repo=current.repo,
+        tenant=current.tenant,
+        commit_sha=current.commit_sha,
+        tool="search_docs",
+    )
+    request = store.prepare_memory(context, task="repair failed tool call")
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=current.trace_id,
+    )
+    store.complete_trace(current.trace_id, eval_result="pass")
+    (audit,) = store.memory_run_audits()
+
+    completion = store.recover_memory_run(audit.decision_id)
+
+    assert audit.status == "trace_only"
+    assert audit.decision_id == result.decision_id
+    assert completion.trace.eval_result == "pass"
+    assert completion.usage_log.eval_result == "pass"
+    assert store.memory_run_audits()[0].status == "complete"
+
+
 def test_readme_benchmark_safe_workflow_stays_executable():
     readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
         encoding="utf-8"

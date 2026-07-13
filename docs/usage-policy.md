@@ -186,6 +186,20 @@ decisions for one Trace remain separate. The audit view is derived and not
 persisted. Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
 schema version 1 remain unchanged.
 
+Recover only audited one-sided states with `recover_memory_run()` using their
+`decision_id`. The method does not accept `trace_id` or `eval_result`; it derives
+them from the linked validated records, delegates to atomic
+`complete_memory_run()`, and returns `MemoryRunCompletion`. `trace_only` uses
+the measured Trace result, `decision_only` preserves the sealed result and
+`memory_caused_failure`, and `complete` is an exact replay.
+
+Recovery rejects `pending` and `conflict` and never guesses a result. A passed
+`trace_only` record implies `memory_caused_failure=False`, but callers must
+explicitly choose `True` or `False` for failed or errored Trace-only recovery.
+Do not treat the default false value on an unevaluated usage log as causal
+evidence. Recovery changes no persistence shape: snapshot version 2, JSON
+Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain unchanged.
+
 `complete_trace()` accepts only `pass`, `fail`, or `error` and can fill
 `output_hash`, `tool_outputs`, `latency_ms`, `cost_usd`, `error`, and
 `trace_uri`. Existing non-empty completion evidence and every other Trace

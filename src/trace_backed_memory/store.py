@@ -387,6 +387,83 @@ class TraceBackedMemoryStore:
         )
 
     @_synchronized
+    def recover_memory_run(
+        self,
+        decision_id: str,
+        *,
+        memory_caused_failure: bool = cast(Any, _UNSET),
+        output_hash: str | None = cast(Any, _UNSET),
+        tool_outputs: list[dict[str, object]] = cast(Any, _UNSET),
+        latency_ms: int | None = cast(Any, _UNSET),
+        cost_usd: float | None = cast(Any, _UNSET),
+        error: str | None = cast(Any, _UNSET),
+        trace_uri: str | None = cast(Any, _UNSET),
+    ) -> MemoryRunCompletion:
+        """Recover a one-sided memory run from its existing measured result."""
+        _validate_required_string(
+            decision_id,
+            "decision_id",
+            "memory run recovery requires",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        if (
+            memory_caused_failure is not _UNSET
+            and type(memory_caused_failure) is not bool
+        ):
+            raise ValueError("memory_caused_failure must be a boolean")
+
+        log_index = self._usage_log_index(decision_id)
+        current_log = self._usage_logs[log_index]
+        trace_id = cast(str, current_log.trace_id)
+        current_trace = self._traces[trace_id]
+        status = _memory_run_audit_status(
+            current_trace.eval_result,
+            current_log.eval_result,
+        )
+        if status == "pending":
+            raise ValueError(
+                f"memory run has no measured outcome: {decision_id}"
+            )
+        if status == "conflict":
+            raise ValueError(
+                f"memory run has conflicting outcomes: {decision_id}"
+            )
+
+        eval_result: _MeasuredEvalResult
+        resolved_memory_caused_failure: bool
+        if status == "trace_only":
+            eval_result = cast(_MeasuredEvalResult, current_trace.eval_result)
+            if memory_caused_failure is _UNSET:
+                if eval_result in {"fail", "error"}:
+                    raise ValueError(
+                        "failed or errored trace requires explicit "
+                        "memory_caused_failure"
+                    )
+                resolved_memory_caused_failure = False
+            else:
+                resolved_memory_caused_failure = memory_caused_failure
+        else:
+            eval_result = cast(_MeasuredEvalResult, current_log.eval_result)
+            resolved_memory_caused_failure = (
+                current_log.memory_caused_failure
+                if memory_caused_failure is _UNSET
+                else memory_caused_failure
+            )
+
+        return self.complete_memory_run(
+            trace_id=trace_id,
+            decision_id=decision_id,
+            eval_result=eval_result,
+            memory_caused_failure=resolved_memory_caused_failure,
+            output_hash=output_hash,
+            tool_outputs=tool_outputs,
+            latency_ms=latency_ms,
+            cost_usd=cost_usd,
+            error=error,
+            trace_uri=trace_uri,
+        )
+
+    @_synchronized
     def add_failure_case(self, case: FailureCase) -> FailureCase:
         _require_exact_record(case, FailureCase, "failure case")
         stored_case = deepcopy(case)

@@ -283,3 +283,21 @@ Track:
 - Keep the view derived and not persisted. Reproduce it after snapshot and
   PostgreSQL loads while preserving snapshot version 2, JSON Schemas,
   active-lessons YAML, `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 19: Safe memory-run recovery (implemented)
+
+- Add `recover_memory_run()` keyed only by `decision_id`. It does not accept
+  `trace_id` or `eval_result`; derive both from the linked validated records and
+  return `MemoryRunCompletion`.
+- Recover `trace_only` from the Trace result and `decision_only` from the sealed
+  decision result. Preserve `memory_caused_failure` from a sealed decision and
+  make `complete` an exact replay through `complete_memory_run()`.
+- Require explicit `memory_caused_failure` for failed or errored Trace-only
+  recovery. Reject `pending` and `conflict`; recovery never guesses a missing
+  result, causal attribution, or authoritative side.
+- Delegate to the existing atomic completion operation under one reentrant
+  store lock so immutable evidence, validation, defensive copies, and
+  all-or-nothing assignment remain centralized.
+- Reuse existing PostgreSQL forward updates and preserve snapshot version 2,
+  JSON Schemas, active-lessons YAML, `schemas/postgres.sql`, and PostgreSQL
+  schema version 1.

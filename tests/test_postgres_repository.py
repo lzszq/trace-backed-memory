@@ -993,6 +993,54 @@ def test_repository_load_reproduces_derived_memory_run_audits(postgres_cluster):
     assert restored.memory_run_audits() == expected
 
 
+def test_repository_sync_persists_recovered_decision_only_memory_run(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store = _pending_memory_run_store()
+    store.record_decision_outcome(
+        "decision_000002",
+        "error",
+        memory_caused_failure=True,
+    )
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+
+        recovered = store.recover_memory_run(
+            "decision_000002",
+            output_hash="sha256:recovered-output",
+            error="executor failed",
+        )
+        updated = repository.sync(store)
+
+        assert updated.traces == PostgresSyncCounts(updated=1, unchanged=1)
+        assert updated.failure_cases == PostgresSyncCounts(unchanged=1)
+        assert updated.lessons == PostgresSyncCounts(unchanged=1)
+        assert updated.project_policies == PostgresSyncCounts(unchanged=1)
+        assert updated.usage_logs == PostgresSyncCounts(unchanged=2)
+
+        restored = repository.load()
+        assert restored.traces["trace_atomic_run"] == recovered.trace
+        assert next(
+            log
+            for log in restored.usage_logs
+            if log.decision_id == "decision_000002"
+        ) == recovered.usage_log
+        assert [audit.status for audit in restored.memory_run_audits()] == [
+            "conflict",
+            "complete",
+        ]
+
+        repeated = repository.sync(store)
+        assert repeated.traces == PostgresSyncCounts(unchanged=2)
+        assert repeated.usage_logs == PostgresSyncCounts(unchanged=2)
+
+
 def test_repository_sync_rejects_stale_or_conflicting_sealed_outcome(
     postgres_cluster,
 ):

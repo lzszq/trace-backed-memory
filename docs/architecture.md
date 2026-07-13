@@ -294,6 +294,22 @@ to one Trace remain independent rows. The view is derived and not persisted;
 snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
 version 1 remain unchanged.
 
+`recover_memory_run()` consumes a `decision_id` from that view and does not
+accept `trace_id` or `eval_result`. Under the store lock it reclassifies current
+state, derives the result from the measured side, and delegates all mutation to
+`complete_memory_run()`. It returns the same frozen `MemoryRunCompletion`, so
+Trace completion evidence, attribution, exact replay, defensive copies, and
+atomic assignment retain one implementation.
+
+For `trace_only`, a pass derives `memory_caused_failure=False`; a failure or
+error requires the caller to state the boolean explicitly. For
+`decision_only`, omission preserves the sealed `memory_caused_failure`; an
+explicit mismatch is rejected. `complete` replays exactly. Recovery rejects
+`pending` and `conflict` and never guesses a missing result or chooses between
+incompatible results. Only existing Trace and decision fields change, so
+snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
+version 1 remain unchanged.
+
 At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
 match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
 `tool_schema_version`, `model`, and `eval_suite` bind only when the context

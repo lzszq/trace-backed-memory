@@ -74,6 +74,9 @@ PR_CHANGE_SET_FIELDS = (
     "model",
     "eval_suite",
 )
+MEMORY_SOURCE_IDENTITY_CONTEXT_FIELDS = frozenset(
+    {"source_eval_suite", "source_input_hash"}
+)
 SNAPSHOT_VERSION = 2
 TRACE_JSON_MAX_DEPTH = 100
 SNAPSHOT_COLLECTION_KEYS = frozenset(
@@ -1474,6 +1477,10 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
             f"usage log trace_id must be at most {MEMORY_ID_MAX_CHARS} characters"
         )
     _validate_string_mapping(log.context, "context")
+    if MEMORY_SOURCE_IDENTITY_CONTEXT_FIELDS.intersection(log.context):
+        raise ValueError(
+            "usage log context must not persist memory source identity"
+        )
     _validate_status_mapping(
         log.candidate_memory_statuses, log.candidate_memory_ids
     )

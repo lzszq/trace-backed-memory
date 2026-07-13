@@ -473,6 +473,26 @@ def test_imported_usage_log_without_input_hash_audit_remains_compatible():
     assert restored.usage_logs[0].context["eval_suite"] == "benchmark-suite"
 
 
+@pytest.mark.parametrize(
+    "reserved_key",
+    ["source_eval_suite", "source_input_hash"],
+)
+def test_imported_usage_log_rejects_persisted_memory_source_identity(
+    reserved_key: str,
+):
+    snapshot = benchmark_input_hash_audit_snapshot()
+    usage_log = _snapshot_record(snapshot, "usage_logs")
+    context = usage_log["context"]
+    assert isinstance(context, dict)
+    context[reserved_key] = "forbidden-source-identity"
+
+    with pytest.raises(
+        ValueError,
+        match="usage log context must not persist memory source identity",
+    ):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
 def test_prepare_and_finalize_memory_is_trace_linked_and_audited():
     store, trace, _case, lesson = store_with_active_lesson()
     context = MemoryContext(

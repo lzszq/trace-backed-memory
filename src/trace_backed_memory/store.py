@@ -14,7 +14,7 @@ from functools import wraps
 from pathlib import Path
 from threading import RLock
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 from .lifecycle import (
     memory_item_from_failure_case,
@@ -61,6 +61,7 @@ from .policy import (
 )
 
 Snapshot = dict[str, Any]
+_MeasuredEvalResult = Literal["pass", "fail", "error"]
 EVAL_RESULTS = {"pass", "fail", "error", "unknown"}
 EVALUATED_RESULTS = {"pass", "fail", "error"}
 FAILURE_CASE_STATUSES = {"draft", "verified", "obsolete"}
@@ -763,10 +764,11 @@ class TraceBackedMemoryStore:
     def record_decision_outcome(
         self,
         decision_id: str,
-        eval_result: EvalResult,
+        eval_result: _MeasuredEvalResult,
         *,
         memory_caused_failure: bool = False,
     ) -> MemoryUsageLog:
+        """Seal one previously unevaluated decision with a measured outcome."""
         _validate_required_string(
             decision_id,
             "decision_id",
@@ -1672,7 +1674,7 @@ def _validate_runtime_outcome(
 
 
 def _validate_measured_outcome(
-    eval_result: EvalResult, memory_caused_failure: bool
+    eval_result: _MeasuredEvalResult, memory_caused_failure: bool
 ) -> None:
     if not isinstance(eval_result, str) or eval_result not in EVALUATED_RESULTS:
         raise ValueError(

@@ -12,6 +12,7 @@ from .store import TraceBackedMemoryStore
 
 POSTGRES_SCHEMA_VERSION = 1
 _MEASURED_EVAL_RESULTS = frozenset({"pass", "fail", "error"})
+_USAGE_OUTCOME_FIELDS = frozenset({"eval_result", "memory_caused_failure"})
 _UNDEFINED_TABLE_SQLSTATE = "42P01"
 _MISSING_SCHEMA_MESSAGE = "PostgreSQL schema is missing or incomplete"
 
@@ -684,9 +685,8 @@ def _sync_usage_log_row(
         )
 
     stored = _decode_usage_log(rows[0])
-    outcome_fields = frozenset({"eval_result", "memory_caused_failure"})
     if any(
-        field not in outcome_fields
+        field not in _USAGE_OUTCOME_FIELDS
         and not _canonical_values_equal(stored[field], canonical_incoming[field])
         for field in canonical_incoming
     ):

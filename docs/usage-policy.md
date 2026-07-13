@@ -160,6 +160,19 @@ For semantic retrieval, compute scores outside the store and pass
 evidence only: sensitive, obsolete, leaking, low-confidence, or out-of-scope
 memory must still be blocked by the normal gates.
 
+At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
+match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
+`tool_schema_version`, `model`, and `eval_suite` bind only when the context
+declares them. A declared tool must match an exact plain-string Trace tool call;
+callers must not rely on coercion. Omitted optional provenance remains broad and
+allows a more specific Trace. `model_family`, `task_type`, and `failure_type`
+remain unbound because Trace has no corresponding stored provenance.
+
+The store validates this evidence before pending request consumption or
+usage-log append. Imported version-2 and supplied legacy context evidence is
+subject to the same checks. No persistence contract changes: snapshot version
+2 and PostgreSQL schema version 1 remain current.
+
 ## Git Ancestry Opt-in
 
 Callers that opt in must first discover the complete anchor set with

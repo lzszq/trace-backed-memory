@@ -179,6 +179,23 @@ Track:
 - Metrics remain derived and are not persisted; preserve snapshot version 2,
   JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1.
 
+## Phase 14: Declared Trace provenance binding (implemented)
+
+- Require `repo`, `commit_sha`, and `tenant` always match the linked Trace.
+  Bind `branch`, `prompt_version`, `prompt_family`, `tool_schema_version`,
+  `model`, and `eval_suite` only when the context declares them.
+- Require a declared tool to match an exact plain-string Trace tool call;
+  non-string tool names do not satisfy evidence. Omitted optional provenance
+  remains broad and allows richer Trace records.
+- `model_family`, `task_type`, and `failure_type` remain unbound because
+  Trace has no equivalent stored provenance.
+- Validate before pending request consumption or usage-log append, preserving
+  retry and append atomicity on every mismatch.
+- Imported version-2 and supplied legacy context evidence follows the same
+  declared-only validation rule.
+- Preserve snapshot version 2, JSON Schemas, active-lessons YAML, and
+  PostgreSQL schema version 1.
+
 ## Phase 13: Per-memory outcome metrics (implemented)
 
 - Export `MemoryOutcomeMetrics` and expose `memory_outcome_metrics()` as a

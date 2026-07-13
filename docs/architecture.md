@@ -247,6 +247,20 @@ provides ownership, replay, stale-state, trace-link, and atomic logging
 guarantees. Low-level helpers remain public for callers that own equivalent
 orchestration.
 
+At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
+match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
+`tool_schema_version`, `model`, and `eval_suite` bind only when the context
+declares them. A declared tool must match an exact plain-string Trace tool call;
+non-string names do not satisfy the evidence. Omitted optional provenance
+remains broad and does not require missing Trace values. `model_family`,
+`task_type`, and `failure_type` remain unbound because Trace has no equivalent
+stored fields.
+
+These checks run before pending request consumption or usage-log append.
+Imported version-2 and supplied legacy context evidence is validated by the
+same declared-only rules. This adds no record or column: snapshot version 2 and
+PostgreSQL schema version 1 remain unchanged.
+
 Usage logs persist a non-empty trace ID, serialized context, candidate IDs,
 candidate status snapshots, System Gate blocked reasons, used IDs, blocked IDs,
 risk, reason, recommended injection, optional eval result, and whether memory

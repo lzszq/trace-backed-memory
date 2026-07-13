@@ -1081,6 +1081,44 @@ def test_docs_publish_per_memory_outcome_metrics_and_noncausal_boundary():
         assert field_name not in postgres_schema
 
 
+def test_docs_publish_declared_trace_provenance_binding_and_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`repo`, `commit_sha`, and `tenant` always match",
+        "`branch`, `prompt_version`, `prompt_family`, `tool_schema_version`, `model`, and `eval_suite`",
+        "only when the context declares them",
+        "exact plain-string Trace tool call",
+        "Omitted optional provenance remains broad",
+        "`model_family`, `task_type`, and `failure_type` remain unbound",
+        "before pending request consumption or usage-log append",
+        "Imported version-2 and supplied legacy context evidence",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert (
+        "Phase 14: Declared Trace provenance binding (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+
+
 def test_postgres_memory_id_registry_rejects_direct_dml():
     schema = _postgres_schema()
 

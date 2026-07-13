@@ -145,6 +145,22 @@ snippet = result.snippet
 Only this store workflow provides ownership, replay, stale-state, trace-link,
 and atomic logging guarantees.
 
+### Declared Trace provenance binding
+
+At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
+match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
+`tool_schema_version`, `model`, and `eval_suite` bind only when the context
+declares them. A declared tool must match an exact plain-string Trace tool call;
+non-string tool names are ignored. Omitted optional provenance remains broad
+and does not require Trace fields to be absent. `model_family`, `task_type`, and
+`failure_type` remain unbound because Trace has no equivalent persisted fields.
+
+Validation happens before pending request consumption or usage-log append, so
+a mismatch cannot consume a reusable request or write partial evidence.
+Imported version-2 and supplied legacy context evidence follows the same
+declared-only rule. The feature reuses existing context and Trace fields;
+snapshot version 2 and PostgreSQL schema version 1 remain unchanged.
+
 ### Benchmark example leakage classification
 
 Benchmark example identity is the exact pair `(eval_suite, input_hash)`. To opt

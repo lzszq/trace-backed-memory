@@ -14,7 +14,7 @@ from functools import wraps
 from pathlib import Path
 from threading import RLock
 from types import MappingProxyType
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from .lifecycle import (
     memory_item_from_failure_case,
@@ -62,6 +62,7 @@ from .policy import (
 
 Snapshot = dict[str, Any]
 _MeasuredEvalResult = Literal["pass", "fail", "error"]
+_UNSET = object()
 EVAL_RESULTS = {"pass", "fail", "error", "unknown"}
 EVALUATED_RESULTS = {"pass", "fail", "error"}
 FAILURE_CASE_STATUSES = {"draft", "verified", "obsolete"}
@@ -270,6 +271,72 @@ class TraceBackedMemoryStore:
             raise ValueError(f"duplicate trace_id: {stored_trace.trace_id}")
         self._traces[stored_trace.trace_id] = stored_trace
         return deepcopy(stored_trace)
+
+    @_synchronized
+    def complete_trace(
+        self,
+        trace_id: str,
+        *,
+        eval_result: _MeasuredEvalResult,
+        output_hash: str | None = cast(Any, _UNSET),
+        tool_outputs: list[dict[str, object]] = cast(Any, _UNSET),
+        latency_ms: int | None = cast(Any, _UNSET),
+        cost_usd: float | None = cast(Any, _UNSET),
+        error: str | None = cast(Any, _UNSET),
+        trace_uri: str | None = cast(Any, _UNSET),
+    ) -> Trace:
+        """Complete one pending Trace with measured execution evidence."""
+        _validate_required_string(
+            trace_id,
+            "trace_id",
+            "trace completion requires",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        _validate_measured_eval_result(eval_result, "trace completion")
+        current = self._traces.get(trace_id)
+        if current is None:
+            raise ValueError(f"unknown trace_id: {trace_id}")
+
+        supplied_values = {
+            "output_hash": output_hash,
+            "tool_outputs": tool_outputs,
+            "latency_ms": latency_ms,
+            "cost_usd": cost_usd,
+            "error": error,
+            "trace_uri": trace_uri,
+        }
+        completion_values = {
+            field_name: value
+            for field_name, value in supplied_values.items()
+            if value is not _UNSET
+        }
+        candidate = replace(
+            current,
+            eval_result=eval_result,
+            **completion_values,
+        )
+        _validate_trace(candidate)
+        completed = _copy_trace_for_storage(candidate)
+        _validate_trace(completed)
+
+        if current.eval_result in EVALUATED_RESULTS:
+            if completed == current:
+                return deepcopy(current)
+            raise ValueError(f"trace execution already completed: {trace_id}")
+
+        for field_name in completion_values:
+            current_value = getattr(current, field_name)
+            completed_value = getattr(completed, field_name)
+            if (
+                not _trace_completion_slot_is_empty(field_name, current_value)
+                and current_value != completed_value
+            ):
+                raise ValueError(
+                    f"trace completion cannot rewrite {field_name}: {trace_id}"
+                )
+
+        self._traces[trace_id] = completed
+        return deepcopy(completed)
 
     @_synchronized
     def add_failure_case(self, case: FailureCase) -> FailureCase:
@@ -1676,16 +1743,28 @@ def _validate_runtime_outcome(
 def _validate_measured_outcome(
     eval_result: _MeasuredEvalResult, memory_caused_failure: bool
 ) -> None:
-    if not isinstance(eval_result, str) or eval_result not in EVALUATED_RESULTS:
-        raise ValueError(
-            "decision outcome requires measured eval_result: error, fail, or pass"
-        )
+    _validate_measured_eval_result(eval_result, "decision outcome")
     if type(memory_caused_failure) is not bool:
         raise ValueError("memory_caused_failure must be a boolean")
     if memory_caused_failure and eval_result not in {"fail", "error"}:
         raise ValueError(
             "memory_caused_failure requires eval_result fail or error"
         )
+
+
+def _validate_measured_eval_result(
+    eval_result: Any, record_label: str
+) -> None:
+    if not isinstance(eval_result, str) or eval_result not in EVALUATED_RESULTS:
+        raise ValueError(
+            f"{record_label} requires measured eval_result: error, fail, or pass"
+        )
+
+
+def _trace_completion_slot_is_empty(field_name: str, value: Any) -> bool:
+    if field_name == "tool_outputs":
+        return value == []
+    return value is None
 
 
 def _validate_required_string(

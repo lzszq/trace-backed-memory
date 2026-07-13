@@ -12,6 +12,25 @@ from .store import TraceBackedMemoryStore
 
 POSTGRES_SCHEMA_VERSION = 1
 _MEASURED_EVAL_RESULTS = frozenset({"pass", "fail", "error"})
+_TRACE_COMPLETION_FIELDS = frozenset(
+    {
+        "output_hash",
+        "tool_outputs",
+        "eval_result",
+        "latency_ms",
+        "cost_usd",
+        "error",
+        "trace_uri",
+    }
+)
+_TRACE_OPTIONAL_COMPLETION_FIELDS = (
+    "output_hash",
+    "tool_outputs",
+    "latency_ms",
+    "cost_usd",
+    "error",
+    "trace_uri",
+)
 _USAGE_OUTCOME_FIELDS = frozenset({"eval_result", "memory_caused_failure"})
 _UNDEFINED_TABLE_SQLSTATE = "42P01"
 _MISSING_SCHEMA_MESSAGE = "PostgreSQL schema is missing or incomplete"
@@ -78,6 +97,7 @@ SELECT trace_id, run_id, commit_sha, repo, tenant, branch, dirty,
        eval_result, latency_ms, cost_usd, error, trace_uri, created_at
 FROM public.traces
 WHERE trace_id = %s
+FOR UPDATE
 """
 
 _SELECT_FAILURE_CASE_BY_ID = """
@@ -122,6 +142,19 @@ INSERT INTO public.traces (
     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
 )
+"""
+
+_UPDATE_TRACE_COMPLETION = """
+UPDATE public.traces
+SET output_hash = %s,
+    tool_outputs = %s,
+    eval_result = %s,
+    latency_ms = %s,
+    cost_usd = %s,
+    error = %s,
+    trace_uri = %s
+WHERE trace_id = %s
+  AND eval_result = 'unknown'
 """
 
 _INSERT_FAILURE_CASE = """
@@ -494,12 +527,9 @@ def _encode_usage_log(record: dict[str, object], Jsonb: Any) -> tuple[object, ..
     )
 
 
-_ROW_CODECS = {
-    "traces": (_decode_trace, _encode_trace),
-    "failure_cases": (_decode_failure_case, _encode_failure_case),
+_STATUS_ROW_CODECS = {
     "lessons": (_decode_lesson, _encode_lesson),
     "project_policies": (_decode_project_policy, _encode_project_policy),
-    "memory_usage_decisions": (_decode_usage_log, _encode_usage_log),
 }
 
 _TIMESTAMP_FIELDS = {
@@ -585,28 +615,82 @@ def _canonical_values_equal(left: object, right: object) -> bool:
     return left == right
 
 
-def _sync_immutable_row(
+def _trace_completion_slot_is_empty(field_name: str, value: object) -> bool:
+    if field_name == "tool_outputs":
+        return value == []
+    return value is None
+
+
+def _sync_trace_row(
     cursor: object,
     *,
-    table: str,
     record_id: str,
     incoming: dict[str, object],
-    select_sql: str,
-    insert_sql: str,
-) -> Literal["inserted", "unchanged"]:
-    decoder, encoder = _ROW_CODECS[table]
-    canonical_incoming = _canonical_incoming_record(table, incoming)
-    cursor.execute(select_sql, (record_id,))
+) -> Literal["inserted", "updated", "unchanged"]:
+    canonical_incoming = _canonical_incoming_record("traces", incoming)
+    cursor.execute(_SELECT_TRACE_BY_ID, (record_id,))
     rows = cursor.fetchall()
     if not rows:
         _psycopg, _dict_row, Jsonb = _load_psycopg()
-        cursor.execute(insert_sql, encoder(canonical_incoming, Jsonb))
+        cursor.execute(_INSERT_TRACE, _encode_trace(canonical_incoming, Jsonb))
         return "inserted"
-    if len(rows) != 1 or not _canonical_values_equal(
-        decoder(rows[0]), canonical_incoming
+    if len(rows) != 1:
+        raise PostgresConflictError(
+            f"PostgreSQL conflict for traces row {record_id}"
+        )
+
+    stored = _decode_trace(rows[0])
+    if any(
+        field not in _TRACE_COMPLETION_FIELDS
+        and not _canonical_values_equal(stored[field], canonical_incoming[field])
+        for field in canonical_incoming
     ):
-        raise PostgresConflictError(f"PostgreSQL conflict for {table} row {record_id}")
-    return "unchanged"
+        raise PostgresConflictError(
+            f"PostgreSQL conflict for traces row {record_id}"
+        )
+    if _canonical_values_equal(stored, canonical_incoming):
+        return "unchanged"
+
+    if (
+        stored["eval_result"] == "unknown"
+        and canonical_incoming["eval_result"] in _MEASURED_EVAL_RESULTS
+    ):
+        for field_name in _TRACE_OPTIONAL_COMPLETION_FIELDS:
+            if (
+                not _trace_completion_slot_is_empty(
+                    field_name, stored[field_name]
+                )
+                and not _canonical_values_equal(
+                    stored[field_name], canonical_incoming[field_name]
+                )
+            ):
+                raise PostgresConflictError(
+                    f"PostgreSQL conflict for traces row {record_id}"
+                )
+
+        _psycopg, _dict_row, Jsonb = _load_psycopg()
+        cursor.execute(
+            _UPDATE_TRACE_COMPLETION,
+            (
+                canonical_incoming["output_hash"],
+                Jsonb(deepcopy(canonical_incoming["tool_outputs"])),
+                canonical_incoming["eval_result"],
+                canonical_incoming["latency_ms"],
+                canonical_incoming["cost_usd"],
+                canonical_incoming["error"],
+                canonical_incoming["trace_uri"],
+                record_id,
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise PostgresConflictError(
+                f"PostgreSQL conflict for traces row {record_id}"
+            )
+        return "updated"
+
+    raise PostgresConflictError(
+        f"PostgreSQL conflict for traces row {record_id}"
+    )
 
 
 def _sync_failure_case_row(
@@ -729,7 +813,7 @@ def _sync_status_row(
     insert_sql: str,
     update_sql: str,
 ) -> Literal["inserted", "updated", "unchanged"]:
-    decoder, encoder = _ROW_CODECS[table]
+    decoder, encoder = _STATUS_ROW_CODECS[table]
     canonical_incoming = _canonical_incoming_record(table, incoming)
     cursor.execute(select_sql, (record_id,))
     rows = cursor.fetchall()
@@ -847,13 +931,10 @@ class PostgresMemoryRepository:
                     self._lock_schema(cursor, write=True)
                     traces = [
                         _sync_row_with_context(
-                            lambda record=record: _sync_immutable_row(
+                            lambda record=record: _sync_trace_row(
                                 cursor,
-                                table="traces",
                                 record_id=record["trace_id"],
                                 incoming=record,
-                                select_sql=_SELECT_TRACE_BY_ID,
-                                insert_sql=_INSERT_TRACE,
                             ),
                             table="traces",
                             record_id=record["trace_id"],

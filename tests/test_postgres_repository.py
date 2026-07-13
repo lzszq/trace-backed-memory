@@ -180,6 +180,33 @@ def _draft_case_store(*, suffix: str = "lifecycle"):
     return store
 
 
+def _pending_trace_store(*, suffix: str = "completion"):
+    from trace_backed_memory import Trace, TraceBackedMemoryStore
+
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id=f"trace_{suffix}",
+            run_id=f"run_{suffix}",
+            commit_sha=f"commit_{suffix}",
+            repo="repo_completion",
+            tenant="tenant_completion",
+            branch="main",
+            prompt_version="planner_v3",
+            prompt_family="planner",
+            tool_schema_version="search_docs_v2",
+            model="model_completion",
+            eval_suite="suite_completion",
+            input_hash="sha256:completion-input",
+            retrieved_context=[{"source": "docs", "rank": 1}],
+            tool_calls=[{"name": "search_docs", "arguments": {"query": "completion"}}],
+            eval_result="unknown",
+            created_at="2025-07-13T08:00:00Z",
+        )
+    )
+    return store
+
+
 def _assert_sync_conflict_preserves_state(
     postgres_cluster,
     baseline,
@@ -600,6 +627,149 @@ def test_repository_sync_round_trips_and_is_idempotent(postgres_cluster):
         assert second.lessons == PostgresSyncCounts(unchanged=1)
         assert second.project_policies == PostgresSyncCounts(unchanged=1)
         assert second.usage_logs == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_sync_completes_pending_trace_and_is_idempotent(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository, PostgresSyncCounts
+
+    postgres_cluster.load_schema()
+    store = _pending_trace_store()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+        created_at_before = connection.execute(
+            "SELECT created_at FROM public.traces WHERE trace_id = %s",
+            ("trace_completion",),
+        ).fetchone()[0]
+
+        completed = store.complete_trace(
+            "trace_completion",
+            eval_result="pass",
+            output_hash="sha256:completion-output",
+            tool_outputs=[{"documents": 4}],
+            latency_ms=75,
+            cost_usd=0.125,
+            trace_uri="trace://completion",
+        )
+        updated = repository.sync(store)
+
+        assert updated.traces == PostgresSyncCounts(updated=1)
+        assert updated.failure_cases == PostgresSyncCounts()
+        assert updated.lessons == PostgresSyncCounts()
+        assert updated.project_policies == PostgresSyncCounts()
+        assert updated.usage_logs == PostgresSyncCounts()
+        assert connection.execute(
+            "SELECT output_hash, tool_outputs, eval_result, latency_ms, "
+            "cost_usd, error, trace_uri, created_at FROM public.traces "
+            "WHERE trace_id = %s",
+            ("trace_completion",),
+        ).fetchone() == (
+            "sha256:completion-output",
+            [{"documents": 4}],
+            "pass",
+            75,
+            Decimal("0.125"),
+            None,
+            "trace://completion",
+            created_at_before,
+        )
+        assert repository.load().traces[completed.trace_id] == completed
+
+        repeated = repository.sync(store)
+        assert repeated.traces == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_sync_rejects_stale_or_conflicting_trace_completion(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+        PostgresSyncCounts,
+    )
+
+    postgres_cluster.load_schema()
+    store = _pending_trace_store()
+    stale = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    replay = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    conflicting = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+        store.complete_trace(
+            "trace_completion",
+            eval_result="pass",
+            output_hash="sha256:completion-output",
+        )
+        repository.sync(store)
+
+        replay.complete_trace(
+            "trace_completion",
+            eval_result="pass",
+            output_hash="sha256:completion-output",
+        )
+        assert repository.sync(replay).traces == PostgresSyncCounts(unchanged=1)
+
+        with pytest.raises(
+            PostgresConflictError,
+            match="traces.*trace_completion.*immutable conflict",
+        ):
+            repository.sync(stale)
+
+        conflicting.complete_trace(
+            "trace_completion",
+            eval_result="error",
+            error="different result",
+        )
+        with pytest.raises(
+            PostgresConflictError,
+            match="traces.*trace_completion.*immutable conflict",
+        ):
+            repository.sync(conflicting)
+
+        loaded = repository.load().traces["trace_completion"]
+        assert loaded.eval_result == "pass"
+        assert loaded.output_hash == "sha256:completion-output"
+
+
+def test_repository_rolls_back_trace_completion_on_later_trace_conflict(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+    )
+
+    postgres_cluster.load_schema()
+    baseline = _pending_trace_store(suffix="completion_a")
+    second = _pending_trace_store(suffix="completion_b")
+    baseline.record_trace(second.traces["trace_completion_b"])
+    incoming = TraceBackedMemoryStore.from_snapshot(baseline.to_snapshot())
+    incoming.complete_trace("trace_completion_a", eval_result="pass")
+    conflicting_snapshot = incoming.to_snapshot()
+    conflicting_snapshot["traces"][1]["branch"] = "other"
+    conflicting = TraceBackedMemoryStore.from_snapshot(conflicting_snapshot)
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(baseline)
+
+        with pytest.raises(
+            PostgresConflictError,
+            match="traces.*trace_completion_b.*immutable conflict",
+        ):
+            repository.sync(conflicting)
+
+        loaded = repository.load()
+        assert loaded.traces["trace_completion_a"].eval_result == "unknown"
+        assert loaded.traces["trace_completion_b"].branch == "main"
 
 
 def test_repository_sync_updates_deferred_usage_outcome_and_is_idempotent(

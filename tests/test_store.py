@@ -86,6 +86,35 @@ def store_with_records_in_order(trace_ids: list[str]) -> TraceBackedMemoryStore:
     return store
 
 
+def pending_execution_trace(
+    *,
+    trace_id: str = "trace_pending_execution",
+    run_id: str = "run_pending_execution",
+    **changes: object,
+) -> Trace:
+    return replace(
+        Trace(
+            trace_id=trace_id,
+            run_id=run_id,
+            commit_sha="commit_pending",
+            repo="repo",
+            tenant="tenant_a",
+            branch="main",
+            prompt_version="planner_v3",
+            prompt_family="planner",
+            tool_schema_version="search_docs_v2",
+            model="gpt-test",
+            eval_suite="tool_regression",
+            input_hash="sha256:pending-input",
+            retrieved_context=[{"source": "docs", "rank": 1}],
+            tool_calls=[{"name": "search_docs", "arguments": {"query": "memory"}}],
+            eval_result="unknown",
+            created_at="2025-07-13T08:00:00Z",
+        ),
+        **changes,
+    )
+
+
 def store_with_retrieval_records_in_order(
     suffixes: list[str],
 ) -> TraceBackedMemoryStore:
@@ -1686,6 +1715,297 @@ def test_record_trace_does_not_swallow_unrelated_copy_programming_error(
 
     with pytest.raises(RuntimeError, match="copy implementation bug"):
         TraceBackedMemoryStore().record_trace(trace)
+
+
+def test_complete_trace_fills_execution_evidence_and_round_trips():
+    store = TraceBackedMemoryStore()
+    pending = store.record_trace(pending_execution_trace())
+
+    completed = store.complete_trace(
+        pending.trace_id,
+        eval_result="pass",
+        output_hash="sha256:completed-output",
+        tool_outputs=[{"documents": 3, "cached": False}],
+        latency_ms=125,
+        cost_usd=0.0025,
+        error=None,
+        trace_uri="trace://runs/pending-execution",
+    )
+
+    assert completed.eval_result == "pass"
+    assert completed.output_hash == "sha256:completed-output"
+    assert completed.tool_outputs == [{"documents": 3, "cached": False}]
+    assert completed.latency_ms == 125
+    assert completed.cost_usd == 0.0025
+    assert completed.error is None
+    assert completed.trace_uri == "trace://runs/pending-execution"
+    for field_name in (
+        "trace_id",
+        "run_id",
+        "commit_sha",
+        "repo",
+        "tenant",
+        "branch",
+        "prompt_version",
+        "prompt_family",
+        "tool_schema_version",
+        "model",
+        "eval_suite",
+        "input_hash",
+        "retrieved_context",
+        "tool_calls",
+        "created_at",
+    ):
+        assert getattr(completed, field_name) == getattr(pending, field_name)
+
+    restored = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    assert restored.traces[pending.trace_id] == completed
+    completed.tool_outputs[0]["documents"] = 99
+    assert store.traces[pending.trace_id].tool_outputs[0]["documents"] == 3
+
+
+def test_complete_trace_preserves_omitted_and_equal_prefilled_evidence():
+    store = TraceBackedMemoryStore()
+    pending = store.record_trace(
+        pending_execution_trace(
+            output_hash="sha256:prefilled",
+            tool_outputs=[{"status": "prefilled"}],
+            trace_uri="trace://prefilled",
+        )
+    )
+
+    completed = store.complete_trace(
+        pending.trace_id,
+        eval_result="error",
+        output_hash="sha256:prefilled",
+        latency_ms=80,
+        error="executor failed",
+    )
+
+    assert completed.output_hash == "sha256:prefilled"
+    assert completed.tool_outputs == [{"status": "prefilled"}]
+    assert completed.trace_uri == "trace://prefilled"
+    assert completed.latency_ms == 80
+    assert completed.error == "executor failed"
+
+
+TRACE_COMPLETION_REWRITES = [
+    ("output_hash", {"output_hash": "sha256:other"}),
+    ("tool_outputs", {"tool_outputs": [{"status": "other"}]}),
+    ("latency_ms", {"latency_ms": 999}),
+    ("cost_usd", {"cost_usd": 9.99}),
+    ("error", {"error": "other error"}),
+    ("trace_uri", {"trace_uri": "trace://other"}),
+]
+
+
+@pytest.mark.parametrize(
+    ("field_name", "completion_changes"),
+    TRACE_COMPLETION_REWRITES,
+    ids=[entry[0] for entry in TRACE_COMPLETION_REWRITES],
+)
+def test_complete_trace_rejects_rewriting_prefilled_execution_evidence(
+    field_name: str,
+    completion_changes: dict[str, object],
+):
+    store = TraceBackedMemoryStore()
+    pending = store.record_trace(
+        pending_execution_trace(
+            output_hash="sha256:prefilled",
+            tool_outputs=[{"status": "prefilled"}],
+            latency_ms=10,
+            cost_usd=0.01,
+            error="prefilled error",
+            trace_uri="trace://prefilled",
+        )
+    )
+    before = store.to_snapshot()
+
+    with pytest.raises(
+        ValueError,
+        match=rf"trace completion cannot rewrite {field_name}",
+    ):
+        store.complete_trace(
+            pending.trace_id,
+            eval_result="error",
+            **completion_changes,
+        )
+
+    assert store.to_snapshot() == before
+
+
+def test_complete_trace_exact_replay_is_idempotent_and_sealed_conflicts_fail():
+    store = TraceBackedMemoryStore()
+    pending = store.record_trace(pending_execution_trace())
+    completed = store.complete_trace(
+        pending.trace_id,
+        eval_result="pass",
+        output_hash="sha256:completed",
+        tool_outputs=[{"status": "ok"}],
+        latency_ms=25,
+    )
+    after_completion = store.to_snapshot()
+
+    replayed = store.complete_trace(
+        pending.trace_id,
+        eval_result="pass",
+        output_hash="sha256:completed",
+        tool_outputs=[{"status": "ok"}],
+        latency_ms=25,
+    )
+
+    assert replayed == completed
+    assert store.to_snapshot() == after_completion
+    with pytest.raises(ValueError, match="trace execution already completed"):
+        store.complete_trace(pending.trace_id, eval_result="fail")
+    with pytest.raises(ValueError, match="trace execution already completed"):
+        store.complete_trace(
+            pending.trace_id,
+            eval_result="pass",
+            output_hash="sha256:other",
+        )
+    assert store.to_snapshot() == after_completion
+
+
+def test_complete_trace_accepts_only_exact_replay_for_directly_measured_trace():
+    store = TraceBackedMemoryStore()
+    measured = store.record_trace(
+        pending_execution_trace(
+            eval_result="fail",
+            error="evaluation failed",
+            latency_ms=50,
+        )
+    )
+
+    assert store.complete_trace(measured.trace_id, eval_result="fail") == measured
+    with pytest.raises(ValueError, match="trace execution already completed"):
+        store.complete_trace(measured.trace_id, eval_result="error")
+
+
+@pytest.mark.parametrize("invalid_result", [None, "unknown", "pending", True])
+def test_complete_trace_requires_measured_result_without_mutation(
+    invalid_result: object,
+):
+    store = TraceBackedMemoryStore()
+    pending = store.record_trace(pending_execution_trace())
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="trace completion requires measured eval_result"):
+        store.complete_trace(pending.trace_id, eval_result=invalid_result)
+
+    assert store.to_snapshot() == before
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    [
+        ("output_hash", ""),
+        ("tool_outputs", None),
+        ("tool_outputs", [1]),
+        ("latency_ms", True),
+        ("cost_usd", float("inf")),
+        ("error", 7),
+        ("trace_uri", ""),
+    ],
+)
+def test_complete_trace_reuses_trace_validation_atomically(
+    field_name: str,
+    invalid_value: object,
+):
+    store = TraceBackedMemoryStore()
+    pending = store.record_trace(pending_execution_trace())
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match=field_name):
+        store.complete_trace(
+            pending.trace_id,
+            eval_result="error",
+            **{field_name: invalid_value},
+        )
+
+    assert store.to_snapshot() == before
+
+
+def test_complete_trace_rejects_unknown_or_invalid_trace_id():
+    store = TraceBackedMemoryStore()
+    store.record_trace(pending_execution_trace())
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="unknown trace_id: trace_missing"):
+        store.complete_trace("trace_missing", eval_result="pass")
+    with pytest.raises(ValueError, match="trace completion requires trace_id"):
+        store.complete_trace("", eval_result="pass")
+
+    assert store.to_snapshot() == before
+
+
+def test_concurrent_conflicting_trace_completion_succeeds_exactly_once():
+    store = TraceBackedMemoryStore()
+    pending = store.record_trace(pending_execution_trace())
+    start = threading.Barrier(3)
+    outcomes: list[object] = []
+
+    def complete(eval_result: str) -> None:
+        start.wait()
+        try:
+            outcomes.append(
+                store.complete_trace(pending.trace_id, eval_result=eval_result)
+            )
+        except ValueError as exc:
+            outcomes.append(exc)
+
+    threads = [
+        threading.Thread(target=complete, args=(eval_result,))
+        for eval_result in ("pass", "fail")
+    ]
+    for thread in threads:
+        thread.start()
+    start.wait()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert all(not thread.is_alive() for thread in threads)
+    successes = [outcome for outcome in outcomes if isinstance(outcome, Trace)]
+    failures = [outcome for outcome in outcomes if isinstance(outcome, ValueError)]
+    assert len(successes) == 1
+    assert len(failures) == 1
+    assert "trace execution already completed" in str(failures[0])
+    assert store.traces[pending.trace_id].eval_result == successes[0].eval_result
+
+
+def test_trace_and_decision_can_be_completed_after_memory_execution():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    current = store.record_trace(
+        replace(
+            source_trace,
+            trace_id="trace_current_execution",
+            run_id="run_current_execution",
+            eval_result="unknown",
+        )
+    )
+    request = store.prepare_memory(matching_context(current), task="repair")
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=current.trace_id,
+    )
+
+    completed_trace = store.complete_trace(
+        current.trace_id,
+        eval_result="pass",
+        output_hash="sha256:current-output",
+        tool_outputs=[{"status": "ok"}],
+        latency_ms=20,
+    )
+    completed_decision = store.record_decision_outcome(
+        result.decision_id,
+        "pass",
+    )
+
+    assert store.traces[source_trace.trace_id].eval_result == "fail"
+    assert completed_trace.eval_result == "pass"
+    assert completed_decision.eval_result == "pass"
+    assert store.metrics().pass_rate_with_memory == 1.0
 
 
 def test_mutating_public_collection_copy_does_not_change_store():

@@ -5,6 +5,7 @@ import math
 import os
 import re
 import tempfile
+from collections import Counter
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import asdict, replace
@@ -37,6 +38,7 @@ from .models import (
     MemoryGateRequest,
     MemoryItem,
     MemoryMetrics,
+    MemoryOutcomeMetrics,
     PRChangeEndpoint,
     PRCaseProvenance,
     MemoryUsageLog,
@@ -998,6 +1000,57 @@ class TraceBackedMemoryStore:
             evaluated_without_memory_count=len(without_memory_results),
             unevaluated_decision_count=unevaluated_decision_count,
         )
+
+    @_synchronized
+    def memory_outcome_metrics(self) -> tuple[MemoryOutcomeMetrics, ...]:
+        candidate_counts: Counter[str] = Counter()
+        used_counts: Counter[str] = Counter()
+        blocked_counts: Counter[str] = Counter()
+        passed_use_counts: Counter[str] = Counter()
+        failed_or_errored_use_counts: Counter[str] = Counter()
+        unevaluated_use_counts: Counter[str] = Counter()
+
+        for log in self._usage_logs:
+            candidate_counts.update(log.candidate_memory_ids)
+            used_counts.update(log.used_memory_ids)
+            blocked_counts.update(log.blocked_memory_ids)
+            for memory_id in log.used_memory_ids:
+                if log.eval_result == "pass":
+                    passed_use_counts[memory_id] += 1
+                elif log.eval_result in {"fail", "error"}:
+                    failed_or_errored_use_counts[memory_id] += 1
+                else:
+                    unevaluated_use_counts[memory_id] += 1
+
+        known_memory_ids = sorted(
+            set(self._failure_cases).union(
+                self._lessons,
+                self._project_policies,
+            )
+        )
+        metrics: list[MemoryOutcomeMetrics] = []
+        for memory_id in known_memory_ids:
+            passed_use_count = passed_use_counts[memory_id]
+            failed_or_errored_use_count = failed_or_errored_use_counts[memory_id]
+            evaluated_use_count = passed_use_count + failed_or_errored_use_count
+            metrics.append(
+                MemoryOutcomeMetrics(
+                    memory_id=memory_id,
+                    candidate_count=candidate_counts[memory_id],
+                    used_count=used_counts[memory_id],
+                    blocked_count=blocked_counts[memory_id],
+                    evaluated_use_count=evaluated_use_count,
+                    passed_use_count=passed_use_count,
+                    failed_or_errored_use_count=failed_or_errored_use_count,
+                    unevaluated_use_count=unevaluated_use_counts[memory_id],
+                    observed_pass_rate=(
+                        passed_use_count / evaluated_use_count
+                        if evaluated_use_count
+                        else None
+                    ),
+                )
+            )
+        return tuple(metrics)
 
     def _pr_related_case_records(
         self,

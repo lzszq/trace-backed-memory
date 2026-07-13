@@ -205,6 +205,19 @@ class MemoryMetrics:
 
 
 @dataclass(frozen=True)
+class MemoryOutcomeMetrics:
+    memory_id: str
+    candidate_count: int
+    used_count: int
+    blocked_count: int
+    evaluated_use_count: int
+    passed_use_count: int
+    failed_or_errored_use_count: int
+    unevaluated_use_count: int
+    observed_pass_rate: float | None
+
+
+@dataclass(frozen=True)
 class PRChangeSet:
     field_changes: tuple[tuple[str, str | None, str | None], ...]
 

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import trace_backed_memory as tbm
 import trace_backed_memory.store as store_module
 from trace_backed_memory import (
     CommitAncestryEvidence,
@@ -1952,7 +1953,8 @@ def test_legacy_usage_log_metrics_keep_unknown_and_missing_outcomes_unevaluated(
     else:
         legacy_log.pop("eval_result")
 
-    metrics = TraceBackedMemoryStore.from_snapshot(legacy).metrics()
+    restored = TraceBackedMemoryStore.from_snapshot(legacy)
+    metrics = restored.metrics()
 
     assert metrics.decision_count == 1
     assert metrics.evaluated_with_memory_count == 0
@@ -1960,6 +1962,17 @@ def test_legacy_usage_log_metrics_keep_unknown_and_missing_outcomes_unevaluated(
     assert metrics.unevaluated_decision_count == 1
     assert metrics.pass_rate_with_memory is None
     assert metrics.pass_rate_without_memory is None
+    per_memory = {
+        item.memory_id: item
+        for item in restored.memory_outcome_metrics()
+    }
+    lesson_metrics = per_memory["lesson_001"]
+    assert lesson_metrics.candidate_count == 1
+    assert lesson_metrics.used_count == int(used_memory)
+    assert lesson_metrics.evaluated_use_count == 0
+    assert lesson_metrics.unevaluated_use_count == int(used_memory)
+    assert lesson_metrics.observed_pass_rate is None
+    assert per_memory["case_contract"].used_count == 0
 
 
 def test_legacy_usage_log_prefers_valid_supplied_trace_id_over_ambiguous_run_id():
@@ -4387,6 +4400,131 @@ def test_store_metrics_empty_cohorts_have_no_pass_rate():
     assert metrics.unevaluated_decision_count == 0
     assert metrics.pass_rate_with_memory is None
     assert metrics.pass_rate_without_memory is None
+    assert TraceBackedMemoryStore().memory_outcome_metrics() == ()
+
+
+def test_memory_outcome_metrics_model_is_exported_and_frozen():
+    metrics_type = getattr(tbm, "MemoryOutcomeMetrics")
+    metrics = metrics_type(
+        memory_id="lesson_001",
+        candidate_count=1,
+        used_count=1,
+        blocked_count=0,
+        evaluated_use_count=1,
+        passed_use_count=1,
+        failed_or_errored_use_count=0,
+        unevaluated_use_count=0,
+        observed_pass_rate=1.0,
+    )
+
+    with pytest.raises(FrozenInstanceError):
+        metrics.used_count = 2
+
+
+def test_store_memory_outcome_metrics_are_sorted_complete_and_noncausal():
+    store, source_trace, case, first_lesson = store_with_active_lesson()
+    second_lesson = store.add_lesson(
+        lesson_from_failure_case(
+            case,
+            lesson_id="lesson_002",
+            lesson_text="Retry the same tool once after a transient error.",
+            memory_type="procedural",
+            scope={"repo": "repo", "tenant": "tenant_a", "tool": "search_docs"},
+        )
+    )
+    policy = store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_zero",
+            policy_text="Use schema-valid tool arguments.",
+            scope={"repo": "repo", "tenant": "tenant_a"},
+        )
+    )
+    context = matching_context(source_trace)
+
+    observations = [
+        ("shared_pass", [first_lesson.lesson_id, second_lesson.lesson_id], [], "pass"),
+        ("first_fail", [first_lesson.lesson_id], [second_lesson.lesson_id], "fail"),
+        ("second_error", [second_lesson.lesson_id], [], "error"),
+        ("first_unknown", [first_lesson.lesson_id], [], "unknown"),
+        ("second_missing", [second_lesson.lesson_id], [], None),
+    ]
+    for suffix, allowed_ids, blocked_ids, eval_result in observations:
+        trace = store.record_trace(
+            Trace(
+                trace_id=f"trace_memory_metrics_{suffix}",
+                run_id=f"run_memory_metrics_{suffix}",
+                commit_sha=source_trace.commit_sha,
+                repo=source_trace.repo,
+                tenant=source_trace.tenant,
+            )
+        )
+        candidate_ids = [*allowed_ids, *blocked_ids]
+        store.log_decision(
+            trace.run_id,
+            context,
+            candidate_ids,
+            MemoryDecision(
+                use_memory=True,
+                allowed_memory_ids=allowed_ids,
+                blocked_memory_ids=blocked_ids,
+                reason="per-memory observation",
+                risk="low",
+                recommended_injection="short_summary",
+            ),
+            eval_result=eval_result,  # type: ignore[arg-type]
+        )
+
+    metrics = store.memory_outcome_metrics()
+
+    assert metrics == (
+        tbm.MemoryOutcomeMetrics(
+            memory_id=case.case_id,
+            candidate_count=0,
+            used_count=0,
+            blocked_count=0,
+            evaluated_use_count=0,
+            passed_use_count=0,
+            failed_or_errored_use_count=0,
+            unevaluated_use_count=0,
+            observed_pass_rate=None,
+        ),
+        tbm.MemoryOutcomeMetrics(
+            memory_id=first_lesson.lesson_id,
+            candidate_count=3,
+            used_count=3,
+            blocked_count=0,
+            evaluated_use_count=2,
+            passed_use_count=1,
+            failed_or_errored_use_count=1,
+            unevaluated_use_count=1,
+            observed_pass_rate=0.5,
+        ),
+        tbm.MemoryOutcomeMetrics(
+            memory_id=second_lesson.lesson_id,
+            candidate_count=4,
+            used_count=3,
+            blocked_count=1,
+            evaluated_use_count=2,
+            passed_use_count=1,
+            failed_or_errored_use_count=1,
+            unevaluated_use_count=1,
+            observed_pass_rate=0.5,
+        ),
+        tbm.MemoryOutcomeMetrics(
+            memory_id=policy.policy_id,
+            candidate_count=0,
+            used_count=0,
+            blocked_count=0,
+            evaluated_use_count=0,
+            passed_use_count=0,
+            failed_or_errored_use_count=0,
+            unevaluated_use_count=0,
+            observed_pass_rate=None,
+        ),
+    )
+    assert TraceBackedMemoryStore.from_snapshot(
+        store.to_snapshot()
+    ).memory_outcome_metrics() == metrics
 
 
 def test_store_metrics_exclude_unknown_and_missing_outcomes_from_pass_rates():

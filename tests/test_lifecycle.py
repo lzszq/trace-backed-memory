@@ -539,6 +539,99 @@ def test_verified_failure_case_can_become_runtime_memory_item_with_trace_scope()
     assert "added schema example" in memory.text
 
 
+@pytest.mark.parametrize(
+    ("eval_suite", "input_hash", "expected_identity"),
+    [
+        ("benchmark-suite", "sha256:example", ("benchmark-suite", "sha256:example")),
+        ("benchmark-suite", None, (None, None)),
+        (None, "sha256:example", (None, None)),
+        ("", "sha256:example", (None, None)),
+        ("benchmark-suite", "", (None, None)),
+        (True, "sha256:example", (None, None)),
+        ("benchmark-suite", True, (None, None)),
+        ("x" * 513, "sha256:example", (None, None)),
+        ("benchmark-suite", "x" * 513, (None, None)),
+    ],
+)
+def test_failure_case_memory_propagates_only_complete_raw_trace_source_identity(
+    eval_suite: object,
+    input_hash: object,
+    expected_identity: tuple[str | None, str | None],
+):
+    trace = Trace(
+        trace_id="trace_source_identity",
+        run_id="run_source_identity",
+        commit_sha="abc123",
+        eval_result="fail",
+        eval_suite=eval_suite,  # type: ignore[arg-type]
+        input_hash=input_hash,  # type: ignore[arg-type]
+    )
+    case = verify_failure_case(
+        draft_failure_case(
+            trace,
+            case_id="case_source_identity",
+            failure_type="tool_error",
+            symptom="failed",
+        ),
+        fix="fixed",
+        fix_commit_sha="def456",
+        regression_passed=True,
+    )
+
+    memory = memory_item_from_failure_case(case, trace)
+
+    assert (memory.source_eval_suite, memory.source_input_hash) == expected_identity
+
+
+def test_lesson_memory_optionally_propagates_complete_trace_source_identity():
+    lesson = tbm.Lesson(
+        lesson_id="lesson_source_identity",
+        source_case_id="case_source_identity",
+        lesson_text="Use a non-empty query.",
+        memory_type="procedural",
+        scope={"repo": "repo"},
+    )
+    complete_trace = Trace(
+        trace_id="trace_complete",
+        run_id="run_complete",
+        commit_sha="abc123",
+        eval_suite="benchmark-suite",
+        input_hash="sha256:example",
+    )
+    incomplete_trace = Trace(
+        trace_id="trace_incomplete",
+        run_id="run_incomplete",
+        commit_sha="abc123",
+        eval_suite="benchmark-suite",
+    )
+
+    legacy_memory = memory_item_from_lesson(lesson)
+    complete_memory = memory_item_from_lesson(lesson, source_trace=complete_trace)
+    incomplete_memory = memory_item_from_lesson(lesson, source_trace=incomplete_trace)
+
+    assert (legacy_memory.source_eval_suite, legacy_memory.source_input_hash) == (None, None)
+    assert (complete_memory.source_eval_suite, complete_memory.source_input_hash) == (
+        "benchmark-suite",
+        "sha256:example",
+    )
+    assert (incomplete_memory.source_eval_suite, incomplete_memory.source_input_hash) == (
+        None,
+        None,
+    )
+
+    policy_memory = tbm.memory_item_from_project_policy(
+        tbm.ProjectPolicy(
+            policy_id="policy_source_identity",
+            policy_text="Use an approved prompt contract.",
+            scope={"repo": "repo"},
+        )
+    )
+    assert (policy_memory.source_eval_suite, policy_memory.source_input_hash) == (
+        None,
+        None,
+    )
+
+
 def test_draft_failure_case_rejects_empty_required_fields():
     trace = Trace(
         trace_id="trace_001",

@@ -104,6 +104,8 @@ def _blocked_reason(context: MemoryContext, memory: MemoryItem) -> str | None:
         return "memory is marked sensitive"
     if memory.eval_leaking:
         return "memory may leak eval data"
+    if _is_current_benchmark_example(context, memory):
+        return "memory originates from current benchmark example"
     if not _scope_matches(context, memory):
         return "scope does not match current context"
     if context.mode == "eval" and memory.memory_type not in EVAL_ALLOWED_TYPES:
@@ -193,6 +195,17 @@ def _context_contract_error(context: MemoryContext) -> str | None:
     if context.input_hash is not None and context.eval_suite is None:
         return "context input_hash requires eval_suite"
     return None
+
+
+def _is_current_benchmark_example(context: MemoryContext, memory: MemoryItem) -> bool:
+    return (
+        context.eval_suite is not None
+        and context.input_hash is not None
+        and memory.source_eval_suite is not None
+        and memory.source_input_hash is not None
+        and context.eval_suite == memory.source_eval_suite
+        and context.input_hash == memory.source_input_hash
+    )
 
 
 def validate_memory_context(context: MemoryContext) -> None:
@@ -460,6 +473,7 @@ def build_injection_snippet(
     *,
     recommended_injection: str | None = None,
     decision: MemoryDecision | None = None,
+    context: MemoryContext | None = None,
 ) -> str:
     """Build a short prompt-safe memory snippet from approved memory items."""
     validated_memories = _validated_memory_collection(
@@ -485,6 +499,16 @@ def build_injection_snippet(
             "recommended_injection must be one of: full_case_summary, none, pointer_only, short_summary"
         )
     _validate_injection_inputs(validated_memories, decision, recommended_injection)
+    if any(memory.source_eval_suite is not None for memory in validated_memories):
+        if context is None:
+            raise ValueError("context is required for benchmark source identity")
+        validate_memory_context(context)
+        for memory in validated_memories:
+            if _is_current_benchmark_example(context, memory):
+                raise ValueError(
+                    f"memory {memory.memory_id!r} cannot be injected: "
+                    "memory originates from current benchmark example"
+                )
 
     if injection_mode == "none" or not validated_memories:
         return ""

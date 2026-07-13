@@ -1870,3 +1870,164 @@ def test_injection_rejects_non_record_decisions(invalid_decision: object):
             [],
             decision=invalid_decision,  # type: ignore[arg-type]
         )
+
+
+def _source_identified_memory(*, eval_leaking: bool = False) -> MemoryItem:
+    return MemoryItem(
+        memory_id="lesson_source_identity",
+        status="active",
+        memory_type="procedural",
+        scope={"repo": "repo"},
+        text="Use a non-empty query.",
+        source_case_id="case_source_identity",
+        eval_leaking=eval_leaking,
+        source_eval_suite="benchmark-suite",
+        source_input_hash="sha256:source-example",
+    )
+
+
+@pytest.mark.parametrize("mode", ["debug", "repair", "regression", "planning", "eval", "production"])
+def test_system_gate_blocks_memory_from_current_benchmark_example_in_every_mode(mode: str):
+    memory = _source_identified_memory()
+    context = MemoryContext(
+        mode=mode,  # type: ignore[arg-type]
+        repo="repo",
+        commit_sha="abc",
+        eval_suite="benchmark-suite",
+        input_hash="sha256:source-example",
+    )
+
+    allowed, blocked = system_gate(context, [memory])
+
+    assert allowed == []
+    assert blocked == {memory.memory_id: "memory originates from current benchmark example"}
+
+
+@pytest.mark.parametrize(
+    ("eval_suite", "input_hash"),
+    [
+        ("benchmark-suite", "sha256:different-example"),
+        ("different-suite", "sha256:source-example"),
+        ("benchmark-suite", None),
+    ],
+)
+def test_system_gate_allows_nonmatching_or_incomplete_benchmark_identity(
+    eval_suite: str,
+    input_hash: str | None,
+):
+    memory = _source_identified_memory()
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        eval_suite=eval_suite,
+        input_hash=input_hash,
+    )
+
+    allowed, blocked = system_gate(context, [memory])
+
+    assert allowed == [memory]
+    assert blocked == {}
+
+
+def test_system_gate_preserves_static_eval_leaking_precedence_over_current_example():
+    memory = _source_identified_memory(eval_leaking=True)
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        eval_suite="benchmark-suite",
+        input_hash="sha256:source-example",
+    )
+
+    _allowed, blocked = system_gate(context, [memory])
+
+    assert blocked[memory.memory_id] == "memory may leak eval data"
+
+
+def test_llm_gate_prompt_rejects_current_benchmark_memory_without_hash_exposure():
+    memory = _source_identified_memory()
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        eval_suite="benchmark-suite",
+        input_hash="sha256:source-example",
+    )
+
+    with pytest.raises(ValueError, match="memory originates from current benchmark example"):
+        build_llm_gate_prompt(context, [memory], task="repair")
+
+
+def test_llm_gate_prompt_excludes_source_and_current_input_hashes_for_allowed_memory():
+    memory = _source_identified_memory()
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        eval_suite="benchmark-suite",
+        input_hash="sha256:current-example",
+    )
+
+    prompt = build_llm_gate_prompt(context, [memory], task="repair")
+
+    assert "sha256:current-example" not in prompt
+    assert "sha256:source-example" not in prompt
+    assert "source_input_hash" not in prompt
+
+
+def test_injection_requires_context_for_source_identified_memory():
+    memory = _source_identified_memory()
+
+    with pytest.raises(ValueError, match="context is required for benchmark source identity"):
+        build_injection_snippet([memory], decision=_decision_for([memory.memory_id]))
+
+
+def test_injection_blocks_current_benchmark_memory_before_hashes_are_rendered():
+    memory = _source_identified_memory()
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        eval_suite="benchmark-suite",
+        input_hash="sha256:source-example",
+    )
+
+    with pytest.raises(ValueError, match="memory originates from current benchmark example"):
+        build_injection_snippet(
+            [memory],
+            decision=_decision_for([memory.memory_id]),
+            context=context,
+        )
+
+
+def test_injection_allows_different_benchmark_memory_without_rendering_hashes():
+    memory = _source_identified_memory()
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        eval_suite="benchmark-suite",
+        input_hash="sha256:different-example",
+    )
+
+    snippet = build_injection_snippet(
+        [memory],
+        decision=_decision_for([memory.memory_id]),
+        context=context,
+    )
+
+    assert "Use a non-empty query." in snippet
+    assert "sha256:different-example" not in snippet
+    assert "sha256:source-example" not in snippet
+
+
+def test_injection_keeps_legacy_memory_context_optional():
+    memory = _budget_memory("lesson_legacy")
+
+    snippet = build_injection_snippet(
+        [memory],
+        decision=_decision_for([memory.memory_id]),
+    )
+
+    assert "Rule: \"rule\"" in snippet

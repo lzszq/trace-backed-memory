@@ -168,7 +168,12 @@ def lesson_from_failure_case(
     )
 
 
-def memory_item_from_lesson(lesson: Lesson) -> MemoryItem:
+def memory_item_from_lesson(
+    lesson: Lesson,
+    *,
+    source_trace: Trace | None = None,
+) -> MemoryItem:
+    source_eval_suite, source_input_hash = _complete_trace_source_identity(source_trace)
     return MemoryItem(
         memory_id=lesson.lesson_id,
         status=lesson.status,
@@ -179,6 +184,8 @@ def memory_item_from_lesson(lesson: Lesson) -> MemoryItem:
         confidence=lesson.confidence,
         sensitive=lesson.sensitive,
         eval_leaking=lesson.eval_leaking,
+        source_eval_suite=source_eval_suite,
+        source_input_hash=source_input_hash,
     )
 
 
@@ -189,6 +196,7 @@ def memory_item_from_failure_case(case: FailureCase, trace: Trace) -> MemoryItem
         raise ValueError("failure case source_trace_id must match trace")
     if case.commit_sha != trace.commit_sha:
         raise ValueError("failure case commit_sha must match trace")
+    source_eval_suite, source_input_hash = _complete_trace_source_identity(trace)
 
     return MemoryItem(
         memory_id=case.case_id,
@@ -199,6 +207,8 @@ def memory_item_from_failure_case(case: FailureCase, trace: Trace) -> MemoryItem
         source_trace_id=trace.trace_id,
         source_case_id=case.case_id,
         confidence=1.0,
+        source_eval_suite=source_eval_suite,
+        source_input_hash=source_input_hash,
     )
 
 
@@ -233,6 +243,23 @@ def obsolete_project_policy(policy: ProjectPolicy) -> ProjectPolicy:
 
 def _utc_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _complete_trace_source_identity(trace: Trace | None) -> tuple[str | None, str | None]:
+    if trace is None:
+        return None, None
+    eval_suite = trace.eval_suite
+    input_hash = trace.input_hash
+    if (
+        type(eval_suite) is str
+        and eval_suite
+        and len(eval_suite) <= METADATA_VALUE_MAX_CHARS
+        and type(input_hash) is str
+        and input_hash
+        and len(input_hash) <= METADATA_VALUE_MAX_CHARS
+    ):
+        return eval_suite, input_hash
+    return None, None
 
 
 def _failure_case_scope(case: FailureCase, trace: Trace) -> dict[str, str]:

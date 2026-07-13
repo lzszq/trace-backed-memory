@@ -2316,6 +2316,22 @@ def test_pr_change_set_validation_rejects_non_string_endpoints(invalid_endpoint:
         )
 
 
+@pytest.mark.parametrize(
+    "invalid_endpoint",
+    [True, False, 1, 1.5, b"new", [], {}, ()],
+)
+def test_pr_change_set_validation_rejects_non_string_new_endpoints(
+    invalid_endpoint: object,
+):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
+
+    with pytest.raises(ValueError, match="change_set model endpoint values"):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=PRChangeSet((("model", "old", invalid_endpoint),)),  # type: ignore[arg-type]
+        )
+
+
 @pytest.mark.parametrize("invalid_endpoint", ["", "   "])
 def test_pr_change_set_validation_rejects_empty_or_whitespace_endpoints(
     invalid_endpoint: str,
@@ -2326,6 +2342,19 @@ def test_pr_change_set_validation_rejects_empty_or_whitespace_endpoints(
         TraceBackedMemoryStore().pr_report_commit_anchors(
             context,
             change_set=PRChangeSet((("model", invalid_endpoint, "new"),)),
+        )
+
+
+@pytest.mark.parametrize("invalid_endpoint", ["", "   "])
+def test_pr_change_set_validation_rejects_empty_or_whitespace_new_endpoints(
+    invalid_endpoint: str,
+):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
+
+    with pytest.raises(ValueError, match="change_set model endpoint values"):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=PRChangeSet((("model", "old", invalid_endpoint),)),
         )
 
 
@@ -2342,6 +2371,19 @@ def test_pr_change_set_validation_rejects_overlong_endpoints():
         )
 
 
+def test_pr_change_set_validation_rejects_overlong_new_endpoints():
+    context = MemoryContext(
+        mode="repair", repo="repo", commit_sha="abc", model="new"
+    )
+    overlong = "x" * (METADATA_VALUE_MAX_CHARS + 1)
+
+    with pytest.raises(ValueError, match="change_set model endpoint values"):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=PRChangeSet((("model", "old", overlong),)),
+        )
+
+
 def test_pr_change_set_validation_requires_new_value_to_match_context():
     context = MemoryContext(
         mode="repair", repo="repo", commit_sha="abc", model="gpt-new"
@@ -2352,6 +2394,29 @@ def test_pr_change_set_validation_requires_new_value_to_match_context():
             context,
             change_set=PRChangeSet((("model", "gpt-old", "other"),)),
         )
+
+
+def test_pr_change_set_validation_rejects_none_new_value_for_non_none_context():
+    context = MemoryContext(
+        mode="repair", repo="repo", commit_sha="abc", model="gpt-new"
+    )
+
+    with pytest.raises(ValueError, match="change_set model new value must match context"):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=PRChangeSet((("model", "gpt-old", None),)),
+        )
+
+
+def test_pr_change_set_validation_accepts_none_old_endpoint_bound_to_context():
+    context = MemoryContext(
+        mode="repair", repo="repo", commit_sha="abc", model="gpt-new"
+    )
+    change_set = PRChangeSet((("model", None, "gpt-new"),))
+
+    assert TraceBackedMemoryStore().pr_report_commit_anchors(
+        context, change_set=change_set
+    ) == ()
 
 
 def test_pr_change_set_validation_accepts_none_endpoint_and_context_binding():

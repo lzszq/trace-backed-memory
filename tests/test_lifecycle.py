@@ -539,6 +539,11 @@ def test_verified_failure_case_can_become_runtime_memory_item_with_trace_scope()
     assert "added schema example" in memory.text
 
 
+class _TraceIdentityString(str):
+    def __str__(self) -> str:
+        return "spoofed-by-subclass"
+
+
 @pytest.mark.parametrize(
     ("eval_suite", "input_hash", "expected_identity"),
     [
@@ -551,6 +556,11 @@ def test_verified_failure_case_can_become_runtime_memory_item_with_trace_scope()
         ("benchmark-suite", True, (None, None)),
         ("x" * 513, "sha256:example", (None, None)),
         ("benchmark-suite", "x" * 513, (None, None)),
+        (
+            _TraceIdentityString("benchmark-suite"),
+            _TraceIdentityString("sha256:example"),
+            ("benchmark-suite", "sha256:example"),
+        ),
     ],
 )
 def test_failure_case_memory_propagates_only_complete_raw_trace_source_identity(
@@ -581,6 +591,9 @@ def test_failure_case_memory_propagates_only_complete_raw_trace_source_identity(
     memory = memory_item_from_failure_case(case, trace)
 
     assert (memory.source_eval_suite, memory.source_input_hash) == expected_identity
+    if expected_identity != (None, None):
+        assert type(memory.source_eval_suite) is str
+        assert type(memory.source_input_hash) is str
 
 
 def test_lesson_memory_optionally_propagates_complete_trace_source_identity():

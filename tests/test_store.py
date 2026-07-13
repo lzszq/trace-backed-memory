@@ -187,6 +187,11 @@ def allow_decision(memory_id: str) -> dict[str, object]:
 BENCHMARK_BLOCK_REASON = "memory originates from current benchmark example"
 
 
+class _BenchmarkIdentityString(str):
+    def __str__(self) -> str:
+        return "spoofed-by-subclass"
+
+
 def store_with_benchmark_source_identity(
     *,
     eval_suite: str | None = "benchmark-suite",
@@ -293,6 +298,23 @@ def test_candidate_memories_omit_incomplete_source_identity_pair():
         (memory.source_eval_suite, memory.source_input_hash) == (None, None)
         for memory in candidates
     )
+
+
+def test_string_subclass_trace_identity_is_normalized_before_same_example_gate():
+    store, trace, case, lesson, _policy = store_with_benchmark_source_identity(
+        eval_suite=_BenchmarkIdentityString("benchmark-suite"),
+        input_hash=_BenchmarkIdentityString("sha256:source-example"),
+    )
+
+    request = store.prepare_memory(
+        benchmark_context(trace),
+        task="repair failed tool call",
+    )
+
+    assert dict(request.system_blocked) == {
+        case.case_id: BENCHMARK_BLOCK_REASON,
+        lesson.lesson_id: BENCHMARK_BLOCK_REASON,
+    }
 
 
 def test_prepare_and_finalize_audit_current_benchmark_example_blocks():

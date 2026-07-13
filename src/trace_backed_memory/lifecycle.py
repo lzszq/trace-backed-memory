@@ -250,15 +250,16 @@ def _complete_trace_source_identity(trace: Trace | None) -> tuple[str | None, st
         return None, None
     eval_suite = trace.eval_suite
     input_hash = trace.input_hash
-    if (
-        type(eval_suite) is str
-        and eval_suite
-        and len(eval_suite) <= METADATA_VALUE_MAX_CHARS
-        and type(input_hash) is str
-        and input_hash
-        and len(input_hash) <= METADATA_VALUE_MAX_CHARS
-    ):
-        return eval_suite, input_hash
+    if isinstance(eval_suite, str) and isinstance(input_hash, str):
+        normalized_eval_suite = str.__str__(eval_suite)
+        normalized_input_hash = str.__str__(input_hash)
+        if (
+            normalized_eval_suite
+            and len(normalized_eval_suite) <= METADATA_VALUE_MAX_CHARS
+            and normalized_input_hash
+            and len(normalized_input_hash) <= METADATA_VALUE_MAX_CHARS
+        ):
+            return normalized_eval_suite, normalized_input_hash
     return None, None
 
 

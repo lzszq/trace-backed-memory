@@ -11,6 +11,7 @@
   "tool_schema_version": "search_docs_v2",
   "model": "gpt-5.5-pro",
   "eval_suite": "tool_calling_regression",
+  "input_hash": "sha256:79e820f10f2b4f322f84307a68a09f62f8342d5c824b86bd1b7f3f6fbebf01f9",
   "eval_result": "fail",
   "tool_calls": [
     {

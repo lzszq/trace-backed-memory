@@ -346,6 +346,42 @@ def test_prepare_and_finalize_audit_current_benchmark_example_blocks():
     assert "source_input_hash" not in snapshot_text
 
 
+def test_benchmark_identity_audit_round_trips_through_snapshot_v2_without_source_fields():
+    store, trace, case, lesson, policy = store_with_benchmark_source_identity()
+    context = benchmark_context(trace)
+    request = store.prepare_memory(context, task="repair failed tool call")
+    store.finalize_memory(
+        request,
+        allow_decision(policy.policy_id),
+        trace_id=trace.trace_id,
+        eval_result="pass",
+    )
+
+    snapshot = store.to_snapshot()
+    serialized = json.dumps(snapshot, sort_keys=True)
+    restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+    restored_log = restored.usage_logs[-1]
+
+    assert snapshot["snapshot_version"] == 2
+    assert restored.traces[trace.trace_id].input_hash == trace.input_hash
+    assert restored_log.context["input_hash"] == trace.input_hash
+    assert restored_log.system_blocked_reasons == {
+        case.case_id: BENCHMARK_BLOCK_REASON,
+        lesson.lesson_id: BENCHMARK_BLOCK_REASON,
+    }
+    assert "source_eval_suite" not in serialized
+    assert "source_input_hash" not in serialized
+
+    restored_candidates = {
+        memory.memory_id: memory
+        for memory in restored.candidate_memories(context)
+    }
+    assert (
+        restored_candidates[lesson.lesson_id].source_eval_suite,
+        restored_candidates[lesson.lesson_id].source_input_hash,
+    ) == (trace.eval_suite, trace.input_hash)
+
+
 def test_different_benchmark_example_allows_lesson_and_omits_hashes_from_snippet():
     store, source_trace, _case, lesson, _policy = store_with_benchmark_source_identity()
     current_trace = store.record_trace(

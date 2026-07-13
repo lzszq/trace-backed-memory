@@ -207,6 +207,38 @@ records or schema extensions.
 When `memory_caused_failure` is true, persisted evidence must include a
 non-null `eval_result` of `fail` or `error` and at least one used memory ID.
 
+## Benchmark Example Leakage Policy
+
+The automatic benchmark identity is exactly `(eval_suite, input_hash)`. A
+caller opting in must use a stable suite name, canonicalize one benchmark
+example deterministically, compute a collision-resistant privacy-preserving
+hash, and provide the same opaque hash on source/current traces and the current
+`MemoryContext`. The caller owns digest selection, encoding, collision risk,
+canonicalization consistency, and suite-name consistency; the library performs
+only exact bounded-string comparison.
+
+Lessons and failure cases receive ephemeral `source_eval_suite` and
+`source_input_hash` from their source trace during candidate construction and
+finalization. Source identity is checked before LLM narrowing and is never
+rendered in LLM prompts or injection snippets. A complete exact match blocks in
+every mode with `memory originates from current benchmark example`. Static
+`sensitive` and `eval_leaking` checks retain precedence and their stable reasons.
+
+Incomplete identities never trigger a guessed match. `eval_suite` alone is a
+valid legacy context; `input_hash` requires `eval_suite`; incomplete source
+trace identity yields neither ephemeral source field; and a directly supplied
+partial `MemoryItem` source pair is invalid. Different hashes within one suite
+and equal hashes across different suites do not trigger the automatic rule.
+
+The safe store workflow enforces context/trace binding at finalization before
+state changes. The audit log records the current pair, candidate/status
+evidence, and the automatic block reason. `input_hash` is identity evidence,
+not memory scope, and must not be added to lesson or policy scope. Storage stays
+at snapshot version 2 and PostgreSQL schema version 1 with no new persisted
+memory fields: existing trace storage keeps the source hash, existing usage
+context JSON/JSONB keeps current identity, and ephemeral source fields are never
+serialized.
+
 ## Injection format
 
 `recommended_injection` controls the final runtime snippet:

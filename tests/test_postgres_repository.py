@@ -15,6 +15,7 @@ def _complete_store(
     decision_reason: str = "directly relevant",
     extra_trace: bool = False,
     offset_timestamps: bool = False,
+    benchmark_identity: bool = False,
 ):
     from trace_backed_memory import (
         FailureCase,
@@ -131,6 +132,8 @@ def _complete_store(
         repo="repo_sync",
         tenant="tenant_sync",
         commit_sha="commit_sync",
+        eval_suite="suite_sync" if benchmark_identity else None,
+        input_hash="input_hash_sync" if benchmark_identity else None,
     )
     store.log_decision(
         "run_sync",
@@ -596,6 +599,39 @@ def test_repository_sync_round_trips_and_is_idempotent(postgres_cluster):
         assert second.lessons == PostgresSyncCounts(unchanged=1)
         assert second.project_policies == PostgresSyncCounts(unchanged=1)
         assert second.usage_logs == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_round_trips_benchmark_identity_audit_without_new_columns(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    store = _complete_store(benchmark_identity=True)
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+
+        trace_input_hash = connection.execute(
+            "SELECT input_hash FROM public.traces WHERE trace_id = %s",
+            ("trace_sync",),
+        ).fetchone()[0]
+        context, blocked_reasons = connection.execute(
+            "SELECT context, system_blocked_reasons "
+            "FROM public.memory_usage_decisions WHERE decision_id = %s",
+            ("decision_000001",),
+        ).fetchone()
+        restored = repository.load()
+
+    block_reason = "memory originates from current benchmark example"
+    assert trace_input_hash == "input_hash_sync"
+    assert context["eval_suite"] == "suite_sync"
+    assert context["input_hash"] == "input_hash_sync"
+    assert blocked_reasons["lesson_sync"] == block_reason
+    assert restored.traces["trace_sync"].input_hash == "input_hash_sync"
+    assert restored.usage_logs[0].context["input_hash"] == "input_hash_sync"
+    assert restored.usage_logs[0].system_blocked_reasons["lesson_sync"] == block_reason
 
 
 def test_repository_sync_reports_empty_and_multi_record_counts(postgres_cluster):

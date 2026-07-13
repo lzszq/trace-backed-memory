@@ -145,6 +145,147 @@ snippet = result.snippet
 Only this store workflow provides ownership, replay, stale-state, trace-link,
 and atomic logging guarantees.
 
+### Benchmark example leakage classification
+
+Benchmark example identity is the exact pair `(eval_suite, input_hash)`. To opt
+in, the caller must choose a stable suite name, canonicalize one benchmark
+example deterministically, compute a collision-resistant privacy-preserving
+hash, and put the same opaque value on the source `Trace`, current `Trace`, and
+current `MemoryContext`. The library compares strings exactly; hash algorithm,
+encoding, collision handling, canonicalization stability, and suite-name
+stability remain caller responsibilities.
+
+The complete same-example workflow is executable:
+
+```python
+# BENCHMARK_SAFE_WORKFLOW_START
+from trace_backed_memory import (
+    MemoryContext,
+    Trace,
+    TraceBackedMemoryStore,
+    draft_failure_case,
+    lesson_from_failure_case,
+    verify_failure_case,
+)
+
+BENCHMARK_BLOCK_REASON = "memory originates from current benchmark example"
+source_input_hash = "sha256:79e820f10f2b4f322f84307a68a09f62f8342d5c824b86bd1b7f3f6fbebf01f9"
+current_input_hash = source_input_hash
+
+store = TraceBackedMemoryStore()
+source_trace = store.record_trace(
+    Trace(
+        trace_id="trace_benchmark_source",
+        run_id="run_benchmark_source",
+        commit_sha="abc123",
+        repo="agent-harness",
+        tenant="tenant_a",
+        eval_suite="tool_calling_regression",
+        input_hash=source_input_hash,
+        eval_result="fail",
+        tool_calls=[{"name": "search_docs", "arguments": {"query": None}}],
+    )
+)
+case = store.add_failure_case(
+    verify_failure_case(
+        draft_failure_case(
+            source_trace,
+            case_id="case_benchmark_source",
+            failure_type="invalid_tool_argument",
+            symptom="search_docs received an empty query",
+        ),
+        fix="require a non-empty query",
+        fix_commit_sha="def456",
+        regression_passed=True,
+    )
+)
+lesson = store.add_lesson(
+    lesson_from_failure_case(
+        case,
+        lesson_id="lesson_benchmark_source",
+        lesson_text="Always pass a non-empty query to search_docs.",
+        memory_type="procedural",
+        scope={
+            "repo": "agent-harness",
+            "tenant": "tenant_a",
+            "tool": "search_docs",
+        },
+    )
+)
+current_trace = store.record_trace(
+    Trace(
+        trace_id="trace_benchmark_current",
+        run_id="run_benchmark_current",
+        commit_sha="abc123",
+        repo="agent-harness",
+        tenant="tenant_a",
+        eval_suite="tool_calling_regression",
+        input_hash=current_input_hash,
+    )
+)
+context = MemoryContext(
+    mode="production",
+    repo="agent-harness",
+    tenant="tenant_a",
+    commit_sha="abc123",
+    tool="search_docs",
+    eval_suite="tool_calling_regression",
+    input_hash=current_input_hash,
+)
+
+request = store.prepare_memory(context, task="answer current benchmark example")
+assert request.candidate_memory_ids == (lesson.lesson_id,)
+assert request.system_allowed_memory_ids == ()
+assert dict(request.system_blocked) == {
+    lesson.lesson_id: BENCHMARK_BLOCK_REASON
+}
+assert lesson.lesson_id not in request.prompt
+assert source_input_hash not in request.prompt
+assert current_input_hash not in request.prompt
+
+result = store.finalize_memory(
+    request,
+    {
+        "use_memory": False,
+        "allowed_memory_ids": [],
+        "blocked_memory_ids": [],
+        "reason": "No eligible memory remains after the System Gate.",
+        "risk": "none",
+        "recommended_injection": "none",
+    },
+    trace_id=current_trace.trace_id,
+)
+usage = store.usage_logs[-1]
+assert result.snippet == ""
+assert usage.context["input_hash"] == current_input_hash
+assert usage.system_blocked_reasons == {
+    lesson.lesson_id: BENCHMARK_BLOCK_REASON
+}
+# BENCHMARK_SAFE_WORKFLOW_END
+```
+
+Derived lesson and failure-case candidates are enriched only at runtime with
+ephemeral `source_eval_suite` and `source_input_hash`. They are checked against
+the complete context pair before LLM narrowing and are never rendered in LLM
+prompts or injection snippets. Exact equality blocks in every mode with the
+automatic block reason shown above. Static `sensitive` and `eval_leaking`
+checks retain precedence and their existing reasons.
+
+Incomplete identities never trigger a guessed match. `eval_suite` without
+`input_hash` remains valid, context `input_hash` without `eval_suite` is
+invalid, and an incomplete source trace contributes neither ephemeral field.
+A directly constructed partial source pair is a memory contract error.
+Different hashes in one suite and equal hashes in different suites do not match.
+
+Finalization enforces context/trace binding for both identity values before it
+consumes the request. Usage evidence keeps the current pair, candidate/status
+evidence, and automatic block reason. `input_hash` is identity evidence, not
+memory scope, so retrieval and lesson/policy scope fields remain unchanged.
+Compatibility remains snapshot version 2 and PostgreSQL schema version 1 with
+no new persisted memory fields; traces use the existing `input_hash` field,
+usage evidence uses the existing context JSON/JSONB, and source identity is
+reconstructed rather than stored.
+
 ### Semantic retrieval
 
 ```python

@@ -537,6 +537,11 @@ def test_json_examples_match_current_models_and_parsers():
     candidates = store.candidate_memories(context)
 
     assert trace.repo == "agent-harness"
+    assert trace.eval_suite == "tool_calling_regression"
+    assert trace.input_hash == (
+        "sha256:79e820f10f2b4f322f84307a68a09f62"
+        "f8342d5c824b86bd1b7f3f6fbebf01f9"
+    )
     assert case.source_trace_id == trace.trace_id
     assert lesson.source_case_id == case.case_id
     assert memory_item_from_project_policy(project_policy).source_policy_id == "project_policy_001"
@@ -938,6 +943,54 @@ def test_memory_context_schema_requires_complete_input_hash_identity_pair():
     assert _json_schema_accepts(schema, complete_context)
     assert _json_schema_accepts(schema, eval_suite_only_context)
     assert not _json_schema_accepts(schema, input_hash_only_context)
+
+
+def test_docs_publish_benchmark_leakage_contract_and_persistence_boundaries():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`(eval_suite, input_hash)`",
+        "canonicalize",
+        "collision-resistant",
+        "Incomplete identities never trigger a guessed match",
+        "every mode",
+        "Static `sensitive` and `eval_leaking` checks retain precedence",
+        "ephemeral `source_eval_suite` and `source_input_hash`",
+        "never rendered in LLM prompts or injection snippets",
+        "context/trace binding",
+        "automatic block reason",
+        "`input_hash` is identity evidence, not memory scope",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+        "no new persisted memory fields",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert (
+        "Phase 11: Benchmark example leakage classification (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+
+    context_schema = _json_schema("memory_context.schema.json")
+    assert "input_hash" in _schema_properties(context_schema)
+    assert context_schema["allOf"] == [
+        {
+            "if": {"required": ["input_hash"]},
+            "then": {"required": ["eval_suite"]},
+        }
+    ]
+
+    postgres_schema = _postgres_schema()
+    assert postgres_schema.count("input_hash TEXT") == 1
+    assert "source_eval_suite" not in postgres_schema
+    assert "source_input_hash" not in postgres_schema
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

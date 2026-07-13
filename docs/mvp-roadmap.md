@@ -137,3 +137,24 @@ Track:
 - Preserve legacy broad `changed_fields` behavior, reject unsupported exact
   `model_family` matching, and leave snapshot version 2, JSON Schemas,
   active-lessons YAML, and PostgreSQL schema version 1 unchanged.
+
+## Phase 11: Benchmark example leakage classification (implemented)
+
+- Define exact benchmark identity as `(eval_suite, input_hash)` and require
+  callers to use a stable suite name, canonicalize each example
+  deterministically, and compute a collision-resistant privacy-preserving hash.
+- Enrich source-derived memory at runtime with ephemeral `source_eval_suite` and
+  `source_input_hash`; these values are never rendered in LLM prompts or
+  injection snippets.
+- Block a complete exact pair in every mode with the automatic block reason
+  `memory originates from current benchmark example`. Static `sensitive` and
+  `eval_leaking` checks retain precedence and their existing reasons.
+- Incomplete identities never trigger a guessed match. Preserve eval-suite-only
+  legacy contexts, reject context hashes without suites and malformed partial
+  source pairs, and avoid matching different examples or different suites.
+- Enforce context/trace binding during finalization and record current identity,
+  candidate/status evidence, and the automatic block reason in the usage audit.
+- State explicitly that `input_hash` is identity evidence, not memory scope.
+- Preserve snapshot version 2 and PostgreSQL schema version 1 with no new
+  persisted memory fields; source provenance stays ephemeral and existing trace
+  and usage storage carry the required evidence.

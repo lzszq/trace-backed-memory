@@ -149,6 +149,45 @@ def test_readme_safe_workflow_example_stays_executable():
     assert result.decision_id == store.usage_logs[-1].decision_id
 
 
+def test_readme_benchmark_safe_workflow_stays_executable():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    match = re.search(
+        r"```python\n"
+        r"(# BENCHMARK_SAFE_WORKFLOW_START\n.*?"
+        r"# BENCHMARK_SAFE_WORKFLOW_END\n)"
+        r"```",
+        readme,
+        re.DOTALL,
+    )
+    assert match is not None, "README should include the benchmark-safe workflow"
+
+    namespace: dict[str, object] = {}
+    exec(match.group(1), namespace)
+
+    request = namespace["request"]
+    result = namespace["result"]
+    store = namespace["store"]
+    lesson = namespace["lesson"]
+    source_input_hash = namespace["source_input_hash"]
+    current_input_hash = namespace["current_input_hash"]
+    block_reason = namespace["BENCHMARK_BLOCK_REASON"]
+
+    assert request.candidate_memory_ids == (lesson.lesson_id,)
+    assert request.system_allowed_memory_ids == ()
+    assert dict(request.system_blocked) == {lesson.lesson_id: block_reason}
+    assert lesson.lesson_id not in request.prompt
+    assert source_input_hash not in request.prompt
+    assert current_input_hash not in request.prompt
+    assert result.use_memory is False
+    assert result.snippet == ""
+    assert store.usage_logs[-1].context["input_hash"] == current_input_hash
+    assert store.usage_logs[-1].system_blocked_reasons == {
+        lesson.lesson_id: block_reason
+    }
+
+
 def test_readme_semantic_retrieval_example_stays_executable():
     store, trace, _case, lesson = readme_store_fixture()
     context = MemoryContext(

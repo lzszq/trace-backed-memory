@@ -260,6 +260,42 @@ recommended injection, or optional `eval_result` values are unsupported.
 
 The JSON Schema requires the four safe-workflow audit fields for persisted
 usage logs while Python keeps defaults to migrate exact legacy snapshots.
+
+### Benchmark example identity boundary
+
+Benchmark leakage identity is the exact pair `(eval_suite, input_hash)`.
+Callers choose a stable suite name, canonicalize one benchmark example
+deterministically, compute a collision-resistant privacy-preserving hash, and
+attach the same opaque value to source/current traces and the current
+`MemoryContext`. Exact comparison is the library boundary; digest selection,
+encoding, collision handling, canonicalization stability, and suite-name
+stability are caller responsibilities.
+
+The store resolves lesson provenance through lesson -> failure case -> trace
+and enriches lessons and failure cases with ephemeral `source_eval_suite` and
+`source_input_hash`. These values are used only by runtime contract validation
+and the System Gate; they are never rendered in LLM prompts or injection
+snippets. Complete pair equality blocks in every mode with
+`memory originates from current benchmark example`. Static `sensitive` and
+`eval_leaking` checks retain precedence and their existing reasons.
+
+Incomplete identities never trigger a guessed match. An eval suite without a
+context input hash preserves legacy behavior, a context input hash without an
+eval suite is invalid, and incomplete trace provenance enriches neither source
+field. A partial pair supplied directly on a `MemoryItem` is a contract error.
+Different hashes in one suite and equal hashes in different suites remain
+eligible under this rule.
+
+Finalization provides context/trace binding by requiring the current trace to
+match both values before request consumption. Existing usage evidence records
+the current pair, candidate IDs/statuses, and the automatic block reason.
+`input_hash` is identity evidence, not memory scope; metadata retrieval does not
+filter or scope lessons and policies by this field. Persistence remains
+snapshot version 2 and PostgreSQL schema version 1 with no new persisted memory
+fields: trace identity uses existing trace columns, current identity and the
+block reason use existing usage JSON/JSONB, and source identity is rebuilt from
+the trace/case/lesson graph.
+
 Trace context/tool JSON is validated recursively before storage. Only JSON
 semantic values with string object keys and finite numbers are accepted;
 cycles, excessive nesting, and values that cannot be serialized by the runtime

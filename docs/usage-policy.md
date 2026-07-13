@@ -199,6 +199,20 @@ one particular memory caused the result. Metrics remain derived and are not
 persisted; snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
 schema version 1 do not change.
 
+`memory_outcome_metrics()` returns a stable tuple covering every stored failure
+case, lesson, and project policy, including unused IDs. Use `candidate_count`,
+`used_count`, and `blocked_count` to inspect retrieval and final decisions;
+blocked count includes both deterministic and LLM-narrowing blocks. For used
+IDs, inspect `evaluated_use_count`, `passed_use_count`,
+`failed_or_errored_use_count`, `unevaluated_use_count`, and
+`observed_pass_rate`.
+
+These are observed associations, not causal effectiveness estimates. When one
+decision uses several memories, each receives the same observed outcome. The
+API does not derive per-memory wrong-memory attribution from
+`memory_caused_failure`. Metrics remain derived and are not persisted; callers
+must use the validated usage logs when they need deeper audit evidence.
+
 ## PR Change-Set Policy
 
 For value-aware PR reporting, callers must supply exact old and new values in

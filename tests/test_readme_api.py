@@ -393,6 +393,9 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
     )
 
     metrics = store.metrics()
+    memory_metrics = {
+        item.memory_id: item for item in store.memory_outcome_metrics()
+    }
     snapshot = store.to_snapshot()
     restored = TraceBackedMemoryStore.from_snapshot(snapshot)
     snapshot_path = tmp_path / "memory-store.snapshot.json"
@@ -417,6 +420,10 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
     assert metrics.evaluated_with_memory_count == 1
     assert metrics.evaluated_without_memory_count == 0
     assert metrics.unevaluated_decision_count == 0
+    assert memory_metrics["lesson_001"].candidate_count == 1
+    assert memory_metrics["lesson_001"].used_count == 1
+    assert memory_metrics["lesson_001"].observed_pass_rate == 1.0
+    assert memory_metrics["case_001"].candidate_count == 0
     assert restored.lessons == store.lessons
     assert restored_from_disk.usage_logs == store.usage_logs
     assert loaded_yaml_lessons == [lesson]

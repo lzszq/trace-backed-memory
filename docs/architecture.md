@@ -278,6 +278,21 @@ with/without split is determined by whether a usage record has non-empty
 version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1
 remain unchanged.
 
+`memory_outcome_metrics()` returns a memory-ID-sorted tuple for every stored
+failure case, lesson, and project policy, including IDs with no observations.
+`candidate_count`, `used_count`, and `blocked_count` summarize each final audit
+record; blocked count includes both deterministic and LLM-narrowing blocks.
+Outcome fields are updated only when that memory ID was used:
+`evaluated_use_count`, `passed_use_count`,
+`failed_or_errored_use_count`, `unevaluated_use_count`, and
+`observed_pass_rate` use the global measured-outcome semantics.
+
+These are observed associations, not causal effectiveness estimates. A
+multi-memory decision associates the same run outcome with each used ID and
+does not derive per-memory wrong-memory attribution from the log-level flag.
+Metrics remain derived and are not persisted; no snapshot, JSON Schema, YAML,
+or PostgreSQL field is added.
+
 ### Benchmark example identity boundary
 
 Benchmark leakage identity is the exact pair `(eval_suite, input_hash)`.

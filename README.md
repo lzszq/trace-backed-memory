@@ -608,6 +608,11 @@ metrics = store.metrics()
 assert metrics.evaluated_with_memory_count == 1
 assert metrics.evaluated_without_memory_count == 0
 assert metrics.unevaluated_decision_count == 0
+memory_metrics = {
+    item.memory_id: item for item in store.memory_outcome_metrics()
+}
+assert memory_metrics["lesson_001"].observed_pass_rate == 1.0
+assert memory_metrics["case_001"].candidate_count == 0
 
 snapshot = store.to_snapshot()
 restored = TraceBackedMemoryStore.from_snapshot(snapshot)
@@ -638,6 +643,24 @@ classified as with-memory when its usage log has non-empty `used_memory_ids`.
 Metrics remain derived and are not persisted; snapshot version 2, active-lessons
 YAML, JSON Schemas, and PostgreSQL schema version 1 are unchanged.
 
+### Per-memory observations
+
+`memory_outcome_metrics()` returns a memory-ID-sorted tuple for every stored
+failure case, lesson, and project policy, including zero-observation records.
+`candidate_count`, `used_count`, and `blocked_count` expose retrieval and final
+decision frequency; blocked count covers both deterministic and LLM-narrowing
+blocks. For actual uses, `evaluated_use_count`, `passed_use_count`,
+`failed_or_errored_use_count`, `unevaluated_use_count`, and
+`observed_pass_rate` apply the same measured-outcome boundary as global
+metrics.
+
+These are observed associations, not causal effectiveness estimates. A run
+that uses multiple memory IDs contributes its outcome to every used ID. The API
+does not derive per-memory wrong-memory attribution from the decision-level
+`memory_caused_failure` flag. Metrics remain derived and are not persisted;
+snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
+version 1 stay unchanged.
+
 Low-level helpers remain public for callers that own equivalent orchestration,
 but only the store workflow provides ownership, replay, stale-state,
 trace-link, and atomic logging guarantees:
@@ -665,7 +688,7 @@ old_lesson = obsolete_lesson(lesson)
 
 Implemented pieces:
 
-- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, and `MemoryMetrics`.
+- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, `MemoryMetrics`, and `MemoryOutcomeMetrics`.
 - Git metadata capture for repo name, commit SHA, branch, and dirty state, with command failure errors wrapped for harness diagnostics.
 - Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.

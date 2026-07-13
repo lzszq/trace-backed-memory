@@ -178,3 +178,19 @@ Track:
   decision counts, not per-memory causal attribution.
 - Metrics remain derived and are not persisted; preserve snapshot version 2,
   JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1.
+
+## Phase 13: Per-memory outcome metrics (implemented)
+
+- Export `MemoryOutcomeMetrics` and expose `memory_outcome_metrics()` as a
+  stable memory-ID-sorted tuple for every stored failure case, lesson, and
+  project policy, including zero-observation IDs.
+- Track `candidate_count`, `used_count`, and `blocked_count`; blocked count
+  covers both deterministic and LLM-narrowing blocks.
+- For used memory only, track `evaluated_use_count`, `passed_use_count`,
+  `failed_or_errored_use_count`, `unevaluated_use_count`, and
+  `observed_pass_rate` using the Phase 12 outcome boundary.
+- Treat results as observed associations, not causal effectiveness estimates.
+  Multi-memory runs associate the outcome with every used ID, and the API does
+  not derive per-memory wrong-memory attribution from the log-level flag.
+- Metrics remain derived and are not persisted; preserve snapshot version 2,
+  JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1.

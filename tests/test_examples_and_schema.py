@@ -1036,6 +1036,51 @@ def test_docs_publish_outcome_aware_metrics_and_ephemeral_boundary():
         assert field_name not in postgres_schema
 
 
+def test_docs_publish_per_memory_outcome_metrics_and_noncausal_boundary():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`memory_outcome_metrics()`",
+        "every stored failure case, lesson, and project policy",
+        "`candidate_count`",
+        "`used_count`",
+        "`blocked_count`",
+        "both deterministic and LLM-narrowing blocks",
+        "`evaluated_use_count`",
+        "`unevaluated_use_count`",
+        "`observed_pass_rate`",
+        "observed associations, not causal effectiveness estimates",
+        "does not derive per-memory wrong-memory attribution",
+        "Metrics remain derived and are not persisted",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert (
+        "Phase 13: Per-memory outcome metrics (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert "memory_outcome_metrics" not in _schema_properties(snapshot_schema)
+    postgres_schema = _postgres_schema()
+    for field_name in (
+        "candidate_count",
+        "used_count",
+        "blocked_count",
+        "evaluated_use_count",
+        "unevaluated_use_count",
+        "observed_pass_rate",
+    ):
+        assert field_name not in postgres_schema
+
+
 def test_postgres_memory_id_registry_rejects_direct_dml():
     schema = _postgres_schema()
 

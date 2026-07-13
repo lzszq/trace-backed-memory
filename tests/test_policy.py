@@ -1872,7 +1872,11 @@ def test_injection_rejects_non_record_decisions(invalid_decision: object):
         )
 
 
-def _source_identified_memory(*, eval_leaking: bool = False) -> MemoryItem:
+def _source_identified_memory(
+    *,
+    sensitive: bool = False,
+    eval_leaking: bool = False,
+) -> MemoryItem:
     return MemoryItem(
         memory_id="lesson_source_identity",
         status="active",
@@ -1880,6 +1884,7 @@ def _source_identified_memory(*, eval_leaking: bool = False) -> MemoryItem:
         scope={"repo": "repo"},
         text="Use a non-empty query.",
         source_case_id="case_source_identity",
+        sensitive=sensitive,
         eval_leaking=eval_leaking,
         source_eval_suite="benchmark-suite",
         source_input_hash="sha256:source-example",
@@ -1930,8 +1935,18 @@ def test_system_gate_allows_nonmatching_or_incomplete_benchmark_identity(
     assert blocked == {}
 
 
-def test_system_gate_preserves_static_eval_leaking_precedence_over_current_example():
-    memory = _source_identified_memory(eval_leaking=True)
+@pytest.mark.parametrize(
+    ("safety_flags", "expected_reason"),
+    [
+        ({"sensitive": True}, "memory is marked sensitive"),
+        ({"eval_leaking": True}, "memory may leak eval data"),
+    ],
+)
+def test_system_gate_preserves_static_safety_precedence_over_current_example(
+    safety_flags: dict[str, bool],
+    expected_reason: str,
+):
+    memory = _source_identified_memory(**safety_flags)
     context = MemoryContext(
         mode="repair",
         repo="repo",
@@ -1942,7 +1957,7 @@ def test_system_gate_preserves_static_eval_leaking_precedence_over_current_examp
 
     _allowed, blocked = system_gate(context, [memory])
 
-    assert blocked[memory.memory_id] == "memory may leak eval data"
+    assert blocked[memory.memory_id] == expected_reason
 
 
 def test_llm_gate_prompt_rejects_current_benchmark_memory_without_hash_exposure():
@@ -1994,6 +2009,34 @@ def test_injection_blocks_current_benchmark_memory_before_hashes_are_rendered():
     )
 
     with pytest.raises(ValueError, match="memory originates from current benchmark example"):
+        build_injection_snippet(
+            [memory],
+            decision=_decision_for([memory.memory_id]),
+            context=context,
+        )
+
+
+@pytest.mark.parametrize(
+    ("safety_flags", "expected_reason"),
+    [
+        ({"sensitive": True}, "memory is marked sensitive"),
+        ({"eval_leaking": True}, "memory is marked eval_leaking"),
+    ],
+)
+def test_injection_preserves_static_safety_precedence_over_current_example(
+    safety_flags: dict[str, bool],
+    expected_reason: str,
+):
+    memory = _source_identified_memory(**safety_flags)
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        eval_suite="benchmark-suite",
+        input_hash="sha256:source-example",
+    )
+
+    with pytest.raises(ValueError, match=expected_reason):
         build_injection_snippet(
             [memory],
             decision=_decision_for([memory.memory_id]),

@@ -9,6 +9,7 @@ MemoryType = Literal["procedural", "semantic", "episodic", "policy"]
 EvalResult = Literal["pass", "fail", "error", "unknown"]
 FailureCaseStatus = Literal["draft", "verified", "obsolete"]
 LessonStatus = Literal["active", "obsolete"]
+PRChangeEndpoint = Literal["old", "new", "both"]
 
 
 @dataclass(frozen=True)
@@ -198,6 +199,11 @@ class MemoryMetrics:
 
 
 @dataclass(frozen=True)
+class PRChangeSet:
+    field_changes: tuple[tuple[str, str | None, str | None], ...]
+
+
+@dataclass(frozen=True)
 class PRCaseProvenance:
     case_id: str
     source_trace_id: str
@@ -205,6 +211,7 @@ class PRCaseProvenance:
     fix_commit_sha: str | None
     trace_uri: str | None
     failure_type: str
+    matched_change_endpoint: PRChangeEndpoint | None = None
 
 
 @dataclass(frozen=True)

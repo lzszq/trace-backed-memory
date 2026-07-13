@@ -40,6 +40,7 @@ from .models import (
     PRCaseProvenance,
     MemoryUsageLog,
     PRMemoryReport,
+    PRChangeSet,
     ProjectPolicy,
     Trace,
 )
@@ -64,6 +65,14 @@ MEMORY_TYPES = {"procedural", "semantic", "episodic", "policy"}
 MODES = {"debug", "repair", "regression", "planning", "eval", "production"}
 DECISION_RISKS = {"none", "low", "medium", "high"}
 RECOMMENDED_INJECTIONS = {"none", "short_summary", "full_case_summary", "pointer_only"}
+PR_CHANGE_SET_FIELDS = (
+    "prompt_version",
+    "prompt_family",
+    "tool",
+    "tool_schema_version",
+    "model",
+    "eval_suite",
+)
 SNAPSHOT_VERSION = 2
 TRACE_JSON_MAX_DEPTH = 100
 SNAPSHOT_COLLECTION_KEYS = frozenset(
@@ -969,9 +978,14 @@ class TraceBackedMemoryStore:
 
     @_synchronized
     def pr_report_commit_anchors(
-        self, context: MemoryContext
+        self,
+        context: MemoryContext,
+        *,
+        change_set: PRChangeSet | None = None,
     ) -> tuple[str, ...]:
         validate_memory_context(context)
+        if change_set is not None:
+            _validated_pr_change_set(context, change_set)
         return tuple(
             sorted(
                 {
@@ -1060,6 +1074,72 @@ def _context_values(context: MemoryContext) -> dict[str, str | None]:
         "task_type": context.task_type,
         "failure_type": context.failure_type,
     }
+
+
+def _validated_pr_change_set(
+    context: MemoryContext,
+    change_set: PRChangeSet,
+) -> tuple[tuple[str, str | None, str | None], ...]:
+    validate_memory_context(context)
+    if type(change_set) is not PRChangeSet:
+        raise ValueError("change_set must be a PRChangeSet")
+
+    field_changes = change_set.field_changes
+    if type(field_changes) is not tuple or not field_changes:
+        raise ValueError("change_set.field_changes must be a non-empty tuple")
+    if any(type(entry) is not tuple or len(entry) != 3 for entry in field_changes):
+        raise ValueError("change_set entries must be 3-item tuples")
+
+    field_names: list[str] = []
+    unsupported_fields: list[str] = []
+    for entry in field_changes:
+        field_name = entry[0]
+        if type(field_name) is not str:
+            raise ValueError("change_set field names must be strings")
+        field_names.append(field_name)
+        if field_name not in PR_CHANGE_SET_FIELDS:
+            unsupported_fields.append(field_name)
+    if unsupported_fields:
+        raise ValueError(
+            "unsupported change_set fields: " + ", ".join(sorted(set(unsupported_fields)))
+        )
+
+    duplicate_fields = sorted(
+        {field_name for field_name in field_names if field_names.count(field_name) > 1}
+    )
+    if duplicate_fields:
+        raise ValueError(
+            "duplicate change_set fields: " + ", ".join(duplicate_fields)
+        )
+
+    validated: list[tuple[str, str | None, str | None]] = []
+    for field_name, old_value, new_value in field_changes:
+        for endpoint_value in (old_value, new_value):
+            if endpoint_value is not None and type(endpoint_value) is not str:
+                raise ValueError(
+                    f"change_set {field_name} endpoint values must be None or strings"
+                )
+            if endpoint_value is not None and (
+                not endpoint_value or not endpoint_value.strip()
+            ):
+                raise ValueError(
+                    f"change_set {field_name} endpoint values must be non-empty, "
+                    "non-whitespace strings or None"
+                )
+            if endpoint_value is not None and len(endpoint_value) > METADATA_VALUE_MAX_CHARS:
+                raise ValueError(
+                    f"change_set {field_name} endpoint values must be at most "
+                    f"{METADATA_VALUE_MAX_CHARS} characters"
+                )
+        if old_value == new_value:
+            raise ValueError(
+                f"change_set {field_name} old and new values must differ"
+            )
+        if new_value != getattr(context, field_name):
+            raise ValueError(f"change_set {field_name} new value must match context")
+        validated.append((field_name, old_value, new_value))
+
+    return tuple(sorted(validated, key=lambda entry: entry[0]))
 
 
 def _context_evidence(context: MemoryContext) -> dict[str, str]:

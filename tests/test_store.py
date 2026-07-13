@@ -3,7 +3,7 @@ import os
 import threading
 import time
 from copy import deepcopy
-from dataclasses import replace
+from dataclasses import FrozenInstanceError, replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -17,7 +17,10 @@ from trace_backed_memory import (
     MemoryContext,
     MemoryDecision,
     MemoryUsageLog,
+    METADATA_VALUE_MAX_CHARS,
     PRCaseProvenance,
+    PRChangeEndpoint,
+    PRChangeSet,
     ProjectPolicy,
     Trace,
     TraceBackedMemoryStore,
@@ -2215,6 +2218,169 @@ def test_pr_report_commit_anchors_are_sorted():
     assert store.pr_report_commit_anchors(ancestry_context()) == (
         "commit_a",
         "commit_b",
+    )
+
+
+def test_pr_change_set_is_frozen_and_package_exported():
+    change_set = PRChangeSet((("model", "gpt-old", "gpt-new"),))
+    package = __import__("trace_backed_memory")
+
+    assert package.PRChangeEndpoint is PRChangeEndpoint
+    assert package.PRChangeSet is PRChangeSet
+    assert "PRChangeEndpoint" in package.__all__
+    assert "PRChangeSet" in package.__all__
+    with pytest.raises(FrozenInstanceError):
+        change_set.field_changes = ()  # type: ignore[misc]
+
+
+def test_legacy_pr_case_provenance_defaults_to_no_change_endpoint():
+    provenance = PRCaseProvenance(
+        case_id="case",
+        source_trace_id="trace",
+        commit_sha="commit",
+        fix_commit_sha=None,
+        trace_uri=None,
+        failure_type="tool_error",
+    )
+
+    assert provenance.matched_change_endpoint is None
+
+
+@pytest.mark.parametrize(
+    ("change_set", "message"),
+    [
+        (object(), "change_set must be a PRChangeSet"),
+        (PRChangeSet([]), "change_set.field_changes must be a non-empty tuple"),
+        (PRChangeSet(()), "change_set.field_changes must be a non-empty tuple"),
+        (PRChangeSet((("model", "old"),)), "change_set entries must be 3-item tuples"),
+        (
+            PRChangeSet((("model_family", "old", "new"),)),
+            "unsupported change_set fields: model_family",
+        ),
+        (
+            PRChangeSet((("model", "old", "new"), ("model", "a", "b"))),
+            "duplicate change_set fields: model",
+        ),
+        (
+            PRChangeSet((("model", "same", "same"),)),
+            "change_set model old and new values must differ",
+        ),
+    ],
+)
+def test_pr_change_set_validation_rejects_malformed_values_before_scanning(
+    change_set: object, message: str
+):
+    context = MemoryContext(
+        mode="repair", repo="repo", commit_sha="abc", model="new"
+    )
+
+    with pytest.raises(ValueError, match=message):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=change_set,  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize("entry", ["model", b"model", ["model", "old", "new"]])
+def test_pr_change_set_validation_requires_exact_entry_tuples(entry: object):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
+
+    with pytest.raises(ValueError, match="change_set entries must be 3-item tuples"):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=PRChangeSet((entry,)),  # type: ignore[arg-type]
+        )
+
+
+def test_pr_change_set_validation_rejects_non_string_field_names():
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
+
+    with pytest.raises(ValueError, match="change_set field names must be strings"):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=PRChangeSet(((1, "old", "new"),)),  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    "invalid_endpoint",
+    [True, False, 1, 1.5, [], {}, (), b"new"],
+)
+def test_pr_change_set_validation_rejects_non_string_endpoints(invalid_endpoint: object):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
+
+    with pytest.raises(ValueError, match="change_set model endpoint values"):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=PRChangeSet((("model", invalid_endpoint, "new"),)),  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize("invalid_endpoint", ["", "   "])
+def test_pr_change_set_validation_rejects_empty_or_whitespace_endpoints(
+    invalid_endpoint: str,
+):
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
+
+    with pytest.raises(ValueError, match="change_set model endpoint values"):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=PRChangeSet((("model", invalid_endpoint, "new"),)),
+        )
+
+
+def test_pr_change_set_validation_rejects_overlong_endpoints():
+    context = MemoryContext(
+        mode="repair", repo="repo", commit_sha="abc", model="new"
+    )
+    overlong = "x" * (METADATA_VALUE_MAX_CHARS + 1)
+
+    with pytest.raises(ValueError, match="change_set model endpoint values"):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=PRChangeSet((("model", overlong, "new"),)),
+        )
+
+
+def test_pr_change_set_validation_requires_new_value_to_match_context():
+    context = MemoryContext(
+        mode="repair", repo="repo", commit_sha="abc", model="gpt-new"
+    )
+
+    with pytest.raises(ValueError, match="change_set model new value must match context"):
+        TraceBackedMemoryStore().pr_report_commit_anchors(
+            context,
+            change_set=PRChangeSet((("model", "gpt-old", "other"),)),
+        )
+
+
+def test_pr_change_set_validation_accepts_none_endpoint_and_context_binding():
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+    change_set = PRChangeSet((("model", "gpt-old", None),))
+
+    assert TraceBackedMemoryStore().pr_report_commit_anchors(
+        context, change_set=change_set
+    ) == ()
+
+
+def test_pr_change_set_validation_returns_entries_sorted_by_field_name():
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        prompt_version="prompt-new",
+        model="model-new",
+    )
+    change_set = PRChangeSet(
+        (
+            ("prompt_version", "prompt-old", "prompt-new"),
+            ("model", "model-old", "model-new"),
+        )
+    )
+
+    assert store_module._validated_pr_change_set(context, change_set) == (
+        ("model", "model-old", "model-new"),
+        ("prompt_version", "prompt-old", "prompt-new"),
     )
 
 

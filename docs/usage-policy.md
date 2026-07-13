@@ -171,6 +171,21 @@ for partial recovery, or both may match for exact replay. A result, attribution,
 Trace evidence, or linkage conflict leaves both records unchanged. Use this
 high-level operation for normal memory execution.
 
+Use `memory_run_audits()` to locate work that did not finish through the normal
+path. It returns one record for every usage decision, sorted by `decision_id`.
+Each frozen `MemoryRunAudit` carries `trace_id`, `run_id`, both raw result
+values, failure attribution, and a derived state: `pending` means neither side
+is measured, `trace_only` and `decision_only` are the two partial recovery
+directions, `complete` means both measured results agree, and `conflict` means
+they differ.
+
+Do not guess through a conflict. The store will never auto-repair one or select
+a preferred historical result; review the source evidence instead. Traces with
+no usage decision are outside this decision-oriented view, and multiple
+decisions for one Trace remain separate. The audit view is derived and not
+persisted. Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
+schema version 1 remain unchanged.
+
 `complete_trace()` accepts only `pass`, `fail`, or `error` and can fill
 `output_hash`, `tool_outputs`, `latency_ms`, `cost_usd`, `error`, and
 `trace_uri`. Existing non-empty completion evidence and every other Trace

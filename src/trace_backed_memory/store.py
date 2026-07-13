@@ -39,6 +39,8 @@ from .models import (
     MemoryItem,
     MemoryMetrics,
     MemoryOutcomeMetrics,
+    MemoryRunAudit,
+    MemoryRunAuditStatus,
     MemoryRunCompletion,
     PRChangeEndpoint,
     PRCaseProvenance,
@@ -1180,6 +1182,29 @@ class TraceBackedMemoryStore:
         )
 
     @_synchronized
+    def memory_run_audits(self) -> tuple[MemoryRunAudit, ...]:
+        """Classify completion consistency for every trace-linked decision."""
+        audits: list[MemoryRunAudit] = []
+        for log in sorted(self._usage_logs, key=lambda item: item.decision_id):
+            trace_id = cast(str, log.trace_id)
+            trace = self._traces[trace_id]
+            audits.append(
+                MemoryRunAudit(
+                    decision_id=log.decision_id,
+                    trace_id=trace_id,
+                    run_id=log.run_id,
+                    status=_memory_run_audit_status(
+                        trace.eval_result,
+                        log.eval_result,
+                    ),
+                    trace_eval_result=trace.eval_result,
+                    decision_eval_result=log.eval_result,
+                    memory_caused_failure=log.memory_caused_failure,
+                )
+            )
+        return tuple(audits)
+
+    @_synchronized
     def memory_outcome_metrics(self) -> tuple[MemoryOutcomeMetrics, ...]:
         candidate_counts: Counter[str] = Counter()
         used_counts: Counter[str] = Counter()
@@ -1778,6 +1803,23 @@ def _validate_runtime_outcome(
         raise ValueError("eval_result must be one of: error, fail, pass, unknown, or None")
     if type(memory_caused_failure) is not bool:
         raise ValueError("memory_caused_failure must be a boolean")
+
+
+def _memory_run_audit_status(
+    trace_eval_result: EvalResult,
+    decision_eval_result: EvalResult | None,
+) -> MemoryRunAuditStatus:
+    trace_measured = trace_eval_result in EVALUATED_RESULTS
+    decision_measured = decision_eval_result in EVALUATED_RESULTS
+    if not trace_measured and not decision_measured:
+        return "pending"
+    if trace_measured and not decision_measured:
+        return "trace_only"
+    if not trace_measured:
+        return "decision_only"
+    if trace_eval_result == decision_eval_result:
+        return "complete"
+    return "conflict"
 
 
 def _provided_trace_completion_values(

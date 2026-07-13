@@ -975,6 +975,24 @@ def test_repository_rolls_back_trace_update_on_atomic_run_usage_conflict(
         ).eval_result is None
 
 
+def test_repository_load_reproduces_derived_memory_run_audits(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    store = _pending_memory_run_store()
+    store.complete_trace("trace_atomic_run", eval_result="error")
+    expected = store.memory_run_audits()
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+        restored = repository.load()
+
+    assert [audit.status for audit in expected] == ["conflict", "trace_only"]
+    assert restored.memory_run_audits() == expected
+
+
 def test_repository_sync_rejects_stale_or_conflicting_sealed_outcome(
     postgres_cluster,
 ):

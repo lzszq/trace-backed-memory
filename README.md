@@ -152,6 +152,8 @@ completion = store.complete_memory_run(
 )
 completed_trace = completion.trace
 sealed_log = completion.usage_log
+(audit,) = store.memory_run_audits()
+assert audit.status == "complete"
 ```
 
 Only this store workflow provides ownership, replay, stale-state, trace-link,
@@ -177,6 +179,33 @@ Snapshots persist the existing Trace and usage-log records rather than the
 return wrapper. PostgreSQL synchronization updates both rows in one transaction
 and rolls the Trace update back if the usage update conflicts. Snapshot version
 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain
+unchanged.
+
+### Memory-run audit view
+
+`memory_run_audits()` returns an immutable tuple of frozen `MemoryRunAudit`
+values, with one record for every usage decision sorted by `decision_id`. Each
+record exposes its linked `trace_id`, `run_id`, raw Trace and decision results,
+failure attribution, and one derived status:
+
+| Trace result | Decision result | Status |
+|---|---|---|
+| unevaluated | unevaluated | `pending` |
+| measured | unevaluated | `trace_only` |
+| unevaluated | measured | `decision_only` |
+| same measured result | same measured result | `complete` |
+| different measured results | different measured results | `conflict` |
+
+Use `trace_only` and `decision_only` to locate supported partial recovery for
+`complete_memory_run()`. A `pending` run still needs an evaluator result. A
+`conflict` exposes incompatible historical low-level writes for review; the
+store will never auto-repair it or choose one side as authoritative. Traces
+without a usage decision are not memory runs and are omitted, while multiple
+decisions for one Trace remain separate records.
+
+The view is derived and not persisted. Snapshot and PostgreSQL round trips
+reproduce it from existing Trace and usage-log fields, so snapshot version 2,
+JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain
 unchanged.
 
 ### Deferred Trace completion
@@ -817,13 +846,14 @@ old_lesson = obsolete_lesson(lesson)
 
 Implemented pieces:
 
-- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, `MemoryRunCompletion`, `MemoryMetrics`, and `MemoryOutcomeMetrics`.
+- Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`, `MemoryUsageLog`, `MemoryRunCompletion`, `MemoryRunAudit`, `MemoryMetrics`, and `MemoryOutcomeMetrics`.
 - Git metadata capture for repo name, commit SHA, branch, and dirty state, with command failure errors wrapped for harness diagnostics.
 - Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
 - Store-level checks that validate both the incoming and copied trace, preserve copy isolation, reject concurrent copy mutation, and reject empty identity fields, unsupported eval results, or malformed nested JSON trace collections, including non-string object keys, non-finite numbers, reference cycles, and excessive nesting.
 - Atomic deferred Trace completion for measured output identity, tool outputs, latency, cost, error, and trace URI evidence, with immutable provenance and input fields, exact replay, copy isolation, and PostgreSQL forward synchronization.
 - Atomic memory-run completion by linked `trace_id` and `decision_id`, with one measured result, exact replay, partial recovery, defensive return values, and transactional PostgreSQL synchronization.
+- Derived `memory_run_audits()` visibility for pending, one-sided, complete, and conflicting Trace/decision outcomes without new persistence state.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
 - Failure extraction helpers that load the failure taxonomy, classify failed traces against it with ordered conservative heuristics, and draft failure cases.
 - Manual review helper that records reviewer, root cause, notes, and review timestamp on draft failure cases.

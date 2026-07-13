@@ -278,6 +278,22 @@ idempotent; changing either member of an already sealed pair is rejected
 without mutation. `complete_trace()` likewise changes only its Trace when used
 directly.
 
+`memory_run_audits()` joins the private validated Trace and usage collections
+under the same store lock and returns one record for every usage decision,
+sorted by `decision_id`. Each frozen `MemoryRunAudit` includes `trace_id`,
+`run_id`, both raw result values, failure attribution, and a derived status.
+Both unevaluated is `pending`; only Trace measured is `trace_only`; only the
+decision measured is `decision_only`; equal measured results are `complete`;
+different measured results are `conflict`.
+
+The one-sided states identify partial recovery paths through
+`complete_memory_run()`. A conflict remains visible for caller review and the
+store will never auto-repair it or silently prefer one historical result.
+Traces without usage decisions are excluded, while multiple decisions linked
+to one Trace remain independent rows. The view is derived and not persisted;
+snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
+version 1 remain unchanged.
+
 At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
 match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
 `tool_schema_version`, `model`, and `eval_suite` bind only when the context

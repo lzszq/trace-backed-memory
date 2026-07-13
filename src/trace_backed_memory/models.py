@@ -10,6 +10,9 @@ EvalResult = Literal["pass", "fail", "error", "unknown"]
 FailureCaseStatus = Literal["draft", "verified", "obsolete"]
 LessonStatus = Literal["active", "obsolete"]
 PRChangeEndpoint = Literal["old", "new", "both"]
+MemoryRunAuditStatus = Literal[
+    "pending", "trace_only", "decision_only", "complete", "conflict"
+]
 
 
 @dataclass(frozen=True)
@@ -192,6 +195,17 @@ class MemoryUsageLog:
 class MemoryRunCompletion:
     trace: Trace
     usage_log: MemoryUsageLog
+
+
+@dataclass(frozen=True)
+class MemoryRunAudit:
+    decision_id: str
+    trace_id: str
+    run_id: str
+    status: MemoryRunAuditStatus
+    trace_eval_result: EvalResult
+    decision_eval_result: EvalResult | None
+    memory_caused_failure: bool
 
 
 @dataclass(frozen=True)

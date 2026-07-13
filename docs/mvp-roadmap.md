@@ -266,3 +266,20 @@ Track:
 - Persist no `MemoryRunCompletion` wrapper or new field. Preserve snapshot
   version 2, JSON Schemas, active-lessons YAML, `schemas/postgres.sql`, and
   PostgreSQL schema version 1.
+
+## Phase 18: Memory-run audit view (implemented)
+
+- Export frozen `MemoryRunAudit` values from `memory_run_audits()`, with one
+  record for every usage decision sorted by `decision_id` and linked to its
+  exact `trace_id` and `run_id`.
+- Classify both unevaluated as `pending`, Trace-only measurement as
+  `trace_only`, decision-only measurement as `decision_only`, equal measured
+  results as `complete`, and different measured results as `conflict`.
+- Use one-sided states to identify partial recovery through
+  `complete_memory_run()`. Keep conflicts observable for manual review and
+  never auto-repair or silently choose one historical result.
+- Keep traces without usage decisions outside the decision-oriented view and
+  preserve separate audit records for multiple decisions linked to one Trace.
+- Keep the view derived and not persisted. Reproduce it after snapshot and
+  PostgreSQL loads while preserving snapshot version 2, JSON Schemas,
+  active-lessons YAML, `schemas/postgres.sql`, and PostgreSQL schema version 1.

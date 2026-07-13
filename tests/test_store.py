@@ -264,6 +264,36 @@ def store_with_pending_memory_run(
     return store, current, result, lesson
 
 
+def add_pending_memory_run(
+    store: TraceBackedMemoryStore,
+    source_trace: Trace,
+    lesson: Lesson,
+    *,
+    suffix: str,
+) -> tuple[Trace, GatedMemoryResult]:
+    current = store.record_trace(
+        replace(
+            source_trace,
+            trace_id=f"trace_audit_{suffix}",
+            run_id=f"run_audit_{suffix}",
+            output_hash=None,
+            tool_outputs=[],
+            eval_result="unknown",
+            latency_ms=None,
+            cost_usd=None,
+            error=None,
+            trace_uri=None,
+        )
+    )
+    request = store.prepare_memory(matching_context(current), task="audit run")
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=current.trace_id,
+    )
+    return current, result
+
+
 def store_with_declared_trace_provenance() -> tuple[
     TraceBackedMemoryStore,
     Trace,
@@ -2277,6 +2307,137 @@ def test_concurrent_conflicting_memory_run_completion_has_one_consistent_winner(
     assert len(failures) == 1
     assert store.traces[current.trace_id].eval_result == store.usage_logs[0].eval_result
     assert store.traces[current.trace_id].eval_result == successes[0].trace.eval_result
+
+
+def test_memory_run_audits_classify_every_state_and_round_trip_stably():
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    pending_trace, pending_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="pending"
+    )
+    trace_only_trace, trace_only_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="trace_only"
+    )
+    decision_only_trace, decision_only_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="decision_only"
+    )
+    complete_trace, complete_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="complete"
+    )
+    conflict_trace, conflict_result = add_pending_memory_run(
+        store, source_trace, lesson, suffix="conflict"
+    )
+
+    store.complete_trace(trace_only_trace.trace_id, eval_result="pass")
+    store.record_decision_outcome(decision_only_result.decision_id, "error")
+    store.complete_memory_run(
+        trace_id=complete_trace.trace_id,
+        decision_id=complete_result.decision_id,
+        eval_result="fail",
+        memory_caused_failure=True,
+    )
+    store.complete_trace(conflict_trace.trace_id, eval_result="pass")
+    store.record_decision_outcome(conflict_result.decision_id, "error")
+    before = store.to_snapshot()
+
+    audits = store.memory_run_audits()
+
+    assert isinstance(audits, tuple)
+    assert all(isinstance(audit, tbm.MemoryRunAudit) for audit in audits)
+    assert "MemoryRunAudit" in tbm.__all__
+    assert "MemoryRunAuditStatus" in tbm.__all__
+    assert [audit.decision_id for audit in audits] == sorted(
+        audit.decision_id for audit in audits
+    )
+    by_decision = {audit.decision_id: audit for audit in audits}
+    expected = {
+        pending_result.decision_id: (
+            "pending",
+            pending_trace.trace_id,
+            "unknown",
+            None,
+            False,
+        ),
+        trace_only_result.decision_id: (
+            "trace_only",
+            trace_only_trace.trace_id,
+            "pass",
+            None,
+            False,
+        ),
+        decision_only_result.decision_id: (
+            "decision_only",
+            decision_only_trace.trace_id,
+            "unknown",
+            "error",
+            False,
+        ),
+        complete_result.decision_id: (
+            "complete",
+            complete_trace.trace_id,
+            "fail",
+            "fail",
+            True,
+        ),
+        conflict_result.decision_id: (
+            "conflict",
+            conflict_trace.trace_id,
+            "pass",
+            "error",
+            False,
+        ),
+    }
+    assert {
+        decision_id: (
+            audit.status,
+            audit.trace_id,
+            audit.trace_eval_result,
+            audit.decision_eval_result,
+            audit.memory_caused_failure,
+        )
+        for decision_id, audit in by_decision.items()
+    } == expected
+    assert all(
+        audit.run_id == store.traces[audit.trace_id].run_id for audit in audits
+    )
+    with pytest.raises(FrozenInstanceError):
+        audits[0].status = "conflict"
+    assert store.to_snapshot() == before
+
+    reversed_snapshot = deepcopy(before)
+    reversed_snapshot["usage_logs"].reverse()
+    restored = TraceBackedMemoryStore.from_snapshot(reversed_snapshot)
+    assert restored.memory_run_audits() == audits
+
+
+def test_memory_run_audits_are_decision_oriented_and_empty_store_is_empty():
+    assert TraceBackedMemoryStore().memory_run_audits() == ()
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    current, first = add_pending_memory_run(
+        store, source_trace, lesson, suffix="shared_trace"
+    )
+    second_request = store.prepare_memory(
+        matching_context(current), task="second decision"
+    )
+    second = store.finalize_memory(
+        second_request,
+        allow_decision(lesson.lesson_id),
+        trace_id=current.trace_id,
+        eval_result="unknown",
+    )
+
+    audits = store.memory_run_audits()
+
+    assert [audit.decision_id for audit in audits] == [
+        first.decision_id,
+        second.decision_id,
+    ]
+    assert [audit.trace_id for audit in audits] == [
+        current.trace_id,
+        current.trace_id,
+    ]
+    assert [audit.status for audit in audits] == ["pending", "pending"]
+    assert [audit.decision_eval_result for audit in audits] == [None, "unknown"]
+    assert source_trace.trace_id not in {audit.trace_id for audit in audits}
 
 
 def test_mutating_public_collection_copy_does_not_change_store():

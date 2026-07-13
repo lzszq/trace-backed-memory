@@ -978,7 +978,11 @@ class TraceBackedMemoryStore:
         for case in self._failure_cases.values():
             trace = self._traces.get(case.source_trace_id)
             if trace is None or not _case_matches_context(
-                case, trace, context, changed_fields
+                case,
+                trace,
+                context,
+                changed_fields,
+                change_set_active=changes is not None,
             ):
                 continue
             endpoint = (
@@ -1947,6 +1951,8 @@ def _case_matches_context(
     trace: Trace,
     context: MemoryContext,
     changed_fields: frozenset[str] = frozenset(),
+    *,
+    change_set_active: bool = False,
 ) -> bool:
     if case.status != "verified" or not case.regression_passed:
         return False
@@ -1956,12 +1962,14 @@ def _case_matches_context(
         return False
     if context.failure_type is not None and case.failure_type != context.failure_type:
         return False
-    if (
-        "tool" not in changed_fields
-        and context.tool is not None
-        and context.tool not in _trace_tool_names(trace)
-    ):
-        return False
+    if "tool" not in changed_fields and context.tool is not None:
+        tool_names = (
+            _trace_change_set_tool_names(trace)
+            if change_set_active
+            else _trace_tool_names(trace)
+        )
+        if context.tool not in tool_names:
+            return False
     for field_name in [
         "prompt_version",
         "prompt_family",
@@ -1981,11 +1989,20 @@ def _trace_tool_names(trace: Trace) -> set[str]:
     return {str(call["name"]) for call in trace.tool_calls if call.get("name")}
 
 
+def _trace_change_set_tool_names(trace: Trace) -> set[str]:
+    tool_names: set[str] = set()
+    for call in trace.tool_calls:
+        name = call.get("name")
+        if type(name) is str and name:
+            tool_names.add(name)
+    return tool_names
+
+
 def _trace_matches_change_value(
     trace: Trace, field_name: str, expected: str | None
 ) -> bool:
     if field_name == "tool":
-        tool_names = _trace_tool_names(trace)
+        tool_names = _trace_change_set_tool_names(trace)
         return not tool_names if expected is None else expected in tool_names
     return getattr(trace, field_name) == expected
 

@@ -2246,6 +2246,29 @@ def test_legacy_pr_case_provenance_defaults_to_no_change_endpoint():
     assert provenance.matched_change_endpoint is None
 
 
+@pytest.fixture(
+    params=("pr_report_commit_anchors", "pr_memory_report"),
+    ids=("commit-anchors", "memory-report"),
+)
+def pr_change_set_boundary(request):
+    def invoke(
+        store: TraceBackedMemoryStore,
+        context: MemoryContext,
+        change_set: object,
+    ):
+        boundary = getattr(store, request.param)
+        return boundary(context, change_set=change_set)
+
+    return invoke
+
+
+def prevent_pr_case_scan(monkeypatch: pytest.MonkeyPatch, store: TraceBackedMemoryStore):
+    def fail_scan(*_args, **_kwargs):
+        raise AssertionError("PR case scan ran before change-set validation")
+
+    monkeypatch.setattr(store, "_pr_related_case_records", fail_scan)
+
+
 @pytest.mark.parametrize(
     ("change_set", "message"),
     [
@@ -2253,13 +2276,14 @@ def test_legacy_pr_case_provenance_defaults_to_no_change_endpoint():
         (PRChangeSet([]), "change_set.field_changes must be a non-empty tuple"),
         (PRChangeSet(()), "change_set.field_changes must be a non-empty tuple"),
         (PRChangeSet((("model", "old"),)), "change_set entries must be 3-item tuples"),
+        (PRChangeSet(("model",)), "change_set entries must be 3-item tuples"),
         (
-            PRChangeSet((("model_family", "old", "new"),)),
-            "unsupported change_set fields: model_family",
+            PRChangeSet((["model", "old", "new"],)),
+            "change_set entries must be 3-item tuples",
         ),
         (
-            PRChangeSet((("model", "old", "new"), ("model", "a", "b"))),
-            "duplicate change_set fields: model",
+            PRChangeSet(((1, "old", "new"),)),
+            "change_set field names must be strings",
         ),
         (
             PRChangeSet((("model", "same", "same"),)),
@@ -2267,165 +2291,183 @@ def test_legacy_pr_case_provenance_defaults_to_no_change_endpoint():
         ),
     ],
 )
-def test_pr_change_set_validation_rejects_malformed_values_before_scanning(
-    change_set: object, message: str
+def test_pr_change_set_boundaries_reject_malformed_shape_before_scanning(
+    monkeypatch: pytest.MonkeyPatch,
+    pr_change_set_boundary,
+    change_set: object,
+    message: str,
 ):
-    context = MemoryContext(
-        mode="repair", repo="repo", commit_sha="abc", model="new"
-    )
+    store = TraceBackedMemoryStore()
+    prevent_pr_case_scan(monkeypatch, store)
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
 
     with pytest.raises(ValueError, match=message):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
-            context,
-            change_set=change_set,  # type: ignore[arg-type]
-        )
+        pr_change_set_boundary(store, context, change_set)
 
 
-@pytest.mark.parametrize("entry", ["model", b"model", ["model", "old", "new"]])
-def test_pr_change_set_validation_requires_exact_entry_tuples(entry: object):
-    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
-
-    with pytest.raises(ValueError, match="change_set entries must be 3-item tuples"):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
-            context,
-            change_set=PRChangeSet((entry,)),  # type: ignore[arg-type]
-        )
-
-
-def test_pr_change_set_validation_rejects_non_string_field_names():
-    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
-
-    with pytest.raises(ValueError, match="change_set field names must be strings"):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
-            context,
-            change_set=PRChangeSet(((1, "old", "new"),)),  # type: ignore[arg-type]
-        )
-
-
+@pytest.mark.parametrize("endpoint_index", [1, 2], ids=("old", "new"))
 @pytest.mark.parametrize(
-    "invalid_endpoint",
-    [True, False, 1, 1.5, [], {}, (), b"new"],
+    ("invalid_endpoint", "message"),
+    [
+        (True, "change_set model endpoint values must be None or strings"),
+        (False, "change_set model endpoint values must be None or strings"),
+        (1, "change_set model endpoint values must be None or strings"),
+        (1.5, "change_set model endpoint values must be None or strings"),
+        ([], "change_set model endpoint values must be None or strings"),
+        ({}, "change_set model endpoint values must be None or strings"),
+        ((), "change_set model endpoint values must be None or strings"),
+        (b"new", "change_set model endpoint values must be None or strings"),
+        (
+            "",
+            "change_set model endpoint values must be non-empty, non-whitespace strings or None",
+        ),
+        (
+            "   ",
+            "change_set model endpoint values must be non-empty, non-whitespace strings or None",
+        ),
+        (
+            "x" * (METADATA_VALUE_MAX_CHARS + 1),
+            f"change_set model endpoint values must be at most {METADATA_VALUE_MAX_CHARS} characters",
+        ),
+    ],
 )
-def test_pr_change_set_validation_rejects_non_string_endpoints(invalid_endpoint: object):
-    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
-
-    with pytest.raises(ValueError, match="change_set model endpoint values"):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
-            context,
-            change_set=PRChangeSet((("model", invalid_endpoint, "new"),)),  # type: ignore[arg-type]
-        )
-
-
-@pytest.mark.parametrize(
-    "invalid_endpoint",
-    [True, False, 1, 1.5, b"new", [], {}, ()],
-)
-def test_pr_change_set_validation_rejects_non_string_new_endpoints(
+def test_pr_change_set_boundaries_reject_invalid_endpoints_before_scanning(
+    monkeypatch: pytest.MonkeyPatch,
+    pr_change_set_boundary,
+    endpoint_index: int,
     invalid_endpoint: object,
+    message: str,
 ):
+    store = TraceBackedMemoryStore()
+    prevent_pr_case_scan(monkeypatch, store)
     context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
+    endpoints: list[object] = ["model", "old", "new"]
+    endpoints[endpoint_index] = invalid_endpoint
 
-    with pytest.raises(ValueError, match="change_set model endpoint values"):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
+    with pytest.raises(ValueError, match=message):
+        pr_change_set_boundary(
+            store,
             context,
-            change_set=PRChangeSet((("model", "old", invalid_endpoint),)),  # type: ignore[arg-type]
+            PRChangeSet((tuple(endpoints),)),  # type: ignore[arg-type]
         )
 
 
-@pytest.mark.parametrize("invalid_endpoint", ["", "   "])
-def test_pr_change_set_validation_rejects_empty_or_whitespace_endpoints(
-    invalid_endpoint: str,
+def test_pr_change_set_boundaries_reject_duplicate_fields_before_scanning(
+    monkeypatch: pytest.MonkeyPatch,
+    pr_change_set_boundary,
 ):
+    store = TraceBackedMemoryStore()
+    prevent_pr_case_scan(monkeypatch, store)
     context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
-
-    with pytest.raises(ValueError, match="change_set model endpoint values"):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
-            context,
-            change_set=PRChangeSet((("model", invalid_endpoint, "new"),)),
-        )
-
-
-@pytest.mark.parametrize("invalid_endpoint", ["", "   "])
-def test_pr_change_set_validation_rejects_empty_or_whitespace_new_endpoints(
-    invalid_endpoint: str,
-):
-    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc", model="new")
-
-    with pytest.raises(ValueError, match="change_set model endpoint values"):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
-            context,
-            change_set=PRChangeSet((("model", "old", invalid_endpoint),)),
-        )
-
-
-def test_pr_change_set_validation_rejects_overlong_endpoints():
-    context = MemoryContext(
-        mode="repair", repo="repo", commit_sha="abc", model="new"
+    change_set = PRChangeSet(
+        (("model", "old", "new"), ("model", "older", "new"))
     )
-    overlong = "x" * (METADATA_VALUE_MAX_CHARS + 1)
 
-    with pytest.raises(ValueError, match="change_set model endpoint values"):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
-            context,
-            change_set=PRChangeSet((("model", overlong, "new"),)),
-        )
+    with pytest.raises(ValueError, match="duplicate change_set fields: model"):
+        pr_change_set_boundary(store, context, change_set)
 
 
-def test_pr_change_set_validation_rejects_overlong_new_endpoints():
-    context = MemoryContext(
-        mode="repair", repo="repo", commit_sha="abc", model="new"
-    )
-    overlong = "x" * (METADATA_VALUE_MAX_CHARS + 1)
-
-    with pytest.raises(ValueError, match="change_set model endpoint values"):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
-            context,
-            change_set=PRChangeSet((("model", "old", overlong),)),
-        )
-
-
-def test_pr_change_set_validation_requires_new_value_to_match_context():
+@pytest.mark.parametrize("new_value", ["other", None], ids=("different", "none"))
+def test_pr_change_set_boundaries_reject_incorrect_context_binding_before_scanning(
+    monkeypatch: pytest.MonkeyPatch,
+    pr_change_set_boundary,
+    new_value: str | None,
+):
+    store = TraceBackedMemoryStore()
+    prevent_pr_case_scan(monkeypatch, store)
     context = MemoryContext(
         mode="repair", repo="repo", commit_sha="abc", model="gpt-new"
     )
 
-    with pytest.raises(ValueError, match="change_set model new value must match context"):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
+    with pytest.raises(
+        ValueError, match="change_set model new value must match context"
+    ):
+        pr_change_set_boundary(
+            store,
             context,
-            change_set=PRChangeSet((("model", "gpt-old", "other"),)),
+            PRChangeSet((("model", "gpt-old", new_value),)),
         )
 
 
-def test_pr_change_set_validation_rejects_none_new_value_for_non_none_context():
-    context = MemoryContext(
-        mode="repair", repo="repo", commit_sha="abc", model="gpt-new"
-    )
-
-    with pytest.raises(ValueError, match="change_set model new value must match context"):
-        TraceBackedMemoryStore().pr_report_commit_anchors(
-            context,
-            change_set=PRChangeSet((("model", "gpt-old", None),)),
-        )
-
-
-def test_pr_change_set_validation_accepts_none_old_endpoint_bound_to_context():
-    context = MemoryContext(
-        mode="repair", repo="repo", commit_sha="abc", model="gpt-new"
-    )
-    change_set = PRChangeSet((("model", None, "gpt-new"),))
-
-    assert TraceBackedMemoryStore().pr_report_commit_anchors(
-        context, change_set=change_set
-    ) == ()
-
-
-def test_pr_change_set_validation_accepts_none_endpoint_and_context_binding():
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "model_family",
+        "repo",
+        "tenant",
+        "branch",
+        "commit_sha",
+        "arbitrary_unknown",
+    ],
+)
+def test_pr_change_set_boundaries_reject_every_unsupported_field_before_scanning(
+    monkeypatch: pytest.MonkeyPatch,
+    pr_change_set_boundary,
+    field_name: str,
+):
+    store = TraceBackedMemoryStore()
+    prevent_pr_case_scan(monkeypatch, store)
     context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
-    change_set = PRChangeSet((("model", "gpt-old", None),))
 
-    assert TraceBackedMemoryStore().pr_report_commit_anchors(
-        context, change_set=change_set
-    ) == ()
+    with pytest.raises(
+        ValueError, match=f"unsupported change_set fields: {field_name}"
+    ):
+        pr_change_set_boundary(
+            store,
+            context,
+            PRChangeSet(((field_name, "old", "new"),)),
+        )
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "prompt_version",
+        "prompt_family",
+        "tool",
+        "tool_schema_version",
+        "model",
+        "eval_suite",
+    ],
+)
+def test_pr_change_set_boundaries_accept_every_supported_field_bound_to_context(
+    pr_change_set_boundary,
+    field_name: str,
+):
+    store = TraceBackedMemoryStore()
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        **{field_name: "new"},
+    )
+
+    pr_change_set_boundary(
+        store,
+        context,
+        PRChangeSet(((field_name, "old", "new"),)),
+    )
+
+
+@pytest.mark.parametrize(
+    ("old_value", "new_value", "context_model"),
+    [(None, "gpt-new", "gpt-new"), ("gpt-old", None, None)],
+)
+def test_pr_change_set_boundaries_accept_none_endpoint_context_bindings(
+    pr_change_set_boundary,
+    old_value: str | None,
+    new_value: str | None,
+    context_model: str | None,
+):
+    context = MemoryContext(
+        mode="repair", repo="repo", commit_sha="abc", model=context_model
+    )
+
+    pr_change_set_boundary(
+        TraceBackedMemoryStore(),
+        context,
+        PRChangeSet((("model", old_value, new_value),)),
+    )
 
 
 def test_pr_change_set_validation_returns_entries_sorted_by_field_name():
@@ -2447,6 +2489,98 @@ def test_pr_change_set_validation_returns_entries_sorted_by_field_name():
         ("model", "model-old", "model-new"),
         ("prompt_version", "prompt-old", "prompt-new"),
     )
+
+
+def store_with_pr_tool_name_case(
+    raw_name: object,
+    *,
+    model: str | None = None,
+) -> TraceBackedMemoryStore:
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_tool_name",
+            run_id="run_tool_name",
+            commit_sha="commit_tool_name",
+            repo="repo",
+            tenant="tenant",
+            model=model,
+            eval_result="fail",
+            tool_calls=[{"name": raw_name}],
+        )
+    )
+    store.add_failure_case(
+        verify_failure_case(
+            draft_failure_case(
+                trace,
+                case_id="case_tool_name",
+                failure_type="tool_error",
+                symptom="tool name matching failure",
+            ),
+            fix="match exact raw string names",
+            fix_commit_sha="fix_tool_name",
+            regression_passed=True,
+        )
+    )
+    return store
+
+
+def test_pr_change_set_tool_endpoint_does_not_coerce_raw_non_string_names():
+    store = store_with_pr_tool_name_case(7)
+    context = MemoryContext(
+        mode="regression",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        tool="7",
+        failure_type="tool_error",
+    )
+    change_set = PRChangeSet((("tool", "old_tool", "7"),))
+
+    assert store.pr_report_commit_anchors(context, change_set=change_set) == ()
+    assert store.pr_memory_report(context, change_set=change_set).related_case_ids == []
+
+
+def test_pr_change_set_unchanged_tool_context_does_not_coerce_raw_names():
+    store = store_with_pr_tool_name_case(7, model="new")
+    context = MemoryContext(
+        mode="regression",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        tool="7",
+        model="new",
+        failure_type="tool_error",
+    )
+
+    change_set_report = store.pr_memory_report(
+        context,
+        change_set=PRChangeSet((("model", "old", "new"),)),
+    )
+    legacy_report = store.pr_memory_report(context, changed_fields=["model"])
+
+    assert change_set_report.related_case_ids == []
+    assert legacy_report.related_case_ids == ["case_tool_name"]
+
+
+def test_pr_change_set_exact_string_tool_names_still_match():
+    store = store_with_pr_tool_name_case("7")
+    context = MemoryContext(
+        mode="regression",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        tool="7",
+        failure_type="tool_error",
+    )
+
+    report = store.pr_memory_report(
+        context,
+        change_set=PRChangeSet((("tool", "old_tool", "7"),)),
+    )
+
+    assert report.related_case_ids == ["case_tool_name"]
+    assert report.related_case_provenance[0].matched_change_endpoint == "new"
 
 
 def test_pr_change_set_matches_complete_endpoints_and_reports_provenance():

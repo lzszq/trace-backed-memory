@@ -4,7 +4,7 @@ A provenance-backed memory layer for LLM / agent harness engineering.
 
 ## One-liner
 
-Trace-backed Memory turns immutable agent traces, eval results, and git commits into verified, scoped, auditable memory that can be used selectively during debug, repair, regression analysis, planning, and production runtime.
+Trace-backed Memory turns provenance-bound agent traces, eval results, and git commits into verified, scoped, auditable memory that can be used selectively during debug, repair, regression analysis, planning, and production runtime.
 
 ## What this is
 
@@ -794,7 +794,7 @@ Implemented pieces:
 - Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
 - Store-level checks that validate both the incoming and copied trace, preserve copy isolation, reject concurrent copy mutation, and reject empty identity fields, unsupported eval results, or malformed nested JSON trace collections, including non-string object keys, non-finite numbers, reference cycles, and excessive nesting.
-- Atomic deferred Trace completion for measured output/tool/latency/cost/error/URI evidence, with immutable provenance and input fields, exact replay, copy isolation, and PostgreSQL forward synchronization.
+- Atomic deferred Trace completion for measured output identity, tool outputs, latency, cost, error, and trace URI evidence, with immutable provenance and input fields, exact replay, copy isolation, and PostgreSQL forward synchronization.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
 - Failure extraction helpers that load the failure taxonomy, classify failed traces against it with ordered conservative heuristics, and draft failure cases.
 - Manual review helper that records reviewer, root cause, notes, and review timestamp on draft failure cases.

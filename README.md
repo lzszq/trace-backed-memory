@@ -224,10 +224,10 @@ is captured for exactly the cases the report can include.
 The existing `changed_fields=[...]` input remains supported with its broad,
 field-name-only behavior and legacy provenance of `None`, including its
 existing `model_family` warning behavior. Exact value-aware `model_family`
-matching is unsupported because traces do not store that provenance. Change
-sets and endpoint provenance are report-only values: they are not persisted and
-do not change snapshot version 2, JSON schemas, active-lessons YAML, or
-PostgreSQL schema version 1.
+matching is unsupported because traces do not store that provenance.
+`PRChangeSet` values and endpoint provenance are ephemeral report-only values:
+they are not persisted and do not change snapshot version 2, JSON schemas,
+active-lessons YAML, or PostgreSQL schema version 1.
 
 ```python
 # PR_CHANGE_SET_WORKFLOW_START

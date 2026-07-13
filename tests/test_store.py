@@ -2706,13 +2706,24 @@ def test_pr_change_set_report_does_not_persist_endpoint_metadata():
         )
     )
     before = store.to_snapshot()
+    before_json = json.dumps(before, sort_keys=True)
+
+    assert TraceBackedMemoryStore.from_snapshot(before).to_snapshot() == before
 
     report = store.pr_memory_report(context, change_set=change_set)
+    after = store.to_snapshot()
+    after_json = json.dumps(after, sort_keys=True)
 
     assert report.related_case_provenance[0].matched_change_endpoint == "old"
-    assert store.to_snapshot() == before
-    assert "matched_change_endpoint" not in json.dumps(before, sort_keys=True)
-    assert "matched_change_endpoint" not in json.dumps(store.to_snapshot(), sort_keys=True)
+    assert after == before
+    assert TraceBackedMemoryStore.from_snapshot(after).to_snapshot() == after
+    for report_only_field in (
+        '"matched_change_endpoint"',
+        '"change_set"',
+        '"field_changes"',
+    ):
+        assert report_only_field not in before_json
+        assert report_only_field not in after_json
 
 
 def test_pr_change_set_matches_optional_and_tool_endpoints():

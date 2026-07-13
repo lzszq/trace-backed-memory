@@ -136,9 +136,26 @@ def test_docs_publish_postgres_repository_operational_boundaries():
 def test_docs_publish_pr_change_set_ephemeral_persistence_contract():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     architecture = _doc("architecture.md")
+    usage_policy = _doc("usage-policy.md")
+    readme_contract = " ".join(readme.split())
+    architecture_contract = " ".join(architecture.split())
+    usage_policy_contract = " ".join(usage_policy.split())
 
-    assert "PRChangeSet" in readme
-    assert "endpoint tags are ephemeral" in architecture
+    assert (
+        "`PRChangeSet` values and endpoint provenance are ephemeral "
+        "report-only values: they are not persisted"
+        in readme_contract
+    )
+    assert (
+        "Change sets and endpoint tags are ephemeral report-boundary values. "
+        "They are not exported or stored"
+        in architecture_contract
+    )
+    assert (
+        "Change sets and endpoint tags are ephemeral report inputs and outputs, "
+        "not persisted records or schema extensions."
+        in usage_policy_contract
+    )
     assert "snapshot version remains 2" in architecture
     assert "PostgreSQL schema version remains 1" in architecture
 

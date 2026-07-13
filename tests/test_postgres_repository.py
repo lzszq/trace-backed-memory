@@ -647,11 +647,12 @@ def test_repository_sync_completes_pending_trace_and_is_idempotent(
 
         completed = store.complete_trace(
             "trace_completion",
-            eval_result="pass",
+            eval_result="error",
             output_hash="sha256:completion-output",
             tool_outputs=[{"documents": 4}],
             latency_ms=75,
             cost_usd=0.125,
+            error="executor failed",
             trace_uri="trace://completion",
         )
         updated = repository.sync(store)
@@ -669,10 +670,10 @@ def test_repository_sync_completes_pending_trace_and_is_idempotent(
         ).fetchone() == (
             "sha256:completion-output",
             [{"documents": 4}],
-            "pass",
+            "error",
             75,
             Decimal("0.125"),
-            None,
+            "executor failed",
             "trace://completion",
             created_at_before,
         )
@@ -680,6 +681,46 @@ def test_repository_sync_completes_pending_trace_and_is_idempotent(
 
         repeated = repository.sync(store)
         assert repeated.traces == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_trace_completion_preserves_but_cannot_rewrite_prefilled_evidence(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+        PostgresSyncCounts,
+    )
+
+    postgres_cluster.load_schema()
+    baseline_snapshot = _pending_trace_store(suffix="prefilled").to_snapshot()
+    baseline_snapshot["traces"][0]["output_hash"] = "sha256:prefilled"
+    baseline = TraceBackedMemoryStore.from_snapshot(baseline_snapshot)
+    conflicting_snapshot = baseline.to_snapshot()
+    conflicting_snapshot["traces"][0]["eval_result"] = "pass"
+    conflicting_snapshot["traces"][0]["output_hash"] = "sha256:other"
+    conflicting = TraceBackedMemoryStore.from_snapshot(conflicting_snapshot)
+    valid = TraceBackedMemoryStore.from_snapshot(baseline.to_snapshot())
+    valid.complete_trace("trace_prefilled", eval_result="pass")
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(baseline)
+
+        with pytest.raises(
+            PostgresConflictError,
+            match="traces.*trace_prefilled.*immutable conflict",
+        ):
+            repository.sync(conflicting)
+        assert repository.load().traces["trace_prefilled"].eval_result == "unknown"
+
+        updated = repository.sync(valid)
+        assert updated.traces == PostgresSyncCounts(updated=1)
+        loaded = repository.load().traces["trace_prefilled"]
+        assert loaded.eval_result == "pass"
+        assert loaded.output_hash == "sha256:prefilled"
 
 
 def test_repository_sync_rejects_stale_or_conflicting_trace_completion(

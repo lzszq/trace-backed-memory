@@ -1720,12 +1720,13 @@ def test_record_trace_does_not_swallow_unrelated_copy_programming_error(
 def test_complete_trace_fills_execution_evidence_and_round_trips():
     store = TraceBackedMemoryStore()
     pending = store.record_trace(pending_execution_trace())
+    tool_outputs = [{"documents": 3, "cached": False}]
 
     completed = store.complete_trace(
         pending.trace_id,
         eval_result="pass",
         output_hash="sha256:completed-output",
-        tool_outputs=[{"documents": 3, "cached": False}],
+        tool_outputs=tool_outputs,
         latency_ms=125,
         cost_usd=0.0025,
         error=None,
@@ -1760,6 +1761,8 @@ def test_complete_trace_fills_execution_evidence_and_round_trips():
 
     restored = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
     assert restored.traces[pending.trace_id] == completed
+    tool_outputs[0]["documents"] = 98
+    assert store.traces[pending.trace_id].tool_outputs[0]["documents"] == 3
     completed.tool_outputs[0]["documents"] = 99
     assert store.traces[pending.trace_id].tool_outputs[0]["documents"] == 3
 
@@ -1770,6 +1773,9 @@ def test_complete_trace_preserves_omitted_and_equal_prefilled_evidence():
         pending_execution_trace(
             output_hash="sha256:prefilled",
             tool_outputs=[{"status": "prefilled"}],
+            latency_ms=80,
+            cost_usd=0.03,
+            error="prefilled error",
             trace_uri="trace://prefilled",
         )
     )
@@ -1778,15 +1784,14 @@ def test_complete_trace_preserves_omitted_and_equal_prefilled_evidence():
         pending.trace_id,
         eval_result="error",
         output_hash="sha256:prefilled",
-        latency_ms=80,
-        error="executor failed",
     )
 
     assert completed.output_hash == "sha256:prefilled"
     assert completed.tool_outputs == [{"status": "prefilled"}]
     assert completed.trace_uri == "trace://prefilled"
     assert completed.latency_ms == 80
-    assert completed.error == "executor failed"
+    assert completed.cost_usd == 0.03
+    assert completed.error == "prefilled error"
 
 
 TRACE_COMPLETION_REWRITES = [
@@ -1997,6 +2002,7 @@ def test_trace_and_decision_can_be_completed_after_memory_execution():
         tool_outputs=[{"status": "ok"}],
         latency_ms=20,
     )
+    assert store.usage_logs[0].eval_result is None
     completed_decision = store.record_decision_outcome(
         result.decision_id,
         "pass",
@@ -2005,6 +2011,7 @@ def test_trace_and_decision_can_be_completed_after_memory_execution():
     assert store.traces[source_trace.trace_id].eval_result == "fail"
     assert completed_trace.eval_result == "pass"
     assert completed_decision.eval_result == "pass"
+    assert store.traces[current.trace_id].eval_result == "pass"
     assert store.metrics().pass_rate_with_memory == 1.0
 
 

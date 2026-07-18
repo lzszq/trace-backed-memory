@@ -1,0 +1,170 @@
+# Trace-backed Memory 产品文档
+
+- 当前版本：`0.1.0`（Alpha）
+- 交付形态：Python 库 + JSON/YAML/JSON Schema + 可选 PostgreSQL Repository
+- 运行要求：Python 3.11+；PostgreSQL 能力要求 PostgreSQL 12+
+- 开源协议：MIT
+
+## 1. 产品定位
+
+Trace-backed Memory 是面向 LLM/Agent harness 工程的、以执行证据为基础的记忆层。它把 agent trace、评估结果和 Git 提交历史转化为经过验证、具有适用范围、可审计的工程记忆，并在 debug、repair、regression、planning、eval 和 production 场景中选择性使用。
+
+它不是通用聊天记忆，也不负责用户画像。产品关注的是一个更窄但更关键的问题：
+
+> 如何让 agent 从真实失败中复用已经验证的经验，同时避免错误记忆、过期记忆、跨项目记忆和评测答案泄漏进入当前运行？
+
+核心链路如下：
+
+```text
+Trace -> Failure Case -> Human/Eval Verification -> Verified Lesson
+      -> Metadata/Ancestry Retrieval -> System Gate -> LLM Gate
+      -> Bounded Injection -> Usage Audit -> Measured Outcome
+```
+
+## 2. 目标用户
+
+| 用户 | 主要诉求 | 产品提供的能力 |
+|---|---|---|
+| Agent/Harness 工程师 | 让运行失败形成可复用经验 | Trace、失败案例、验证 lesson、运行时门控 |
+| Eval/质量团队 | 防止历史答案污染评测并量化记忆效果 | benchmark identity、阻断原因、outcome metrics |
+| 平台工程师 | 在多仓库、多租户环境安全接入记忆 | scope、tenant/repo 隔离、固定预算、审计日志 |
+| PR/CI 维护者 | 在变更时找到相关历史故障 | Git ancestry、endpoint-aware PR report、回归建议 |
+| 运行维护人员 | 发现并恢复中断或半完成的记忆运行 | audit、remediation plan、原子单项/批量恢复 |
+
+## 3. 核心价值
+
+### 3.1 证据优先，而不是模型自述
+
+Trace 保存 commit、repo、branch、prompt/tool/model/eval provenance、输入/输出哈希、工具调用、结果、延迟、成本和错误。原始 Trace 是证据，不会默认进入运行时 prompt。
+
+### 3.2 经验必须先验证再生效
+
+失败 Trace 先形成结构化 Failure Case，经人工复核、修复提交和回归通过后，才能生成 active Lesson。LLM 无权自行把草稿或猜测升级为可用记忆。
+
+### 3.3 两层门控，确定性安全规则优先
+
+System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏和运行模式；LLM Gate 只能在系统允许的集合中继续缩小，不能重新放行被阻断的记忆。
+
+### 3.4 每次使用都可解释、可恢复
+
+每个 decision 记录候选、允许、阻断、原因、风险、注入模式和最终 outcome。Trace 与 decision 的完成支持原子提交、审计、修复计划和并发安全的恢复扫描。
+
+## 4. 已实现能力
+
+| 能力域 | 当前能力 |
+|---|---|
+| Trace 采集 | Git metadata、prompt/tool/model/eval provenance、执行证据、延迟/成本/错误 |
+| 失败学习 | 六类具体 failure taxonomy（另有 `unknown` fallback）、草稿提取、人工 review、回归验证、obsolete 生命周期 |
+| 记忆类型 | Verified Lesson、Verified Failure Case、Project Policy |
+| 检索 | metadata-first、关键词、调用方提供的 semantic score、可选 Git ancestry 过滤 |
+| 安全门控 | System Gate + LLM applicability Gate；严格 JSON 输入/输出校验 |
+| 注入 | `none`、`pointer_only`、`short_summary`、`full_case_summary`；固定数量与字符预算 |
+| 运行闭环 | 两阶段 prepare/finalize、单项/批量原子完成、延迟 outcome sealing |
+| 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
+| 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
+| PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配 |
+| 持久化 | 原子 JSON snapshot、active lesson YAML、可选同步 PostgreSQL Repository |
+
+## 5. 关键产品流程
+
+### 5.1 安全运行时记忆
+
+1. Harness 以 `eval_result="unknown"` 注册当前 Trace。
+2. `prepare_memory()` 按 metadata、可选 query/semantic score 和 ancestry 找候选，并执行 System Gate。
+3. 外部 LLM 返回结构化 applicability decision。
+4. `finalize_memory()` 重新检查状态、收窄 decision、生成受限 snippet，并记录关联 Trace 的 usage audit。
+5. Harness 执行并评估任务。
+6. `complete_memory_run()` 或 `complete_memory_runs()` 原子写入 Trace 与 decision outcome。
+
+### 5.2 从失败到可复用 Lesson
+
+1. 从失败 Trace 分类并生成 Failure Case 草稿。
+2. 人工补充 root cause、reviewer 和 review notes。
+3. 绑定修复 commit，并要求 regression 通过。
+4. 从 verified case 生成带 scope、confidence 和 source identity 的 Lesson。
+5. Lesson 只有在 active、scope 匹配且通过双门控时才可注入。
+
+### 5.3 PR/CI 回归辅助
+
+1. 用 `PRChangeSet` 描述 prompt、tool、model 或 eval 字段的 old/new endpoint。
+2. 发现相关历史案例的 commit anchors，并在 store 锁外采集 Git ancestry。
+3. 生成相关案例、修复 provenance、建议回归测试和风险警告。
+4. 混合 old/new provenance 或缺失 ancestry evidence 时 fail closed。
+
+### 5.4 中断运行恢复
+
+1. `memory_run_audits()` 把每个 decision 分类为 `pending`、`trace_only`、`decision_only`、`complete` 或 `conflict`。
+2. `memory_run_remediations()` 映射为 `measure`、`recover`、`recover_with_attribution`、`investigate` 或 `none`。
+3. `recover_ready_memory_runs()` 在同一把锁内选择并恢复当前安全的自动项。
+4. 失败/错误的 Trace-only 项必须显式提供 causal attribution；冲突永不自动选边。
+
+## 6. 安全与信任模型
+
+产品采用 fail-closed 策略：
+
+- **Provenance chain**：Lesson 必须可追溯到 verified、regression-backed Failure Case，再追溯到 source Trace 和 commit。
+- **严格 scope**：memory 声明的每个 scope 字段都必须与当前 context 精确匹配；缺失字段不算匹配。
+- **租户与仓库隔离**：`tenant` 和 `repo` 是硬边界。
+- **评测泄漏防护**：相同 `(eval_suite, input_hash)` 的历史示例自动阻断；sensitive 和 eval-leaking memory 更早阻断。
+- **不可逆历史**：身份、来源和已填充的执行证据不可重写；生命周期只允许前向变化。
+- **原子写入**：Trace/decision 的单项和批量完成先构建并验证全部候选，再一次提交。
+- **固定预算**：最多 50 个 gate candidates、20 个 injected memories、32,000 字符 gate prompt 和 12,000 字符 snippet。
+- **防御性所有权**：store 使用锁与 defensive copies，调用方不能通过返回对象修改内部状态。
+
+## 7. 部署与集成
+
+### Core 模式
+
+- 核心包无第三方运行时依赖。
+- 适合嵌入现有 Python harness、eval runner 或 CI 工具。
+- JSON snapshot version 2 用于完整 store 的本地持久化。
+- YAML adapter 用于导入/导出 active lessons。
+
+### PostgreSQL 模式
+
+- 安装 `trace-backed-memory[postgres]`。
+- 使用 PostgreSQL 12+ 和 fresh-install `schemas/postgres.sql`。
+- 当前 PostgreSQL schema version 为 1。
+- Repository 提供同步 `sync()` / `load()`、事务回滚、borrowed/owned connection 和 caller transaction savepoint。
+
+## 8. 产品成熟度
+
+当前版本已完成路线图 Phase 0-24，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
+
+- 纯 Python store、策略、生命周期和解析；
+- Git metadata 与 ancestry；
+- snapshot/YAML round trip 与恶意 JSON 边界；
+- 真实临时 PostgreSQL 集群上的 DDL、事务、并发锁和同步；
+- README 工作流与产品文档契约。
+
+当前定位仍是 Alpha：API 已系统化，但尚未承诺长期向后兼容或在线 schema migration。
+
+## 9. 明确边界与非目标
+
+- 不做通用聊天历史或个性化记忆。
+- 不把 raw trace、完整 prompt history、private tool output 或 eval expected output 直接注入。
+- 不内置 embedding/vector database；semantic scores 由调用方计算。
+- 不把向量相似度视为安全或适用性的充分证明。
+- 不允许 LLM 自行激活、验证或重新放行 memory。
+- PostgreSQL 暂不提供 in-place migration、connection pool 或 async repository。
+- Outcome metrics 是观测关联，不是单个 memory 的因果效果估计。
+- 冲突运行只提供调查入口，不自动覆盖任一已封存结果。
+
+## 10. 成功指标
+
+接入团队可以直接观测：
+
+- candidate / used / blocked memory 数量；
+- with-memory 与 without-memory 的测量样本和 pass rate；
+- wrong-memory failure 和 obsolete usage attempt；
+- 每条 memory 的 observed pass rate；
+- pending、recoverable、attribution-required 和 conflict run 数量；
+- PR 变更命中的历史失败与建议回归测试。
+
+## 11. 相关文档
+
+- [README / Quick start](../README.md)
+- [Architecture](architecture.md)
+- [Memory usage policy](usage-policy.md)
+- [Implemented roadmap](mvp-roadmap.md)
+- [MIT License](../LICENSE)

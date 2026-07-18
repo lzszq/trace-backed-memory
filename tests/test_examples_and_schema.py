@@ -33,6 +33,54 @@ def test_postgres_adapter_dependencies_are_optional():
     assert "psycopg[binary]>=3.2,<4" in extras["dev"]
 
 
+def test_public_product_document_and_mit_metadata_stay_aligned():
+    product = _doc("product.md")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    pyproject = tomllib.loads(
+        (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    project = pyproject["project"]
+    license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+
+    for contract in [
+        "Trace -> Failure Case",
+        "System Gate -> LLM Gate",
+        "`prepare_memory()`",
+        "`complete_memory_run()`",
+        "`recover_ready_memory_runs()`",
+        "PostgreSQL 12+",
+        "snapshot version 2",
+        "PostgreSQL schema version",
+        "Alpha",
+        "MIT",
+    ]:
+        assert contract in product
+
+    assert "[产品概览与当前能力](docs/product.md)" in readme
+    assert project["readme"] == "README.md"
+    assert project["license"] == {"file": "LICENSE"}
+    assert project["authors"] == [{"name": "lzszq"}]
+    assert project["urls"] == {
+        "Homepage": "https://github.com/lzszq/trace-backed-memory",
+        "Repository": "https://github.com/lzszq/trace-backed-memory",
+        "Issues": "https://github.com/lzszq/trace-backed-memory/issues",
+    }
+    assert "License :: OSI Approved :: MIT License" in project["classifiers"]
+    assert license_text.startswith("MIT License\n\nCopyright (c) 2026 lzszq")
+    assert "Permission is hereby granted, free of charge" in license_text
+    assert "repository is private" not in license_text.lower()
+    for ignored_secret_pattern in [
+        ".env.*",
+        "*.pem",
+        "*.key",
+        "id_rsa",
+        "id_ed25519",
+        "credentials.json",
+    ]:
+        assert ignored_secret_pattern in gitignore
+
+
 def test_postgres_schema_publishes_adapter_version():
     schema = _postgres_schema()
     assert "CREATE TABLE public.trace_backed_memory_schema" in schema

@@ -2,8 +2,24 @@
 name = "trace-backed-memory"
 version = "0.1.0"
 description = "Trace-backed, commit-aware, gated memory for LLM/agent harness engineering."
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [{name = "lzszq"}]
 requires-python = ">=3.11"
 dependencies = []
+keywords = ["agents", "evaluation", "llm", "memory", "observability", "provenance"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/lzszq/trace-backed-memory"
+Repository = "https://github.com/lzszq/trace-backed-memory"
+Issues = "https://github.com/lzszq/trace-backed-memory/issues"
 
 [project.optional-dependencies]
 postgres = ["psycopg>=3.2,<4"]

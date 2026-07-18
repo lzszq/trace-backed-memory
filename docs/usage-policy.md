@@ -194,6 +194,35 @@ Only this workflow provides ownership, replay, stale-state, trace-link, and
 atomic logging guarantees. Low-level helpers remain available for callers that
 own equivalent orchestration.
 
+For the common synchronous case, use `run_memory_execution()` with an already
+registered `unknown` Trace. Its `MemoryDecisionCallback` receives the Store's
+public `MemoryGateRequest`, and its `MemoryExecutionCallback` receives the
+final `GatedMemoryResult`. The executor must return an explicit
+`MemoryRunMeasurement`; the module uses the Store-produced `decision_id` and
+delegates final validation and atomic assignment to `complete_memory_run()`.
+
+Do not infer an evaluator outcome, `memory_caused_failure`, or error evidence
+from an exception. After preparation, `MemoryRunExecutionError` identifies the
+`decision`, `finalization`, `execution`, or `completion` phase, retains the
+original callback or Store exception, and exposes the request plus any
+finalized result and decision ID. A decision or finalization failure must
+create no usage log. An execution or completion failure must leave the Trace
+and decision unevaluated until an advanced caller explicitly retries,
+completes, or applies existing recovery policy. `KeyboardInterrupt` and
+`SystemExit` must not be wrapped. `run_memory_execution()` is not an
+idempotency token: each call prepares a new request. Retry against the request
+or finalized result exposed by the error instead of rerunning the whole helper.
+
+Store preparation errors propagate unchanged because no request has been
+created. Later Store validation, stale-state, linkage, evidence, and conflict
+errors are retained as the execution error's cause. Advanced callers that
+require a pause, manual LLM retry, external side-effect policy, or one-sided
+lifecycle control should continue to call
+`prepare_memory()`, `finalize_memory()`, and `complete_memory_run()` directly.
+The callback module is not a persistence adapter and adds no stored record:
+snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
+version 1 remain unchanged.
+
 The usual chronology is decision first and evaluation later. Call
 `record_trace()` first with an `unknown` current Trace, call
 `finalize_memory()` without an outcome, execute the task with the returned

@@ -92,31 +92,37 @@ The orchestration module must not access private Store state, construct usage
 logs, generate IDs, infer an evaluator result or attribution, write snapshots,
 synchronize PostgreSQL, or invoke low-level one-sided completion methods.
 
-## Callback Errors
+## Execution Errors
 
-Expose one `MemoryRunCallbackError(RuntimeError)` for failures raised by the
-two true-external callbacks. It has these public attributes:
+Expose one `MemoryRunExecutionError(RuntimeError)` for ordinary failures after
+the Store has prepared a request. It has these public attributes:
 
-- `phase`: `"decision"` or `"execution"`;
+- `phase`: `"decision"`, `"finalization"`, `"execution"`, or `"completion"`;
 - `trace_id`;
 - `request`: the prepared `MemoryGateRequest`;
 - `request_id`;
 - `gated_result`: `None` before finalization, otherwise the finalized result;
 - `decision_id`: `None` before finalization, otherwise the Store decision ID.
 
-The original callback exception is retained as `__cause__`. Catch ordinary
-`Exception` only; `KeyboardInterrupt` and `SystemExit` pass through.
+The original callback or Store exception is retained as `__cause__`. Catch
+ordinary `Exception` only; `KeyboardInterrupt` and `SystemExit` pass through.
+Preparation errors propagate unchanged because no request or hidden lifecycle
+state exists yet.
 
 A decision callback failure creates no usage log and leaves the request
-pending. An execution callback failure occurs after the usage decision exists,
-does not guess an `error` outcome, and leaves Trace and decision unevaluated.
-The error exposes enough public state for a caller to retry or explicitly
-complete later.
+pending. A finalization failure also leaves the request pending and exposes it
+even when the callback did not retain its argument. An execution callback or
+completion failure occurs after the usage decision exists, does not guess an
+`error` outcome, and leaves Trace and decision unevaluated. The latter phases
+expose the finalized result and decision ID for explicit completion. The
+one-shot helper is not an idempotency token: every call prepares a new request,
+so retry resumes from the state carried by the error rather than rerunning the
+whole helper.
 
 A non-`MemoryRunMeasurement` execution return is an execution callback contract
-failure and uses the same contextual error. Store errors from prepare,
-finalize, and complete propagate unchanged so callers retain exact validation
-and conflict diagnostics.
+failure and uses the same contextual error. Store errors from finalization and
+completion use that error too, retaining exact validation and conflict
+diagnostics as their cause while adding the otherwise-hidden recovery state.
 
 ## Measurement Semantics
 
@@ -145,7 +151,7 @@ thread, or async runtime.
 
 ## Persistence And Compatibility
 
-`MemoryRunMeasurement`, callback types, and callback errors are ephemeral.
+`MemoryRunMeasurement`, callback types, and execution errors are ephemeral.
 Only the existing Trace and usage-log records completed by the Store are
 persisted. Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
 schema version 1 remain unchanged.
@@ -158,4 +164,3 @@ failures; callback contract violations; Store prepare/finalize/completion
 errors; invalid evidence atomicity; exact completion replay behavior; no access
 to Store private state; public exports; executable README usage; and unchanged
 persistence schemas.
-

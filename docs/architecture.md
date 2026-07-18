@@ -295,6 +295,40 @@ provides ownership, replay, stale-state, trace-link, and atomic logging
 guarantees. Low-level helpers remain public for callers that own equivalent
 orchestration.
 
+### Synchronous memory-run execution
+
+`run_memory_execution()` is the dependency-free orchestration module for the
+common synchronous path. After the caller records an `unknown` Trace, the
+module calls `prepare_memory()`, invokes a `MemoryDecisionCallback` with the
+public `MemoryGateRequest`, calls `finalize_memory()`, invokes a
+`MemoryExecutionCallback` with the public `GatedMemoryResult`, and delegates
+the resulting `MemoryRunMeasurement` to `complete_memory_run()`.
+
+The measurement has no decision ID. The module transfers the Store-produced
+`decision_id`, converts a non-`None` tool-output tuple to a list, and forwards
+only non-`None` optional evidence. Retrieval, System Gate, decision parsing,
+LLM narrowing, request consumption, snippet rendering, Trace/context binding,
+usage logging, evidence validation, and atomic Trace plus decision completion
+remain inside the Store.
+
+`MemoryRunExecutionError` adds phase and public recovery context to every
+ordinary failure after preparation while retaining the original callback or
+Store exception as its cause. Its phases are `decision`, `finalization`,
+`execution`, and `completion`. Every phase exposes the still-pending request;
+the latter two also expose the finalized result and decision ID. Preparation
+errors remain raw because no request exists, and process-control exceptions
+pass through. Each orchestration call prepares a new request; retry against the
+error's exposed request or finalized result rather than rerunning the whole
+one-shot helper.
+
+Advanced callers continue to use `prepare_memory()`, `finalize_memory()`, and
+`complete_memory_run()` directly when they pause between stages or own custom
+retry and recovery policy. The execution module does not access private Store
+state, persist records, synchronize PostgreSQL, or create another completion
+state machine. `MemoryRunMeasurement`, callback types, and execution errors are
+ephemeral; snapshot version 2, JSON Schemas, active-lessons YAML, and
+PostgreSQL schema version 1 remain unchanged.
+
 Execution normally finishes after the decision is logged. The chronological
 runtime path registers an `unknown` current Trace, finalizes memory, executes,
 then calls `complete_memory_run()` with the linked `trace_id`, `decision_id`,

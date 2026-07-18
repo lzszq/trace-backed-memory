@@ -417,3 +417,25 @@ Track:
 - Persist no CLI, audit, metrics, remediation, or completion wrapper state.
   Preserve snapshot version 2, JSON Schemas, active-lessons YAML,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 26: Synchronous memory-run execution (implemented)
+
+- Export one dependency-free `run_memory_execution()` entry point for the
+  common prepare, decide, finalize, execute, and atomic complete sequence.
+- Define `MemoryDecisionCallback` over the public `MemoryGateRequest` and
+  `MemoryExecutionCallback` over the finalized `GatedMemoryResult`, leaving LLM
+  and harness adapters in caller code.
+- Add frozen `MemoryRunMeasurement` without a decision ID. Always complete with
+  the Store-produced `decision_id`, forward only non-`None` optional evidence,
+  and treat an empty tool-output tuple as explicit evidence.
+- Add `MemoryRunExecutionError` with four post-preparation phases, request,
+  finalized result, request ID, decision ID, and original exception cause.
+  Never infer an outcome or failure attribution from an exception.
+- Keep Store preparation errors unchanged. Wrap later Store failures with
+  recoverable orchestration context while retaining their exact cause, linkage,
+  replay, conflict, immutable evidence, and all-or-nothing completion behavior.
+- Keep the low-level Store workflow available for advanced callers that pause,
+  retry, or own separate lifecycle and recovery policy.
+- Persist no measurement, callback type, execution error, or orchestration
+  state. Preserve snapshot version 2, JSON Schemas, active-lessons YAML,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

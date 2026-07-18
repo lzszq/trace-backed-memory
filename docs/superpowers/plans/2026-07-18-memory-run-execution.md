@@ -11,15 +11,15 @@ only domain-state owner.
 - Add `tests/test_execution.py` with real Store fixtures and fixed callbacks.
 - Cover call order, public callback inputs, full measurement forwarding, and
   Store-produced linkage.
-- Cover decision/execution callback errors and recoverable context.
-- Cover wrong callback return types, Store validation propagation, and atomic
-  completion failure.
+- Cover all four post-preparation failure phases and recoverable context.
+- Cover wrong callback return types, raw preparation validation, retained Store
+  causes, and atomic completion failure.
 - Lock public exports, docs, and persistence compatibility.
 
 ## Implementation
 
 - Add frozen `MemoryRunMeasurement` to the public model records.
-- Add `execution.py` with callable aliases, `MemoryRunCallbackError`, and
+- Add `execution.py` with callable aliases, `MemoryRunExecutionError`, and
   `run_memory_execution()`.
 - Forward only non-`None` optional measurement fields to
   `complete_memory_run()`.
@@ -31,7 +31,7 @@ only domain-state owner.
 - Add a concise callback-based runtime example to README.
 - Update architecture, usage policy, product overview, repository layout, and
   roadmap Phase 26.
-- State callback failure and explicit recovery responsibilities.
+- State post-preparation failure and explicit recovery responsibilities.
 
 ## Verification
 
@@ -40,4 +40,3 @@ only domain-state owner.
 - Build wheel/sdist and smoke-test the installed public interface.
 - Review diff, secret patterns, conflict markers, schema hashes, worktree
   cleanliness, remote synchronization, and CI before merge and push.
-

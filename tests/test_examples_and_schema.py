@@ -51,7 +51,9 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`recover_ready_memory_runs()`",
         "`tbm`",
         "`python -m trace_backed_memory`",
-        "Phase 0-25",
+        "`run_memory_execution()`",
+        "`MemoryRunMeasurement`",
+        "Phase 0-26",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -1722,6 +1724,53 @@ def test_docs_publish_snapshot_operations_cli_and_compatibility():
         "memory_run_remediations",
     ]:
         assert ephemeral_name not in postgres_schema
+
+
+def test_docs_publish_memory_run_execution_and_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`run_memory_execution()`",
+        "`MemoryDecisionCallback`",
+        "`MemoryExecutionCallback`",
+        "`MemoryRunMeasurement`",
+        "`MemoryRunExecutionError`",
+        "`MemoryGateRequest`",
+        "`GatedMemoryResult`",
+        "`complete_memory_run()`",
+        "decision_id",
+        "callback",
+        "advanced",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        normalized_lower = normalized.lower()
+        for contract in required_contracts:
+            assert contract.lower() in normalized_lower, (
+                f"{name} should publish: {contract}"
+            )
+
+    assert (
+        "Phase 26: Synchronous memory-run execution (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "memory_run_measurements" not in snapshot_schema["properties"]
+    assert "memory_run_callback_errors" not in snapshot_schema["properties"]
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert "memory_run_measurements" not in postgres_schema
+    assert "memory_run_callback_errors" not in postgres_schema
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

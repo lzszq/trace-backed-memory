@@ -32,6 +32,7 @@ from .models import (
     MemoryRunAuditStatus,
     MemoryRunCompletion,
     MemoryRunMetrics,
+    MemoryRunMeasurement,
     MemoryRunRemediation,
     MemoryRunRemediationAction,
     MemoryRunResult,
@@ -69,6 +70,12 @@ from .postgres import (
     PostgresSyncResult,
 )
 from .store import TraceBackedMemoryStore
+from .execution import (
+    MemoryDecisionCallback,
+    MemoryExecutionCallback,
+    MemoryRunExecutionError,
+    run_memory_execution,
+)
 
 __all__ = [
     "FailureCase",
@@ -81,7 +88,9 @@ __all__ = [
     "LLM_GATE_PROMPT_MAX_CHARS",
     "Lesson",
     "MemoryContext",
+    "MemoryDecisionCallback",
     "MemoryDecision",
+    "MemoryExecutionCallback",
     "MemoryGateRequest",
     "MemoryItem",
     "MeasuredEvalResult",
@@ -92,6 +101,8 @@ __all__ = [
     "MemoryRunAudit",
     "MemoryRunAuditStatus",
     "MemoryRunCompletion",
+    "MemoryRunExecutionError",
+    "MemoryRunMeasurement",
     "MemoryRunMetrics",
     "MemoryRunRemediation",
     "MemoryRunRemediationAction",
@@ -131,6 +142,7 @@ __all__ = [
     "parse_memory_context",
     "parse_memory_decision",
     "review_failure_case",
+    "run_memory_execution",
     "system_gate",
     "build_injection_snippet",
     "verify_failure_case",

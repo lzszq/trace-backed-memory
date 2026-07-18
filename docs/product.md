@@ -60,6 +60,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 安全门控 | System Gate + LLM applicability Gate；严格 JSON 输入/输出校验 |
 | 注入 | `none`、`pointer_only`、`short_summary`、`full_case_summary`；固定数量与字符预算 |
 | 运行闭环 | 两阶段 prepare/finalize、单项/批量原子完成、延迟 outcome sealing |
+| 运行编排 | `run_memory_execution()` 同步串联 decision callback、execution callback 与原子完成；`MemoryRunMeasurement` 无需调用方复制 decision ID |
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
 | 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、audit/metrics/remediation、dry-run 恢复与显式 `--write` 原子替换 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
@@ -76,6 +77,8 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 4. `finalize_memory()` 重新检查状态、收窄 decision、生成受限 snippet，并记录关联 Trace 的 usage audit。
 5. Harness 执行并评估任务。
 6. `complete_memory_run()` 或 `complete_memory_runs()` 原子写入 Trace 与 decision outcome。
+
+普通同步调用方可以用 `run_memory_execution()` 把第 2-6 步收敛为一次调用；LLM 与 harness 仍由调用方 callback 提供，Store 继续拥有门控、linkage 和原子完成。需要暂停、人工重试或独立生命周期控制的高级调用方继续直接使用底层方法。
 
 ### 5.2 从失败到可复用 Lesson
 
@@ -122,6 +125,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - YAML adapter 用于导入/导出 active lessons。
 - 安装后提供 `tbm` console script；`python -m trace_backed_memory` 提供等价入口。
 - CLI 通过现有 snapshot validation、audit、metrics、remediation 和 recovery API 工作，不复制领域规则。
+- `run_memory_execution()` 提供无第三方依赖的同步 harness 编排；`MemoryRunExecutionError` 保留各阶段的 request/decision 恢复上下文与原始异常，但不自动猜测执行 outcome。
 
 ### PostgreSQL 模式
 
@@ -132,12 +136,13 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-25，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
+当前版本已完成路线图 Phase 0-26，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry；
 - snapshot/YAML round trip 与恶意 JSON 边界；
 - CLI structured JSON/exit-code contract、deterministic ordering、dry-run isolation、原子写入、batch all-or-nothing 与 module/console-script smoke；
+- callback memory-run execution 的顺序、measurement evidence、异常恢复上下文、Store 错误透传与原子失败；
 - 真实临时 PostgreSQL 集群上的 DDL、事务、并发锁和同步；
 - README 工作流与产品文档契约。
 

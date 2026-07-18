@@ -200,6 +200,18 @@ class MemoryUsageLog:
 
 
 @dataclass(frozen=True)
+class MemoryRunMeasurement:
+    eval_result: MeasuredEvalResult
+    memory_caused_failure: bool = False
+    output_hash: str | None = None
+    tool_outputs: tuple[dict[str, object], ...] | None = None
+    latency_ms: int | None = None
+    cost_usd: float | None = None
+    error: str | None = None
+    trace_uri: str | None = None
+
+
+@dataclass(frozen=True)
 class MemoryRunResult:
     decision_id: str
     eval_result: MeasuredEvalResult

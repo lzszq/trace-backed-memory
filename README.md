@@ -154,6 +154,70 @@ immutable ID conflicts. Any conflict rolls back the whole synchronization.
 `repository.load()` returns a normalized, validated
 `TraceBackedMemoryStore`, not a snapshot object.
 
+## Callback-based Memory Run Execution
+
+Use `run_memory_execution()` for the common synchronous path after registering
+the current Trace with `eval_result="unknown"`. Its `MemoryDecisionCallback`
+receives a `MemoryGateRequest`; its `MemoryExecutionCallback` receives the
+final `GatedMemoryResult` and returns a `MemoryRunMeasurement` without copying
+a decision ID:
+
+```python
+from trace_backed_memory import MemoryRunMeasurement, run_memory_execution
+
+
+def decide(request):
+    return llm_call(request.prompt)
+
+
+def execute(gated):
+    outcome = harness_run(memory_snippet=gated.snippet)
+    return MemoryRunMeasurement(
+        eval_result=outcome.eval_result,
+        memory_caused_failure=outcome.memory_caused_failure,
+        output_hash=outcome.output_hash,
+        tool_outputs=(
+            tuple(outcome.tool_outputs)
+            if outcome.tool_outputs is not None
+            else None
+        ),
+        latency_ms=outcome.latency_ms,
+        cost_usd=outcome.cost_usd,
+        error=outcome.error,
+        trace_uri=outcome.trace_uri,
+    )
+
+
+completion = run_memory_execution(
+    store,
+    context=context,
+    trace_id=current_trace.trace_id,
+    task="repair failed search_docs call",
+    decide=decide,
+    execute=execute,
+)
+```
+
+The module fixes the order as prepare, decide, finalize, execute, and atomic
+complete. It always uses the Store-produced `decision_id` and does not infer an
+evaluator result, failure attribution, or execution evidence from an exception.
+Preparation errors propagate unchanged because no request has been created.
+
+After preparation, `MemoryRunExecutionError` retains the original callback or
+Store exception as its cause and identifies the `decision`, `finalization`,
+`execution`, or `completion` phase. Every such error exposes the pending
+request; execution and completion failures also expose the finalized result
+and decision ID so the caller can retry against the same state or complete
+explicitly. Do not rerun the whole one-shot helper as a retry because each call
+prepares a new request. `KeyboardInterrupt` and `SystemExit` still pass through.
+Use the Store's existing `prepare_memory()`,
+`finalize_memory()`, and `complete_memory_run()` directly when advanced callers
+need to pause between stages or own custom retry and recovery policy.
+
+Measurements and execution errors are ephemeral. Only the existing Trace and
+usage log are persisted, so snapshot version 2, JSON Schemas, active-lessons
+YAML, and PostgreSQL schema version 1 remain unchanged.
+
 ## Safe Store Workflow
 
 Use the store's two-phase workflow for runtime memory. `prepare_memory()`
@@ -1109,6 +1173,9 @@ Implemented pieces:
   plan.
 - Atomic `recover_ready_memory_runs()` sweeps that select and commit current
   automatic recoveries under one lock while skipping unresolved work.
+- Dependency-free `run_memory_execution()` orchestration with typed decision
+  and execution callbacks, Store-produced linkage, explicit measurement, and
+  recoverable post-preparation error context.
 - Derived `memory_run_metrics()` health counts with five-state conservation,
   automatic-versus-attributed recovery work, and no redundant persisted
   aggregate.
@@ -1151,6 +1218,7 @@ Implemented pieces:
 |   |-- lesson.example.json
 |   |-- memory_context.example.json
 |   |-- project_policy.example.json
+|   |-- memory_usage_log.example.json
 |   `-- memory_decision.example.json
 |-- memory/
 |   |-- lessons.example.yaml
@@ -1170,19 +1238,23 @@ Implemented pieces:
 |   |-- __init__.py
 |   |-- capture.py
 |   |-- cli.py
+|   |-- execution.py
 |   |-- extraction.py
 |   |-- lifecycle.py
 |   |-- models.py
 |   |-- policy.py
+|   |-- postgres.py
 |   `-- store.py
 `-- tests/
     |-- test_capture.py
     |-- test_cli.py
+    |-- test_execution.py
     |-- test_examples_and_schema.py
     |-- test_extraction.py
     |-- test_lifecycle.py
     |-- test_packaging.py
     |-- test_postgres_integration.py
+    |-- test_postgres_repository.py
     |-- test_policy.py
     |-- test_readme_api.py
     `-- test_store.py

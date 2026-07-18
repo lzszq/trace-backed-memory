@@ -758,3 +758,35 @@ def test_readme_publishes_snapshot_operations_cli_contract():
     assert "structured JSON" in normalized
     assert "2,048 characters" in normalized
     assert "snapshot version 2" in normalized
+
+
+def test_readme_publishes_callback_memory_run_execution_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for contract in [
+        "`run_memory_execution()`",
+        "`MemoryDecisionCallback`",
+        "`MemoryExecutionCallback`",
+        "`MemoryRunMeasurement`",
+        "`MemoryRunExecutionError`",
+        "`MemoryGateRequest`",
+        "`GatedMemoryResult`",
+        "Store-produced `decision_id`",
+        "does not infer",
+        "advanced callers",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]:
+        assert contract in normalized
+
+    assert "def decide(request):" in readme
+    assert "def execute(gated):" in readme
+    assert "completion = run_memory_execution(" in readme
+    assert "|   |-- execution.py" in readme
+    assert "|   |-- postgres.py" in readme
+    assert "    |-- test_execution.py" in readme
+    assert "    |-- test_postgres_repository.py" in readme
+    assert "|   |-- memory_usage_log.example.json" in readme

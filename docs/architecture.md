@@ -186,6 +186,44 @@ shape; loading still reuses `add_lesson()` so source-case and lesson-contract
 checks remain enforced. YAML serialization quotes strings so numeric-looking
 scope values remain strings when loaded.
 
+## Snapshot Operations CLI
+
+The dependency-free snapshot operations adapter is exposed as `tbm` and
+`python -m trace_backed_memory`. It accepts exactly one local snapshot path and
+always reconstructs the store through `TraceBackedMemoryStore.load_json()`.
+It does not accept stdin, remote URLs, PostgreSQL connections, or an alternate
+output path.
+
+The read surface maps directly to existing store views. `snapshot validate`
+performs full reconstruction and returns validity, snapshot version, and
+canonical collection counts; `snapshot stats` returns the version and counts.
+`audit` and `remediation` serialize the decision-ordered records from
+`memory_run_audits()` and `memory_run_remediations()`. `metrics` combines
+`metrics()`, `memory_run_metrics()`, and `memory_outcome_metrics()` without
+introducing a second aggregation path.
+
+The mutation surface delegates `recover` to `recover_memory_run()`,
+`recover-batch` to `recover_memory_runs()`, and `recover-ready` to
+`recover_ready_memory_runs()`. Every operation first mutates only the loaded
+in-memory store and is a dry-run unless `--write` is explicit. After a complete
+successful recovery, `--write` calls `save_json()` on the input path, reusing
+its same-directory temporary file and atomic replacement. Batch validation and
+recovery remain all-or-nothing in the store; the CLI does not stage or classify
+records independently.
+
+Successful commands emit one deterministic JSON value plus a newline. Failures
+emit one structured JSON object to stderr without a traceback. Exit codes are
+0 for success or no-op, 1 for an unexpected internal failure, 2 for command or
+snapshot input, 3 for recovery-state or attribution rejection, and 4 for a
+write failure. Error text is capped at 2,048 characters. Successful output is
+serialized before persistence; after a requested write commits, a downstream
+stdout pipe closure does not report the already-persisted operation as failed.
+Help is the sole normal argparse text path.
+
+The adapter persists no command, audit, metrics, or remediation record. It
+leaves snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
+schema version 1 unchanged.
+
 ## Layer 4: Memory Gate
 
 Memory use requires two gates:

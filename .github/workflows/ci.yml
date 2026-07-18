@@ -7,10 +7,39 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: python -m pip install -e .[dev]
-      - run: pytest
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip "build>=1.2,<2"
+      - run: python -m build
+      - name: Verify build artifacts
+        run: >-
+          python -c "from pathlib import Path;
+          assert len(list(Path('dist').glob('*.whl'))) == 1;
+          assert len(list(Path('dist').glob('*.tar.gz'))) == 1"
+      - name: Install wheel in an isolated environment
+        run: |
+          python -m venv .package-smoke
+          .package-smoke/bin/python -c "from pathlib import Path; import subprocess, sys; wheel = next(Path('dist').glob('*.whl')); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--no-deps', str(wheel)])"
+      - name: Smoke-test installed CLI entry points
+        run: |
+          .package-smoke/bin/python -c "from trace_backed_memory import TraceBackedMemoryStore; TraceBackedMemoryStore().save_json('dist/empty.snapshot.json')"
+          .package-smoke/bin/tbm snapshot validate dist/empty.snapshot.json
+          .package-smoke/bin/python -m trace_backed_memory snapshot stats dist/empty.snapshot.json

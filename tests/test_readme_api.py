@@ -732,3 +732,29 @@ def test_readme_additional_public_helpers_still_work():
     assert obsolete_failure_case(verified).status == "obsolete"
     assert obsolete_lesson(lesson).status == "obsolete"
     assert "Candidate memory" in prompt
+
+
+def test_readme_publishes_snapshot_operations_cli_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+    for command in [
+        "tbm snapshot validate SNAPSHOT",
+        "tbm snapshot stats SNAPSHOT",
+        "tbm audit SNAPSHOT",
+        "tbm metrics SNAPSHOT",
+        "tbm remediation SNAPSHOT",
+        "tbm recover-ready SNAPSHOT [--write]",
+        "tbm recover SNAPSHOT DECISION_ID",
+        "tbm recover-batch SNAPSHOT DECISION_ID...",
+    ]:
+        assert command in readme
+
+    normalized = " ".join(readme.split())
+    assert "`python -m trace_backed_memory`" in normalized
+    assert "dry-run" in normalized
+    assert "`--write`" in normalized
+    assert "structured JSON" in normalized
+    assert "2,048 characters" in normalized
+    assert "snapshot version 2" in normalized

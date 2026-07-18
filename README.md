@@ -75,6 +75,43 @@ python -m pip install -e .
 
 For one-off local commands, setting `PYTHONPATH=src` also works.
 
+## Snapshot Operations CLI
+
+Installing the package exposes the dependency-free `tbm` console script. The
+same command surface is available through `python -m trace_backed_memory`:
+
+```text
+tbm snapshot validate SNAPSHOT
+tbm snapshot stats SNAPSHOT
+tbm audit SNAPSHOT
+tbm metrics SNAPSHOT
+tbm remediation SNAPSHOT
+tbm recover-ready SNAPSHOT [--write]
+tbm recover SNAPSHOT DECISION_ID [--memory-caused-failure true|false] [--write]
+tbm recover-batch SNAPSHOT DECISION_ID... [--attribution DECISION_ID=true|false]... [--write]
+```
+
+Each command loads one local snapshot through the regular store validation
+path. Read commands emit one deterministic JSON value plus a newline.
+Recovery commands return the serialized completions, ordered decision IDs, and
+a `written` flag. They are dry-run by default: the input bytes change only when
+`--write` is explicit and the complete recovery succeeds. A write reuses the
+store's same-directory temporary file and atomic replacement behavior.
+
+Failures emit one structured JSON error to stderr without a traceback. Exit
+codes are `0` for success or a no-op, `1` for an unexpected internal failure,
+`2` for usage/path/encoding/JSON/snapshot input, `3` for a rejected recovery
+state or attribution, and `4` for a snapshot write failure. Help remains normal
+human-readable argparse output. Error text is capped at 2,048 characters, and
+successful JSON is serialized before persistence. If a downstream pipe closes
+stdout after `--write` commits, the already-persisted operation remains a
+success rather than inviting an unsafe retry.
+
+This interface accepts neither stdin nor remote URLs, PostgreSQL connections,
+or alternate output paths. It adds no persisted CLI state: snapshot version 2,
+active-lessons YAML, JSON Schemas, and PostgreSQL schema version 1 remain
+unchanged.
+
 ## PostgreSQL Repository
 
 PostgreSQL support is optional. Core installs do not import or require
@@ -1129,8 +1166,10 @@ Implemented pieces:
 |   |-- memory_context.schema.json
 |   `-- memory_decision.schema.json
 |-- src/trace_backed_memory/
+|   |-- __main__.py
 |   |-- __init__.py
 |   |-- capture.py
+|   |-- cli.py
 |   |-- extraction.py
 |   |-- lifecycle.py
 |   |-- models.py
@@ -1138,9 +1177,11 @@ Implemented pieces:
 |   `-- store.py
 `-- tests/
     |-- test_capture.py
+    |-- test_cli.py
     |-- test_examples_and_schema.py
     |-- test_extraction.py
     |-- test_lifecycle.py
+    |-- test_packaging.py
     |-- test_postgres_integration.py
     |-- test_policy.py
     |-- test_readme_api.py

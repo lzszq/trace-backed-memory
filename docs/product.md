@@ -1,7 +1,7 @@
 # Trace-backed Memory 产品文档
 
 - 当前版本：`0.1.0`（Alpha）
-- 交付形态：Python 库 + JSON/YAML/JSON Schema + 可选 PostgreSQL Repository
+- 交付形态：Python 库 + `tbm` CLI + JSON/YAML/JSON Schema + 可选 PostgreSQL Repository
 - 运行要求：Python 3.11+；PostgreSQL 能力要求 PostgreSQL 12+
 - 开源协议：MIT
 
@@ -61,6 +61,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 注入 | `none`、`pointer_only`、`short_summary`、`full_case_summary`；固定数量与字符预算 |
 | 运行闭环 | 两阶段 prepare/finalize、单项/批量原子完成、延迟 outcome sealing |
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
+| 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、audit/metrics/remediation、dry-run 恢复与显式 `--write` 原子替换 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
 | PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配 |
 | 持久化 | 原子 JSON snapshot、active lesson YAML、可选同步 PostgreSQL Repository |
@@ -119,6 +120,8 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - 适合嵌入现有 Python harness、eval runner 或 CI 工具。
 - JSON snapshot version 2 用于完整 store 的本地持久化。
 - YAML adapter 用于导入/导出 active lessons。
+- 安装后提供 `tbm` console script；`python -m trace_backed_memory` 提供等价入口。
+- CLI 通过现有 snapshot validation、audit、metrics、remediation 和 recovery API 工作，不复制领域规则。
 
 ### PostgreSQL 模式
 
@@ -129,11 +132,12 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-24，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
+当前版本已完成路线图 Phase 0-25，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry；
 - snapshot/YAML round trip 与恶意 JSON 边界；
+- CLI structured JSON/exit-code contract、deterministic ordering、dry-run isolation、原子写入、batch all-or-nothing 与 module/console-script smoke；
 - 真实临时 PostgreSQL 集群上的 DDL、事务、并发锁和同步；
 - README 工作流与产品文档契约。
 

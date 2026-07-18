@@ -49,6 +49,9 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`prepare_memory()`",
         "`complete_memory_run()`",
         "`recover_ready_memory_runs()`",
+        "`tbm`",
+        "`python -m trace_backed_memory`",
+        "Phase 0-25",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -59,14 +62,15 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
 
     assert "[产品概览与当前能力](docs/product.md)" in readme
     assert project["readme"] == "README.md"
-    assert project["license"] == {"file": "LICENSE"}
+    assert project["license"] == "MIT"
+    assert project["license-files"] == ["LICENSE"]
     assert project["authors"] == [{"name": "lzszq"}]
     assert project["urls"] == {
         "Homepage": "https://github.com/lzszq/trace-backed-memory",
         "Repository": "https://github.com/lzszq/trace-backed-memory",
         "Issues": "https://github.com/lzszq/trace-backed-memory/issues",
     }
-    assert "License :: OSI Approved :: MIT License" in project["classifiers"]
+    assert "License :: OSI Approved :: MIT License" not in project["classifiers"]
     assert license_text.startswith("MIT License\n\nCopyright (c) 2026 lzszq")
     assert "Permission is hereby granted, free of charge" in license_text
     assert "repository is private" not in license_text.lower()
@@ -1658,6 +1662,66 @@ def test_docs_publish_ready_memory_run_recovery_and_compatibility():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
     assert "ready_memory_run_recoveries" not in postgres_schema
+
+
+def test_docs_publish_snapshot_operations_cli_and_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`tbm`",
+        "`python -m trace_backed_memory`",
+        "snapshot validate",
+        "snapshot stats",
+        "audit",
+        "metrics",
+        "remediation",
+        "recover-ready",
+        "recover-batch",
+        "dry-run",
+        "`--write`",
+        "structured JSON",
+        "exit codes",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        normalized_lower = normalized.lower()
+        for contract in required_contracts:
+            assert contract.lower() in normalized_lower, (
+                f"{name} should publish: {contract}"
+            )
+
+    assert (
+        "Phase 25: Snapshot Operations CLI (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert set(snapshot_schema["properties"]) == {
+        "snapshot_version",
+        "traces",
+        "failure_cases",
+        "lessons",
+        "project_policies",
+        "usage_logs",
+    }
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    for ephemeral_name in [
+        "snapshot_operations",
+        "memory_run_audits",
+        "memory_run_metrics",
+        "memory_run_remediations",
+    ]:
+        assert ephemeral_name not in postgres_schema
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

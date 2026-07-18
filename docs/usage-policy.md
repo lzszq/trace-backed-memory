@@ -36,6 +36,42 @@ repository operation uses a nested savepoint and does not commit or roll back
 the outer transaction; the caller owns the final commit or rollback. Without an
 outer transaction, the repository transaction commits normally.
 
+## Snapshot Operations CLI
+
+Use `tbm` or the equivalent `python -m trace_backed_memory` entry point for
+local snapshot operations. The CLI is an operations adapter, not a new policy
+or persistence layer: `snapshot validate`, `snapshot stats`, `audit`,
+`metrics`, and `remediation` must reuse the store's validation and derived
+views. Commands accept one local snapshot only; they do not connect to the
+PostgreSQL repository.
+
+Treat every `recover`, `recover-batch`, and `recover-ready` command as a
+dry-run unless `--write` is explicit. A dry-run may mutate the reconstructed
+store in memory but must leave the source bytes unchanged. A write is permitted
+only after the whole recovery succeeds, and it must use `save_json()` to
+replace the same snapshot atomically.
+
+`recover-ready` may select only remediation action `recover`; it must continue
+to skip pending, conflicting, complete, and `recover_with_attribution` work.
+Single recovery passes `memory_caused_failure` only when the operator states it
+explicitly. Batch decision IDs must be unique, repeated attribution values must
+use exact `DECISION_ID=true|false` syntax, and an invalid item must reject the
+whole batch all-or-nothing. Operators must investigate conflicts rather than
+using the CLI to choose a historical side.
+
+Automation may consume the single deterministic JSON value written on
+success. Failures write one structured JSON error without a traceback. Exit
+codes are 0 for success or no-op, 1 for an internal failure, 2 for usage or
+snapshot input, 3 for recovery-state or attribution rejection, and 4 for a
+write failure. Error text is capped at 2,048 characters. JSON serialization
+must finish before persistence. After a requested write commits, a downstream
+stdout pipe closure must not falsely report that committed recovery as failed.
+Human-readable `--help` output is outside the JSON contract.
+
+CLI reads, audits, metrics, remediation plans, and completion wrappers are not
+persisted. Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
+schema version 1 remain unchanged.
+
 ## Suitable modes
 
 | Mode | Default | Allowed memory | Blocked memory |

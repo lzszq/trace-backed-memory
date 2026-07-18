@@ -94,7 +94,10 @@ Exit codes:
 - `3`: recovery state or attribution rejection from the store;
 - `4`: snapshot write failure.
 
-Messages expose exception type and bounded runtime text but no traceback.
+Messages expose exception type and at most 2,048 characters of runtime text but
+no traceback. Successful JSON is fully serialized before a requested write.
+Once `--write` commits successfully, a downstream stdout pipe closure does not
+reclassify the already-persisted operation as a failure.
 `KeyboardInterrupt` and `SystemExit` are not converted into internal errors.
 
 ## Implementation Boundaries
@@ -103,8 +106,9 @@ Messages expose exception type and bounded runtime text but no traceback.
   `pathlib`, and existing package APIs.
 - Add `trace_backed_memory.__main__` as the module entry point.
 - Add `[project.scripts] tbm = "trace_backed_memory.cli:main"`.
-- Add an explicit setuptools build backend so console-script packaging is
-  reproducible rather than relying on an implicit default.
+- Add an explicit setuptools 77+ build backend so console-script packaging and
+  SPDX MIT license metadata are reproducible rather than relying on an
+  implicit or deprecated default.
 - Do not export CLI internals from the package root.
 - Do not duplicate snapshot envelope, audit classification, metrics, or
   recovery validation.
@@ -114,8 +118,8 @@ Messages expose exception type and bounded runtime text but no traceback.
 The CLI reads and writes the existing snapshot version 2 shape. It creates no
 new persisted field and does not change active-lessons YAML or PostgreSQL
 schema version 1. A successful write canonicalizes the snapshot through the
-normal store serializer; a dry run or any failure leaves the original file
-unchanged.
+normal store serializer; a dry run or any input, recovery, serialization, or
+write failure leaves the original file unchanged.
 
 ## Verification
 

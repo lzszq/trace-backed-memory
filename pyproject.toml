@@ -1,20 +1,27 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "trace-backed-memory"
 version = "0.1.0"
 description = "Trace-backed, commit-aware, gated memory for LLM/agent harness engineering."
 readme = "README.md"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{name = "lzszq"}]
 requires-python = ">=3.11"
 dependencies = []
 keywords = ["agents", "evaluation", "llm", "memory", "observability", "provenance"]
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+
+[project.scripts]
+tbm = "trace_backed_memory.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/lzszq/trace-backed-memory"
@@ -23,7 +30,7 @@ Issues = "https://github.com/lzszq/trace-backed-memory/issues"
 
 [project.optional-dependencies]
 postgres = ["psycopg>=3.2,<4"]
-dev = ["pytest>=8.0.0", "psycopg[binary]>=3.2,<4"]
+dev = ["build>=1.2,<2", "pytest>=8.0.0", "psycopg[binary]>=3.2,<4"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -393,3 +393,27 @@ Track:
 - Sweep selection is not persisted; synchronize only existing Trace and usage
   rows. Preserve snapshot version 2, JSON Schemas, active-lessons YAML,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 25: Snapshot Operations CLI (implemented)
+
+- Expose the dependency-free `tbm` console script and equivalent
+  `python -m trace_backed_memory` module entry point.
+- Add `snapshot validate`, `snapshot stats`, `audit`, `metrics`, and
+  `remediation` reads over one local snapshot loaded through
+  `TraceBackedMemoryStore.load_json()`.
+- Add `recover`, `recover-batch`, and `recover-ready` by delegating to the
+  existing single, batch, and ready recovery APIs without duplicating state
+  classification or validation.
+- Make every recovery a dry-run by default. Require explicit `--write` before
+  reusing `save_json()` for same-path atomic replacement after full success.
+- Emit one deterministic JSON result on success and one structured JSON error
+  on failure. Define exit codes 0 through 4 for success, internal, input,
+  recovery-state, and write outcomes.
+- Reject duplicate batch decision IDs and malformed, duplicate, or unrequested
+  attribution entries before store recovery. Preserve request order and the
+  store's all-or-nothing mutation boundary.
+- Build and install wheel/sdist artifacts in CI, smoke-test both entry points,
+  and test Python 3.11, 3.12, and 3.13.
+- Persist no CLI, audit, metrics, remediation, or completion wrapper state.
+  Preserve snapshot version 2, JSON Schemas, active-lessons YAML,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

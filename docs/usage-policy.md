@@ -60,6 +60,28 @@ unless `--overwrite` is explicit, publish through a same-directory temporary
 file, map name errors to exit 2 and write errors to exit 4, and treat a closed
 stdout after a successful export as success to prevent unsafe retry.
 
+## Evidence Ingestion Integrity
+
+Treat only explicit structured failure fields as extraction evidence. The
+classifier reads `Trace.error`, then top-level `name` and `error` fields from
+`tool_calls`, followed by top-level `error` fields from `tool_outputs`. It must
+not search successful output names, arbitrary output fields, or nested result
+text for keywords: provider results may contain examples, historical errors,
+or quoted content that does not describe the current run. Trace errors retain
+precedence over tool calls, and tool-call errors retain precedence over
+tool-output errors when selecting a root cause. An output `name` may label a
+tool-failure symptom only when that output has a non-empty top-level `error`.
+
+Caller-owned failure-taxonomy and active-lessons YAML must use the repository's
+constrained shapes. Duplicate taxonomy descriptions, lesson record fields, or
+lesson scope keys are invalid; do not rely on last-key-wins replacement. The
+lessons adapter must reject a duplicate anywhere in the document before adding
+any lesson to the Store. It must also construct and validate every candidate
+against staged state before one all-or-nothing commit, so duplicate IDs or later
+semantic failures leave existing Store state unchanged. These checks add no
+persisted evidence and leave snapshot version 2, JSON Schemas, active-lessons
+YAML, and PostgreSQL schema version 1 unchanged.
+
 ## Snapshot Operations CLI
 
 Use `tbm` or the equivalent `python -m trace_backed_memory` entry point for

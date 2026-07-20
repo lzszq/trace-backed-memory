@@ -11,11 +11,12 @@ YAML adapter boundaries. Do not add dependencies or change persisted formats.
    and root cause, precedence, and non-error output isolation.
 2. Add taxonomy tests that reject a repeated description without changing the
    existing duplicate-ID behavior.
-3. Add active-lessons tests that reject duplicate record and scope keys and
-   prove the Store remains unchanged when parsing fails.
+3. Add active-lessons tests that reject duplicate record and scope keys, then
+   prove duplicate IDs and later semantic failures leave the Store unchanged.
 4. Extend extraction helpers to consume top-level structured evidence from
    tool calls followed by tool outputs while preserving classifier precedence.
-5. Add explicit duplicate checks to the two constrained YAML parsers.
+5. Add explicit duplicate checks to the two constrained YAML parsers and stage
+   every lesson candidate before an all-or-nothing Store commit.
 6. Update README, architecture, usage policy, product status, and roadmap with
    the strict evidence-ingestion contract and unchanged version boundaries.
 7. Run focused tests, the full suite, compile checks, documentation contracts,

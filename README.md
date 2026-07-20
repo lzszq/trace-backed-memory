@@ -118,6 +118,24 @@ export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
 
+## Evidence Ingestion Integrity
+
+Failure extraction treats `Trace.error`, then top-level `name`/`error` fields
+from `tool_calls`, followed by explicit top-level `error` fields from
+`tool_outputs`, as ordered structured evidence. An errored output's `name` may
+label its symptom, but a successful output name, arbitrary output fields, and
+nested result text are never searched for keywords. Ordinary tool content
+therefore cannot create a false classification or tool-failure symptom.
+
+The dependency-free failure-taxonomy and active-lessons YAML adapters reject
+duplicate supported fields instead of silently applying last-key-wins
+replacement. Duplicate lesson record or scope keys fail while the complete
+document is still being parsed. Every resulting lesson is then constructed and
+validated against staged state before one all-or-nothing Store commit, so a
+duplicate ID or later semantic failure cannot partially import earlier records.
+This hardening changes no valid YAML shape, snapshot version 2, JSON Schema, or
+PostgreSQL schema version 1.
+
 ## Snapshot Operations CLI
 
 Installing the package exposes the dependency-free `tbm` console script. The
@@ -1235,7 +1253,9 @@ Implemented pieces:
 - Safe `recover_memory_run()` orchestration that derives correlated IDs/results, requires explicit failed-run attribution, and reuses atomic completion.
 - Atomic `recover_memory_runs()` orchestration that validates and stages a unique decision tuple before committing any shared-Trace recovery.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
-- Failure extraction helpers that load the failure taxonomy, classify failed traces against it with ordered conservative heuristics, and draft failure cases.
+- Failure extraction helpers that load the failure taxonomy, classify failed
+  traces from ordered Trace, tool-call, and top-level `tool_outputs` error
+  evidence, and draft failure cases without scanning arbitrary output content.
 - Manual review helper that records reviewer, root cause, notes, and review timestamp on draft failure cases.
 - Verification loop hardening: only draft cases can be verified, and verified cases require a fix commit and passing regression evidence.
 - Obsolete transitions for failure cases and lessons.
@@ -1246,7 +1266,10 @@ Implemented pieces:
 - In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, optional opt-in Git ancestry filtering before keyword or semantic ranking, debug/repair visibility for verified regression-backed failure cases, optional keyword filtering including short domain tokens, optional bounded caller-provided semantic scores ranked score-descending with memory-ID-ascending ties, and usage decision logs; retrieval cannot bypass System Gate or LLM Gate.
 - Usage-log validation and persisted contract that require trace ID, serialized context, candidate status snapshots, and System Gate block reasons; reject empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
 - Dependency-free strict JSON snapshot save/load for trace, failure case, lesson, project policy, and usage-log records; non-object snapshots, non-finite floats, over-limit integers, and non-standard JSON numeric constants are rejected while JSON-serializable integer costs remain valid.
-- Dependency-free active lesson YAML save/load for the repository's simple `memory/lessons.example.yaml` shape, preserving numeric-looking scope strings.
+- Dependency-free active lesson YAML save/load for the repository's simple
+  `memory/lessons.example.yaml` shape, preserving numeric-looking scope strings
+  and rejecting duplicate or semantically invalid documents through
+  all-or-nothing Store mutation.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
   explicit atomic export for all 18 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.

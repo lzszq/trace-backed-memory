@@ -53,7 +53,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`python -m trace_backed_memory`",
         "`run_memory_execution()`",
         "`MemoryRunMeasurement`",
-        "Phase 0-27",
+        "Phase 0-28",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -1812,6 +1812,43 @@ def test_docs_publish_packaged_resources_and_persistence_compatibility():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
     assert "packaged_resources" not in postgres_schema
+
+
+def test_docs_publish_evidence_ingestion_integrity_and_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`tool_outputs`",
+        "top-level",
+        "duplicate",
+        "all-or-nothing",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        for contract in required_contracts:
+            assert contract.lower() in normalized.lower(), (
+                f"{name} should publish: {contract}"
+            )
+
+    assert (
+        "Phase 28: Evidence ingestion integrity (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "evidence_ingestion" not in snapshot_schema["properties"]
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert "evidence_ingestion" not in postgres_schema
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

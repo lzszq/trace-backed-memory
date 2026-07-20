@@ -121,7 +121,13 @@ The MVP includes `load_failure_taxonomy()` plus conservative extraction helpers
 that classify obvious trace failures into taxonomy IDs before drafting a case.
 When a taxonomy is supplied, classifier output must be present in that taxonomy.
 Specific context-missing and stale-context signals take precedence over generic
-tool-argument and evaluator-mismatch fallbacks.
+tool-argument and evaluator-mismatch fallbacks. Extraction considers
+`Trace.error`, then top-level `name` and `error` fields from `tool_calls`, then
+top-level `error` fields from `tool_outputs`, in stored order. An errored
+output's `name` may label its symptom, but successful output names, arbitrary
+output fields, and nested payload content are not searched. Successful tool
+data therefore cannot match a classifier keyword or produce a false
+tool-failure symptom.
 `review_failure_case()` keeps ambiguous or heuristic drafts in `draft` status
 while recording reviewer, root cause, notes, and timestamp. Only draft cases can
 become verified, and a case still needs fix and regression evidence before that
@@ -182,9 +188,16 @@ keeps confidence bounded to 0.0 through 1.0, and parses strict JSON without
 `NaN` or infinity constants.
 `save_lessons_yaml()` and `load_lessons_yaml()` provide a small dependency-free
 adapter for active lessons using the repository's `memory/lessons.example.yaml`
-shape; loading still reuses `add_lesson()` so source-case and lesson-contract
-checks remain enforced. YAML serialization quotes strings so numeric-looking
-scope values remain strings when loaded.
+shape; loading and `add_lesson()` share the same side-effect-free candidate
+validator, so source-case and lesson-contract checks remain enforced. YAML
+serialization quotes strings so numeric-looking scope values remain strings
+when loaded. The constrained taxonomy parser
+rejects duplicate IDs or descriptions, and the lessons parser rejects duplicate
+record or scope fields. A complete lesson document is parsed and every candidate
+is constructed and validated against staged state before an all-or-nothing
+Store commit. Duplicate IDs, invalid provenance, and later record failures
+cannot partially import preceding lessons. Snapshot version 2, JSON Schemas,
+the active-lessons YAML shape, and PostgreSQL schema version 1 remain unchanged.
 
 ## Packaged Distribution Resources
 

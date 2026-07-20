@@ -8480,6 +8480,125 @@ def test_store_loads_lessons_example_yaml_with_provenance_checks():
     assert store.lessons["lesson_001"].scope["tool"] == "search_docs"
 
 
+@pytest.mark.parametrize(
+    ("invalid_record", "message"),
+    [
+        (
+            (
+                '  - lesson_id: "lesson_duplicate"\n'
+                '    lesson_id: "lesson_replacement"\n'
+            ),
+            "duplicate lesson field: lesson_id",
+        ),
+        (
+            (
+                '  - lesson_id: "lesson_duplicate"\n'
+                "    scope:\n"
+                '      tool: "search_docs"\n'
+                '      tool: "replacement_tool"\n'
+            ),
+            "duplicate lesson scope field: tool",
+        ),
+    ],
+)
+def test_lessons_yaml_rejects_duplicate_keys_before_store_mutation(
+    tmp_path,
+    invalid_record,
+    message,
+):
+    store, _trace, case = store_with_verified_case()
+    path = tmp_path / "duplicate-key-lessons.yaml"
+    path.write_text(
+        (
+            "lessons:\n"
+            '  - lesson_id: "lesson_valid"\n'
+            f'    source_case_id: "{case.case_id}"\n'
+            '    memory_type: "procedural"\n'
+            '    status: "active"\n'
+            "    confidence: 1.0\n"
+            "    sensitive: false\n"
+            "    eval_leaking: false\n"
+            "    scope:\n"
+            '      repo: "repo"\n'
+            '      tenant: "tenant_a"\n'
+            '      tool: "search_docs"\n'
+            "    lesson_text: >\n"
+            "      Valid lesson text.\n"
+            f"{invalid_record}"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        store.load_lessons_yaml(path)
+
+    assert store.lessons == {}
+
+
+@pytest.mark.parametrize(
+    ("second_id", "second_repo", "message"),
+    [
+        (
+            "lesson_valid",
+            "repo",
+            "duplicate lesson_id: lesson_valid",
+        ),
+        (
+            "lesson_invalid_scope",
+            "other_repo",
+            "lesson scope must preserve source repo: repo",
+        ),
+        (
+            "lesson_incomplete",
+            None,
+            "invalid lesson record",
+        ),
+    ],
+)
+def test_lessons_yaml_semantic_failure_is_atomic(
+    tmp_path,
+    second_id,
+    second_repo,
+    message,
+):
+    store, _trace, case = store_with_verified_case()
+
+    def record(lesson_id, repo):
+        return (
+            f'  - lesson_id: "{lesson_id}"\n'
+            f'    source_case_id: "{case.case_id}"\n'
+            '    memory_type: "procedural"\n'
+            '    status: "active"\n'
+            "    confidence: 1.0\n"
+            "    sensitive: false\n"
+            "    eval_leaking: false\n"
+            "    scope:\n"
+            f'      repo: "{repo}"\n'
+            '      tenant: "tenant_a"\n'
+            '      tool: "search_docs"\n'
+            "    lesson_text: >\n"
+            f"      Lesson text for {lesson_id}.\n"
+        )
+
+    path = tmp_path / "atomic-lessons.yaml"
+    second_record = (
+        f'  - lesson_id: "{second_id}"\n'
+        if second_repo is None
+        else record(second_id, second_repo)
+    )
+    path.write_text(
+        "lessons:\n"
+        + record("lesson_valid", "repo")
+        + second_record,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        store.load_lessons_yaml(path)
+
+    assert store.lessons == {}
+
+
 def test_store_json_snapshot_rejects_lessons_without_stored_source_cases(tmp_path):
     snapshot_path = tmp_path / "bad-memory-store.json"
     snapshot_path.write_text(

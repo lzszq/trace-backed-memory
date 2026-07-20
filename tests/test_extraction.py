@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 import trace_backed_memory as tbm
 from trace_backed_memory import Trace, classify_failure_type, draft_failure_case_from_trace
 
@@ -20,6 +22,45 @@ def test_classifies_invalid_tool_argument_from_tool_call_error():
     )
 
     assert classify_failure_type(trace) == "invalid_tool_argument"
+
+
+def test_classifies_invalid_tool_argument_from_tool_output_error():
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="fail",
+        tool_outputs=[
+            {
+                "name": "search_docs",
+                "error": "Invalid argument: query is required",
+            }
+        ],
+    )
+
+    assert classify_failure_type(trace) == "invalid_tool_argument"
+
+
+def test_non_error_tool_output_content_does_not_influence_classification():
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="fail",
+        tool_outputs=[
+            {
+                "name": "stale_result_reader",
+                "result": {
+                    "example": "Invalid argument: query is required",
+                },
+            }
+        ],
+    )
+
+    assert classify_failure_type(trace) == "evaluator_mismatch"
+    case = draft_failure_case_from_trace(trace, case_id="case_001")
+    assert case.symptom == "evaluator_mismatch: trace trace_001 failed"
+    assert case.root_cause is None
 
 
 def test_classifies_missing_required_context_from_empty_retrieval():
@@ -43,6 +84,24 @@ def test_missing_required_context_takes_precedence_over_required_tool_call_text(
         eval_result="fail",
         tool_calls=[{"name": "search_docs", "arguments": {"query": "billing policy"}}],
         error="Required context is missing before answering.",
+    )
+
+    assert classify_failure_type(trace) == "missing_required_context"
+
+
+def test_trace_error_precedence_is_preserved_for_tool_output_errors():
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="fail",
+        error="Required context is missing before answering.",
+        tool_outputs=[
+            {
+                "name": "search_docs",
+                "error": "Invalid argument: query is required",
+            }
+        ],
     )
 
     assert classify_failure_type(trace) == "missing_required_context"
@@ -125,6 +184,53 @@ def test_drafts_failure_case_from_failed_trace():
     assert "Invalid argument" in case.root_cause
 
 
+def test_drafts_failure_case_from_tool_output_evidence():
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="fail",
+        tool_outputs=[
+            {
+                "name": "search_docs",
+                "error": "Invalid argument: query is required",
+            }
+        ],
+    )
+
+    case = draft_failure_case_from_trace(trace, case_id="case_001")
+
+    assert case.failure_type == "invalid_tool_argument"
+    assert case.symptom == "invalid_tool_argument: tool call failed for search_docs"
+    assert case.root_cause == "Invalid argument: query is required"
+
+
+def test_tool_call_evidence_precedes_tool_output_evidence_in_drafts():
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="fail",
+        tool_calls=[
+            {
+                "name": "search_docs",
+                "error": "Invalid argument from tool call",
+            }
+        ],
+        tool_outputs=[
+            {
+                "name": "fallback_search",
+                "error": "Invalid argument from tool output",
+            }
+        ],
+    )
+
+    case = draft_failure_case_from_trace(trace, case_id="case_001")
+
+    assert case.symptom == "invalid_tool_argument: tool call failed for search_docs"
+    assert case.root_cause == "Invalid argument from tool call"
+
+
 def test_draft_from_passing_trace_is_rejected():
     trace = Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="pass")
 
@@ -149,6 +255,25 @@ def test_loads_the_same_failure_taxonomy_from_installed_resources_by_default():
     path = Path(__file__).resolve().parents[1] / "memory" / "failure_taxonomy.yaml"
 
     assert tbm.load_failure_taxonomy() == tbm.load_failure_taxonomy(path)
+
+
+def test_failure_taxonomy_rejects_duplicate_descriptions(tmp_path):
+    path = tmp_path / "duplicate-description.yaml"
+    path.write_text(
+        (
+            "failure_types:\n"
+            "  - id: invalid_tool_argument\n"
+            "    description: first description\n"
+            "    description: replacement description\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="duplicate failure taxonomy description: invalid_tool_argument",
+    ):
+        tbm.load_failure_taxonomy(path)
 
 
 def test_classifier_can_require_taxonomy_membership():

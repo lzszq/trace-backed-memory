@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 from .lifecycle import draft_failure_case
@@ -72,28 +72,41 @@ def _trace_text(trace: Trace) -> str:
     parts: list[str] = []
     if trace.error:
         parts.append(trace.error)
-    for call in trace.tool_calls:
+    for record in trace.tool_calls:
         for key in ("name", "error"):
-            value = call.get(key)
+            value = record.get(key)
             if value is not None:
                 parts.append(str(value))
+    for record in trace.tool_outputs:
+        value = record.get("error")
+        if value is not None:
+            parts.append(str(value))
     return " ".join(parts)
 
 
 def _tool_error_text(trace: Trace) -> str:
     parts: list[str] = []
-    for call in trace.tool_calls:
-        value = call.get("error")
+    for record in _tool_records(trace):
+        value = record.get("error")
         if value is not None:
             parts.append(str(value))
     return " ".join(parts)
 
 
 def _symptom(trace: Trace, failure_type: str) -> str:
-    if trace.tool_calls:
-        tool_names = [str(call.get("name")) for call in trace.tool_calls if call.get("name")]
-        if tool_names:
-            return f"{failure_type}: tool call failed for {', '.join(tool_names)}"
+    tool_names = [
+        str(record["name"])
+        for record in trace.tool_calls
+        if record.get("name")
+    ]
+    if not tool_names:
+        tool_names = [
+            str(record["name"])
+            for record in trace.tool_outputs
+            if record.get("name") and record.get("error")
+        ]
+    if tool_names:
+        return f"{failure_type}: tool call failed for {', '.join(tool_names)}"
     if trace.error:
         return f"{failure_type}: {trace.error}"
     return f"{failure_type}: trace {trace.trace_id} failed"
@@ -102,10 +115,15 @@ def _symptom(trace: Trace, failure_type: str) -> str:
 def _root_cause(trace: Trace) -> str | None:
     if trace.error:
         return trace.error
-    for call in trace.tool_calls:
-        if call.get("error"):
-            return str(call["error"])
+    for record in _tool_records(trace):
+        if record.get("error"):
+            return str(record["error"])
     return None
+
+
+def _tool_records(trace: Trace) -> Iterator[dict[str, object]]:
+    yield from trace.tool_calls
+    yield from trace.tool_outputs
 
 
 def _taxonomy_checked(failure_type: str, taxonomy: Mapping[str, str] | None) -> str:
@@ -125,6 +143,7 @@ def _failure_taxonomy_from_yaml(text: str) -> FailureTaxonomy:
 
     taxonomy: FailureTaxonomy = {}
     current_id: str | None = None
+    described_ids: set[str] = set()
     for raw_line in lines[1:]:
         stripped = raw_line.strip()
         if stripped.startswith("- "):
@@ -144,9 +163,14 @@ def _failure_taxonomy_from_yaml(text: str) -> FailureTaxonomy:
         key, value = _yaml_key_value(stripped)
         if key != "description":
             raise ValueError(f"unsupported failure taxonomy field: {key}")
+        if current_id in described_ids:
+            raise ValueError(
+                f"duplicate failure taxonomy description: {current_id}"
+            )
         if not value:
             raise ValueError(f"failure taxonomy description must be non-empty: {current_id}")
         taxonomy[current_id] = value
+        described_ids.add(current_id)
 
     missing_description = [failure_type for failure_type, description in taxonomy.items() if not description]
     if missing_description:

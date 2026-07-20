@@ -7,7 +7,7 @@ Status: accepted for Phase 28 implementation
 Two dependency-free ingestion paths currently lose evidence integrity:
 
 1. Failure extraction inspects `Trace.error` and top-level `name`/`error`
-   fields in `Trace.tool_calls`, but ignores the same structured fields in
+   fields in `Trace.tool_calls`, but ignores explicit top-level errors in
    `Trace.tool_outputs`. A tool-output-only failure therefore falls through to
    a generic evaluator mismatch and loses its useful root cause.
 2. The active-lessons YAML adapter assigns parsed fields directly into Python
@@ -38,8 +38,9 @@ be ignored, while edited evidence may be silently rewritten during parsing.
 
 ### Minimal structured evidence integration
 
-Read top-level `name` and `error` fields from tool calls followed by tool
-outputs. Add local duplicate checks to the two existing parsers.
+Read top-level `name` and `error` fields from tool calls, followed by explicit
+top-level `error` fields from tool outputs. Add local duplicate checks to the
+two existing parsers.
 
 This is the selected design. It fixes the reproduced failures without treating
 ordinary output content as error evidence or expanding the supported formats.
@@ -67,9 +68,11 @@ Failure extraction uses evidence in this order:
 2. each `Trace.tool_calls` item in stored order;
 3. each `Trace.tool_outputs` item in stored order.
 
-Only non-null top-level `name` and `error` values from tool records contribute
-to classification text. Only top-level `error` values contribute to the
-tool-error-specific text. Values keep the existing defensive string conversion
+Non-null top-level `name` and `error` values from tool calls contribute to
+classification text, preserving existing behavior. From tool outputs, only a
+non-null top-level `error` contributes. Output names may label a symptom when
+that same output has a non-empty error, but a successful output name cannot
+change classification. Values keep the existing defensive string conversion
 behavior.
 
 Classifier keyword precedence does not change. In particular, missing context
@@ -77,10 +80,11 @@ continues to outrank an invalid argument, and a failed trace without recognized
 evidence continues to fall back to `evaluator_mismatch`.
 
 Symptoms continue to prefer named tool calls. When no tool call has a name,
-named tool outputs provide the same deterministic `tool call failed for ...`
-summary. Root cause continues to prefer `Trace.error`, then the first tool-call
-error, and now the first tool-output error. Arbitrary output fields and nested
-payload text never affect classification.
+only a named tool output with a non-empty top-level `error` provides the same
+deterministic `tool call failed for ...` summary. A successful named output must
+not be described as failed. Root cause continues to prefer `Trace.error`, then
+the first tool-call error, and now the first tool-output error. Arbitrary output
+fields and nested payload text never affect classification.
 
 ## Strict YAML Contract
 
@@ -90,8 +94,11 @@ ID raises `ValueError`; no value is silently replaced.
 
 Each lessons YAML record may define a top-level field once. Its `scope` mapping
 may define each key once. Exact repeated keys raise `ValueError` with the key in
-the message. The complete YAML document is parsed before `add_lesson()` is
-called, so a duplicate in any record leaves the Store unchanged.
+the message. The complete YAML document is parsed, every `Lesson` is
+constructed, and all candidates are validated against a staged lesson catalog
+before any record is committed. Duplicate keys, duplicate lesson IDs,
+constructor failures, and provenance or lesson-contract failures are therefore
+all-or-nothing and leave the Store unchanged.
 
 The accepted YAML shape, scalar conversion, block text handling, provenance
 checks, and active-only export remain unchanged.
@@ -113,6 +120,7 @@ Tests must cover:
 - arbitrary non-error output text not influencing classification;
 - duplicate taxonomy descriptions;
 - duplicate lesson record and scope keys, including no Store mutation;
+- duplicate lesson IDs and later semantic failures with all-or-nothing import;
 - canonical taxonomy and active-lessons round trips;
 - unchanged snapshot version 2, JSON Schemas, packaged resources, and
   PostgreSQL schema version 1.

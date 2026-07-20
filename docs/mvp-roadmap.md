@@ -462,3 +462,22 @@ Track:
 - Persist no resource catalog or export record. Preserve canonical top-level
   authoring files, snapshot version 2, JSON Schemas, active-lessons YAML,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 28: Evidence ingestion integrity (implemented)
+
+- Extend conservative failure extraction to explicit top-level `error`
+  evidence from `tool_outputs` after existing Trace and tool-call evidence.
+- Preserve classifier precedence, symptom preference, and root-cause ordering.
+  Never classify from successful output names, arbitrary output fields, or
+  nested result text.
+- Reject duplicate failure-taxonomy descriptions instead of replacing the
+  first description for an ID. Preserve existing duplicate-ID rejection.
+- Reject duplicate active-lesson record fields and duplicate scope keys while
+  parsing the complete document, before any Store mutation.
+- Construct and validate every imported lesson against staged state before one
+  all-or-nothing commit; duplicate IDs or later semantic failures import none.
+- Keep both dependency-free constrained YAML shapes, scalar behavior,
+  provenance validation, and valid-input results unchanged.
+- Persist no parser or extraction state. Preserve snapshot version 2, JSON
+  Schemas, active-lessons YAML, `schemas/postgres.sql`, packaged resource bytes,
+  and PostgreSQL schema version 1.

@@ -271,10 +271,25 @@ class TraceBackedMemoryStore:
             )
         except (AttributeError, OverflowError, TypeError) as exc:
             raise ValueError(f"invalid lessons YAML: {exc}") from exc
-        return [
-            self.add_lesson(_snapshot_record_instance(Lesson, record, "lesson"))
+        lessons = [
+            _snapshot_record_instance(Lesson, record, "lesson")
             for record in lesson_records
         ]
+        staged_lessons = dict(self._lessons)
+        stored_lessons: list[Lesson] = []
+        for lesson in lessons:
+            stored_lesson = self._validated_lesson_candidate(
+                lesson,
+                staged_lessons,
+            )
+            staged_lessons[stored_lesson.lesson_id] = stored_lesson
+            stored_lessons.append(stored_lesson)
+
+        returned_lessons = deepcopy(stored_lessons)
+        self._lessons.update(
+            {lesson.lesson_id: lesson for lesson in stored_lessons}
+        )
+        return returned_lessons
 
     @_synchronized
     def record_trace(self, trace: Trace) -> Trace:
@@ -728,10 +743,22 @@ class TraceBackedMemoryStore:
 
     @_synchronized
     def add_lesson(self, lesson: Lesson) -> Lesson:
+        stored_lesson = self._validated_lesson_candidate(
+            lesson,
+            self._lessons,
+        )
+        self._lessons[stored_lesson.lesson_id] = stored_lesson
+        return deepcopy(stored_lesson)
+
+    def _validated_lesson_candidate(
+        self,
+        lesson: Lesson,
+        existing_lessons: Mapping[str, Lesson],
+    ) -> Lesson:
         _require_exact_record(lesson, Lesson, "lesson")
         stored_lesson = deepcopy(lesson)
         _validate_lesson_record(stored_lesson)
-        if stored_lesson.lesson_id in self._lessons:
+        if stored_lesson.lesson_id in existing_lessons:
             raise ValueError(f"duplicate lesson_id: {stored_lesson.lesson_id}")
         if (
             stored_lesson.lesson_id in self._failure_cases
@@ -765,8 +792,7 @@ class TraceBackedMemoryStore:
                 raise ValueError(
                     f"lesson scope must preserve source {field_name}: {source_value}"
                 )
-        self._lessons[stored_lesson.lesson_id] = stored_lesson
-        return deepcopy(stored_lesson)
+        return stored_lesson
 
     @_synchronized
     def obsolete_lesson(self, lesson_id: str) -> Lesson:
@@ -2746,6 +2772,8 @@ def _lessons_from_yaml(text: str) -> list[dict[str, Any]]:
         if indent == 4:
             finish_block()
             key, value = _yaml_key_value(stripped)
+            if key in current:
+                raise ValueError(f"duplicate lesson field: {key}")
             if key == "scope" and value == "":
                 current["scope"] = {}
                 continue
@@ -2758,7 +2786,12 @@ def _lessons_from_yaml(text: str) -> list[dict[str, Any]]:
 
         if indent == 6 and "scope" in current:
             key, value = _yaml_key_value(stripped)
-            current["scope"][key] = _parse_yaml_scalar(value)
+            scope = current["scope"]
+            if type(scope) is not dict:
+                raise TypeError("lesson scope must be a mapping")
+            if key in scope:
+                raise ValueError(f"duplicate lesson scope field: {key}")
+            scope[key] = _parse_yaml_scalar(value)
             continue
 
         raise ValueError(f"unsupported lessons YAML line: {raw_line}")

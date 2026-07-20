@@ -4760,6 +4760,41 @@ def test_save_json_uses_sibling_replace(monkeypatch, tmp_path):
     assert calls[0][0].parent == target.parent
 
 
+def test_save_json_syncs_temporary_file_before_replace(monkeypatch, tmp_path):
+    events = []
+    real_fsync = os.fsync
+    real_replace = os.replace
+
+    def recording_fsync(file_descriptor):
+        events.append("fsync")
+        real_fsync(file_descriptor)
+
+    def recording_replace(source, target):
+        events.append("replace")
+        real_replace(source, target)
+
+    monkeypatch.setattr(os, "fsync", recording_fsync)
+    monkeypatch.setattr(os, "replace", recording_replace)
+
+    TraceBackedMemoryStore().save_json(tmp_path / "snapshot.json")
+
+    assert events == ["fsync", "replace"]
+
+
+def test_store_text_persistence_uses_canonical_lf_bytes(tmp_path):
+    snapshot_path = tmp_path / "snapshot.json"
+    lessons_path = tmp_path / "lessons.yaml"
+    store = TraceBackedMemoryStore()
+
+    store.save_json(snapshot_path)
+    store.save_lessons_yaml(lessons_path)
+
+    assert b"\r\n" not in snapshot_path.read_bytes()
+    assert b"\r\n" not in lessons_path.read_bytes()
+    assert snapshot_path.read_bytes().endswith(b"\n")
+    assert lessons_path.read_bytes() == b"lessons: []\n"
+
+
 def test_save_json_cleans_temporary_sibling_when_replace_fails(monkeypatch, tmp_path):
     target = tmp_path / "snapshot.json"
     target.write_text("existing snapshot\n", encoding="utf-8")
@@ -8429,6 +8464,147 @@ def test_store_saves_and_loads_active_lessons_yaml(tmp_path):
 
     assert loaded_lessons == [active_lesson]
     assert loaded.lessons == {"lesson_active": active_lesson}
+
+
+def test_save_lessons_yaml_syncs_and_replaces_with_a_sibling(
+    monkeypatch,
+    tmp_path,
+):
+    store, _trace, _case, _lesson = store_with_active_lesson()
+    target = tmp_path / "lessons.yaml"
+    events = []
+    replacements = []
+    real_fsync = os.fsync
+    real_replace = os.replace
+
+    def recording_fsync(file_descriptor):
+        events.append("fsync")
+        real_fsync(file_descriptor)
+
+    def recording_replace(source, destination):
+        events.append("replace")
+        replacements.append((Path(source), Path(destination)))
+        real_replace(source, destination)
+
+    monkeypatch.setattr(os, "fsync", recording_fsync)
+    monkeypatch.setattr(os, "replace", recording_replace)
+
+    store.save_lessons_yaml(target)
+
+    assert events == ["fsync", "replace"]
+    assert replacements[0][0].parent == target.parent
+    assert replacements[0][1] == target
+    assert list(tmp_path.glob(".lessons.yaml.*.tmp")) == []
+
+
+@pytest.mark.parametrize("failure_point", ["serialize", "fsync", "replace"])
+def test_save_lessons_yaml_failure_preserves_existing_file_and_cleans_temp(
+    monkeypatch,
+    tmp_path,
+    failure_point,
+):
+    store, _trace, _case, _lesson = store_with_active_lesson()
+    target = tmp_path / "lessons.yaml"
+    original = b"caller-owned lessons\n"
+    target.write_bytes(original)
+
+    if failure_point == "serialize":
+        def fail_serialize(_lessons):
+            raise ValueError("injected lesson serialize failure")
+
+        monkeypatch.setattr(store_module, "_lessons_to_yaml", fail_serialize)
+    elif failure_point == "fsync":
+        def fail_fsync(_file_descriptor):
+            raise OSError("injected lesson fsync failure")
+
+        monkeypatch.setattr(os, "fsync", fail_fsync)
+    else:
+        def fail_replace(_source, _destination):
+            raise OSError("injected lesson replace failure")
+
+        monkeypatch.setattr(os, "replace", fail_replace)
+
+    expected_error = ValueError if failure_point == "serialize" else OSError
+    with pytest.raises(
+        expected_error,
+        match=f"injected lesson {failure_point} failure",
+    ):
+        store.save_lessons_yaml(target)
+
+    assert target.read_bytes() == original
+    assert list(tmp_path.glob(".lessons.yaml.*.tmp")) == []
+
+
+def test_store_lessons_yaml_preserves_exact_lf_delimited_lesson_text(tmp_path):
+    store, trace, case = store_with_verified_case()
+    lesson_text = "\nFirst paragraph.  \n\n  Indented second paragraph.\n"
+    lesson = store.add_lesson(
+        lesson_from_failure_case(
+            case,
+            lesson_id="lesson_multiline",
+            lesson_text=lesson_text,
+            memory_type="procedural",
+            scope={"repo": "repo", "tenant": "tenant_a"},
+        )
+    )
+    path = tmp_path / "multiline-lessons.yaml"
+
+    store.save_lessons_yaml(path)
+
+    serialized = path.read_text(encoding="utf-8")
+    assert "    lesson_text: |\n" in serialized
+    assert "      First paragraph.  \n      \n" in serialized
+
+    restored = TraceBackedMemoryStore()
+    restored.record_trace(trace)
+    restored.add_failure_case(case)
+    loaded = restored.load_lessons_yaml(path)
+
+    assert loaded == [lesson]
+    assert loaded[0].lesson_text == lesson_text
+
+
+def test_store_lessons_yaml_preserves_literal_lines_in_legacy_block(
+    tmp_path,
+):
+    store, _trace, case = store_with_verified_case()
+    path = tmp_path / "legacy-folded-lessons.yaml"
+    path.write_text(
+        (
+            "lessons:\n"
+            '  - lesson_id: "lesson_legacy_block"\n'
+            f'    source_case_id: "{case.case_id}"\n'
+            '    memory_type: "procedural"\n'
+            '    status: "active"\n'
+            "    confidence: 1.0\n"
+            "    sensitive: false\n"
+            "    eval_leaking: false\n"
+            "    scope:\n"
+            '      repo: "repo"\n'
+            '      tenant: "tenant_a"\n'
+            "    lesson_text: >\n"
+            "      First paragraph.\n"
+            "      Still the first paragraph.\n"
+            "      \n"
+            "      Second paragraph.\n"
+        ),
+        encoding="utf-8",
+    )
+
+    (loaded,) = store.load_lessons_yaml(path)
+
+    assert loaded.lesson_text == (
+        "First paragraph.\nStill the first paragraph.\n\nSecond paragraph."
+    )
+
+
+def test_store_saves_empty_lessons_yaml_atomically(tmp_path):
+    path = tmp_path / "empty-lessons.yaml"
+
+    TraceBackedMemoryStore().save_lessons_yaml(path)
+
+    assert path.read_bytes() == b"lessons: []\n"
+    assert list(tmp_path.glob(".empty-lessons.yaml.*.tmp")) == []
 
 
 def test_store_lessons_yaml_preserves_numeric_looking_strings(tmp_path):

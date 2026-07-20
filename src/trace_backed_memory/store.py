@@ -7,6 +7,7 @@ import re
 import tempfile
 from collections import Counter
 from collections.abc import Iterable, Mapping
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
@@ -14,7 +15,7 @@ from functools import wraps
 from pathlib import Path
 from threading import RLock
 from types import MappingProxyType
-from typing import Any, cast
+from typing import Any, Iterator, TextIO, cast
 
 from .lifecycle import (
     memory_item_from_failure_case,
@@ -219,34 +220,15 @@ class TraceBackedMemoryStore:
     @_synchronized
     def save_json(self, path: str | Path) -> None:
         target = Path(path)
-        temp_path: Path | None = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                delete=False,
-                dir=target.parent,
-                prefix=f".{target.name}.",
-                suffix=".tmp",
-            ) as temporary_file:
-                temp_path = Path(temporary_file.name)
-                json.dump(
-                    self.to_snapshot(),
-                    temporary_file,
-                    indent=2,
-                    sort_keys=True,
-                    allow_nan=False,
-                )
-                temporary_file.write("\n")
-                temporary_file.flush()
-            os.replace(temp_path, target)
-        except BaseException:
-            if temp_path is not None:
-                try:
-                    temp_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
-            raise
+        with _atomic_utf8_writer(target) as temporary_file:
+            json.dump(
+                self.to_snapshot(),
+                temporary_file,
+                indent=2,
+                sort_keys=True,
+                allow_nan=False,
+            )
+            temporary_file.write("\n")
 
     @classmethod
     def load_json(cls, path: str | Path) -> "TraceBackedMemoryStore":
@@ -260,8 +242,14 @@ class TraceBackedMemoryStore:
 
     @_synchronized
     def save_lessons_yaml(self, path: str | Path) -> None:
-        active_lessons = [lesson for lesson in self._lessons.values() if lesson.status == "active"]
-        Path(path).write_text(_lessons_to_yaml(active_lessons), encoding="utf-8")
+        active_lessons = [
+            lesson
+            for lesson in self._lessons.values()
+            if lesson.status == "active"
+        ]
+        target = Path(path)
+        with _atomic_utf8_writer(target) as temporary_file:
+            temporary_file.write(_lessons_to_yaml(active_lessons))
 
     @_synchronized
     def load_lessons_yaml(self, path: str | Path) -> list[Lesson]:
@@ -2696,6 +2684,33 @@ def _utc_timestamp() -> str:
     )
 
 
+@contextmanager
+def _atomic_utf8_writer(target: Path) -> Iterator[TextIO]:
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            delete=False,
+            dir=target.parent,
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+        ) as temporary_file:
+            temporary_path = Path(temporary_file.name)
+            yield temporary_file
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+        os.replace(temporary_path, target)
+    except BaseException:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise
+
+
 def _lessons_to_yaml(lessons: list[Lesson]) -> str:
     if not lessons:
         return "lessons: []\n"
@@ -2716,14 +2731,16 @@ def _lessons_to_yaml(lessons: list[Lesson]) -> str:
         )
         for key, value in lesson.scope.items():
             lines.append(f"      {key}: {_yaml_scalar(value)}")
-        lines.append("    lesson_text: >")
-        for text_line in lesson.lesson_text.splitlines() or [""]:
+        lines.append("    lesson_text: |")
+        for text_line in lesson.lesson_text.split("\n"):
             lines.append(f"      {text_line}")
     return "\n".join(lines) + "\n"
 
 
 def _lessons_from_yaml(text: str) -> list[dict[str, Any]]:
-    lines = [line.rstrip() for line in text.splitlines() if line.strip()]
+    lines = text.splitlines()
+    while lines and not lines[0].strip():
+        lines.pop(0)
     if not lines:
         raise ValueError("lessons YAML must not be empty")
     if lines[0] == "lessons: []":
@@ -2739,7 +2756,7 @@ def _lessons_from_yaml(text: str) -> list[dict[str, Any]]:
     def finish_block() -> None:
         nonlocal block_key, block_lines
         if current is not None and block_key is not None:
-            current[block_key] = "\n".join(block_lines).strip()
+            current[block_key] = "\n".join(block_lines)
         block_key = None
         block_lines = []
 
@@ -2751,6 +2768,21 @@ def _lessons_from_yaml(text: str) -> list[dict[str, Any]]:
     for raw_line in lines[1:]:
         stripped = raw_line.strip()
         indent = len(raw_line) - len(raw_line.lstrip(" "))
+
+        if block_key is not None and not stripped:
+            block_lines.append(
+                raw_line[6:] if raw_line.startswith("      ") else ""
+            )
+            continue
+
+        if block_key is not None and indent >= 6:
+            block_lines.append(
+                raw_line[6:] if raw_line.startswith("      ") else stripped
+            )
+            continue
+
+        if not stripped:
+            continue
 
         if stripped.startswith("- "):
             finish_lesson()
@@ -2764,10 +2796,6 @@ def _lessons_from_yaml(text: str) -> list[dict[str, Any]]:
 
         if current is None:
             raise ValueError("lesson record must start with '-'")
-
-        if block_key is not None and indent >= 6:
-            block_lines.append(raw_line[6:] if raw_line.startswith("      ") else stripped)
-            continue
 
         if indent == 4:
             finish_block()

@@ -82,6 +82,16 @@ semantic failures leave existing Store state unchanged. These checks add no
 persisted evidence and leave snapshot version 2, JSON Schemas, active-lessons
 YAML, and PostgreSQL schema version 1 unchanged.
 
+Persist local snapshots and active lessons only through `save_json()` and
+`save_lessons_yaml()`. Both write canonical LF text to a sibling temporary file,
+flush it, call `os.fsync()`, and publish with `os.replace()`; a failed
+serialization, sync, or replacement must preserve the old destination and
+remove the temporary file. New lesson exports use `lesson_text: |`. Imports may
+accept legacy `>` blocks, but must preserve blank lines, leading and trailing LF
+characters, intra-line spaces, and the adapter's historical literal line breaks
+exactly; do not assume general YAML folding or chomping. These rules do not change snapshot
+version 2, JSON Schemas, or PostgreSQL schema version 1.
+
 ## Snapshot Operations CLI
 
 Use `tbm` or the equivalent `python -m trace_backed_memory` entry point for

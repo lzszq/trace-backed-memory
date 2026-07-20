@@ -501,3 +501,21 @@ Track:
 - Persist no measured completion command or wrapper. Preserve snapshot version
   2, JSON Schemas, active-lessons YAML, `schemas/postgres.sql`, and PostgreSQL
   schema version 1.
+
+## Phase 30: Lesson YAML persistence integrity (implemented)
+
+- Route `save_json()` and `save_lessons_yaml()` through one sibling temporary
+  file boundary with canonical LF output, flush, `os.fsync()`, close, and
+  `os.replace()` publication.
+- Preserve the existing destination and remove the temporary file when
+  serialization, sync, or replacement fails.
+- Emit active lesson text as canonical `lesson_text: |` blocks while accepting
+  both `|` and the legacy `>` form on input; retain the constrained adapter's
+  historical literal-line behavior rather than claiming YAML folding/chomping.
+- Preserve blank lines, leading and trailing LF characters, and intra-line
+  spaces across lesson YAML save/load round trips.
+- Keep the constrained dependency-free parser and its duplicate-field,
+  staged-validation, and all-or-nothing import guarantees.
+- Add no record or column. Preserve snapshot version 2, JSON Schemas,
+  active-lessons YAML semantics, `schemas/postgres.sql`, packaged resource
+  bytes, and PostgreSQL schema version 1.

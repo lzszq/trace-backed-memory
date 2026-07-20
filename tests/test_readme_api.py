@@ -852,3 +852,23 @@ def test_readme_publishes_callback_memory_run_execution_contract():
     assert "    |-- test_execution.py" in readme
     assert "    |-- test_postgres_repository.py" in readme
     assert "|   |-- memory_usage_log.example.json" in readme
+
+
+def test_readme_publishes_atomic_lesson_yaml_persistence_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for contract in [
+        "`save_lessons_yaml()`",
+        "sibling temporary file",
+        "`os.fsync()`",
+        "`os.replace()`",
+        "`lesson_text: |`",
+        "blank lines",
+        "canonical LF",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]:
+        assert contract in normalized

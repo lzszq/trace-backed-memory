@@ -67,7 +67,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类，受限 YAML 以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
 | PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配 |
-| 持久化 | 原子 JSON snapshot、active lesson YAML、可选同步 PostgreSQL Repository |
+| 持久化 | 同目录临时文件、落盘同步和原子替换的 JSON snapshot / active lesson YAML；lesson 多段文本保真；可选同步 PostgreSQL Repository |
 
 ## 5. 关键产品流程
 
@@ -124,7 +124,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - 核心包无第三方运行时依赖。
 - 适合嵌入现有 Python harness、eval runner 或 CI 工具。
 - JSON snapshot version 2 用于完整 store 的本地持久化。
-- YAML adapter 用于导入/导出 active lessons。
+- YAML adapter 用于导入/导出 active lessons；新导出使用 literal block，并保留空行、首尾换行与行内空格。
 - 安装后提供 `tbm` console script；`python -m trace_backed_memory` 提供等价入口。
 - CLI 通过现有 snapshot validation、audit、metrics、remediation、completion 和 recovery API 工作，不复制领域规则；`complete` 不推断 outcome、关联 ID、归因或证据。
 - `tbm resource list/read/export` 和 Python resource interface 在不依赖 checkout 路径的情况下提供严格 allowlist 的规范资源；包通过 `py.typed` 声明类型信息。
@@ -139,11 +139,11 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-29，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
+当前版本已完成路线图 Phase 0-30，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry；
-- snapshot/YAML round trip 与恶意 JSON 边界；
+- snapshot/YAML 原子写入、失败清理、多段文本 round trip 与恶意 JSON 边界；
 - tool-output-only 失败提取、错误证据优先级，以及 taxonomy/lesson/scope duplicate 或语义错误 YAML 的 all-or-nothing 导入；
 - CLI structured JSON/exit-code contract、deterministic ordering、fresh measured completion、file-backed tool evidence、dry-run isolation、原子写入、batch all-or-nothing 与 module/console-script smoke；
 - wheel/sdist 资源清单、逐字节 parity、隔离安装、默认 taxonomy、`py.typed` 与 PostgreSQL Schema 导出；

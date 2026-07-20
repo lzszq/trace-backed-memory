@@ -136,6 +136,18 @@ duplicate ID or later semantic failure cannot partially import earlier records.
 This hardening changes no valid YAML shape, snapshot version 2, JSON Schema, or
 PostgreSQL schema version 1.
 
+`save_json()` and `save_lessons_yaml()` publish through a sibling temporary file:
+they write canonical LF text, flush it, call `os.fsync()`, and then call
+`os.replace()`. A serialization, sync, or replacement failure preserves the
+previous destination and cleans up the temporary file. Lesson exports use the
+canonical `lesson_text: |` block form; imports accept both `|` and the legacy
+`>` form while preserving blank lines, leading and trailing LF characters, and
+intra-line spaces. This constrained adapter preserves its historical
+literal-line behavior for `>`; it does not implement general YAML folding or
+chomping. These durability and text-fidelity guarantees add no stored
+fields: snapshot version 2, JSON Schemas, and PostgreSQL schema version 1 remain
+unchanged.
+
 ## Snapshot Operations CLI
 
 Installing the package exposes the dependency-free `tbm` console script. The
@@ -1284,7 +1296,9 @@ Implemented pieces:
 - Dependency-free active lesson YAML save/load for the repository's simple
   `memory/lessons.example.yaml` shape, preserving numeric-looking scope strings
   and rejecting duplicate or semantically invalid documents through
-  all-or-nothing Store mutation.
+  all-or-nothing Store mutation; saves use synchronized sibling temporary files
+  and atomic replacement, and literal blocks preserve exact LF-delimited lesson
+  text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
   explicit atomic export for all 18 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.

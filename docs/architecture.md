@@ -196,8 +196,19 @@ rejects duplicate IDs or descriptions, and the lessons parser rejects duplicate
 record or scope fields. A complete lesson document is parsed and every candidate
 is constructed and validated against staged state before an all-or-nothing
 Store commit. Duplicate IDs, invalid provenance, and later record failures
-cannot partially import preceding lessons. Snapshot version 2, JSON Schemas,
-the active-lessons YAML shape, and PostgreSQL schema version 1 remain unchanged.
+cannot partially import preceding lessons.
+
+`save_json()` and `save_lessons_yaml()` share one durability boundary. Each
+writes canonical LF text through a sibling temporary file, flushes it, calls
+`os.fsync()`, closes it, and publishes it with `os.replace()`. Serialization,
+sync, or replacement failure removes the temporary file and leaves an existing
+destination unchanged. The lesson serializer emits canonical `lesson_text: |`
+blocks. The constrained reader accepts both `|` and legacy `>` while preserving
+blank lines, leading and trailing LF characters, and intra-line spaces instead
+of globally trimming block content. It retains the adapter's historical
+literal-line interpretation of `>` rather than implementing general YAML
+folding or chomping. This changes no stored field: snapshot
+version 2, JSON Schemas, and PostgreSQL schema version 1 remain unchanged.
 
 ## Packaged Distribution Resources
 

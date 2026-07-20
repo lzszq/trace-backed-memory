@@ -19,6 +19,7 @@ from trace_backed_memory import (
     classify_failure_type,
     draft_failure_case,
     draft_failure_case_from_trace,
+    export_packaged_resource,
     lesson_from_failure_case,
     load_failure_taxonomy,
     memory_item_from_failure_case,
@@ -26,8 +27,10 @@ from trace_backed_memory import (
     memory_item_from_project_policy,
     obsolete_failure_case,
     obsolete_lesson,
+    packaged_resources,
     parse_memory_context,
     review_failure_case,
+    read_packaged_resource,
     system_gate,
     verify_failure_case,
 )
@@ -543,7 +546,7 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
 
     store = TraceBackedMemoryStore()
     metadata = capture_trace_metadata(repo_path=".", runner=runner)
-    taxonomy = load_failure_taxonomy("memory/failure_taxonomy.yaml")
+    taxonomy = load_failure_taxonomy()
 
     trace = store.record_trace(
         Trace(
@@ -758,6 +761,42 @@ def test_readme_publishes_snapshot_operations_cli_contract():
     assert "structured JSON" in normalized
     assert "2,048 characters" in normalized
     assert "snapshot version 2" in normalized
+
+
+def test_readme_publishes_and_executes_packaged_resource_contract(tmp_path):
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for command in [
+        "tbm resource list",
+        "tbm resource read schemas/trace.schema.json",
+        "tbm resource export schemas/postgres.sql postgres.sql",
+    ]:
+        assert command in readme
+    for contract in [
+        "`PackagedResource`",
+        "`packaged_resources()`",
+        "`read_packaged_resource()`",
+        "`export_packaged_resource()`",
+        "byte-identical",
+        "`py.typed`",
+        "SHA-256",
+        "source-distribution",
+    ]:
+        assert contract in normalized
+
+    descriptions = packaged_resources()
+    assert len(descriptions) == 18
+    expected = read_packaged_resource("schemas/postgres.sql")
+    destination = tmp_path / "postgres.sql"
+    assert export_packaged_resource(
+        "schemas/postgres.sql",
+        destination,
+    ) == destination
+    assert destination.read_bytes() == expected
+    assert load_failure_taxonomy()["invalid_tool_argument"]
 
 
 def test_readme_publishes_callback_memory_run_execution_contract():

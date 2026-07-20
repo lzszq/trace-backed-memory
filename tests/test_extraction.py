@@ -137,11 +137,18 @@ def test_draft_from_passing_trace_is_rejected():
 
 
 def test_loads_failure_taxonomy_from_repository_yaml():
-    taxonomy = tbm.load_failure_taxonomy(Path(__file__).resolve().parents[1] / "memory" / "failure_taxonomy.yaml")
+    path = Path(__file__).resolve().parents[1] / "memory" / "failure_taxonomy.yaml"
+    taxonomy = tbm.load_failure_taxonomy(path)
 
     assert "invalid_tool_argument" in taxonomy
     assert taxonomy["invalid_tool_argument"] == "Tool call arguments do not match the tool schema."
     assert "hallucinated_enum_value" in taxonomy
+
+
+def test_loads_the_same_failure_taxonomy_from_installed_resources_by_default():
+    path = Path(__file__).resolve().parents[1] / "memory" / "failure_taxonomy.yaml"
+
+    assert tbm.load_failure_taxonomy() == tbm.load_failure_taxonomy(path)
 
 
 def test_classifier_can_require_taxonomy_membership():

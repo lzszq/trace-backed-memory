@@ -1,0 +1,26 @@
+{
+  "decision_id": "decision_000001",
+  "run_id": "run_001",
+  "mode": "repair",
+  "candidate_memory_ids": ["lesson_001"],
+  "used_memory_ids": ["lesson_001"],
+  "blocked_memory_ids": [],
+  "reason": "The lesson directly matches the current tool failure.",
+  "risk": "low",
+  "recommended_injection": "short_summary",
+  "eval_result": "pass",
+  "memory_caused_failure": false,
+  "trace_id": "trace_001",
+  "context": {
+    "mode": "repair",
+    "repo": "agent-harness",
+    "tenant": "tenant_a",
+    "commit_sha": "abc123",
+    "tool": "search_docs"
+  },
+  "candidate_memory_statuses": {
+    "lesson_001": "active"
+  },
+  "system_blocked_reasons": {},
+  "created_at": "2026-07-09T00:00:00Z"
+}

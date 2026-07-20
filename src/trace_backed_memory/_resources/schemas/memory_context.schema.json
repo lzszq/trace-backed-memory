@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MemoryContext",
+  "type": "object",
+  "required": ["mode", "repo", "commit_sha"],
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": ["debug", "repair", "regression", "planning", "eval", "production"]
+    },
+    "repo": {"type": "string", "minLength": 1, "maxLength": 512},
+    "tenant": {"type": "string", "minLength": 1, "maxLength": 512},
+    "branch": {"type": "string", "minLength": 1, "maxLength": 512},
+    "commit_sha": {"type": "string", "minLength": 1, "maxLength": 512},
+    "prompt_version": {"type": "string", "minLength": 1, "maxLength": 512},
+    "prompt_family": {"type": "string", "minLength": 1, "maxLength": 512},
+    "tool": {"type": "string", "minLength": 1, "maxLength": 512},
+    "tool_schema_version": {"type": "string", "minLength": 1, "maxLength": 512},
+    "model": {"type": "string", "minLength": 1, "maxLength": 512},
+    "model_family": {"type": "string", "minLength": 1, "maxLength": 512},
+    "eval_suite": {"type": "string", "minLength": 1, "maxLength": 512},
+    "input_hash": {"type": "string", "minLength": 1, "maxLength": 512},
+    "task_type": {"type": "string", "minLength": 1, "maxLength": 512},
+    "failure_type": {"type": "string", "minLength": 1, "maxLength": 512}
+  },
+  "allOf": [
+    {
+      "if": {"required": ["input_hash"]},
+      "then": {"required": ["eval_suite"]}
+    }
+  ],
+  "additionalProperties": true
+}

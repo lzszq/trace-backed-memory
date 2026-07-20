@@ -18,6 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
 
 [project.scripts]
@@ -31,6 +32,29 @@ Issues = "https://github.com/lzszq/trace-backed-memory/issues"
 [project.optional-dependencies]
 postgres = ["psycopg>=3.2,<4"]
 dev = ["build>=1.2,<2", "pytest>=8.0.0", "psycopg[binary]>=3.2,<4"]
+
+[tool.setuptools.package-data]
+trace_backed_memory = [
+    "py.typed",
+    "_resources/examples/failure_case.example.json",
+    "_resources/examples/lesson.example.json",
+    "_resources/examples/memory_context.example.json",
+    "_resources/examples/memory_decision.example.json",
+    "_resources/examples/memory_usage_log.example.json",
+    "_resources/examples/project_policy.example.json",
+    "_resources/examples/trace.example.json",
+    "_resources/memory/failure_taxonomy.yaml",
+    "_resources/memory/lessons.example.yaml",
+    "_resources/schemas/failure_case.schema.json",
+    "_resources/schemas/lesson.schema.json",
+    "_resources/schemas/memory_context.schema.json",
+    "_resources/schemas/memory_decision.schema.json",
+    "_resources/schemas/memory_store_snapshot.schema.json",
+    "_resources/schemas/memory_usage_log.schema.json",
+    "_resources/schemas/postgres.sql",
+    "_resources/schemas/project_policy.schema.json",
+    "_resources/schemas/trace.schema.json",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

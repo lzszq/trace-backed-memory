@@ -53,7 +53,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`python -m trace_backed_memory`",
         "`run_memory_execution()`",
         "`MemoryRunMeasurement`",
-        "Phase 0-26",
+        "Phase 0-27",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -1771,6 +1771,47 @@ def test_docs_publish_memory_run_execution_and_compatibility():
     assert "VALUES (true, 1)" in postgres_schema
     assert "memory_run_measurements" not in postgres_schema
     assert "memory_run_callback_errors" not in postgres_schema
+
+
+def test_docs_publish_packaged_resources_and_persistence_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "`packaged_resources()`",
+        "`read_packaged_resource()`",
+        "`export_packaged_resource()`",
+        "allowlist",
+        "18",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split())
+        for contract in required_contracts:
+            assert contract.lower() in normalized.lower(), (
+                f"{name} should publish: {contract}"
+            )
+
+    assert "`py.typed`" in documents["README.md"]
+    assert "byte-identical" in documents["README.md"]
+    assert "`PackagedResourceError`" in documents["docs/architecture.md"]
+    assert (
+        "Phase 27: Packaged distribution resources (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "packaged_resources" not in snapshot_schema["properties"]
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert "packaged_resources" not in postgres_schema
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

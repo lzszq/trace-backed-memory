@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "memory_store_snapshot.schema.json",
+  "title": "MemoryStoreSnapshot",
+  "type": "object",
+  "required": ["snapshot_version", "traces", "failure_cases", "lessons", "project_policies", "usage_logs"],
+  "properties": {
+    "snapshot_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "traces": {
+      "type": "array",
+      "items": {"$ref": "trace.schema.json"}
+    },
+    "failure_cases": {
+      "type": "array",
+      "items": {"$ref": "failure_case.schema.json"}
+    },
+    "lessons": {
+      "type": "array",
+      "items": {"$ref": "lesson.schema.json"}
+    },
+    "project_policies": {
+      "type": "array",
+      "items": {"$ref": "project_policy.schema.json"}
+    },
+    "usage_logs": {
+      "type": "array",
+      "items": {"$ref": "memory_usage_log.schema.json"}
+    }
+  },
+  "additionalProperties": false
+}

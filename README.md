@@ -73,7 +73,50 @@ before running the examples:
 python -m pip install -e .
 ```
 
-For one-off local commands, setting `PYTHONPATH=src` also works.
+Install a built wheel or source-distribution artifact with `pip`. The
+distribution is marked as typed with `py.typed`. For one-off local commands from
+a checkout, setting `PYTHONPATH=src` also works.
+
+## Packaged Resources
+
+Wheel, source-distribution, and editable installs contain byte-identical copies
+of every file under `schemas/` and `examples/`, plus the canonical failure
+taxonomy and active-lesson YAML example. Resource names come from a strict
+allowlist of canonical POSIX paths; they never resolve arbitrary filesystem
+input:
+
+```text
+tbm resource list
+tbm resource read schemas/trace.schema.json
+tbm resource export schemas/postgres.sql postgres.sql
+tbm resource export schemas/postgres.sql postgres.sql --overwrite
+```
+
+All three commands emit one deterministic JSON value. Export refuses an
+existing destination unless `--overwrite` is explicit and uses a
+same-directory temporary file before replacement. Unknown names are input
+errors; installed package-data failures are internal errors; export failures
+use the existing write exit code 4.
+
+Python callers use `packaged_resources()`, `read_packaged_resource()`, and
+`export_packaged_resource()` to discover metadata, read exact bytes, or export
+a resource without assuming that the package lives on a filesystem:
+
+```python
+from trace_backed_memory import (
+    export_packaged_resource,
+    packaged_resources,
+    read_packaged_resource,
+)
+
+resources = packaged_resources()
+postgres_sql = read_packaged_resource("schemas/postgres.sql")
+export_packaged_resource("schemas/postgres.sql", "postgres.sql")
+```
+
+`PackagedResource` descriptions include kind, media type, byte size, and
+SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
+default; passing a path continues to load a caller-owned taxonomy file.
 
 ## Snapshot Operations CLI
 
@@ -125,9 +168,17 @@ pip install 'trace-backed-memory[postgres]'
 The adapter requires PostgreSQL 12+ because `schemas/postgres.sql` uses
 `jsonb_path_exists` in its hardened JSONB constraints.
 
-Before connecting, install `schemas/postgres.sql` into a fresh `public` schema.
-The adapter requires the schema metadata row at `schema_version` 1. The SQL file
-is a fresh-install schema, not a migration for an existing database.
+Before connecting, install the PostgreSQL resource into a fresh `public`
+schema. From a checkout, use `schemas/postgres.sql` directly. From any package
+installation, export the byte-identical resource first:
+
+```powershell
+tbm resource export schemas/postgres.sql postgres.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f postgres.sql
+```
+
+The adapter requires the schema metadata row at `schema_version` 1. The SQL
+file is a fresh-install schema, not a migration for an existing database.
 
 ```python
 from trace_backed_memory import PostgresMemoryRepository
@@ -940,6 +991,7 @@ from trace_backed_memory import (
     classify_failure_type,
     draft_failure_case,
     draft_failure_case_from_trace,
+    export_packaged_resource,
     lesson_from_failure_case,
     load_failure_taxonomy,
     memory_item_from_failure_case,
@@ -947,6 +999,7 @@ from trace_backed_memory import (
     memory_item_from_project_policy,
     obsolete_failure_case,
     obsolete_lesson,
+    packaged_resources,
     parse_memory_context,
     parse_memory_decision,
     review_failure_case,
@@ -959,7 +1012,7 @@ try:
     metadata = capture_trace_metadata(repo_path=".")
 except TraceMetadataCaptureError as exc:
     raise RuntimeError(f"cannot capture git metadata for memory trace: {exc}") from exc
-taxonomy = load_failure_taxonomy("memory/failure_taxonomy.yaml")
+taxonomy = load_failure_taxonomy()
 
 trace = store.record_trace(
     Trace(
@@ -1194,6 +1247,9 @@ Implemented pieces:
 - Usage-log validation and persisted contract that require trace ID, serialized context, candidate status snapshots, and System Gate block reasons; reject empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
 - Dependency-free strict JSON snapshot save/load for trace, failure case, lesson, project policy, and usage-log records; non-object snapshots, non-finite floats, over-limit integers, and non-standard JSON numeric constants are rejected while JSON-serializable integer costs remain valid.
 - Dependency-free active lesson YAML save/load for the repository's simple `memory/lessons.example.yaml` shape, preserving numeric-looking scope strings.
+- Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
+  explicit atomic export for all 18 canonical Schemas, examples, and memory
+  support files in wheel, source-distribution, and editable installs.
 - Store-level checks that reject lessons with empty identity fields, invalid memory type/status, unknown non-empty scope fields, unbounded confidence, or a missing, unverified, non-regression-backed source case.
 - Store-level checks that reject project policies with empty identity/text fields, invalid status, invalid scope, unbounded confidence, or IDs that collide with failure case, lesson, or project policy memory IDs.
 - JSON schemas for stored records and full memory-store snapshots.
@@ -1234,6 +1290,7 @@ Implemented pieces:
 |   |-- memory_context.schema.json
 |   `-- memory_decision.schema.json
 |-- src/trace_backed_memory/
+|   |-- _resources/
 |   |-- __main__.py
 |   |-- __init__.py
 |   |-- capture.py
@@ -1244,6 +1301,8 @@ Implemented pieces:
 |   |-- models.py
 |   |-- policy.py
 |   |-- postgres.py
+|   |-- py.typed
+|   |-- resources.py
 |   `-- store.py
 `-- tests/
     |-- test_capture.py
@@ -1257,5 +1316,7 @@ Implemented pieces:
     |-- test_postgres_repository.py
     |-- test_policy.py
     |-- test_readme_api.py
+    |-- test_resources.py
+    |-- verify_distribution.py
     `-- test_store.py
 ```

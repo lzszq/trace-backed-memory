@@ -1,0 +1,15 @@
+{
+  "case_id": "case_001",
+  "source_trace_id": "trace_001",
+  "commit_sha": "abc123",
+  "failure_type": "invalid_tool_argument",
+  "symptom": "planner called search_docs with null query",
+  "root_cause": "planner prompt did not specify that search_docs.query must be a non-empty natural-language string",
+  "reviewed_by": "jason",
+  "review_notes": "Confirmed by inspecting the failed tool call arguments.",
+  "reviewed_at": "2026-07-09T00:00:00Z",
+  "fix": "added a JSON schema example to the planner prompt",
+  "fix_commit_sha": "def456",
+  "regression_passed": true,
+  "status": "verified"
+}

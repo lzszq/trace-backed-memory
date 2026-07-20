@@ -63,6 +63,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 运行编排 | `run_memory_execution()` 同步串联 decision callback、execution callback 与原子完成；`MemoryRunMeasurement` 无需调用方复制 decision ID |
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
 | 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、audit/metrics/remediation、dry-run 恢复与显式 `--write` 原子替换 |
+| 分发资源 | wheel/sdist/editable 内置 18 份 byte-identical Schema、taxonomy 与示例；支持发现、读取、校验元数据和原子导出 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
 | PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配 |
 | 持久化 | 原子 JSON snapshot、active lesson YAML、可选同步 PostgreSQL Repository |
@@ -125,23 +126,25 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - YAML adapter 用于导入/导出 active lessons。
 - 安装后提供 `tbm` console script；`python -m trace_backed_memory` 提供等价入口。
 - CLI 通过现有 snapshot validation、audit、metrics、remediation 和 recovery API 工作，不复制领域规则。
+- `tbm resource list/read/export` 和 Python resource interface 在不依赖 checkout 路径的情况下提供严格 allowlist 的规范资源；包通过 `py.typed` 声明类型信息。
 - `run_memory_execution()` 提供无第三方依赖的同步 harness 编排；`MemoryRunExecutionError` 保留各阶段的 request/decision 恢复上下文与原始异常，但不自动猜测执行 outcome。
 
 ### PostgreSQL 模式
 
 - 安装 `trace-backed-memory[postgres]`。
-- 使用 PostgreSQL 12+ 和 fresh-install `schemas/postgres.sql`。
+- 使用 PostgreSQL 12+ 和 fresh-install `schemas/postgres.sql`；pip 安装用户可先用 `tbm resource export schemas/postgres.sql postgres.sql` 导出同一份字节。
 - 当前 PostgreSQL schema version 为 1。
 - Repository 提供同步 `sync()` / `load()`、事务回滚、borrowed/owned connection 和 caller transaction savepoint。
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-26，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
+当前版本已完成路线图 Phase 0-27，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry；
 - snapshot/YAML round trip 与恶意 JSON 边界；
 - CLI structured JSON/exit-code contract、deterministic ordering、dry-run isolation、原子写入、batch all-or-nothing 与 module/console-script smoke；
+- wheel/sdist 资源清单、逐字节 parity、隔离安装、默认 taxonomy、`py.typed` 与 PostgreSQL Schema 导出；
 - callback memory-run execution 的顺序、measurement evidence、异常恢复上下文、Store 错误透传与原子失败；
 - 真实临时 PostgreSQL 集群上的 DDL、事务、并发锁和同步；
 - README 工作流与产品文档契约。

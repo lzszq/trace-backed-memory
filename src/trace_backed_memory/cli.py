@@ -8,6 +8,13 @@ from pathlib import Path
 from typing import Any, Sequence, TextIO
 
 from .models import MemoryRunCompletion
+from .resources import (
+    PackagedResource,
+    PackagedResourceError,
+    export_packaged_resource,
+    packaged_resources,
+    read_packaged_resource,
+)
 from .store import TraceBackedMemoryStore
 
 
@@ -38,9 +45,38 @@ def _parse_boolean(value: str) -> bool:
 def _build_parser() -> argparse.ArgumentParser:
     parser = _JSONArgumentParser(
         prog="tbm",
-        description="Inspect and recover trace-backed-memory snapshots.",
+        description="Operate trace-backed-memory snapshots and resources.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
+
+    resource = commands.add_parser(
+        "resource",
+        help="Inspect and export installed canonical resources.",
+    )
+    resource_commands = resource.add_subparsers(
+        dest="resource_command",
+        required=True,
+    )
+    resource_commands.add_parser(
+        "list",
+        help="List installed canonical resources.",
+    )
+    resource_read = resource_commands.add_parser(
+        "read",
+        help="Read one installed UTF-8 resource.",
+    )
+    resource_read.add_argument("name")
+    resource_export = resource_commands.add_parser(
+        "export",
+        help="Export one installed resource to a local file.",
+    )
+    resource_export.add_argument("name")
+    resource_export.add_argument("destination", type=Path)
+    resource_export.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Atomically replace an existing destination.",
+    )
 
     snapshot = commands.add_parser("snapshot", help="Inspect snapshot files.")
     snapshot_commands = snapshot.add_subparsers(
@@ -214,6 +250,62 @@ def _recovery_payload(
     }
 
 
+def _packaged_resource(name: str) -> PackagedResource:
+    read_packaged_resource(name)
+    for resource in packaged_resources():
+        if resource.name == name:
+            return resource
+    raise PackagedResourceError("lookup", name=name)
+
+
+def _run_resource_command(args: argparse.Namespace) -> int:
+    wrote_resource = False
+    try:
+        if args.resource_command == "list":
+            payload: object = {
+                "resources": [
+                    asdict(resource) for resource in packaged_resources()
+                ]
+            }
+        else:
+            resource = _packaged_resource(args.name)
+            if args.resource_command == "read":
+                payload = {
+                    "resource": asdict(resource),
+                    "text": read_packaged_resource(args.name).decode("utf-8"),
+                }
+            else:
+                payload = {
+                    "destination": str(args.destination),
+                    "overwrite": args.overwrite,
+                    "resource": asdict(resource),
+                }
+        output = _json_text(payload)
+        if args.resource_command == "export":
+            export_packaged_resource(
+                args.name,
+                args.destination,
+                overwrite=args.overwrite,
+            )
+            wrote_resource = True
+    except PackagedResourceError as error:
+        if error.operation == "lookup":
+            return _emit_error("input", error, 2)
+        if error.operation == "export":
+            return _emit_error("write", error, 4)
+        return _emit_error("internal", error, 1)
+    except Exception as error:
+        return _emit_error("internal", error, 1)
+
+    try:
+        _write_text(sys.stdout, output)
+    except Exception as error:
+        if wrote_resource:
+            return 0
+        return _emit_error("internal", error, 1)
+    return 0
+
+
 def _execute(
     args: argparse.Namespace,
     store: TraceBackedMemoryStore,
@@ -277,6 +369,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         args = parser.parse_args(argv)
     except CLIUsageError as error:
         return _emit_error("input", error, 2)
+
+    if args.command == "resource":
+        return _run_resource_command(args)
 
     try:
         store = TraceBackedMemoryStore.load_json(args.snapshot)

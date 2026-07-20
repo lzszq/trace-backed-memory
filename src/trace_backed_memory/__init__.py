@@ -69,6 +69,13 @@ from .postgres import (
     PostgresSyncCounts,
     PostgresSyncResult,
 )
+from .resources import (
+    PackagedResource,
+    PackagedResourceError,
+    export_packaged_resource,
+    packaged_resources,
+    read_packaged_resource,
+)
 from .store import TraceBackedMemoryStore
 from .execution import (
     MemoryDecisionCallback,
@@ -112,6 +119,8 @@ __all__ = [
     "PRChangeEndpoint",
     "PRChangeSet",
     "PRMemoryReport",
+    "PackagedResource",
+    "PackagedResourceError",
     "PostgresAdapterError",
     "PostgresConflictError",
     "PostgresDependencyError",
@@ -132,6 +141,7 @@ __all__ = [
     "classify_failure_type",
     "draft_failure_case",
     "draft_failure_case_from_trace",
+    "export_packaged_resource",
     "lesson_from_failure_case",
     "load_failure_taxonomy",
     "memory_item_from_failure_case",
@@ -139,9 +149,11 @@ __all__ = [
     "memory_item_from_project_policy",
     "obsolete_failure_case",
     "obsolete_lesson",
+    "packaged_resources",
     "parse_memory_context",
     "parse_memory_decision",
     "review_failure_case",
+    "read_packaged_resource",
     "run_memory_execution",
     "system_gate",
     "build_injection_snippet",

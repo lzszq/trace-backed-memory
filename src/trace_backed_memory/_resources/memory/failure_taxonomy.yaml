@@ -1,0 +1,13 @@
+failure_types:
+  - id: invalid_tool_argument
+    description: Tool call arguments do not match the tool schema.
+  - id: missing_required_context
+    description: The agent acted without retrieving or using required context.
+  - id: stale_context
+    description: The agent used outdated retrieved information.
+  - id: evaluator_mismatch
+    description: The output fails the evaluator because of format or rubric mismatch.
+  - id: prompt_contract_violation
+    description: The model violated an explicit prompt output contract.
+  - id: hallucinated_enum_value
+    description: The model invented a value not allowed by the schema enum.

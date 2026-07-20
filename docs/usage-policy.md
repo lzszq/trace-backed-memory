@@ -15,8 +15,10 @@ records; it does not make raw traces eligible for injection or bypass System
 Gate and LLM Gate policy. It requires PostgreSQL 12+ because the schema's
 hardened JSONB constraints use `jsonb_path_exists`. Install
 `trace-backed-memory[postgres]`, apply
-`schemas/postgres.sql` to a fresh `public` schema at version 1, then use
-`PostgresMemoryRepository` for persistence.
+the canonical `schemas/postgres.sql` bytes to a fresh `public` schema at version
+1, then use `PostgresMemoryRepository` for persistence. A checkout may use that
+path directly. An installed package must first run `tbm resource export
+schemas/postgres.sql postgres.sql`; the exported bytes are identical.
 
 Synchronization is additive and atomic. A sync retains database records absent
 from the submitted store, permits only supported forward lifecycle updates, and
@@ -35,6 +37,28 @@ When the supplied connection already has an active caller transaction, each
 repository operation uses a nested savepoint and does not commit or roll back
 the outer transaction; the caller owns the final commit or rollback. Without an
 outer transaction, the repository transaction commits normally.
+
+## Packaged Resource Policy
+
+Use `packaged_resources()`, `read_packaged_resource()`, or
+`export_packaged_resource()` when canonical Schemas, examples, or memory
+support files must be available from an installed distribution. Do not infer a
+package filesystem path or fall back to the current checkout. Resource names
+must come from the fixed canonical allowlist; unknown names and traversal-like
+strings are rejected before package access.
+
+The 18 installed resource copies must remain byte-identical to the top-level
+authoring files. Wheel and source-distribution verification must fail on a
+missing, extra, or changed copy. `PackagedResource` metadata is derived from
+installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
+without a path uses the packaged canonical taxonomy; an explicit path remains
+caller-owned input and follows the existing parser contract.
+
+CLI resource reads emit deterministic JSON rather than unframed raw content.
+Export is the shell integration path. It must refuse an existing destination
+unless `--overwrite` is explicit, publish through a same-directory temporary
+file, map name errors to exit 2 and write errors to exit 4, and treat a closed
+stdout after a successful export as success to prevent unsafe retry.
 
 ## Snapshot Operations CLI
 

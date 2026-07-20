@@ -5,12 +5,19 @@ from pathlib import Path
 
 from .lifecycle import draft_failure_case
 from .models import FailureCase, Trace
+from .resources import read_packaged_resource
 
 FailureTaxonomy = dict[str, str]
 
 
-def load_failure_taxonomy(path: str | Path) -> FailureTaxonomy:
-    return _failure_taxonomy_from_yaml(Path(path).read_text(encoding="utf-8"))
+def load_failure_taxonomy(path: str | Path | None = None) -> FailureTaxonomy:
+    if path is None:
+        text = read_packaged_resource(
+            "memory/failure_taxonomy.yaml"
+        ).decode("utf-8")
+    else:
+        text = Path(path).read_text(encoding="utf-8")
+    return _failure_taxonomy_from_yaml(text)
 
 
 def classify_failure_type(trace: Trace, *, taxonomy: Mapping[str, str] | None = None) -> str:

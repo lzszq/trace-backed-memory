@@ -186,13 +186,46 @@ shape; loading still reuses `add_lesson()` so source-case and lesson-contract
 checks remain enforced. YAML serialization quotes strings so numeric-looking
 scope values remain strings when loaded.
 
+## Packaged Distribution Resources
+
+The `trace_backed_memory.resources` module is the installed-resource seam for
+the repository's 18 canonical Schema, memory-support, and example files. Its
+interface is limited to deterministic `packaged_resources()` descriptions,
+exact-byte `read_packaged_resource()` reads, and explicit
+`export_packaged_resource()` writes. Descriptions are immutable and carry the
+canonical name, kind, media type, byte size, and SHA-256.
+
+Resource names are a fixed lexicographically ordered allowlist. The module
+validates a name before using `importlib.resources.files()` and never accepts a
+filesystem-relative fallback, arbitrary traversal, current working directory,
+or exposed package path. The implementation therefore behaves the same for
+wheels, source distributions, editable installs, and zip importers. A single
+`PackagedResourceError` identifies lookup, read, or export operations while
+retaining an underlying installed-resource or filesystem exception as its
+cause.
+
+Canonical authoring files remain at repository top level. Byte-identical
+package copies live under `trace_backed_memory/_resources/`; package metadata
+lists them explicitly, and distribution verification compares every wheel and
+source-distribution member with its authoring file. `py.typed` marks the
+installed annotations as supported package typing information.
+
+`load_failure_taxonomy()` reads the packaged taxonomy when no path is supplied
+and keeps explicit caller-owned path loading unchanged. `tbm resource
+list/read/export` is a thin JSON CLI adapter over the same public resource
+interface. Export refuses replacement unless `--overwrite` is explicit and
+uses same-directory temporary bytes before atomic publication. Resource files
+are distribution artifacts, not Store records; snapshot version 2 and
+PostgreSQL schema version 1 remain unchanged.
+
 ## Snapshot Operations CLI
 
 The dependency-free snapshot operations adapter is exposed as `tbm` and
-`python -m trace_backed_memory`. It accepts exactly one local snapshot path and
-always reconstructs the store through `TraceBackedMemoryStore.load_json()`.
-It does not accept stdin, remote URLs, PostgreSQL connections, or an alternate
-output path.
+`python -m trace_backed_memory`. Snapshot commands accept exactly one local
+snapshot path and always reconstruct the store through
+`TraceBackedMemoryStore.load_json()`. They do not accept stdin, remote URLs,
+PostgreSQL connections, or an alternate output path. Resource commands are
+handled before snapshot loading and add no Store state.
 
 The read surface maps directly to existing store views. `snapshot validate`
 performs full reconstruction and returns validity, snapshot version, and
@@ -638,9 +671,12 @@ but its `psycopg` dependency remains optional and lazy: core package import does
 not import the driver, while `PostgresMemoryRepository.connect()` requires the
 `postgres` extra.
 
-The repository operates only on a fresh `public` schema installed from
-`schemas/postgres.sql`. It locks the one schema metadata row and requires schema version 1.
-This schema is not an in-place migration mechanism.
+The repository operates only on a fresh `public` schema installed from the
+canonical `schemas/postgres.sql` bytes. Checkout users may use that path
+directly; installed-package users export the same bytes with `tbm resource
+export schemas/postgres.sql postgres.sql`. It locks the one schema metadata row
+and requires schema version 1. This schema is not an in-place migration
+mechanism.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:

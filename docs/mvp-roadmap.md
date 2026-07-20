@@ -439,3 +439,26 @@ Track:
 - Persist no measurement, callback type, execution error, or orchestration
   state. Preserve snapshot version 2, JSON Schemas, active-lessons YAML,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 27: Packaged distribution resources (implemented)
+
+- Ship byte-identical copies of all 18 canonical `schemas/`, `memory/`, and
+  `examples/` files in wheel, source-distribution, and editable installs.
+- Add immutable `PackagedResource` descriptions plus strict
+  `packaged_resources()`, `read_packaged_resource()`, and
+  `export_packaged_resource()` operations. Resolve only fixed allowlisted names
+  through `importlib.resources`; never depend on a checkout or package path.
+- Add structured `PackagedResourceError` lookup/read/export context, exact-byte
+  SHA-256 metadata, explicit overwrite policy, temporary-file cleanup, and
+  same-directory atomic publication.
+- Make `load_failure_taxonomy()` use the packaged canonical taxonomy by
+  default while preserving explicit caller-owned path loading.
+- Add deterministic `tbm resource list/read/export` commands. Keep unknown
+  names as exit 2, installed-data failures as exit 1, exports as exit 4, and a
+  completed export successful when stdout closes afterward.
+- Mark the distribution with `py.typed` and `Typing :: Typed`. Verify exact
+  resource contents in both built artifacts, then install and smoke-test the
+  wheel and source distribution independently in CI.
+- Persist no resource catalog or export record. Preserve canonical top-level
+  authoring files, snapshot version 2, JSON Schemas, active-lessons YAML,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

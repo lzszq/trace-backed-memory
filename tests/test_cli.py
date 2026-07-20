@@ -93,6 +93,129 @@ def _run(capsys, *args: str) -> tuple[int, object | None, object | None]:
     return exit_code, stdout, stderr
 
 
+def test_cli_resource_commands_list_read_and_export(tmp_path, capsys):
+    code, payload, error = _run(capsys, "resource", "list")
+
+    assert code == 0
+    assert error is None
+    assert len(payload["resources"]) == 18
+    names = [item["name"] for item in payload["resources"]]
+    assert names == sorted(names)
+    assert "schemas/postgres.sql" in names
+
+    code, payload, error = _run(
+        capsys,
+        "resource",
+        "read",
+        "memory/failure_taxonomy.yaml",
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["resource"]["kind"] == "memory"
+    assert payload["text"] == (
+        Path(__file__).resolve().parents[1]
+        / "memory"
+        / "failure_taxonomy.yaml"
+    ).read_bytes().decode("utf-8")
+
+    destination = tmp_path / "postgres.sql"
+    code, payload, error = _run(
+        capsys,
+        "resource",
+        "export",
+        "schemas/postgres.sql",
+        str(destination),
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["destination"] == str(destination)
+    assert payload["overwrite"] is False
+    assert payload["resource"]["name"] == "schemas/postgres.sql"
+    assert destination.read_bytes() == (
+        Path(__file__).resolve().parents[1] / "schemas" / "postgres.sql"
+    ).read_bytes()
+
+    destination.write_text("caller-owned", encoding="utf-8")
+    code, payload, error = _run(
+        capsys,
+        "resource",
+        "export",
+        "schemas/postgres.sql",
+        str(destination),
+    )
+    assert code == 4
+    assert payload is None
+    assert error["error"]["kind"] == "write"
+    assert destination.read_text(encoding="utf-8") == "caller-owned"
+
+    code, payload, error = _run(
+        capsys,
+        "resource",
+        "export",
+        "schemas/postgres.sql",
+        str(destination),
+        "--overwrite",
+    )
+    assert code == 0
+    assert error is None
+    assert payload["overwrite"] is True
+
+
+def test_cli_resource_errors_preserve_input_read_and_write_classes(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    code, payload, error = _run(
+        capsys,
+        "resource",
+        "read",
+        "../schemas/postgres.sql",
+    )
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert error["error"]["type"] == "PackagedResourceError"
+
+    def reject_list():
+        raise cli.PackagedResourceError(
+            "read",
+            name="schemas/postgres.sql",
+            detail="injected missing package data",
+        )
+
+    monkeypatch.setattr(cli, "packaged_resources", reject_list)
+    code, payload, error = _run(capsys, "resource", "list")
+    assert code == 1
+    assert payload is None
+    assert error["error"]["kind"] == "internal"
+
+    monkeypatch.undo()
+
+    def reject_export(name, destination, *, overwrite=False):
+        raise cli.PackagedResourceError(
+            "export",
+            name=name,
+            destination=destination,
+            detail="injected export failure",
+        )
+
+    monkeypatch.setattr(cli, "export_packaged_resource", reject_export)
+    code, payload, error = _run(
+        capsys,
+        "resource",
+        "export",
+        "schemas/postgres.sql",
+        str(tmp_path / "postgres.sql"),
+    )
+    assert code == 4
+    assert payload is None
+    assert error["error"]["kind"] == "write"
+    assert "injected export failure" in error["error"]["message"]
+
+
 def test_cli_read_commands_emit_canonical_json(tmp_path, capsys):
     path, decision_ids = _snapshot_with_states(
         tmp_path,
@@ -584,6 +707,36 @@ def test_cli_broken_stdout_after_write_does_not_report_false_failure(
     assert TraceBackedMemoryStore.load_json(path).memory_run_audits()[0].status == (
         "complete"
     )
+
+
+def test_cli_broken_stdout_after_resource_export_does_not_invite_retry(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    destination = tmp_path / "postgres.sql"
+
+    class BrokenStream:
+        def write(self, _value):
+            raise BrokenPipeError("injected closed resource stdout")
+
+    monkeypatch.setattr(cli.sys, "stdout", BrokenStream())
+
+    code = cli.main(
+        [
+            "resource",
+            "export",
+            "schemas/postgres.sql",
+            str(destination),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert captured.err == ""
+    assert destination.read_bytes() == (
+        Path(__file__).resolve().parents[1] / "schemas" / "postgres.sql"
+    ).read_bytes()
 
 
 def test_cli_bounds_error_messages(capsys):

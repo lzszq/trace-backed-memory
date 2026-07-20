@@ -748,6 +748,7 @@ def test_readme_publishes_snapshot_operations_cli_contract():
         "tbm audit SNAPSHOT",
         "tbm metrics SNAPSHOT",
         "tbm remediation SNAPSHOT",
+        "tbm complete SNAPSHOT TRACE_ID DECISION_ID",
         "tbm recover-ready SNAPSHOT [--write]",
         "tbm recover SNAPSHOT DECISION_ID",
         "tbm recover-batch SNAPSHOT DECISION_ID...",
@@ -761,6 +762,28 @@ def test_readme_publishes_snapshot_operations_cli_contract():
     assert "structured JSON" in normalized
     assert "2,048 characters" in normalized
     assert "snapshot version 2" in normalized
+
+
+def test_readme_publishes_measured_completion_cli_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for contract in [
+        "tbm complete SNAPSHOT TRACE_ID DECISION_ID",
+        "--eval-result {pass,fail,error}",
+        "--memory-caused-failure true|false",
+        "--tool-outputs-file PATH",
+        "array of objects",
+        "fresh measured result",
+        "omitted",
+        "dry-run",
+        "`--write`",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]:
+        assert contract in normalized
 
 
 def test_readme_publishes_and_executes_packaged_resource_contract(tmp_path):

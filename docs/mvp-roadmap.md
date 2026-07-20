@@ -481,3 +481,23 @@ Track:
 - Persist no parser or extraction state. Preserve snapshot version 2, JSON
   Schemas, active-lessons YAML, `schemas/postgres.sql`, packaged resource bytes,
   and PostgreSQL schema version 1.
+
+## Phase 29: Measured memory-run completion CLI (implemented)
+
+- Add `complete` for one fresh measured result, requiring the exact snapshot,
+  Trace ID, decision ID, and `--eval-result` of `pass`, `fail`, or `error`.
+- Expose optional failure attribution and Trace evidence. The command does not
+  infer either, and preserves omitted evidence by forwarding only supplied
+  options.
+- Accept structured tool evidence only through `--tool-outputs-file` as strict
+  UTF-8 JSON containing an array of objects; reject malformed input before any
+  write.
+- Delegate linkage, replay, attribution, evidence, and atomic assignment to
+  `complete_memory_run()` rather than adding a CLI completion state machine.
+- Keep completion a dry-run by default and require explicit `--write` for the
+  existing same-path atomic snapshot replacement.
+- Reuse the deterministic completion envelope, structured errors, exit codes,
+  serialization-before-persistence rule, and post-commit stdout behavior.
+- Persist no measured completion command or wrapper. Preserve snapshot version
+  2, JSON Schemas, active-lessons YAML, `schemas/postgres.sql`, and PostgreSQL
+  schema version 1.

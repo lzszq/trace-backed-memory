@@ -91,11 +91,21 @@ or persistence layer: `snapshot validate`, `snapshot stats`, `audit`,
 views. Commands accept one local snapshot only; they do not connect to the
 PostgreSQL repository.
 
-Treat every `recover`, `recover-batch`, and `recover-ready` command as a
-dry-run unless `--write` is explicit. A dry-run may mutate the reconstructed
-store in memory but must leave the source bytes unchanged. A write is permitted
-only after the whole recovery succeeds, and it must use `save_json()` to
-replace the same snapshot atomically.
+Treat every `complete`, `recover`, `recover-batch`, and `recover-ready` command
+as a dry-run unless `--write` is explicit. A dry-run may mutate the
+reconstructed store in memory but must leave the source bytes unchanged. A
+write is permitted only after the whole operation succeeds, and it must use
+`save_json()` to replace the same snapshot atomically.
+
+Use `complete` only to submit a fresh measured result for an exact linked
+Trace and decision. Require `--eval-result` to state `pass`, `fail`, or `error`;
+the command does not infer the outcome, IDs, causal attribution, or execution
+evidence. `--memory-caused-failure` defaults to false and the Store remains
+authoritative for valid attribution. Optional `--tool-outputs-file` input must
+be strict UTF-8 JSON containing an array of objects. Omitted evidence options
+must not be forwarded, while an explicit `[]` remains meaningful empty
+tool-output evidence. Malformed evidence is an input error and must not write
+the snapshot.
 
 `recover-ready` may select only remediation action `recover`; it must continue
 to skip pending, conflicting, complete, and `recover_with_attribution` work.
@@ -111,8 +121,8 @@ codes are 0 for success or no-op, 1 for an internal failure, 2 for usage or
 snapshot input, 3 for recovery-state or attribution rejection, and 4 for a
 write failure. Error text is capped at 2,048 characters. JSON serialization
 must finish before persistence. After a requested write commits, a downstream
-stdout pipe closure must not falsely report that committed recovery as failed.
-Human-readable `--help` output is outside the JSON contract.
+stdout pipe closure must not falsely report that committed completion or
+recovery as failed. Human-readable `--help` output is outside the JSON contract.
 
 CLI reads, audits, metrics, remediation plans, and completion wrappers are not
 persisted. Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL

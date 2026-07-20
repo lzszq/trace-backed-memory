@@ -8,6 +8,8 @@ import pytest
 
 import trace_backed_memory.cli as cli
 from trace_backed_memory import (
+    FailureCase,
+    Lesson,
     MemoryContext,
     MemoryDecision,
     Trace,
@@ -18,6 +20,13 @@ from trace_backed_memory import (
 def _pending_run(
     store: TraceBackedMemoryStore,
     suffix: str,
+    *,
+    output_hash: str | None = None,
+    tool_outputs: list[dict[str, object]] | None = None,
+    latency_ms: int | None = None,
+    cost_usd: float | None = None,
+    error: str | None = None,
+    trace_uri: str | None = None,
 ) -> tuple[Trace, str]:
     trace = store.record_trace(
         Trace(
@@ -27,6 +36,12 @@ def _pending_run(
             repo="repo_cli",
             tenant="tenant_cli",
             eval_result="unknown",
+            output_hash=output_hash,
+            tool_outputs=[] if tool_outputs is None else tool_outputs,
+            latency_ms=latency_ms,
+            cost_usd=cost_usd,
+            error=error,
+            trace_uri=trace_uri,
         )
     )
     log = store.log_decision(
@@ -45,6 +60,73 @@ def _pending_run(
             reason="no applicable memory",
             risk="none",
             recommended_injection="none",
+        ),
+    )
+    return trace, log.decision_id
+
+
+def _pending_memory_use_run(
+    store: TraceBackedMemoryStore,
+    suffix: str,
+) -> tuple[Trace, str]:
+    source = store.record_trace(
+        Trace(
+            trace_id=f"trace_cli_source_{suffix}",
+            run_id=f"run_cli_source_{suffix}",
+            commit_sha="commit_cli",
+            repo="repo_cli",
+            tenant="tenant_cli",
+            eval_result="fail",
+        )
+    )
+    case = store.add_failure_case(
+        FailureCase(
+            case_id=f"case_cli_{suffix}",
+            source_trace_id=source.trace_id,
+            commit_sha=source.commit_sha,
+            failure_type="executor_failure",
+            symptom="executor timed out",
+            fix="bound executor runtime",
+            fix_commit_sha="commit_cli_fix",
+            regression_passed=True,
+            status="verified",
+        )
+    )
+    lesson = store.add_lesson(
+        Lesson(
+            lesson_id=f"lesson_cli_{suffix}",
+            source_case_id=case.case_id,
+            lesson_text="Bound executor runtime before retrying.",
+            memory_type="procedural",
+            scope={"repo": "repo_cli", "tenant": "tenant_cli"},
+        )
+    )
+    trace = store.record_trace(
+        Trace(
+            trace_id=f"trace_cli_{suffix}",
+            run_id=f"run_cli_{suffix}",
+            commit_sha="commit_cli",
+            repo="repo_cli",
+            tenant="tenant_cli",
+            eval_result="unknown",
+        )
+    )
+    log = store.log_decision(
+        trace.run_id,
+        MemoryContext(
+            mode="repair",
+            repo="repo_cli",
+            tenant="tenant_cli",
+            commit_sha="commit_cli",
+        ),
+        [lesson.lesson_id],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=[lesson.lesson_id],
+            blocked_memory_ids=[],
+            reason="directly relevant",
+            risk="low",
+            recommended_injection="short_summary",
         ),
     )
     return trace, log.decision_id
@@ -328,6 +410,332 @@ def test_cli_reports_usage_file_and_snapshot_errors_as_json(tmp_path, capsys):
     assert payload is None
     assert error["error"]["type"] == "ValueError"
     assert "snapshot_version" in error["error"]["message"]
+
+
+def test_cli_complete_is_dry_run_by_default(tmp_path, capsys):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    trace_id = TraceBackedMemoryStore.load_json(path).memory_run_audits()[0].trace_id
+    original = path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "complete",
+        str(path),
+        trace_id,
+        decision_id,
+        "--eval-result",
+        "pass",
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["written"] is False
+    assert payload["decision_ids"] == [decision_id]
+    assert len(payload["completions"]) == 1
+    completion = payload["completions"][0]
+    assert completion["trace"]["trace_id"] == trace_id
+    assert completion["trace"]["eval_result"] == "pass"
+    assert completion["usage_log"]["eval_result"] == "pass"
+    assert completion["usage_log"]["memory_caused_failure"] is False
+    assert path.read_bytes() == original
+    assert TraceBackedMemoryStore.load_json(path).memory_run_audits()[0].status == (
+        "pending"
+    )
+
+
+def test_cli_complete_writes_full_evidence_and_replays_exactly(tmp_path, capsys):
+    store = TraceBackedMemoryStore()
+    trace, decision_id = _pending_memory_use_run(store, "full_evidence")
+    trace_id = trace.trace_id
+    path = tmp_path / "store.snapshot.json"
+    store.save_json(path)
+    tool_outputs_path = tmp_path / "tool-outputs.json"
+    tool_outputs = [
+        {"name": "search", "result": {"documents": 3}},
+        {"name": "executor", "error": "timeout"},
+    ]
+    tool_outputs_path.write_text(
+        json.dumps(tool_outputs),
+        encoding="utf-8",
+    )
+    command = (
+        "complete",
+        str(path),
+        trace_id,
+        decision_id,
+        "--eval-result",
+        "error",
+        "--memory-caused-failure",
+        "true",
+        "--output-hash",
+        "sha256:cli-output",
+        "--tool-outputs-file",
+        str(tool_outputs_path),
+        "--latency-ms",
+        "125",
+        "--cost-usd",
+        "0.0025",
+        "--error",
+        "executor failed",
+        "--trace-uri",
+        "trace://cli/completion",
+        "--write",
+    )
+
+    code, payload, error = _run(capsys, *command)
+
+    assert code == 0
+    assert error is None
+    assert payload["written"] is True
+    assert payload["decision_ids"] == [decision_id]
+    completed_trace = payload["completions"][0]["trace"]
+    assert completed_trace["output_hash"] == "sha256:cli-output"
+    assert completed_trace["tool_outputs"] == tool_outputs
+    assert completed_trace["latency_ms"] == 125
+    assert completed_trace["cost_usd"] == 0.0025
+    assert completed_trace["error"] == "executor failed"
+    assert completed_trace["trace_uri"] == "trace://cli/completion"
+
+    restored = TraceBackedMemoryStore.load_json(path)
+    assert restored.traces[trace_id].tool_outputs == tool_outputs
+    audit = restored.memory_run_audits()[0]
+    assert audit.status == "complete"
+    assert audit.memory_caused_failure is True
+
+    written = path.read_bytes()
+    replay_code, replay_payload, replay_error = _run(capsys, *command)
+    assert replay_code == 0
+    assert replay_error is None
+    assert replay_payload == payload
+    assert path.read_bytes() == written
+
+
+def test_cli_complete_preserves_omitted_evidence_and_accepts_empty_outputs(
+    tmp_path,
+    capsys,
+):
+    store = TraceBackedMemoryStore()
+    trace, decision_id = _pending_run(
+        store,
+        "prefilled",
+        output_hash="sha256:prefilled",
+        tool_outputs=[{"status": "prefilled"}],
+        latency_ms=80,
+        cost_usd=0.03,
+        error="prefilled error",
+        trace_uri="trace://prefilled",
+    )
+    path = tmp_path / "prefilled.snapshot.json"
+    store.save_json(path)
+    original = path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "complete",
+        str(path),
+        trace.trace_id,
+        decision_id,
+        "--eval-result",
+        "error",
+    )
+
+    assert code == 0
+    assert error is None
+    completed_trace = payload["completions"][0]["trace"]
+    assert completed_trace["output_hash"] == "sha256:prefilled"
+    assert completed_trace["tool_outputs"] == [{"status": "prefilled"}]
+    assert completed_trace["latency_ms"] == 80
+    assert completed_trace["cost_usd"] == 0.03
+    assert completed_trace["error"] == "prefilled error"
+    assert completed_trace["trace_uri"] == "trace://prefilled"
+    assert path.read_bytes() == original
+
+    empty_path, empty_ids = _snapshot_with_states(tmp_path / "empty", "pending")
+    empty_decision_id = empty_ids["pending"]
+    empty_trace_id = (
+        TraceBackedMemoryStore.load_json(empty_path)
+        .memory_run_audits()[0]
+        .trace_id
+    )
+    outputs_path = tmp_path / "empty-tool-outputs.json"
+    outputs_path.write_text("[]", encoding="utf-8")
+
+    code, payload, error = _run(
+        capsys,
+        "complete",
+        str(empty_path),
+        empty_trace_id,
+        empty_decision_id,
+        "--eval-result",
+        "pass",
+        "--tool-outputs-file",
+        str(outputs_path),
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["completions"][0]["trace"]["tool_outputs"] == []
+
+
+@pytest.mark.parametrize(
+    ("contents", "message_fragment"),
+    [
+        (b"{not-json", "JSON"),
+        (b'[{"value":NaN}]', "non-finite"),
+        (b"{}", "array"),
+        (b"[1]", "objects"),
+        (b"\xff", "UTF-8"),
+    ],
+)
+def test_cli_complete_rejects_invalid_tool_output_files_without_writing(
+    tmp_path,
+    capsys,
+    contents,
+    message_fragment,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    trace_id = TraceBackedMemoryStore.load_json(path).memory_run_audits()[0].trace_id
+    original = path.read_bytes()
+    outputs_path = tmp_path / "invalid-tool-outputs.json"
+    outputs_path.write_bytes(contents)
+
+    code, payload, error = _run(
+        capsys,
+        "complete",
+        str(path),
+        trace_id,
+        decision_id,
+        "--eval-result",
+        "pass",
+        "--tool-outputs-file",
+        str(outputs_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert message_fragment in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+def test_cli_complete_rejects_missing_tool_output_file_without_writing(
+    tmp_path,
+    capsys,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    trace_id = TraceBackedMemoryStore.load_json(path).memory_run_audits()[0].trace_id
+    original = path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "complete",
+        str(path),
+        trace_id,
+        decision_id,
+        "--eval-result",
+        "pass",
+        "--tool-outputs-file",
+        str(tmp_path / "missing-tool-outputs.json"),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "missing-tool-outputs.json" in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    "extra_args",
+    [
+        (),
+        ("--eval-result", "unknown"),
+        ("--eval-result", "pass", "--memory-caused-failure", "maybe"),
+        ("--eval-result", "pass", "--latency-ms", "1.5"),
+        ("--eval-result", "pass", "--cost-usd", "NaN"),
+        ("--eval-result", "pass", "--cost-usd", "Infinity"),
+    ],
+)
+def test_cli_complete_rejects_invalid_arguments_without_writing(
+    tmp_path,
+    capsys,
+    extra_args,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    trace_id = TraceBackedMemoryStore.load_json(path).memory_run_audits()[0].trace_id
+    original = path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "complete",
+        str(path),
+        trace_id,
+        decision_id,
+        *extra_args,
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert path.read_bytes() == original
+
+
+def test_cli_complete_reports_domain_rejections_without_writing(tmp_path, capsys):
+    store = TraceBackedMemoryStore()
+    first_trace, first_decision_id = _pending_run(store, "first")
+    _second_trace, second_decision_id = _pending_run(store, "second")
+    path = tmp_path / "store.snapshot.json"
+    store.save_json(path)
+    original = path.read_bytes()
+
+    cases = (
+        (
+            first_trace.trace_id,
+            second_decision_id,
+            ("--eval-result", "pass"),
+            "does not belong",
+        ),
+        (
+            first_trace.trace_id,
+            first_decision_id,
+            (
+                "--eval-result",
+                "pass",
+                "--memory-caused-failure",
+                "true",
+            ),
+            "requires eval_result fail or error",
+        ),
+        (
+            first_trace.trace_id,
+            first_decision_id,
+            ("--eval-result", "pass", "--output-hash", ""),
+            "output_hash",
+        ),
+    )
+    for trace_id, decision_id, extra_args, message_fragment in cases:
+        code, payload, error = _run(
+            capsys,
+            "complete",
+            str(path),
+            trace_id,
+            decision_id,
+            *extra_args,
+            "--write",
+        )
+
+        assert code == 3
+        assert payload is None
+        assert error["error"]["kind"] == "state"
+        assert message_fragment in error["error"]["message"]
+        assert path.read_bytes() == original
 
 
 def test_cli_recover_ready_is_dry_run_by_default_and_writes_atomically(

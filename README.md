@@ -147,6 +147,7 @@ tbm snapshot stats SNAPSHOT
 tbm audit SNAPSHOT
 tbm metrics SNAPSHOT
 tbm remediation SNAPSHOT
+tbm complete SNAPSHOT TRACE_ID DECISION_ID --eval-result {pass,fail,error} [--memory-caused-failure true|false] [--output-hash VALUE] [--tool-outputs-file PATH] [--latency-ms INTEGER] [--cost-usd NUMBER] [--error VALUE] [--trace-uri VALUE] [--write]
 tbm recover-ready SNAPSHOT [--write]
 tbm recover SNAPSHOT DECISION_ID [--memory-caused-failure true|false] [--write]
 tbm recover-batch SNAPSHOT DECISION_ID... [--attribution DECISION_ID=true|false]... [--write]
@@ -154,19 +155,30 @@ tbm recover-batch SNAPSHOT DECISION_ID... [--attribution DECISION_ID=true|false]
 
 Each command loads one local snapshot through the regular store validation
 path. Read commands emit one deterministic JSON value plus a newline.
-Recovery commands return the serialized completions, ordered decision IDs, and
-a `written` flag. They are dry-run by default: the input bytes change only when
-`--write` is explicit and the complete recovery succeeds. A write reuses the
-store's same-directory temporary file and atomic replacement behavior.
+Completion and recovery commands return the serialized completions, ordered
+decision IDs, and a `written` flag. They are dry-run by default: the input
+bytes change only when `--write` is explicit and the complete operation
+succeeds. A write reuses the store's same-directory temporary file and atomic
+replacement behavior.
+
+`complete` submits a fresh measured result for the exact linked Trace and
+decision. It requires `--eval-result`; failure attribution defaults to false
+and may be stated with `--memory-caused-failure true|false`. The command does
+not infer an outcome, ID, attribution, or execution evidence. Optional
+`--tool-outputs-file` input must be a UTF-8 JSON array of objects. Omitted
+evidence flags preserve compatible evidence already present on the Trace,
+while a file containing `[]` supplies an explicit empty tool-output list.
+Recovery commands remain limited to outcomes already measured on one side.
 
 Failures emit one structured JSON error to stderr without a traceback. Exit
 codes are `0` for success or a no-op, `1` for an unexpected internal failure,
-`2` for usage/path/encoding/JSON/snapshot input, `3` for a rejected recovery
-state or attribution, and `4` for a snapshot write failure. Help remains normal
-human-readable argparse output. Error text is capped at 2,048 characters, and
-successful JSON is serialized before persistence. If a downstream pipe closes
-stdout after `--write` commits, the already-persisted operation remains a
-success rather than inviting an unsafe retry.
+`2` for usage/path/encoding/JSON/snapshot input, `3` for a rejected completion
+or recovery state, linkage, attribution, or evidence value, and `4` for a
+snapshot write failure. Help remains normal human-readable argparse output.
+Error text is capped at 2,048 characters, and successful JSON is serialized
+before persistence. If a downstream pipe closes stdout after `--write`
+commits, the already-persisted operation remains a success rather than
+inviting an unsafe retry.
 
 This interface accepts neither stdin nor remote URLs, PostgreSQL connections,
 or alternate output paths. It adds no persisted CLI state: snapshot version 2,
@@ -1252,6 +1264,9 @@ Implemented pieces:
   aggregate.
 - Safe `recover_memory_run()` orchestration that derives correlated IDs/results, requires explicit failed-run attribution, and reuses atomic completion.
 - Atomic `recover_memory_runs()` orchestration that validates and stages a unique decision tuple before committing any shared-Trace recovery.
+- Dry-run measured completion through `tbm complete`, with explicit linked IDs
+  and outcome, strict file-backed tool outputs, optional Trace evidence, and
+  same-path atomic snapshot replacement on `--write`.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
 - Failure extraction helpers that load the failure taxonomy, classify failed
   traces from ordered Trace, tool-call, and top-level `tool_outputs` error

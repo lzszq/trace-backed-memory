@@ -248,23 +248,31 @@ canonical collection counts; `snapshot stats` returns the version and counts.
 `metrics()`, `memory_run_metrics()`, and `memory_outcome_metrics()` without
 introducing a second aggregation path.
 
-The mutation surface delegates `recover` to `recover_memory_run()`,
-`recover-batch` to `recover_memory_runs()`, and `recover-ready` to
-`recover_ready_memory_runs()`. Every operation first mutates only the loaded
-in-memory store and is a dry-run unless `--write` is explicit. After a complete
-successful recovery, `--write` calls `save_json()` on the input path, reusing
-its same-directory temporary file and atomic replacement. Batch validation and
-recovery remain all-or-nothing in the store; the CLI does not stage or classify
-records independently.
+The mutation surface delegates `complete` to `complete_memory_run()`, `recover`
+to `recover_memory_run()`, `recover-batch` to `recover_memory_runs()`, and
+`recover-ready` to `recover_ready_memory_runs()`. `complete` supplies a fresh
+measured result through required `--eval-result` and exact linked IDs; it does
+not infer an outcome, linkage, attribution, or evidence. Scalar evidence is
+optional. `--tool-outputs-file` reads strict UTF-8 JSON that must be an array of
+objects, and absent evidence flags are not forwarded so the Store retains its
+omission semantics.
+
+Every mutation first changes only the loaded in-memory store and is a dry-run
+unless `--write` is explicit. After a complete successful operation, `--write`
+calls `save_json()` on the input path, reusing its same-directory temporary file
+and atomic replacement. Completion, batch validation, and recovery remain
+all-or-nothing in the store; the CLI does not stage or classify records
+independently.
 
 Successful commands emit one deterministic JSON value plus a newline. Failures
 emit one structured JSON object to stderr without a traceback. Exit codes are
-0 for success or no-op, 1 for an unexpected internal failure, 2 for command or
-snapshot input, 3 for recovery-state or attribution rejection, and 4 for a
-write failure. Error text is capped at 2,048 characters. Successful output is
-serialized before persistence; after a requested write commits, a downstream
-stdout pipe closure does not report the already-persisted operation as failed.
-Help is the sole normal argparse text path.
+0 for success or no-op, 1 for an unexpected internal failure, 2 for command,
+snapshot, or structured-evidence input, 3 for completion or recovery state,
+linkage, attribution, or evidence rejection, and 4 for a write failure. Error
+text is capped at 2,048 characters. Successful output is serialized before
+persistence; after a requested write commits, a downstream stdout pipe closure
+does not report the already-persisted operation as failed. Help is the sole
+normal argparse text path.
 
 The adapter persists no command, audit, metrics, or remediation record. It
 leaves snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL

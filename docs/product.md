@@ -62,7 +62,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 运行闭环 | 两阶段 prepare/finalize、单项/批量原子完成、延迟 outcome sealing |
 | 运行编排 | `run_memory_execution()` 同步串联 decision callback、execution callback 与原子完成；`MemoryRunMeasurement` 无需调用方复制 decision ID |
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
-| 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、audit/metrics/remediation、dry-run 恢复与显式 `--write` 原子替换 |
+| 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、audit/metrics/remediation、fresh measured completion、dry-run 恢复与显式 `--write` 原子替换 |
 | 分发资源 | wheel/sdist/editable 内置 18 份 byte-identical Schema、taxonomy 与示例；支持发现、读取、校验元数据和原子导出 |
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类，受限 YAML 以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
@@ -78,7 +78,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 3. 外部 LLM 返回结构化 applicability decision。
 4. `finalize_memory()` 重新检查状态、收窄 decision、生成受限 snippet，并记录关联 Trace 的 usage audit。
 5. Harness 执行并评估任务。
-6. `complete_memory_run()` 或 `complete_memory_runs()` 原子写入 Trace 与 decision outcome。
+6. `complete_memory_run()` 或 `complete_memory_runs()` 原子写入 Trace 与 decision outcome；本地 snapshot 运维也可用 `tbm complete` 提交显式实测结果。
 
 普通同步调用方可以用 `run_memory_execution()` 把第 2-6 步收敛为一次调用；LLM 与 harness 仍由调用方 callback 提供，Store 继续拥有门控、linkage 和原子完成。需要暂停、人工重试或独立生命周期控制的高级调用方继续直接使用底层方法。
 
@@ -126,7 +126,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - JSON snapshot version 2 用于完整 store 的本地持久化。
 - YAML adapter 用于导入/导出 active lessons。
 - 安装后提供 `tbm` console script；`python -m trace_backed_memory` 提供等价入口。
-- CLI 通过现有 snapshot validation、audit、metrics、remediation 和 recovery API 工作，不复制领域规则。
+- CLI 通过现有 snapshot validation、audit、metrics、remediation、completion 和 recovery API 工作，不复制领域规则；`complete` 不推断 outcome、关联 ID、归因或证据。
 - `tbm resource list/read/export` 和 Python resource interface 在不依赖 checkout 路径的情况下提供严格 allowlist 的规范资源；包通过 `py.typed` 声明类型信息。
 - `run_memory_execution()` 提供无第三方依赖的同步 harness 编排；`MemoryRunExecutionError` 保留各阶段的 request/decision 恢复上下文与原始异常，但不自动猜测执行 outcome。
 
@@ -139,13 +139,13 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-28，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
+当前版本已完成路线图 Phase 0-29，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry；
 - snapshot/YAML round trip 与恶意 JSON 边界；
 - tool-output-only 失败提取、错误证据优先级，以及 taxonomy/lesson/scope duplicate 或语义错误 YAML 的 all-or-nothing 导入；
-- CLI structured JSON/exit-code contract、deterministic ordering、dry-run isolation、原子写入、batch all-or-nothing 与 module/console-script smoke；
+- CLI structured JSON/exit-code contract、deterministic ordering、fresh measured completion、file-backed tool evidence、dry-run isolation、原子写入、batch all-or-nothing 与 module/console-script smoke；
 - wheel/sdist 资源清单、逐字节 parity、隔离安装、默认 taxonomy、`py.typed` 与 PostgreSQL Schema 导出；
 - callback memory-run execution 的顺序、measurement evidence、异常恢复上下文、Store 错误透传与原子失败；
 - 真实临时 PostgreSQL 集群上的 DDL、事务、并发锁和同步；

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -40,6 +41,16 @@ def _parse_boolean(value: str) -> bool:
     if value == "false":
         return False
     raise argparse.ArgumentTypeError("must be 'true' or 'false'")
+
+
+def _parse_finite_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except (ValueError, OverflowError) as error:
+        raise argparse.ArgumentTypeError("must be a finite number") from error
+    if not math.isfinite(parsed):
+        raise argparse.ArgumentTypeError("must be a finite number")
+    return parsed
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -97,6 +108,36 @@ def _build_parser() -> argparse.ArgumentParser:
     ):
         subcommand = commands.add_parser(command, help=help_text)
         subcommand.add_argument("snapshot", type=Path)
+
+    complete = commands.add_parser(
+        "complete",
+        help="Complete one memory run with a measured result.",
+    )
+    complete.add_argument("snapshot", type=Path)
+    complete.add_argument("trace_id")
+    complete.add_argument("decision_id")
+    complete.add_argument(
+        "--eval-result",
+        choices=("pass", "fail", "error"),
+        required=True,
+    )
+    complete.add_argument(
+        "--memory-caused-failure",
+        type=_parse_boolean,
+        default=False,
+        metavar="true|false",
+    )
+    complete.add_argument("--output-hash")
+    complete.add_argument("--tool-outputs-file", type=Path)
+    complete.add_argument("--latency-ms", type=int)
+    complete.add_argument("--cost-usd", type=_parse_finite_float)
+    complete.add_argument("--error")
+    complete.add_argument("--trace-uri")
+    complete.add_argument(
+        "--write",
+        action="store_true",
+        help="Atomically replace the snapshot after successful completion.",
+    )
 
     recover_ready = commands.add_parser(
         "recover-ready",
@@ -234,7 +275,59 @@ def _parse_attributions(
     return attributions
 
 
-def _recovery_payload(
+def _reject_non_finite_json_constant(value: str) -> Any:
+    raise CLIInputError(
+        f"tool outputs JSON contains non-finite number: {value}"
+    )
+
+
+def _load_tool_outputs(path: Path) -> list[dict[str, object]]:
+    try:
+        source = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise CLIInputError(
+            f"tool outputs file must be UTF-8: {path}"
+        ) from error
+    except OSError as error:
+        raise CLIInputError(
+            f"cannot read tool outputs file {path}: {error}"
+        ) from error
+
+    try:
+        payload = json.loads(
+            source,
+            parse_constant=_reject_non_finite_json_constant,
+        )
+    except json.JSONDecodeError as error:
+        raise CLIInputError(
+            f"invalid tool outputs JSON in {path}: {error}"
+        ) from error
+
+    if type(payload) is not list:
+        raise CLIInputError("tool outputs JSON must be an array of objects")
+    if any(type(item) is not dict for item in payload):
+        raise CLIInputError("tool outputs JSON array items must be objects")
+    return payload
+
+
+def _completion_evidence(args: argparse.Namespace) -> dict[str, object]:
+    evidence = {
+        field_name: getattr(args, field_name)
+        for field_name in (
+            "output_hash",
+            "latency_ms",
+            "cost_usd",
+            "error",
+            "trace_uri",
+        )
+        if getattr(args, field_name) is not None
+    }
+    if args.tool_outputs_file is not None:
+        evidence["tool_outputs"] = _load_tool_outputs(args.tool_outputs_file)
+    return evidence
+
+
+def _completion_payload(
     completions: Sequence[MemoryRunCompletion],
     *,
     written: bool,
@@ -334,8 +427,18 @@ def _execute(
             for remediation in store.memory_run_remediations()
         ]
 
+    if args.command == "complete":
+        completion = store.complete_memory_run(
+            trace_id=args.trace_id,
+            decision_id=args.decision_id,
+            eval_result=args.eval_result,
+            memory_caused_failure=args.memory_caused_failure,
+            **_completion_evidence(args),
+        )
+        return _completion_payload((completion,), written=args.write)
+
     if args.command == "recover-ready":
-        return _recovery_payload(
+        return _completion_payload(
             store.recover_ready_memory_runs(),
             written=args.write,
         )
@@ -348,13 +451,13 @@ def _execute(
                 args.decision_id,
                 memory_caused_failure=args.memory_caused_failure,
             )
-        return _recovery_payload((completion,), written=args.write)
+        return _completion_payload((completion,), written=args.write)
 
     decision_ids = tuple(args.decision_ids)
     if len(set(decision_ids)) != len(decision_ids):
         raise CLIInputError("recover-batch decision_ids must be unique")
     attributions = _parse_attributions(args.attribution, decision_ids)
-    return _recovery_payload(
+    return _completion_payload(
         store.recover_memory_runs(
             decision_ids,
             memory_caused_failures=attributions or None,

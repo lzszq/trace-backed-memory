@@ -9556,3 +9556,122 @@ def test_valid_nested_trace_json_can_snapshot_save_and_reload(tmp_path: Path):
     loaded = TraceBackedMemoryStore.load_json(path)
 
     assert loaded.to_snapshot() == snapshot
+
+
+def test_load_json_enforces_utf8_byte_budget_and_allows_trusted_override(
+    tmp_path: Path,
+):
+    store, _trace, _case = store_with_verified_case()
+    path = tmp_path / "bounded.snapshot.json"
+    store.save_json(path)
+    byte_count = len(path.read_bytes())
+
+    assert TraceBackedMemoryStore.load_json(
+        path,
+        max_bytes=byte_count,
+    ).to_snapshot() == store.to_snapshot()
+
+    with pytest.raises(ValueError, match="memory store snapshot file exceeds"):
+        TraceBackedMemoryStore.load_json(path, max_bytes=byte_count - 1)
+
+    assert TraceBackedMemoryStore.load_json(
+        path,
+        max_bytes=None,
+    ).to_snapshot() == store.to_snapshot()
+
+
+def test_snapshot_record_budgets_are_checked_before_construction():
+    snapshot = valid_snapshot_dict()
+    collection_counts = [
+        len(snapshot[key])
+        for key in (
+            "traces",
+            "failure_cases",
+            "lessons",
+            "project_policies",
+            "usage_logs",
+        )
+    ]
+    per_collection = max(collection_counts)
+    total = sum(collection_counts)
+
+    restored = TraceBackedMemoryStore.from_snapshot(
+        snapshot,
+        max_records_per_collection=per_collection,
+        max_total_records=total,
+    )
+    assert restored.to_snapshot() == snapshot
+
+    with pytest.raises(ValueError, match="snapshot field .* maximum is 0"):
+        TraceBackedMemoryStore.from_snapshot(
+            snapshot,
+            max_records_per_collection=0,
+        )
+    with pytest.raises(ValueError, match="snapshot contains .* maximum is"):
+        TraceBackedMemoryStore.from_snapshot(
+            snapshot,
+            max_total_records=total - 1,
+        )
+
+    assert TraceBackedMemoryStore.from_snapshot(
+        snapshot,
+        max_records_per_collection=None,
+        max_total_records=None,
+    ).to_snapshot() == snapshot
+
+
+@pytest.mark.parametrize("limit_name", [
+    "max_records_per_collection",
+    "max_total_records",
+])
+@pytest.mark.parametrize("limit", [True, -1, 1.5, "1"])
+def test_snapshot_rejects_invalid_record_budgets(limit_name, limit):
+    with pytest.raises(
+        ValueError,
+        match="must be a non-negative integer or None",
+    ):
+        TraceBackedMemoryStore.from_snapshot(
+            valid_snapshot_dict(),
+            **{limit_name: limit},
+        )
+
+
+def test_lessons_yaml_enforces_byte_and_record_budgets_before_mutation(
+    tmp_path: Path,
+):
+    source, trace, case, lesson = store_with_active_lesson()
+    path = tmp_path / "bounded-lessons.yaml"
+    source.save_lessons_yaml(path)
+    byte_count = len(path.read_bytes())
+
+    target = TraceBackedMemoryStore()
+    target.record_trace(trace)
+    target.add_failure_case(case)
+    before = target.to_snapshot()
+
+    with pytest.raises(ValueError, match="active lessons YAML file exceeds"):
+        target.load_lessons_yaml(path, max_bytes=byte_count - 1)
+    assert target.to_snapshot() == before
+
+    with pytest.raises(ValueError, match="more than 0 records"):
+        target.load_lessons_yaml(path, max_lessons=0)
+    assert target.to_snapshot() == before
+
+    assert target.load_lessons_yaml(
+        path,
+        max_bytes=byte_count,
+        max_lessons=1,
+    ) == [lesson]
+
+
+@pytest.mark.parametrize("limit", [True, -1, 1.5, "1"])
+def test_lessons_yaml_rejects_invalid_record_budgets(tmp_path: Path, limit):
+    source, _trace, _case, _lesson = store_with_active_lesson()
+    path = tmp_path / "invalid-budget-lessons.yaml"
+    source.save_lessons_yaml(path)
+
+    with pytest.raises(
+        ValueError,
+        match="max_lessons must be a non-negative integer or None",
+    ):
+        TraceBackedMemoryStore().load_lessons_yaml(path, max_lessons=limit)

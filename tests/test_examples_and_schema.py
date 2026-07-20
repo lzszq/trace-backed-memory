@@ -53,7 +53,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`python -m trace_backed_memory`",
         "`run_memory_execution()`",
         "`MemoryRunMeasurement`",
-        "Phase 0-31",
+        "Phase 0-32",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -1970,6 +1970,45 @@ def test_docs_publish_batch_measured_completion_cli_and_compatibility():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
     assert "batch_completion_commands" not in postgres_schema
+
+
+def test_docs_publish_bounded_local_document_ingestion_and_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/product.md": _doc("product.md"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "bounded local document ingestion",
+        "64 mib",
+        "8 mib",
+        "1 mib",
+        "max_bytes",
+        "none",
+        "snapshot version 2",
+        "postgresql schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert "Phase 0-32" in documents["docs/product.md"]
+    assert (
+        "Phase 32: Bounded local document ingestion (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "ingestion_limits" not in snapshot_schema["properties"]
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert "ingestion_limits" not in postgres_schema
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

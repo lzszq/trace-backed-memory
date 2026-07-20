@@ -64,7 +64,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
 | 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、audit/metrics/remediation、单项与清单式批量 measured completion、dry-run 恢复与显式 `--write` 原子替换 |
 | 分发资源 | wheel/sdist/editable 内置 18 份 byte-identical Schema、taxonomy 与示例；支持发现、读取、校验元数据和原子导出 |
-| 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类，受限 YAML 以 all-or-nothing 方式导入 |
+| 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类；bounded local document ingestion 对本地 JSON/YAML 先限额再校验，并以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
 | PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配 |
 | 持久化 | 同目录临时文件、落盘同步和原子替换的 JSON snapshot / active lesson YAML；lesson 多段文本保真；可选同步 PostgreSQL Repository |
@@ -115,6 +115,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - **不可逆历史**：身份、来源和已填充的执行证据不可重写；生命周期只允许前向变化。
 - **原子写入**：Trace/decision 的单项和批量完成先构建并验证全部候选，再一次提交。
 - **固定预算**：最多 50 个 gate candidates、20 个 injected memories、32,000 字符 gate prompt 和 12,000 字符 snippet。
+- **本地文档限额**：snapshot 为 64 MiB、每集合 100,000 条且总计 250,000 条；active lessons 与 CLI JSON 为 8 MiB；failure taxonomy 为 1 MiB。CLI JSON 另限 10,000 个顶层项目、100,000 个 JSON nodes 和 depth 100；Python API 可通过 `max_bytes` 等关键字参数显式传入 `None`，仅用于可信离线迁移。
 - **防御性所有权**：store 使用锁与 defensive copies，调用方不能通过返回对象修改内部状态。
 
 ## 7. 部署与集成
@@ -139,7 +140,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-31，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。测试包括：
+当前版本已完成路线图 Phase 0-32，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；这些运行时控制不持久化，snapshot version 2 与 PostgreSQL schema version 1 保持不变。测试包括：
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry；

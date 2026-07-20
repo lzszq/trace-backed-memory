@@ -17,6 +17,15 @@ from threading import RLock
 from types import MappingProxyType
 from typing import Any, Iterator, TextIO, cast
 
+from ._ingestion import (
+    LESSONS_YAML_FILE_MAX_BYTES,
+    LESSONS_YAML_MAX_RECORDS,
+    SNAPSHOT_FILE_MAX_BYTES,
+    SNAPSHOT_MAX_RECORDS_PER_COLLECTION,
+    SNAPSHOT_MAX_TOTAL_RECORDS,
+    read_bounded_utf8,
+    validate_non_negative_limit,
+)
 from .lifecycle import (
     memory_item_from_failure_case,
     memory_item_from_lesson,
@@ -108,9 +117,14 @@ MEMORY_SOURCE_IDENTITY_CONTEXT_FIELDS = frozenset(
 )
 SNAPSHOT_VERSION = 2
 TRACE_JSON_MAX_DEPTH = 100
-SNAPSHOT_COLLECTION_KEYS = frozenset(
-    {"traces", "failure_cases", "lessons", "project_policies", "usage_logs"}
+SNAPSHOT_COLLECTION_NAMES = (
+    "traces",
+    "failure_cases",
+    "lessons",
+    "project_policies",
+    "usage_logs",
 )
+SNAPSHOT_COLLECTION_KEYS = frozenset(SNAPSHOT_COLLECTION_NAMES)
 SNAPSHOT_V2_KEYS = SNAPSHOT_COLLECTION_KEYS.union({"snapshot_version"})
 
 
@@ -182,10 +196,23 @@ class TraceBackedMemoryStore:
         }
 
     @classmethod
-    def from_snapshot(cls, data: Mapping[str, Any]) -> "TraceBackedMemoryStore":
+    def from_snapshot(
+        cls,
+        data: Mapping[str, Any],
+        *,
+        max_records_per_collection: int | None = (
+            SNAPSHOT_MAX_RECORDS_PER_COLLECTION
+        ),
+        max_total_records: int | None = SNAPSHOT_MAX_TOTAL_RECORDS,
+    ) -> "TraceBackedMemoryStore":
         if not isinstance(data, Mapping):
             raise ValueError("memory store snapshot must be a JSON object")
         is_v2 = _validate_snapshot_envelope(data)
+        _validate_snapshot_collection_limits(
+            data,
+            max_records_per_collection=max_records_per_collection,
+            max_total_records=max_total_records,
+        )
         store = cls()
         for trace_data in _snapshot_records(data, "traces"):
             store.record_trace(_snapshot_record_instance(Trace, trace_data, "trace"))
@@ -231,14 +258,32 @@ class TraceBackedMemoryStore:
             temporary_file.write("\n")
 
     @classmethod
-    def load_json(cls, path: str | Path) -> "TraceBackedMemoryStore":
-        data = json.loads(
-            Path(path).read_text(encoding="utf-8"),
-            parse_constant=_reject_json_constant,
+    def load_json(
+        cls,
+        path: str | Path,
+        *,
+        max_bytes: int | None = SNAPSHOT_FILE_MAX_BYTES,
+        max_records_per_collection: int | None = (
+            SNAPSHOT_MAX_RECORDS_PER_COLLECTION
+        ),
+        max_total_records: int | None = SNAPSHOT_MAX_TOTAL_RECORDS,
+    ) -> "TraceBackedMemoryStore":
+        source = read_bounded_utf8(
+            path,
+            max_bytes=max_bytes,
+            description="memory store snapshot",
         )
+        try:
+            data = json.loads(source, parse_constant=_reject_json_constant)
+        except RecursionError as exc:
+            raise ValueError("invalid memory store snapshot JSON nesting") from exc
         if not isinstance(data, Mapping):
             raise ValueError("memory store snapshot must be a JSON object")
-        return cls.from_snapshot(data)
+        return cls.from_snapshot(
+            data,
+            max_records_per_collection=max_records_per_collection,
+            max_total_records=max_total_records,
+        )
 
     @_synchronized
     def save_lessons_yaml(self, path: str | Path) -> None:
@@ -252,10 +297,21 @@ class TraceBackedMemoryStore:
             temporary_file.write(_lessons_to_yaml(active_lessons))
 
     @_synchronized
-    def load_lessons_yaml(self, path: str | Path) -> list[Lesson]:
+    def load_lessons_yaml(
+        self,
+        path: str | Path,
+        *,
+        max_bytes: int | None = LESSONS_YAML_FILE_MAX_BYTES,
+        max_lessons: int | None = LESSONS_YAML_MAX_RECORDS,
+    ) -> list[Lesson]:
         try:
             lesson_records = _lessons_from_yaml(
-                Path(path).read_text(encoding="utf-8")
+                read_bounded_utf8(
+                    path,
+                    max_bytes=max_bytes,
+                    description="active lessons YAML",
+                ),
+                max_lessons=max_lessons,
             )
         except (AttributeError, OverflowError, TypeError) as exc:
             raise ValueError(f"invalid lessons YAML: {exc}") from exc
@@ -1801,6 +1857,41 @@ def _snapshot_records(data: Mapping[str, Any], key: str) -> list[dict[str, Any]]
     return [dict(record) for record in value]
 
 
+def _validate_snapshot_collection_limits(
+    data: Mapping[str, Any],
+    *,
+    max_records_per_collection: int | None,
+    max_total_records: int | None,
+) -> None:
+    per_collection_limit = validate_non_negative_limit(
+        max_records_per_collection,
+        "max_records_per_collection",
+    )
+    total_limit = validate_non_negative_limit(
+        max_total_records,
+        "max_total_records",
+    )
+    total_records = 0
+    for key in SNAPSHOT_COLLECTION_NAMES:
+        value = data[key]
+        if not isinstance(value, list):
+            raise ValueError(f"snapshot field {key!r} must be a list")
+        record_count = len(value)
+        if (
+            per_collection_limit is not None
+            and record_count > per_collection_limit
+        ):
+            raise ValueError(
+                f"snapshot field {key!r} contains {record_count} records; "
+                f"maximum is {per_collection_limit}"
+            )
+        total_records += record_count
+    if total_limit is not None and total_records > total_limit:
+        raise ValueError(
+            f"snapshot contains {total_records} records; maximum is {total_limit}"
+        )
+
+
 def _snapshot_record_instance(
     record_type: type[Any], data: dict[str, Any], record_label: str
 ) -> Any:
@@ -2737,7 +2828,12 @@ def _lessons_to_yaml(lessons: list[Lesson]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _lessons_from_yaml(text: str) -> list[dict[str, Any]]:
+def _lessons_from_yaml(
+    text: str,
+    *,
+    max_lessons: int | None = LESSONS_YAML_MAX_RECORDS,
+) -> list[dict[str, Any]]:
+    lesson_limit = validate_non_negative_limit(max_lessons, "max_lessons")
     lines = text.splitlines()
     while lines and not lines[0].strip():
         lines.pop(0)
@@ -2763,6 +2859,10 @@ def _lessons_from_yaml(text: str) -> list[dict[str, Any]]:
     def finish_lesson() -> None:
         finish_block()
         if current is not None:
+            if lesson_limit is not None and len(lessons) >= lesson_limit:
+                raise ValueError(
+                    f"lessons YAML contains more than {lesson_limit} records"
+                )
             lessons.append(current)
 
     for raw_line in lines[1:]:

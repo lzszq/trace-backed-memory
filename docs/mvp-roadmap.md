@@ -539,3 +539,20 @@ Track:
 - Persist no manifest, `MemoryRunResult`, or command record. Preserve snapshot
   version 2, JSON Schemas, active-lessons YAML, packaged resource bytes,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 32: Bounded local document ingestion (implemented)
+
+- Read caller-owned paths through a single file handle and reject oversized
+  bytes before strict UTF-8 decoding.
+- Bound snapshot JSON at 64 MiB, 100,000 records per collection, and 250,000
+  total records before Store construction.
+- Bound active-lessons YAML at 8 MiB and 10,000 lessons, and bound
+  failure-taxonomy YAML at 1 MiB and 1,000 failure types before Store mutation.
+- Bound CLI measurement and tool-output JSON at 8 MiB, 10,000 top-level items,
+  100,000 JSON nodes, and depth 100 while preserving structured input errors
+  and no-write failures.
+- Expose keyword-only Python controls such as `max_bytes`; allow explicit
+  `None` only for trusted offline migrations while keeping CLI defaults fixed.
+- Persist no ingestion limit metadata. Preserve snapshot version 2, JSON
+  Schemas, active-lessons YAML, packaged resource bytes,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

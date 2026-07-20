@@ -242,6 +242,24 @@ uses same-directory temporary bytes before atomic publication. Resource files
 are distribution artifacts, not Store records; snapshot version 2 and
 PostgreSQL schema version 1 remain unchanged.
 
+### Bounded Local Document Ingestion
+
+The private ingestion boundary opens each caller-owned local path once and
+reads through a single file handle before strict UTF-8 decoding. Snapshot JSON
+is capped at 64 MiB, 100,000 records per collection, and 250,000 total records.
+Active-lessons YAML is capped at 8 MiB and 10,000 lessons; failure-taxonomy YAML
+is capped at 1 MiB and 1,000 failure types. Counts are checked before Store
+construction or mutation.
+
+CLI measurement and tool-output JSON is capped at 8 MiB, 10,000 top-level
+items, 100,000 JSON nodes, and depth 100. Its iterative traversal prevents the
+budget check itself from introducing application recursion. Python import APIs
+expose keyword-only controls such as `max_bytes`; an explicit `None` disables
+only that limit for trusted offline migrations. CLI adapters always use fixed
+safe defaults. These are runtime ingestion controls, not stored configuration:
+snapshot version 2, JSON Schemas, active-lessons YAML, packaged resource bytes,
+and PostgreSQL schema version 1 remain unchanged.
+
 ## Snapshot Operations CLI
 
 The dependency-free snapshot operations adapter is exposed as `tbm` and

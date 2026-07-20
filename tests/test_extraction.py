@@ -292,3 +292,36 @@ def test_classifier_can_require_taxonomy_membership():
         assert "invalid_tool_argument" in str(exc)
     else:
         raise AssertionError("taxonomy validation must reject classifier outputs not present in taxonomy")
+
+
+def test_failure_taxonomy_enforces_byte_and_record_budgets():
+    path = Path(__file__).resolve().parents[1] / "memory" / "failure_taxonomy.yaml"
+    byte_count = len(path.read_bytes())
+    expected = tbm.load_failure_taxonomy()
+
+    assert tbm.load_failure_taxonomy(
+        path,
+        max_bytes=byte_count,
+        max_failure_types=len(expected),
+    ) == expected
+    assert tbm.load_failure_taxonomy(
+        max_bytes=byte_count,
+        max_failure_types=len(expected),
+    ) == expected
+
+    with pytest.raises(ValueError, match="failure taxonomy YAML file exceeds"):
+        tbm.load_failure_taxonomy(path, max_bytes=byte_count - 1)
+    with pytest.raises(ValueError, match="more than .* failure types"):
+        tbm.load_failure_taxonomy(
+            path,
+            max_failure_types=len(expected) - 1,
+        )
+
+
+@pytest.mark.parametrize("limit", [True, -1, 1.5, "1"])
+def test_failure_taxonomy_rejects_invalid_record_budgets(limit):
+    with pytest.raises(
+        ValueError,
+        match="max_failure_types must be a non-negative integer or None",
+    ):
+        tbm.load_failure_taxonomy(max_failure_types=limit)

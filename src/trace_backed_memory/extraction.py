@@ -3,6 +3,13 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
+from ._ingestion import (
+    FAILURE_TAXONOMY_FILE_MAX_BYTES,
+    FAILURE_TAXONOMY_MAX_RECORDS,
+    decode_bounded_utf8,
+    read_bounded_utf8,
+    validate_non_negative_limit,
+)
 from .lifecycle import draft_failure_case
 from .models import FailureCase, Trace
 from .resources import read_packaged_resource
@@ -10,14 +17,29 @@ from .resources import read_packaged_resource
 FailureTaxonomy = dict[str, str]
 
 
-def load_failure_taxonomy(path: str | Path | None = None) -> FailureTaxonomy:
+def load_failure_taxonomy(
+    path: str | Path | None = None,
+    *,
+    max_bytes: int | None = FAILURE_TAXONOMY_FILE_MAX_BYTES,
+    max_failure_types: int | None = FAILURE_TAXONOMY_MAX_RECORDS,
+) -> FailureTaxonomy:
+    validate_non_negative_limit(max_failure_types, "max_failure_types")
     if path is None:
-        text = read_packaged_resource(
-            "memory/failure_taxonomy.yaml"
-        ).decode("utf-8")
+        text = decode_bounded_utf8(
+            read_packaged_resource("memory/failure_taxonomy.yaml"),
+            max_bytes=max_bytes,
+            description="failure taxonomy YAML",
+        )
     else:
-        text = Path(path).read_text(encoding="utf-8")
-    return _failure_taxonomy_from_yaml(text)
+        text = read_bounded_utf8(
+            path,
+            max_bytes=max_bytes,
+            description="failure taxonomy YAML",
+        )
+    return _failure_taxonomy_from_yaml(
+        text,
+        max_failure_types=max_failure_types,
+    )
 
 
 def classify_failure_type(trace: Trace, *, taxonomy: Mapping[str, str] | None = None) -> str:
@@ -134,7 +156,15 @@ def _taxonomy_checked(failure_type: str, taxonomy: Mapping[str, str] | None) -> 
     return failure_type
 
 
-def _failure_taxonomy_from_yaml(text: str) -> FailureTaxonomy:
+def _failure_taxonomy_from_yaml(
+    text: str,
+    *,
+    max_failure_types: int | None = FAILURE_TAXONOMY_MAX_RECORDS,
+) -> FailureTaxonomy:
+    failure_type_limit = validate_non_negative_limit(
+        max_failure_types,
+        "max_failure_types",
+    )
     lines = [line.rstrip() for line in text.splitlines() if line.strip()]
     if not lines:
         raise ValueError("failure taxonomy YAML must not be empty")
@@ -155,6 +185,14 @@ def _failure_taxonomy_from_yaml(text: str) -> FailureTaxonomy:
                 raise ValueError("failure taxonomy id must be non-empty")
             if current_id in taxonomy:
                 raise ValueError(f"duplicate failure taxonomy id: {current_id}")
+            if (
+                failure_type_limit is not None
+                and len(taxonomy) >= failure_type_limit
+            ):
+                raise ValueError(
+                    "failure taxonomy YAML contains more than "
+                    f"{failure_type_limit} failure types"
+                )
             taxonomy[current_id] = ""
             continue
 

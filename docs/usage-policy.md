@@ -92,6 +92,23 @@ characters, intra-line spaces, and the adapter's historical literal line breaks
 exactly; do not assume general YAML folding or chomping. These rules do not change snapshot
 version 2, JSON Schemas, or PostgreSQL schema version 1.
 
+## Bounded Local Document Ingestion
+
+Treat every caller-owned snapshot, active-lessons document, failure taxonomy,
+measurement manifest, and tool-output file as bounded local document ingestion.
+Read it through a single file handle and reject it before UTF-8 decoding when
+it exceeds its byte budget. The defaults are 64 MiB for snapshots, 8 MiB for
+active-lessons and CLI JSON, and 1 MiB for failure taxonomies.
+
+Also reject snapshots above 100,000 records per collection or 250,000 total
+records, lesson files above 10,000 lessons, taxonomies above 1,000 failure
+types, and CLI JSON above 10,000 top-level items, 100,000 JSON nodes, or depth
+100. Python callers may set keyword limits such as `max_bytes` to explicit
+`None` only for trusted offline migrations. CLI commands always retain the safe
+defaults. Fail before Store mutation and do not persist the limits: snapshot
+version 2, JSON Schemas, active-lessons YAML, packaged resource bytes, and
+PostgreSQL schema version 1 remain unchanged.
+
 ## Snapshot Operations CLI
 
 Use `tbm` or the equivalent `python -m trace_backed_memory` entry point for

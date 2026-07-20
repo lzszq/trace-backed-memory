@@ -919,6 +919,11 @@ def test_cli_complete_batch_writes_full_evidence_and_replays_exactly(
         ),
         (
             b'[{"decision_id":"decision_1","eval_result":"pass",'
+            b'"tool_outputs":[{"value":1,"value":2}]}]',
+            "duplicate object key: value",
+        ),
+        (
+            b'[{"decision_id":"decision_1","eval_result":"pass",'
             b'"cost_usd":NaN}]',
             "non-finite number",
         ),
@@ -1752,3 +1757,126 @@ def test_cli_unexpected_load_failure_is_structured_internal_error(
             "type": "RuntimeError",
         }
     }
+
+
+def test_cli_complete_batch_rejects_over_byte_budget_without_writing(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+    measurements_path = _write_measurements(
+        tmp_path / "bounded-measurements.json",
+        [
+            {
+                "decision_id": decision_ids["pending"],
+                "eval_result": "pass",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        cli,
+        "CLI_JSON_FILE_MAX_BYTES",
+        len(measurements_path.read_bytes()) - 1,
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "complete-batch",
+        str(path),
+        str(measurements_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "measurements file exceeds maximum size" in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    ("limit_name", "limit", "message_fragment"),
+    [
+        ("CLI_JSON_MAX_ITEMS", 1, "more than 1 items"),
+        ("CLI_JSON_MAX_NODES", 3, "more than 3 nodes"),
+        ("CLI_JSON_MAX_DEPTH", 1, "maximum depth of 1"),
+    ],
+)
+def test_cli_complete_batch_rejects_json_budget_overages_without_writing(
+    tmp_path,
+    capsys,
+    monkeypatch,
+    limit_name,
+    limit,
+    message_fragment,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    original = path.read_bytes()
+    measurements = [
+        {
+            "decision_id": decision_id,
+            "eval_result": "pass",
+            "tool_outputs": [{"nested": {"value": 1}}],
+        }
+    ]
+    if limit_name == "CLI_JSON_MAX_ITEMS":
+        measurements.append(
+            {"decision_id": decision_id, "eval_result": "pass"}
+        )
+    measurements_path = _write_measurements(
+        tmp_path / "budgeted-measurements.json",
+        measurements,
+    )
+    monkeypatch.setattr(cli, limit_name, limit)
+
+    code, payload, error = _run(
+        capsys,
+        "complete-batch",
+        str(path),
+        str(measurements_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert message_fragment in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+def test_cli_complete_rejects_tool_output_item_budget_without_writing(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    trace_id = TraceBackedMemoryStore.load_json(path).memory_run_audits()[0].trace_id
+    original = path.read_bytes()
+    outputs_path = _write_measurements(
+        tmp_path / "bounded-tool-outputs.json",
+        [{"value": 1}, {"value": 2}],
+    )
+    monkeypatch.setattr(cli, "CLI_JSON_MAX_ITEMS", 1)
+
+    code, payload, error = _run(
+        capsys,
+        "complete",
+        str(path),
+        trace_id,
+        decision_id,
+        "--eval-result",
+        "pass",
+        "--tool-outputs-file",
+        str(outputs_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "tool outputs JSON contains more than 1 items" in error["error"]["message"]
+    assert path.read_bytes() == original

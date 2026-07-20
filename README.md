@@ -148,6 +148,32 @@ chomping. These durability and text-fidelity guarantees add no stored
 fields: snapshot version 2, JSON Schemas, and PostgreSQL schema version 1 remain
 unchanged.
 
+## Bounded Local Document Ingestion
+
+Bounded local document ingestion applies finite work budgets before semantic
+validation. Every caller-owned path is opened once in binary mode and read
+through a single file handle up to its byte limit plus one byte, then decoded
+as strict UTF-8. This avoids a separate size-check race and rejects oversized
+input before decoding or Store mutation.
+
+The safe defaults are:
+
+- snapshot JSON: 64 MiB, 100,000 records per collection, and 250,000 total
+  records across the five collections;
+- active-lessons YAML: 8 MiB and 10,000 lessons;
+- failure-taxonomy YAML: 1 MiB and 1,000 failure types;
+- CLI measurement and tool-output JSON: 8 MiB, 10,000 top-level items,
+  100,000 JSON nodes, and depth 100.
+
+`TraceBackedMemoryStore.load_json()`, `from_snapshot()`,
+`load_lessons_yaml()`, and `load_failure_taxonomy()` expose keyword-only
+limits, including `max_bytes` and the relevant record-count options. Each safe
+default can be disabled independently with explicit `None` for trusted offline
+migrations. CLI commands do not expose that opt-out and always enforce their
+safe defaults. Rejected imports remain all-or-nothing. No limit metadata is
+persisted: snapshot version 2, JSON Schemas, active-lessons YAML, packaged
+resource bytes, and PostgreSQL schema version 1 remain unchanged.
+
 ## Snapshot Operations CLI
 
 Installing the package exposes the dependency-free `tbm` console script. The
@@ -1357,6 +1383,7 @@ Implemented pieces:
 |   `-- memory_decision.schema.json
 |-- src/trace_backed_memory/
 |   |-- _resources/
+|   |-- _ingestion.py
 |   |-- __main__.py
 |   |-- __init__.py
 |   |-- capture.py
@@ -1376,6 +1403,7 @@ Implemented pieces:
     |-- test_execution.py
     |-- test_examples_and_schema.py
     |-- test_extraction.py
+    |-- test_ingestion.py
     |-- test_lifecycle.py
     |-- test_packaging.py
     |-- test_postgres_integration.py

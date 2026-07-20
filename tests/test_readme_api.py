@@ -895,3 +895,30 @@ def test_readme_publishes_atomic_lesson_yaml_persistence_contract():
         "PostgreSQL schema version 1",
     ]:
         assert contract in normalized
+
+
+def test_readme_publishes_bounded_local_document_ingestion_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for contract in [
+        "bounded local document ingestion",
+        "single file handle",
+        "64 MiB",
+        "100,000 records per collection",
+        "250,000 total records",
+        "8 MiB",
+        "10,000 lessons",
+        "1 MiB",
+        "1,000 failure types",
+        "100,000 JSON nodes",
+        "depth 100",
+        "`max_bytes`",
+        "`None`",
+        "trusted offline migrations",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]:
+        assert contract.lower() in normalized.lower()

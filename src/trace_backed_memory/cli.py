@@ -8,6 +8,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence, TextIO
 
+from ._ingestion import (
+    CLI_JSON_FILE_MAX_BYTES,
+    CLI_JSON_MAX_DEPTH,
+    CLI_JSON_MAX_ITEMS,
+    CLI_JSON_MAX_NODES,
+    read_bounded_utf8,
+)
 from .models import MemoryRunCompletion, MemoryRunResult
 from .resources import (
     PackagedResource,
@@ -293,7 +300,11 @@ def _parse_attributions(
 
 def _load_json_file(path: Path, description: str) -> Any:
     try:
-        source = path.read_text(encoding="utf-8")
+        source = read_bounded_utf8(
+            path,
+            max_bytes=CLI_JSON_FILE_MAX_BYTES,
+            description=description,
+        )
     except UnicodeDecodeError as error:
         raise CLIInputError(
             f"{description} file must be UTF-8: {path}"
@@ -302,6 +313,8 @@ def _load_json_file(path: Path, description: str) -> Any:
         raise CLIInputError(
             f"cannot read {description} file {path}: {error}"
         ) from error
+    except ValueError as error:
+        raise CLIInputError(str(error)) from error
 
     def reject_non_finite(value: str) -> Any:
         raise CLIInputError(
@@ -329,17 +342,29 @@ def _load_json_file(path: Path, description: str) -> Any:
             f"invalid {description} JSON in {path}: {error}"
         ) from error
 
-    pending = [payload]
+    node_count = 0
+    pending = [(payload, 0)]
     while pending:
-        value = pending.pop()
+        value, depth = pending.pop()
+        if depth > CLI_JSON_MAX_DEPTH:
+            raise CLIInputError(
+                f"{description} JSON exceeds maximum depth of "
+                f"{CLI_JSON_MAX_DEPTH}"
+            )
+        node_count += 1
+        if node_count > CLI_JSON_MAX_NODES:
+            raise CLIInputError(
+                f"{description} JSON contains more than "
+                f"{CLI_JSON_MAX_NODES} nodes"
+            )
         if type(value) is float and not math.isfinite(value):
             raise CLIInputError(
                 f"{description} JSON contains non-finite number"
             )
         if type(value) is list:
-            pending.extend(value)
+            pending.extend((item, depth + 1) for item in value)
         elif type(value) is dict:
-            pending.extend(value.values())
+            pending.extend((item, depth + 1) for item in value.values())
     return payload
 
 
@@ -348,6 +373,11 @@ def _load_tool_outputs(path: Path) -> list[dict[str, object]]:
 
     if type(payload) is not list:
         raise CLIInputError("tool outputs JSON must be an array of objects")
+    if len(payload) > CLI_JSON_MAX_ITEMS:
+        raise CLIInputError(
+            "tool outputs JSON contains more than "
+            f"{CLI_JSON_MAX_ITEMS} items"
+        )
     if any(type(item) is not dict for item in payload):
         raise CLIInputError("tool outputs JSON array items must be objects")
     return payload
@@ -358,6 +388,11 @@ def _load_memory_run_results(path: Path) -> tuple[MemoryRunResult, ...]:
     if type(payload) is not list or not payload:
         raise CLIInputError(
             "measurements JSON must be a non-empty array of objects"
+        )
+    if len(payload) > CLI_JSON_MAX_ITEMS:
+        raise CLIInputError(
+            "measurements JSON contains more than "
+            f"{CLI_JSON_MAX_ITEMS} items"
         )
     if any(type(item) is not dict for item in payload):
         raise CLIInputError("measurements JSON array items must be objects")

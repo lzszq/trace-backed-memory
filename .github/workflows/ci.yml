@@ -47,6 +47,22 @@ jobs:
           DECISION_ID=$(.package-smoke/bin/python -c "from trace_backed_memory import MemoryContext, MemoryDecision, Trace, TraceBackedMemoryStore; store = TraceBackedMemoryStore(); trace = store.record_trace(Trace(trace_id='trace_package_smoke', run_id='run_package_smoke', commit_sha='commit_package_smoke', repo='repo_package_smoke')); log = store.log_decision(trace.run_id, MemoryContext(mode='repair', repo='repo_package_smoke', commit_sha=trace.commit_sha), [], MemoryDecision(use_memory=False, allowed_memory_ids=[], blocked_memory_ids=[], reason='no applicable memory', risk='none', recommended_injection='none')); store.save_json('dist/pending.snapshot.json'); print(log.decision_id)")
           .package-smoke/bin/tbm complete dist/pending.snapshot.json trace_package_smoke "$DECISION_ID" --eval-result pass --write
           .package-smoke/bin/python -c "from trace_backed_memory import TraceBackedMemoryStore; store = TraceBackedMemoryStore.load_json('dist/pending.snapshot.json'); assert store.memory_run_audits()[0].status == 'complete'"
+          .package-smoke/bin/python - <<'PY'
+          import json
+          from pathlib import Path
+          from trace_backed_memory import MemoryContext, MemoryDecision, Trace, TraceBackedMemoryStore
+
+          store = TraceBackedMemoryStore()
+          measurements = []
+          for index, eval_result in enumerate(("pass", "error"), start=1):
+              trace = store.record_trace(Trace(trace_id=f"trace_batch_smoke_{index}", run_id=f"run_batch_smoke_{index}", commit_sha="commit_package_smoke", repo="repo_package_smoke"))
+              log = store.log_decision(trace.run_id, MemoryContext(mode="repair", repo=trace.repo, commit_sha=trace.commit_sha), [], MemoryDecision(use_memory=False, allowed_memory_ids=[], blocked_memory_ids=[], reason="no applicable memory", risk="none", recommended_injection="none"))
+              measurements.append({"decision_id": log.decision_id, "eval_result": eval_result})
+          store.save_json("dist/pending-batch.snapshot.json")
+          Path("dist/measurements.json").write_text(json.dumps(measurements), encoding="utf-8")
+          PY
+          .package-smoke/bin/tbm complete-batch dist/pending-batch.snapshot.json dist/measurements.json --write
+          .package-smoke/bin/python -c "from trace_backed_memory import TraceBackedMemoryStore; store = TraceBackedMemoryStore.load_json('dist/pending-batch.snapshot.json'); assert [item.status for item in store.memory_run_audits()] == ['complete', 'complete']"
       - name: Install and smoke-test source distribution
         run: |
           python -m venv .sdist-smoke
@@ -54,4 +70,5 @@ jobs:
           .sdist-smoke/bin/python -c "from importlib.resources import files; from trace_backed_memory import load_failure_taxonomy, packaged_resources; assert len(packaged_resources()) == 18; assert 'invalid_tool_argument' in load_failure_taxonomy(); assert files('trace_backed_memory').joinpath('py.typed').is_file()"
           .sdist-smoke/bin/tbm resource export schemas/postgres.sql dist/postgres.sdist.sql
           cmp schemas/postgres.sql dist/postgres.sdist.sql
-          .sdist-smoke/bin/python -m trace_backed_memory complete --help
+          .sdist-smoke/bin/python -m trace_backed_memory complete-batch --help
+          .sdist-smoke/bin/python -m trace_backed_memory complete-batch dist/pending-batch.snapshot.json dist/measurements.json

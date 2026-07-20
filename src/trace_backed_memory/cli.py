@@ -8,7 +8,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Sequence, TextIO
 
-from .models import MemoryRunCompletion
+from .models import MemoryRunCompletion, MemoryRunResult
 from .resources import (
     PackagedResource,
     PackagedResourceError,
@@ -134,6 +134,22 @@ def _build_parser() -> argparse.ArgumentParser:
     complete.add_argument("--error")
     complete.add_argument("--trace-uri")
     complete.add_argument(
+        "--write",
+        action="store_true",
+        help="Atomically replace the snapshot after successful completion.",
+    )
+
+    complete_batch = commands.add_parser(
+        "complete-batch",
+        help="Atomically complete an ordered batch of measured memory runs.",
+    )
+    complete_batch.add_argument("snapshot", type=Path)
+    complete_batch.add_argument(
+        "measurements_json",
+        type=Path,
+        metavar="MEASUREMENTS_JSON",
+    )
+    complete_batch.add_argument(
         "--write",
         action="store_true",
         help="Atomically replace the snapshot after successful completion.",
@@ -275,39 +291,154 @@ def _parse_attributions(
     return attributions
 
 
-def _reject_non_finite_json_constant(value: str) -> Any:
-    raise CLIInputError(
-        f"tool outputs JSON contains non-finite number: {value}"
-    )
-
-
-def _load_tool_outputs(path: Path) -> list[dict[str, object]]:
+def _load_json_file(path: Path, description: str) -> Any:
     try:
         source = path.read_text(encoding="utf-8")
     except UnicodeDecodeError as error:
         raise CLIInputError(
-            f"tool outputs file must be UTF-8: {path}"
+            f"{description} file must be UTF-8: {path}"
         ) from error
     except OSError as error:
         raise CLIInputError(
-            f"cannot read tool outputs file {path}: {error}"
+            f"cannot read {description} file {path}: {error}"
         ) from error
 
-    try:
-        payload = json.loads(
-            source,
-            parse_constant=_reject_non_finite_json_constant,
-        )
-    except json.JSONDecodeError as error:
+    def reject_non_finite(value: str) -> Any:
         raise CLIInputError(
-            f"invalid tool outputs JSON in {path}: {error}"
+            f"{description} JSON contains non-finite number: {value}"
+        )
+
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise CLIInputError(
+                    f"{description} JSON contains duplicate object key: {key}"
+                )
+            result[key] = value
+        return result
+
+    try:
+        payload: Any = json.loads(
+            source,
+            parse_constant=reject_non_finite,
+            object_pairs_hook=unique_object,
+        )
+    except (json.JSONDecodeError, RecursionError) as error:
+        raise CLIInputError(
+            f"invalid {description} JSON in {path}: {error}"
         ) from error
+
+    pending = [payload]
+    while pending:
+        value = pending.pop()
+        if type(value) is float and not math.isfinite(value):
+            raise CLIInputError(
+                f"{description} JSON contains non-finite number"
+            )
+        if type(value) is list:
+            pending.extend(value)
+        elif type(value) is dict:
+            pending.extend(value.values())
+    return payload
+
+
+def _load_tool_outputs(path: Path) -> list[dict[str, object]]:
+    payload = _load_json_file(path, "tool outputs")
 
     if type(payload) is not list:
         raise CLIInputError("tool outputs JSON must be an array of objects")
     if any(type(item) is not dict for item in payload):
         raise CLIInputError("tool outputs JSON array items must be objects")
     return payload
+
+
+def _load_memory_run_results(path: Path) -> tuple[MemoryRunResult, ...]:
+    payload = _load_json_file(path, "measurements")
+    if type(payload) is not list or not payload:
+        raise CLIInputError(
+            "measurements JSON must be a non-empty array of objects"
+        )
+    if any(type(item) is not dict for item in payload):
+        raise CLIInputError("measurements JSON array items must be objects")
+
+    required_fields = ("decision_id", "eval_result")
+    optional_string_fields = (
+        "output_hash",
+        "error",
+        "trace_uri",
+    )
+    allowed_fields = {
+        *required_fields,
+        "memory_caused_failure",
+        *optional_string_fields,
+        "tool_outputs",
+        "latency_ms",
+        "cost_usd",
+    }
+    results: list[MemoryRunResult] = []
+    for index, item in enumerate(payload, start=1):
+        unknown_fields = sorted(set(item) - allowed_fields)
+        if unknown_fields:
+            raise CLIInputError(
+                f"measurement {index} has unknown field: {unknown_fields[0]}"
+            )
+        for field_name in required_fields:
+            if field_name not in item:
+                raise CLIInputError(
+                    f"measurement {index} missing required field: {field_name}"
+                )
+
+        if type(item["decision_id"]) is not str:
+            raise CLIInputError(
+                f"measurement {index} decision_id must be a string"
+            )
+        if type(item["eval_result"]) is not str:
+            raise CLIInputError(
+                f"measurement {index} eval_result must be a string"
+            )
+        if (
+            "memory_caused_failure" in item
+            and type(item["memory_caused_failure"]) is not bool
+        ):
+            raise CLIInputError(
+                f"measurement {index} memory_caused_failure must be a boolean"
+            )
+        for field_name in optional_string_fields:
+            value = item.get(field_name)
+            if value is not None and type(value) is not str:
+                raise CLIInputError(
+                    f"measurement {index} {field_name} must be a string or null"
+                )
+
+        tool_outputs = item.get("tool_outputs")
+        if tool_outputs is not None and (
+            type(tool_outputs) is not list
+            or any(type(output) is not dict for output in tool_outputs)
+        ):
+            raise CLIInputError(
+                f"measurement {index} tool_outputs must be an array "
+                "of objects or null"
+            )
+        latency_ms = item.get("latency_ms")
+        if latency_ms is not None and type(latency_ms) is not int:
+            raise CLIInputError(
+                f"measurement {index} latency_ms must be an integer or null"
+            )
+        cost_usd = item.get("cost_usd")
+        if cost_usd is not None and (
+            type(cost_usd) not in (int, float)
+            or (type(cost_usd) is float and not math.isfinite(cost_usd))
+        ):
+            raise CLIInputError(
+                f"measurement {index} cost_usd must be a finite number or null"
+            )
+
+        values = dict(item)
+        if tool_outputs is not None:
+            values["tool_outputs"] = tuple(tool_outputs)
+        results.append(MemoryRunResult(**values))
+    return tuple(results)
 
 
 def _completion_evidence(args: argparse.Namespace) -> dict[str, object]:
@@ -436,6 +567,14 @@ def _execute(
             **_completion_evidence(args),
         )
         return _completion_payload((completion,), written=args.write)
+
+    if args.command == "complete-batch":
+        return _completion_payload(
+            store.complete_memory_runs(
+                _load_memory_run_results(args.measurements_json)
+            ),
+            written=args.write,
+        )
 
     if args.command == "recover-ready":
         return _completion_payload(

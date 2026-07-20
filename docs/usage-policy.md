@@ -101,11 +101,11 @@ or persistence layer: `snapshot validate`, `snapshot stats`, `audit`,
 views. Commands accept one local snapshot only; they do not connect to the
 PostgreSQL repository.
 
-Treat every `complete`, `recover`, `recover-batch`, and `recover-ready` command
-as a dry-run unless `--write` is explicit. A dry-run may mutate the
-reconstructed store in memory but must leave the source bytes unchanged. A
-write is permitted only after the whole operation succeeds, and it must use
-`save_json()` to replace the same snapshot atomically.
+Treat every `complete`, `complete-batch`, `recover`, `recover-batch`, and
+`recover-ready` command as a dry-run unless `--write` is explicit. A dry-run
+may mutate the reconstructed store in memory but must leave the source bytes
+unchanged. A write is permitted only after the whole operation succeeds, and
+it must use `save_json()` to replace the same snapshot atomically.
 
 Use `complete` only to submit a fresh measured result for an exact linked
 Trace and decision. Require `--eval-result` to state `pass`, `fail`, or `error`;
@@ -116,6 +116,15 @@ be strict UTF-8 JSON containing an array of objects. Omitted evidence options
 must not be forwarded, while an explicit `[]` remains meaningful empty
 tool-output evidence. Malformed evidence is an input error and must not write
 the snapshot.
+
+Use `complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]` for a non-empty
+ordered set of fresh results. `MEASUREMENTS_JSON` must be strict UTF-8 JSON with
+a non-empty array of allowlisted `MemoryRunResult` objects. Reject duplicate
+object keys, missing or unknown fields, wrong JSON types, and non-finite numbers
+as input errors. Do not accept Trace IDs: call `complete_memory_runs()` once so
+the Store derives linkage, preserves manifest order, and applies duplicate,
+shared-Trace, evidence, replay, and attribution rules all-or-nothing. The
+default remains dry-run; only a complete successful batch may reach `--write`.
 
 `recover-ready` may select only remediation action `recover`; it must continue
 to skip pending, conflicting, complete, and `recover_with_attribution` work.

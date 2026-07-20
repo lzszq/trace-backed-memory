@@ -175,6 +175,11 @@ def _run(capsys, *args: str) -> tuple[int, object | None, object | None]:
     return exit_code, stdout, stderr
 
 
+def _write_measurements(path: Path, measurements: object) -> Path:
+    path.write_text(json.dumps(measurements), encoding="utf-8")
+    return path
+
+
 def test_cli_resource_commands_list_read_and_export(tmp_path, capsys):
     code, payload, error = _run(capsys, "resource", "list")
 
@@ -738,6 +743,479 @@ def test_cli_complete_reports_domain_rejections_without_writing(tmp_path, capsys
         assert path.read_bytes() == original
 
 
+def test_cli_complete_batch_is_ordered_and_dry_run_by_default(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    store = TraceBackedMemoryStore()
+    first_trace, first_decision_id = _pending_run(store, "batch_first")
+    second_trace, second_decision_id = _pending_run(store, "batch_second")
+    path = tmp_path / "store.snapshot.json"
+    store.save_json(path)
+    original = path.read_bytes()
+    measurements_path = _write_measurements(
+        tmp_path / "measurements.json",
+        [
+            {
+                "decision_id": second_decision_id,
+                "eval_result": "error",
+                "error": "second failed",
+            },
+            {
+                "decision_id": first_decision_id,
+                "eval_result": "pass",
+            },
+        ],
+    )
+    calls = []
+    complete_memory_runs = TraceBackedMemoryStore.complete_memory_runs
+
+    def recording_complete_memory_runs(current_store, results):
+        calls.append(results)
+        return complete_memory_runs(current_store, results)
+
+    monkeypatch.setattr(
+        TraceBackedMemoryStore,
+        "complete_memory_runs",
+        recording_complete_memory_runs,
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "complete-batch",
+        str(path),
+        str(measurements_path),
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["written"] is False
+    assert payload["decision_ids"] == [second_decision_id, first_decision_id]
+    assert len(calls) == 1
+    assert tuple(result.decision_id for result in calls[0]) == (
+        second_decision_id,
+        first_decision_id,
+    )
+    assert [
+        completion["trace"]["trace_id"]
+        for completion in payload["completions"]
+    ] == [second_trace.trace_id, first_trace.trace_id]
+    assert path.read_bytes() == original
+    restored_audits = TraceBackedMemoryStore.load_json(path).memory_run_audits()
+    assert {audit.status for audit in restored_audits} == {"pending"}
+
+
+def test_cli_complete_batch_writes_full_evidence_and_replays_exactly(
+    tmp_path,
+    capsys,
+):
+    store = TraceBackedMemoryStore()
+    preserved_trace, preserved_decision_id = _pending_run(
+        store,
+        "batch_preserved",
+        output_hash="sha256:preserved",
+        tool_outputs=[{"status": "preserved"}],
+    )
+    measured_trace, measured_decision_id = _pending_memory_use_run(
+        store,
+        "batch_measured",
+    )
+    path = tmp_path / "store.snapshot.json"
+    store.save_json(path)
+    measurements_path = _write_measurements(
+        tmp_path / "measurements.json",
+        [
+            {
+                "decision_id": preserved_decision_id,
+                "eval_result": "pass",
+                "output_hash": None,
+                "tool_outputs": None,
+            },
+            {
+                "decision_id": measured_decision_id,
+                "eval_result": "error",
+                "memory_caused_failure": True,
+                "output_hash": "sha256:batch-output",
+                "tool_outputs": [],
+                "latency_ms": 250,
+                "cost_usd": 2,
+                "error": "executor timeout",
+                "trace_uri": "trace://cli/batch",
+            },
+        ],
+    )
+    command = (
+        "complete-batch",
+        str(path),
+        str(measurements_path),
+        "--write",
+    )
+
+    code, payload, error = _run(capsys, *command)
+
+    assert code == 0
+    assert error is None
+    assert payload["written"] is True
+    assert payload["decision_ids"] == [
+        preserved_decision_id,
+        measured_decision_id,
+    ]
+    assert payload["completions"][0]["trace"]["output_hash"] == (
+        "sha256:preserved"
+    )
+    assert payload["completions"][0]["trace"]["tool_outputs"] == [
+        {"status": "preserved"}
+    ]
+    completed_trace = payload["completions"][1]["trace"]
+    assert completed_trace["trace_id"] == measured_trace.trace_id
+    assert completed_trace["output_hash"] == "sha256:batch-output"
+    assert completed_trace["tool_outputs"] == []
+    assert completed_trace["latency_ms"] == 250
+    assert completed_trace["cost_usd"] == 2
+    assert completed_trace["error"] == "executor timeout"
+    assert completed_trace["trace_uri"] == "trace://cli/batch"
+
+    restored = TraceBackedMemoryStore.load_json(path)
+    assert restored.traces[preserved_trace.trace_id].output_hash == (
+        "sha256:preserved"
+    )
+    assert all(audit.status == "complete" for audit in restored.memory_run_audits())
+    written = path.read_bytes()
+
+    replay_code, replay_payload, replay_error = _run(capsys, *command)
+
+    assert replay_code == 0
+    assert replay_error is None
+    assert replay_payload == payload
+    assert path.read_bytes() == written
+
+
+@pytest.mark.parametrize(
+    ("contents", "message_fragment"),
+    [
+        (b"\xff", "UTF-8"),
+        (b"{not-json", "JSON"),
+        (b"{}", "non-empty array"),
+        (b"[]", "non-empty array"),
+        (b"[1]", "items must be objects"),
+        (
+            b'[{"decision_id":"decision_1"}]',
+            "missing required field: eval_result",
+        ),
+        (
+            b'[{"eval_result":"pass"}]',
+            "missing required field: decision_id",
+        ),
+        (
+            b'[{"decision_id":"decision_1","eval_result":"pass",'
+            b'"trace_id":"trace_1"}]',
+            "unknown field: trace_id",
+        ),
+        (
+            b'[{"decision_id":"decision_1","decision_id":"decision_2",'
+            b'"eval_result":"pass"}]',
+            "duplicate object key: decision_id",
+        ),
+        (
+            b'[{"decision_id":"decision_1","eval_result":"pass",'
+            b'"cost_usd":NaN}]',
+            "non-finite number",
+        ),
+        (
+            b'[{"decision_id":"decision_1","eval_result":"pass",'
+            b'"cost_usd":1e400}]',
+            "non-finite number",
+        ),
+    ],
+)
+def test_cli_complete_batch_rejects_invalid_manifest_without_writing(
+    tmp_path,
+    capsys,
+    contents,
+    message_fragment,
+):
+    path, _decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+    measurements_path = tmp_path / "invalid-measurements.json"
+    measurements_path.write_bytes(contents)
+
+    code, payload, error = _run(
+        capsys,
+        "complete-batch",
+        str(path),
+        str(measurements_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert message_fragment in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value", "message_fragment"),
+    [
+        ("decision_id", 1, "decision_id must be a string"),
+        ("eval_result", True, "eval_result must be a string"),
+        (
+            "memory_caused_failure",
+            1,
+            "memory_caused_failure must be a boolean",
+        ),
+        ("output_hash", 1, "output_hash must be a string or null"),
+        ("tool_outputs", {}, "tool_outputs must be an array of objects or null"),
+        ("tool_outputs", [1], "tool_outputs must be an array of objects or null"),
+        ("latency_ms", True, "latency_ms must be an integer or null"),
+        ("latency_ms", 1.5, "latency_ms must be an integer or null"),
+        ("cost_usd", True, "cost_usd must be a finite number or null"),
+        ("cost_usd", "1", "cost_usd must be a finite number or null"),
+        ("error", 1, "error must be a string or null"),
+        ("trace_uri", 1, "trace_uri must be a string or null"),
+    ],
+)
+def test_cli_complete_batch_rejects_wrong_field_types_without_writing(
+    tmp_path,
+    capsys,
+    field_name,
+    value,
+    message_fragment,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+    measurement = {
+        "decision_id": decision_ids["pending"],
+        "eval_result": "pass",
+        field_name: value,
+    }
+    measurements_path = _write_measurements(
+        tmp_path / "invalid-types.json",
+        [measurement],
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "complete-batch",
+        str(path),
+        str(measurements_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert message_fragment in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    ("measurements", "message_fragment"),
+    [
+        (
+            [
+                {"decision_id": "{decision_id}", "eval_result": "pass"},
+                {"decision_id": "{decision_id}", "eval_result": "pass"},
+            ],
+            "unique decision_ids",
+        ),
+        (
+            [
+                {"decision_id": "{decision_id}", "eval_result": "pass"},
+                {"decision_id": "missing_decision", "eval_result": "pass"},
+            ],
+            "unknown decision_id",
+        ),
+        (
+            [{"decision_id": "{decision_id}", "eval_result": "unknown"}],
+            "eval_result",
+        ),
+        (
+            [
+                {
+                    "decision_id": "{decision_id}",
+                    "eval_result": "pass",
+                    "memory_caused_failure": True,
+                }
+            ],
+            "requires eval_result fail or error",
+        ),
+    ],
+)
+def test_cli_complete_batch_reports_store_rejections_without_writing(
+    tmp_path,
+    capsys,
+    measurements,
+    message_fragment,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    original = path.read_bytes()
+    resolved_measurements = [
+        {
+            key: decision_id if value == "{decision_id}" else value
+            for key, value in measurement.items()
+        }
+        for measurement in measurements
+    ]
+    measurements_path = _write_measurements(
+        tmp_path / "rejected-measurements.json",
+        resolved_measurements,
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "complete-batch",
+        str(path),
+        str(measurements_path),
+        "--write",
+    )
+
+    assert code == 3
+    assert payload is None
+    assert error["error"]["kind"] == "state"
+    assert message_fragment in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+def test_cli_complete_batch_rejects_missing_manifest_without_writing(
+    tmp_path,
+    capsys,
+):
+    path, _decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+    missing_path = tmp_path / "missing-measurements.json"
+
+    code, payload, error = _run(
+        capsys,
+        "complete-batch",
+        str(path),
+        str(missing_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "missing-measurements.json" in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+def test_cli_complete_batch_rejects_deeply_nested_json_as_input(
+    tmp_path,
+    capsys,
+):
+    path, _decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+    measurements_path = tmp_path / "nested-measurements.json"
+    measurements_path.write_bytes((b"[" * 2000) + (b"]" * 2000))
+
+    code, payload, error = _run(
+        capsys,
+        "complete-batch",
+        str(path),
+        str(measurements_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "measurements JSON" in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+def test_cli_complete_batch_rejects_shared_trace_result_disagreement(
+    tmp_path,
+    capsys,
+):
+    store = TraceBackedMemoryStore()
+    trace, first_decision_id = _pending_run(store, "batch_shared")
+    second_log = store.log_decision(
+        trace.run_id,
+        MemoryContext(
+            mode="repair",
+            repo="repo_cli",
+            tenant="tenant_cli",
+            commit_sha="commit_cli",
+        ),
+        [],
+        MemoryDecision(
+            use_memory=False,
+            allowed_memory_ids=[],
+            blocked_memory_ids=[],
+            reason="no applicable memory",
+            risk="none",
+            recommended_injection="none",
+        ),
+    )
+    path = tmp_path / "shared.snapshot.json"
+    store.save_json(path)
+    original = path.read_bytes()
+    measurements_path = _write_measurements(
+        tmp_path / "shared-measurements.json",
+        [
+            {"decision_id": first_decision_id, "eval_result": "pass"},
+            {"decision_id": second_log.decision_id, "eval_result": "error"},
+        ],
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "complete-batch",
+        str(path),
+        str(measurements_path),
+        "--write",
+    )
+
+    assert code == 3
+    assert payload is None
+    assert error["error"]["kind"] == "state"
+    assert "shared trace" in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+def test_cli_complete_batch_reports_write_failure_without_changing_snapshot(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+    measurements_path = _write_measurements(
+        tmp_path / "write-failure-measurements.json",
+        [
+            {
+                "decision_id": decision_ids["pending"],
+                "eval_result": "pass",
+            }
+        ],
+    )
+
+    def reject_write(_store, _path):
+        raise OSError("injected batch completion write failure")
+
+    monkeypatch.setattr(TraceBackedMemoryStore, "save_json", reject_write)
+
+    code, payload, error = _run(
+        capsys,
+        "complete-batch",
+        str(path),
+        str(measurements_path),
+        "--write",
+    )
+
+    assert code == 4
+    assert payload is None
+    assert error["error"] == {
+        "kind": "write",
+        "message": "injected batch completion write failure",
+        "type": "OSError",
+    }
+    assert path.read_bytes() == original
+
+
 def test_cli_recover_ready_is_dry_run_by_default_and_writes_atomically(
     tmp_path,
     capsys,
@@ -1070,6 +1548,55 @@ def test_module_entry_point_emits_one_json_value(tmp_path):
     }
 
 
+def test_module_entry_point_completes_batch_as_dry_run(tmp_path):
+    store = TraceBackedMemoryStore()
+    _first_trace, first_decision_id = _pending_run(store, "module_batch_first")
+    _second_trace, second_decision_id = _pending_run(store, "module_batch_second")
+    path = tmp_path / "module-batch.snapshot.json"
+    store.save_json(path)
+    original = path.read_bytes()
+    measurements_path = _write_measurements(
+        tmp_path / "module-measurements.json",
+        [
+            {"decision_id": second_decision_id, "eval_result": "error"},
+            {"decision_id": first_decision_id, "eval_result": "pass"},
+        ],
+    )
+    root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    existing_pythonpath = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        item
+        for item in (str(root / "src"), existing_pythonpath)
+        if item
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "trace_backed_memory",
+            "complete-batch",
+            str(path),
+            str(measurements_path),
+        ],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    assert result.stdout.count("\n") == 1
+    assert json.loads(result.stdout)["decision_ids"] == [
+        second_decision_id,
+        first_decision_id,
+    ]
+    assert path.read_bytes() == original
+
+
 def test_cli_broken_stdout_returns_internal_error(tmp_path, capsys, monkeypatch):
     path, _decision_ids = _snapshot_with_states(tmp_path, "complete")
 
@@ -1115,6 +1642,48 @@ def test_cli_broken_stdout_after_write_does_not_report_false_failure(
     assert TraceBackedMemoryStore.load_json(path).memory_run_audits()[0].status == (
         "complete"
     )
+
+
+def test_cli_complete_batch_broken_stdout_after_write_remains_successful(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    store = TraceBackedMemoryStore()
+    _first_trace, first_decision_id = _pending_run(store, "pipe_batch_first")
+    _second_trace, second_decision_id = _pending_run(store, "pipe_batch_second")
+    path = tmp_path / "pipe-batch.snapshot.json"
+    store.save_json(path)
+    original = path.read_bytes()
+    measurements_path = _write_measurements(
+        tmp_path / "pipe-measurements.json",
+        [
+            {"decision_id": first_decision_id, "eval_result": "pass"},
+            {"decision_id": second_decision_id, "eval_result": "error"},
+        ],
+    )
+
+    class BrokenStream:
+        def write(self, _value):
+            raise BrokenPipeError("injected closed stdout")
+
+    monkeypatch.setattr(cli.sys, "stdout", BrokenStream())
+
+    code = cli.main(
+        [
+            "complete-batch",
+            str(path),
+            str(measurements_path),
+            "--write",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert captured.err == ""
+    assert path.read_bytes() != original
+    restored = TraceBackedMemoryStore.load_json(path)
+    assert all(audit.status == "complete" for audit in restored.memory_run_audits())
 
 
 def test_cli_broken_stdout_after_resource_export_does_not_invite_retry(

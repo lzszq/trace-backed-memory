@@ -519,3 +519,23 @@ Track:
 - Add no record or column. Preserve snapshot version 2, JSON Schemas,
   active-lessons YAML semantics, `schemas/postgres.sql`, packaged resource
   bytes, and PostgreSQL schema version 1.
+
+## Phase 31: Batch measured memory-run completion CLI (implemented)
+
+- Add `complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]` for an ordered set
+  of fresh evaluator results.
+- Read `MEASUREMENTS_JSON` as strict UTF-8 JSON containing a non-empty array of
+  allowlisted `MemoryRunResult` objects; reject duplicate object keys, missing
+  or unknown fields, wrong types, and non-finite numbers before completion.
+- Omit caller-supplied Trace linkage, convert tool-output arrays to immutable
+  tuples, and delegate exactly once to `complete_memory_runs()`.
+- Preserve manifest order in the deterministic completion envelope. Keep the
+  whole operation all-or-nothing for duplicate or unknown decisions,
+  shared-Trace disagreement, invalid attribution, evidence conflicts, and
+  later-item failure.
+- Keep dry-run as the default and require explicit `--write` for synchronized
+  same-path atomic snapshot replacement and the existing post-commit stdout
+  rule.
+- Persist no manifest, `MemoryRunResult`, or command record. Preserve snapshot
+  version 2, JSON Schemas, active-lessons YAML, packaged resource bytes,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

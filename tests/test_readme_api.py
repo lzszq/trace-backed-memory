@@ -749,6 +749,7 @@ def test_readme_publishes_snapshot_operations_cli_contract():
         "tbm metrics SNAPSHOT",
         "tbm remediation SNAPSHOT",
         "tbm complete SNAPSHOT TRACE_ID DECISION_ID",
+        "tbm complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]",
         "tbm recover-ready SNAPSHOT [--write]",
         "tbm recover SNAPSHOT DECISION_ID",
         "tbm recover-batch SNAPSHOT DECISION_ID...",
@@ -780,6 +781,28 @@ def test_readme_publishes_measured_completion_cli_contract():
         "omitted",
         "dry-run",
         "`--write`",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]:
+        assert contract in normalized
+
+
+def test_readme_publishes_batch_measured_completion_cli_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for contract in [
+        "tbm complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]",
+        "strict UTF-8 JSON",
+        "non-empty array",
+        "`MemoryRunResult`",
+        "`complete_memory_runs()`",
+        "manifest order",
+        "duplicate object keys",
+        "all-or-nothing",
+        "dry-run",
         "snapshot version 2",
         "PostgreSQL schema version 1",
     ]:

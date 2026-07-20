@@ -259,14 +259,22 @@ canonical collection counts; `snapshot stats` returns the version and counts.
 `metrics()`, `memory_run_metrics()`, and `memory_outcome_metrics()` without
 introducing a second aggregation path.
 
-The mutation surface delegates `complete` to `complete_memory_run()`, `recover`
-to `recover_memory_run()`, `recover-batch` to `recover_memory_runs()`, and
+The mutation surface delegates `complete` to `complete_memory_run()`,
+`complete-batch` to `complete_memory_runs()`, `recover` to
+`recover_memory_run()`, `recover-batch` to `recover_memory_runs()`, and
 `recover-ready` to `recover_ready_memory_runs()`. `complete` supplies a fresh
 measured result through required `--eval-result` and exact linked IDs; it does
 not infer an outcome, linkage, attribution, or evidence. Scalar evidence is
 optional. `--tool-outputs-file` reads strict UTF-8 JSON that must be an array of
 objects, and absent evidence flags are not forwarded so the Store retains its
 omission semantics.
+
+`complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]` reads a strict UTF-8 JSON
+non-empty array. Each allowlisted object becomes one `MemoryRunResult`; the
+parser rejects duplicate object keys, malformed field types, and caller-supplied
+Trace linkage. One `complete_memory_runs()` call derives every Trace ID, stages
+the batch all-or-nothing, and returns completions in manifest order. The
+manifest is an ephemeral command input rather than a new persisted schema.
 
 Every mutation first changes only the loaded in-memory store and is a dry-run
 unless `--write` is explicit. After a complete successful operation, `--write`

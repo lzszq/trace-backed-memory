@@ -160,6 +160,7 @@ tbm audit SNAPSHOT
 tbm metrics SNAPSHOT
 tbm remediation SNAPSHOT
 tbm complete SNAPSHOT TRACE_ID DECISION_ID --eval-result {pass,fail,error} [--memory-caused-failure true|false] [--output-hash VALUE] [--tool-outputs-file PATH] [--latency-ms INTEGER] [--cost-usd NUMBER] [--error VALUE] [--trace-uri VALUE] [--write]
+tbm complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]
 tbm recover-ready SNAPSHOT [--write]
 tbm recover SNAPSHOT DECISION_ID [--memory-caused-failure true|false] [--write]
 tbm recover-batch SNAPSHOT DECISION_ID... [--attribution DECISION_ID=true|false]... [--write]
@@ -181,6 +182,17 @@ not infer an outcome, ID, attribution, or execution evidence. Optional
 evidence flags preserve compatible evidence already present on the Trace,
 while a file containing `[]` supplies an explicit empty tool-output list.
 Recovery commands remain limited to outcomes already measured on one side.
+
+`complete-batch` reads `MEASUREMENTS_JSON` as strict UTF-8 JSON containing a
+non-empty array of objects. Each object requires `decision_id` and
+`eval_result`, may use only the remaining `MemoryRunResult` fields, and must not
+supply `trace_id`; the Store derives linkage from each decision. The parser
+rejects duplicate object keys, unknown or missing fields, wrong JSON types, and
+non-finite numbers before completion. It converts `tool_outputs` arrays to the
+immutable tuple boundary, calls `complete_memory_runs()` exactly once, and
+returns completions in manifest order. A duplicate decision, unknown decision,
+shared-Trace disagreement, or later invalid item rejects the batch
+all-or-nothing. Like every mutation command, it is a dry-run until `--write`.
 
 Failures emit one structured JSON error to stderr without a traceback. Exit
 codes are `0` for success or a no-op, `1` for an unexpected internal failure,
@@ -1279,6 +1291,8 @@ Implemented pieces:
 - Dry-run measured completion through `tbm complete`, with explicit linked IDs
   and outcome, strict file-backed tool outputs, optional Trace evidence, and
   same-path atomic snapshot replacement on `--write`.
+- Ordered all-or-nothing measured batches through `tbm complete-batch`, with a
+  strict file-backed `MemoryRunResult` array and Store-derived Trace linkage.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
 - Failure extraction helpers that load the failure taxonomy, classify failed
   traces from ordered Trace, tool-call, and top-level `tool_outputs` error

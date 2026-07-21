@@ -14,6 +14,7 @@ from trace_backed_memory import (
     Lesson,
     MemoryContext,
     MemoryDecision,
+    ProjectPolicy,
     Trace,
     TraceBackedMemoryStore,
 )
@@ -318,6 +319,93 @@ def _lesson_portability_store(
             )
         )
     return store, active_lessons
+
+
+def _obsolescence_store() -> tuple[
+    TraceBackedMemoryStore,
+    dict[str, object],
+]:
+    store, dependent_lessons = _lesson_portability_store(
+        include_lessons=True
+    )
+    source_case_id = dependent_lessons[0].source_case_id
+    other_trace = store.record_trace(
+        Trace(
+            trace_id="trace_cli_obsolete_other",
+            run_id="run_cli_obsolete_other",
+            commit_sha="commit_cli_obsolete_other",
+            repo="repo_cli",
+            tenant="tenant_cli",
+            eval_result="fail",
+        )
+    )
+    other_case = store.add_failure_case(
+        FailureCase(
+            case_id="case_cli_obsolete_other",
+            source_trace_id=other_trace.trace_id,
+            commit_sha=other_trace.commit_sha,
+            failure_type="executor_failure",
+            symptom="unrelated executor failure",
+            fix="bound another executor",
+            fix_commit_sha="commit_cli_obsolete_other_fix",
+            regression_passed=True,
+            status="verified",
+        )
+    )
+    unrelated_lesson = store.add_lesson(
+        Lesson(
+            lesson_id="lesson_cli_obsolete_unrelated",
+            source_case_id=other_case.case_id,
+            lesson_text="Keep unrelated executor guidance active.",
+            memory_type="procedural",
+            scope={"repo": "repo_cli", "tenant": "tenant_cli"},
+        )
+    )
+    active_policy = store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_cli_obsolete_active",
+            policy_text="Record executor timeout evidence.",
+            scope={"repo": "repo_cli"},
+        )
+    )
+    obsolete_policy = store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_cli_obsolete_existing",
+            policy_text="Retry every executor immediately.",
+            scope={"repo": "repo_cli"},
+            status="obsolete",
+        )
+    )
+    draft_trace = store.record_trace(
+        Trace(
+            trace_id="trace_cli_obsolete_draft",
+            run_id="run_cli_obsolete_draft",
+            commit_sha="commit_cli_obsolete_draft",
+            repo="repo_cli",
+            tenant="tenant_cli",
+            eval_result="fail",
+        )
+    )
+    draft_case = store.add_failure_case(
+        FailureCase(
+            case_id="case_cli_obsolete_draft",
+            source_trace_id=draft_trace.trace_id,
+            commit_sha=draft_trace.commit_sha,
+            failure_type="executor_failure",
+            symptom="draft executor finding",
+        )
+    )
+    return store, {
+        "case_id": source_case_id,
+        "dependent_lesson_ids": [
+            lesson.lesson_id for lesson in dependent_lessons
+        ],
+        "existing_obsolete_lesson_id": "lesson_cli_export_obsolete",
+        "unrelated_lesson_id": unrelated_lesson.lesson_id,
+        "active_policy_id": active_policy.policy_id,
+        "obsolete_policy_id": obsolete_policy.policy_id,
+        "draft_case_id": draft_case.case_id,
+    }
 
 
 def test_cli_resource_commands_list_read_and_export(tmp_path, capsys):
@@ -819,6 +907,396 @@ def test_cli_lessons_commands_reject_the_other_publication_flag(
     assert payload is None
     assert error["error"]["kind"] == "input"
     assert "--overwrite" in error["error"]["message"]
+
+
+def test_cli_obsolete_failure_case_previews_and_writes_exact_cascade(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    store, records = _obsolescence_store()
+    snapshot_path = tmp_path / "obsolete-case.snapshot.json"
+    store.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+    calls = []
+    original_obsolete = TraceBackedMemoryStore.obsolete_failure_case
+
+    def tracked_obsolete(self, case_id):
+        calls.append(case_id)
+        return original_obsolete(self, case_id)
+
+    monkeypatch.setattr(
+        TraceBackedMemoryStore,
+        "obsolete_failure_case",
+        tracked_obsolete,
+    )
+
+    command = (
+        "obsolete",
+        str(snapshot_path),
+        "failure-case",
+        records["case_id"],
+    )
+    code, payload, error = _run(capsys, *command)
+
+    expected_cascade = sorted(records["dependent_lesson_ids"])
+    assert code == 0
+    assert error is None
+    expected_payload = {
+        "cascaded_count": 2,
+        "cascaded_lesson_ids": expected_cascade,
+        "changed": True,
+        "memory_id": records["case_id"],
+        "memory_kind": "failure_case",
+        "previous_status": "verified",
+        "status": "obsolete",
+        "written": False,
+    }
+    assert payload == expected_payload
+    assert calls == [records["case_id"]]
+    assert snapshot_path.read_bytes() == original_snapshot
+
+    code, payload, error = _run(capsys, *command, "--write")
+
+    assert code == 0
+    assert error is None
+    assert payload == {**expected_payload, "written": True}
+    assert calls == [records["case_id"], records["case_id"]]
+    assert snapshot_path.read_bytes() != original_snapshot
+    restored = TraceBackedMemoryStore.load_json(snapshot_path)
+    assert restored.failure_cases[records["case_id"]].status == "obsolete"
+    assert all(
+        restored.lessons[lesson_id].status == "obsolete"
+        for lesson_id in records["dependent_lesson_ids"]
+    )
+    assert restored.lessons[records["unrelated_lesson_id"]].status == "active"
+    assert (
+        restored.lessons[records["existing_obsolete_lesson_id"]].status
+        == "obsolete"
+    )
+
+    written_snapshot = snapshot_path.read_bytes()
+    code, payload, error = _run(capsys, *command)
+
+    assert code == 0
+    assert error is None
+    assert payload == {
+        "cascaded_count": 0,
+        "cascaded_lesson_ids": [],
+        "changed": False,
+        "memory_id": records["case_id"],
+        "memory_kind": "failure_case",
+        "previous_status": "obsolete",
+        "status": "obsolete",
+        "written": False,
+    }
+    assert snapshot_path.read_bytes() == written_snapshot
+
+
+@pytest.mark.parametrize(
+    ("memory_kind", "record_key", "collection_name"),
+    [
+        ("lesson", "dependent_lesson_ids", "lessons"),
+        ("project-policy", "active_policy_id", "project_policies"),
+    ],
+)
+def test_cli_obsolete_lesson_and_policy_are_independent_transitions(
+    tmp_path,
+    capsys,
+    memory_kind,
+    record_key,
+    collection_name,
+):
+    store, records = _obsolescence_store()
+    memory_id = records[record_key]
+    if type(memory_id) is list:
+        memory_id = memory_id[0]
+    snapshot_path = tmp_path / f"obsolete-{memory_kind}.snapshot.json"
+    store.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    command = (
+        "obsolete",
+        str(snapshot_path),
+        memory_kind,
+        memory_id,
+    )
+    code, payload, error = _run(capsys, *command)
+
+    assert code == 0
+    assert error is None
+    assert payload == {
+        "cascaded_count": 0,
+        "cascaded_lesson_ids": [],
+        "changed": True,
+        "memory_id": memory_id,
+        "memory_kind": memory_kind.replace("-", "_"),
+        "previous_status": "active",
+        "status": "obsolete",
+        "written": False,
+    }
+    assert snapshot_path.read_bytes() == original_snapshot
+
+    code, payload, error = _run(capsys, *command, "--write")
+
+    assert code == 0
+    assert error is None
+    assert payload["written"] is True
+    restored = TraceBackedMemoryStore.load_json(snapshot_path)
+    assert getattr(restored, collection_name)[memory_id].status == "obsolete"
+
+
+def test_cli_obsolete_draft_case_and_existing_records_are_idempotent(
+    tmp_path,
+    capsys,
+):
+    store, records = _obsolescence_store()
+    snapshot_path = tmp_path / "obsolete-idempotent.snapshot.json"
+    store.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "obsolete",
+        str(snapshot_path),
+        "failure-case",
+        records["draft_case_id"],
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["previous_status"] == "draft"
+    assert payload["status"] == "obsolete"
+    assert payload["changed"] is True
+    assert payload["cascaded_lesson_ids"] == []
+    assert snapshot_path.read_bytes() == original_snapshot
+
+    for memory_kind, memory_id in (
+        ("lesson", records["existing_obsolete_lesson_id"]),
+        ("project-policy", records["obsolete_policy_id"]),
+    ):
+        code, payload, error = _run(
+            capsys,
+            "obsolete",
+            str(snapshot_path),
+            memory_kind,
+            memory_id,
+        )
+
+        assert code == 0
+        assert error is None
+        assert payload["previous_status"] == "obsolete"
+        assert payload["status"] == "obsolete"
+        assert payload["changed"] is False
+        assert payload["cascaded_count"] == 0
+        assert payload["written"] is False
+        assert snapshot_path.read_bytes() == original_snapshot
+
+
+@pytest.mark.parametrize(
+    ("memory_kind", "memory_id", "message"),
+    [
+        ("failure-case", "missing_case", "unknown failure case ID"),
+        ("lesson", "missing_lesson", "unknown lesson ID"),
+        ("project-policy", "missing_policy", "unknown project policy ID"),
+        ("lesson", "", "lesson ID must be a non-empty string"),
+        ("project-policy", "x" * 129, "ID must be at most 128 characters"),
+    ],
+)
+def test_cli_obsolete_rejects_unknown_or_invalid_ids_without_writing(
+    tmp_path,
+    capsys,
+    memory_kind,
+    memory_id,
+    message,
+):
+    store, _records = _obsolescence_store()
+    snapshot_path = tmp_path / f"unknown-{memory_kind}.snapshot.json"
+    store.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "obsolete",
+        str(snapshot_path),
+        memory_kind,
+        memory_id,
+        "--write",
+    )
+
+    assert code == 3
+    assert payload is None
+    assert error["error"]["kind"] == "state"
+    assert message in error["error"]["message"]
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+def test_cli_obsolete_rejects_existing_id_under_the_wrong_memory_kind(
+    tmp_path,
+    capsys,
+):
+    store, records = _obsolescence_store()
+    case_id = records["case_id"]
+    snapshot_path = tmp_path / "obsolete-wrong-kind.snapshot.json"
+    store.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "obsolete",
+        str(snapshot_path),
+        "lesson",
+        case_id,
+        "--write",
+    )
+
+    assert code == 3
+    assert payload is None
+    assert error["error"]["kind"] == "state"
+    assert f"unknown lesson ID: {case_id}" in error["error"]["message"]
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+def test_cli_obsolete_escapes_control_characters_in_error_json(
+    tmp_path,
+    capsys,
+):
+    snapshot_path = tmp_path / "obsolete-control-id.snapshot.json"
+    TraceBackedMemoryStore().save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+    memory_id = "missing\n\u96ea"
+
+    code = cli.main(
+        [
+            "obsolete",
+            str(snapshot_path),
+            "lesson",
+            memory_id,
+            "--write",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 3
+    assert captured.out == ""
+    assert captured.err.count("\n") == 1
+    assert "\\n" in captured.err
+    assert memory_id in json.loads(captured.err)["error"]["message"]
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+def test_cli_obsolete_rejects_unsupported_kind_as_input(tmp_path, capsys):
+    snapshot_path = tmp_path / "invalid-kind.snapshot.json"
+    TraceBackedMemoryStore().save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "obsolete",
+        str(snapshot_path),
+        "trace",
+        "trace_001",
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "invalid choice" in error["error"]["message"]
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+def test_cli_obsolete_transition_and_serialization_failures_do_not_write(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    store, records = _obsolescence_store()
+    snapshot_path = tmp_path / "obsolete-failure.snapshot.json"
+    store.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    def reject_transition(_store, _lesson_id):
+        raise ValueError("injected obsolescence rejection")
+
+    monkeypatch.setattr(
+        TraceBackedMemoryStore,
+        "obsolete_lesson",
+        reject_transition,
+    )
+    code, payload, error = _run(
+        capsys,
+        "obsolete",
+        str(snapshot_path),
+        "lesson",
+        records["dependent_lesson_ids"][0],
+        "--write",
+    )
+
+    assert code == 3
+    assert payload is None
+    assert error["error"]["kind"] == "state"
+    assert "injected obsolescence rejection" in error["error"]["message"]
+    assert snapshot_path.read_bytes() == original_snapshot
+
+    monkeypatch.undo()
+    real_json_text = cli._json_text
+
+    def reject_obsolescence_result(value):
+        if type(value) is dict and "memory_kind" in value:
+            raise TypeError("injected obsolescence serialization failure")
+        return real_json_text(value)
+
+    monkeypatch.setattr(cli, "_json_text", reject_obsolescence_result)
+    code, payload, error = _run(
+        capsys,
+        "obsolete",
+        str(snapshot_path),
+        "lesson",
+        records["dependent_lesson_ids"][0],
+        "--write",
+    )
+
+    assert code == 1
+    assert payload is None
+    assert error["error"]["kind"] == "internal"
+    assert "injected obsolescence serialization failure" in (
+        error["error"]["message"]
+    )
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+def test_cli_obsolete_snapshot_write_failure_preserves_source(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    store, records = _obsolescence_store()
+    snapshot_path = tmp_path / "obsolete-write-failure.snapshot.json"
+    store.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    def reject_write(_store, _path):
+        raise OSError("injected obsolescence write failure")
+
+    monkeypatch.setattr(TraceBackedMemoryStore, "save_json", reject_write)
+    code, payload, error = _run(
+        capsys,
+        "obsolete",
+        str(snapshot_path),
+        "project-policy",
+        records["active_policy_id"],
+        "--write",
+    )
+
+    assert code == 4
+    assert payload is None
+    assert error["error"] == {
+        "kind": "write",
+        "message": "injected obsolescence write failure",
+        "type": "OSError",
+    }
+    assert snapshot_path.read_bytes() == original_snapshot
 
 
 def test_cli_resource_errors_preserve_input_read_and_write_classes(
@@ -2375,6 +2853,47 @@ def test_cli_lessons_import_broken_stdout_tracks_snapshot_publication(
     ]
 
 
+def test_cli_obsolete_broken_stdout_tracks_snapshot_publication(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    store, records = _obsolescence_store()
+    snapshot_path = tmp_path / "pipe-obsolete.snapshot.json"
+    store.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    class BrokenStream:
+        def write(self, _value):
+            raise BrokenPipeError("injected closed obsolete stdout")
+
+    monkeypatch.setattr(cli.sys, "stdout", BrokenStream())
+    command = [
+        "obsolete",
+        str(snapshot_path),
+        "project-policy",
+        records["active_policy_id"],
+    ]
+
+    code = cli.main(command)
+    captured = capsys.readouterr()
+
+    assert code == 1
+    assert json.loads(captured.err)["error"]["kind"] == "internal"
+    assert snapshot_path.read_bytes() == original_snapshot
+
+    code = cli.main([*command, "--write"])
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert captured.err == ""
+    restored = TraceBackedMemoryStore.load_json(snapshot_path)
+    assert (
+        restored.project_policies[records["active_policy_id"]].status
+        == "obsolete"
+    )
+
+
 def test_cli_bounds_error_messages(capsys):
     code = cli._emit_error("internal", RuntimeError("x" * 3000), 1)
     captured = capsys.readouterr()
@@ -3171,3 +3690,50 @@ def test_module_entry_point_exports_and_imports_lessons(tmp_path):
     assert list(restored.lessons) == [
         lesson.lesson_id for lesson in active_lessons
     ]
+
+
+def test_module_entry_point_obsoletes_failure_case_with_cascade(tmp_path):
+    store, records = _obsolescence_store()
+    snapshot_path = tmp_path / "module-obsolete.snapshot.json"
+    store.save_json(snapshot_path)
+    root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    existing_pythonpath = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        item
+        for item in (str(root / "src"), existing_pythonpath)
+        if item
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "trace_backed_memory",
+            "obsolete",
+            str(snapshot_path),
+            "failure-case",
+            records["case_id"],
+            "--write",
+        ],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    assert result.stdout.count("\n") == 1
+    payload = json.loads(result.stdout)
+    assert payload["cascaded_lesson_ids"] == sorted(
+        records["dependent_lesson_ids"]
+    )
+    assert payload["written"] is True
+    restored = TraceBackedMemoryStore.load_json(snapshot_path)
+    assert restored.failure_cases[records["case_id"]].status == "obsolete"
+    assert all(
+        restored.lessons[lesson_id].status == "obsolete"
+        for lesson_id in records["dependent_lesson_ids"]
+    )

@@ -187,6 +187,7 @@ tbm snapshot validate SNAPSHOT
 tbm snapshot stats SNAPSHOT
 tbm lessons export SNAPSHOT DESTINATION [--overwrite]
 tbm lessons import SNAPSHOT SOURCE_YAML [--write]
+tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]
 tbm audit SNAPSHOT
 tbm metrics SNAPSHOT
 tbm remediation SNAPSHOT
@@ -223,6 +224,19 @@ returns `imported_count`, source-ordered `imported_lesson_ids`, and `written`.
 It is a full validation dry-run by default and changes the same snapshot only
 after complete success with explicit `--write`. CLI callers cannot disable the
 safe ingestion limits.
+
+`obsolete` performs one forward-only Store lifecycle transition. The explicit
+kind selects `obsolete_failure_case()`, `obsolete_lesson()`, or
+`obsolete_project_policy()`; the CLI never infers a kind from an ID. A failure
+case transition atomically obsoletes all of its active derived lessons, while
+unrelated and already-obsolete lessons remain unchanged. Success reports the
+record's previous/current status, `changed`, and the sorted
+`cascaded_lesson_ids` without exposing record text, scope, Trace data, or tool
+evidence. Repeating an already-obsolete record is a successful no-op. The
+command is a preview by default and changes the same snapshot only with
+explicit `--write`; it cannot reactivate records or attach actor/reason
+metadata. There is no CLI batch loop because multi-record obsolescence would
+require a Store-level all-or-nothing API.
 
 `complete` submits a fresh measured result for the exact linked Trace and
 decision. It requires `--eval-result`; failure attribution defaults to false
@@ -266,8 +280,9 @@ exit code 3.
 Failures emit one structured JSON error to stderr without a traceback. Exit
 codes are `0` for success or a no-op, `1` for an unexpected internal failure,
 `2` for usage/path/encoding/JSON/YAML/snapshot input, `3` for a rejected
-completion, recovery, PR report, Git ancestry, linkage, attribution, or
-evidence state, and `4` for a lesson destination or snapshot write failure.
+completion, recovery, obsolescence, PR report, Git ancestry, linkage,
+attribution, or evidence state, and `4` for a lesson destination or snapshot
+write failure.
 Help remains normal human-readable argparse output. Error text is capped at
 2,048 characters, and successful JSON is serialized before persistence. If a
 downstream pipe closes stdout after an export or `--write` commit, the

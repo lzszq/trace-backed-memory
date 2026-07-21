@@ -284,12 +284,14 @@ introducing a second aggregation path.
 The mutation surface delegates `complete` to `complete_memory_run()`,
 `complete-batch` to `complete_memory_runs()`, `recover` to
 `recover_memory_run()`, `recover-batch` to `recover_memory_runs()`, and
-`recover-ready` to `recover_ready_memory_runs()`. `complete` supplies a fresh
-measured result through required `--eval-result` and exact linked IDs; it does
-not infer an outcome, linkage, attribution, or evidence. Scalar evidence is
-optional. `--tool-outputs-file` reads strict UTF-8 JSON that must be an array of
-objects, and absent evidence flags are not forwarded so the Store retains its
-omission semantics.
+`recover-ready` to `recover_ready_memory_runs()`. `obsolete` selects exactly one
+of `obsolete_failure_case()`, `obsolete_lesson()`, or
+`obsolete_project_policy()` through an explicit kind. `complete` supplies a
+fresh measured result through required `--eval-result` and exact linked IDs;
+it does not infer an outcome, linkage, attribution, or evidence. Scalar
+evidence is optional. `--tool-outputs-file` reads strict UTF-8 JSON that must be
+an array of objects, and absent evidence flags are not forwarded so the Store
+retains its omission semantics.
 
 `complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]` reads a strict UTF-8 JSON
 non-empty array. Each allowlisted object becomes one `MemoryRunResult`; the
@@ -308,20 +310,32 @@ SOURCE_YAML [--write]` calls `load_lessons_yaml()` once with the fixed 8 MiB and
 shared-ID and provenance validation, source order, merge semantics, and the
 all-or-nothing mutation boundary.
 
+`obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]`
+captures only the current status and active dependent lesson IDs needed for a
+non-sensitive result, then delegates the transition to the Store exactly once.
+The failure-case method validates the obsolete parent and all active derived
+lessons before one atomic in-memory update. The adapter derives sorted cascade
+IDs from the successful before/after status difference; it does not reproduce
+the cascade predicate or lifecycle state machine. Lesson and policy operations
+have empty cascade fields. Same-state replay is a deterministic no-op, and no
+CLI path reactivates an obsolete record.
+
 Every mutation first changes only the loaded in-memory store and is a dry-run
 unless `--write` is explicit. This includes lesson import; lesson export is an
 explicit destination publication rather than a Store mutation. After a
 complete successful operation, `--write` calls `save_json()` on the input path,
 reusing its same-directory temporary file and atomic replacement. Completion,
 batch validation, recovery, and lesson import remain all-or-nothing in the
-store; the CLI does not stage, parse YAML, or classify records independently.
+store. Single-record obsolescence and its case-to-lesson cascade share the same
+rule. The CLI does not stage, parse YAML, or classify records independently,
+and it does not synthesize a non-atomic obsolescence batch.
 
 Successful commands emit one deterministic JSON value plus a newline. Failures
 emit one structured JSON object to stderr without a traceback. Exit codes are
 0 for success or no-op, 1 for an unexpected internal failure, 2 for command,
 snapshot, YAML, or structured-evidence input, 3 for completion or recovery
-state, linkage, attribution, or evidence rejection, and 4 for a lesson
-destination or snapshot write failure. Error text is capped at 2,048
+state, obsolescence, linkage, attribution, or evidence rejection, and 4 for a
+lesson destination or snapshot write failure. Error text is capped at 2,048
 characters. Successful output is serialized before persistence; after an
 export or requested write commits, a downstream stdout pipe closure does not
 report the already-persisted operation as failed. Help is the sole normal

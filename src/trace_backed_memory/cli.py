@@ -163,6 +163,23 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Atomically replace the snapshot after a successful import.",
     )
 
+    obsolete = commands.add_parser(
+        "obsolete",
+        help="Make one failure case, lesson, or project policy obsolete.",
+    )
+    obsolete.add_argument("snapshot", type=Path)
+    obsolete.add_argument(
+        "memory_kind",
+        choices=("failure-case", "lesson", "project-policy"),
+        metavar="{failure-case,lesson,project-policy}",
+    )
+    obsolete.add_argument("memory_id", metavar="MEMORY_ID")
+    obsolete.add_argument(
+        "--write",
+        action="store_true",
+        help="Atomically replace the snapshot after successful obsolescence.",
+    )
+
     pr_report = commands.add_parser(
         "pr-report",
         help="Generate an endpoint-aware, ancestry-filtered PR report.",
@@ -679,6 +696,47 @@ def _completion_payload(
     }
 
 
+def _obsolescence_payload(
+    args: argparse.Namespace,
+    store: TraceBackedMemoryStore,
+) -> dict[str, object]:
+    cascaded_lesson_ids: list[str] = []
+    if args.memory_kind == "failure-case":
+        before = store.failure_cases.get(args.memory_id)
+        active_dependents = {
+            lesson_id
+            for lesson_id, lesson in store.lessons.items()
+            if lesson.source_case_id == args.memory_id
+            and lesson.status == "active"
+        }
+        obsolete = store.obsolete_failure_case(args.memory_id)
+        after_lessons = store.lessons
+        cascaded_lesson_ids = sorted(
+            lesson_id
+            for lesson_id in active_dependents
+            if after_lessons[lesson_id].status == "obsolete"
+        )
+    elif args.memory_kind == "lesson":
+        before = store.lessons.get(args.memory_id)
+        obsolete = store.obsolete_lesson(args.memory_id)
+    else:
+        before = store.project_policies.get(args.memory_id)
+        obsolete = store.obsolete_project_policy(args.memory_id)
+
+    if before is None:
+        raise RuntimeError("Store obsolescence returned an unknown record")
+    return {
+        "cascaded_count": len(cascaded_lesson_ids),
+        "cascaded_lesson_ids": cascaded_lesson_ids,
+        "changed": before.status != obsolete.status,
+        "memory_id": args.memory_id,
+        "memory_kind": args.memory_kind.replace("-", "_"),
+        "previous_status": before.status,
+        "status": obsolete.status,
+        "written": args.write,
+    }
+
+
 def _packaged_resource(name: str) -> PackagedResource:
     read_packaged_resource(name)
     for resource in packaged_resources():
@@ -799,6 +857,9 @@ def _execute(
             ],
             "written": args.write,
         }
+
+    if args.command == "obsolete":
+        return _obsolescence_payload(args, store)
 
     if args.command == "pr-report":
         context = _load_pr_context(args.context_json)

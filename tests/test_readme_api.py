@@ -747,6 +747,7 @@ def test_readme_publishes_snapshot_operations_cli_contract():
         "tbm snapshot stats SNAPSHOT",
         "tbm lessons export SNAPSHOT DESTINATION [--overwrite]",
         "tbm lessons import SNAPSHOT SOURCE_YAML [--write]",
+        "tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]",
         "tbm audit SNAPSHOT",
         "tbm metrics SNAPSHOT",
         "tbm remediation SNAPSHOT",
@@ -786,6 +787,30 @@ def test_readme_publishes_active_lessons_cli_contract():
         "symbolic link",
         "hard link",
         "`load_lessons_yaml()`",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]:
+        assert contract in normalized
+
+
+def test_readme_publishes_memory_obsolescence_cli_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for contract in [
+        "tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]",
+        "forward-only",
+        "`obsolete_failure_case()`",
+        "`obsolete_lesson()`",
+        "`obsolete_project_policy()`",
+        "atomically obsoletes",
+        "`cascaded_lesson_ids`",
+        "successful no-op",
+        "preview by default",
+        "cannot reactivate",
+        "no CLI batch loop",
         "snapshot version 2",
         "PostgreSQL schema version 1",
     ]:

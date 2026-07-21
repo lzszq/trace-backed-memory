@@ -53,7 +53,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`python -m trace_backed_memory`",
         "`run_memory_execution()`",
         "`MemoryRunMeasurement`",
-        "Phase 0-34",
+        "Phase 0-35",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -2086,7 +2086,6 @@ def test_docs_publish_active_lessons_cli_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-34" in documents["docs/product.md"]
     assert (
         "Phase 34: Active lessons portability CLI (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2112,6 +2111,56 @@ def test_docs_publish_active_lessons_cli_and_compatibility():
     )
     assert (
         ".sdist-smoke/bin/python -m trace_backed_memory lessons import"
+        in workflow
+    )
+
+
+def test_docs_publish_memory_obsolescence_cli_and_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/product.md": _doc("product.md"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = [
+        "obsolete",
+        "failure-case",
+        "project-policy",
+        "forward-only",
+        "cascade",
+        "dry-run",
+        "--write",
+        "all-or-nothing",
+        "snapshot version 2",
+        "postgresql schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert "Phase 0-35" in documents["docs/product.md"]
+    assert (
+        "Phase 35: Memory obsolescence CLI (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "obsolescence_commands" not in snapshot_schema["properties"]
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert "obsolescence_commands" not in postgres_schema
+
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    assert ".package-smoke/bin/tbm obsolete" in workflow
+    assert (
+        ".sdist-smoke/bin/python -m trace_backed_memory obsolete"
         in workflow
     )
 

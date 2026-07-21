@@ -599,3 +599,26 @@ Track:
   version 2, JSON Schemas, active-lessons YAML shape, all 18 packaged resource
   bytes, `schemas/postgres.sql`, public exports, and PostgreSQL schema version
   1.
+
+## Phase 35: Memory obsolescence CLI (implemented)
+
+- Add `obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID
+  [--write]` to both installed entry points with an explicit, non-inferred
+  memory kind.
+- Delegate exactly once to `obsolete_failure_case()`, `obsolete_lesson()`, or
+  `obsolete_project_policy()`. Preserve forward-only status rules, same-state
+  idempotence, and the Store's validation boundary.
+- For failure cases, preview the sorted active→obsolete dependent lesson IDs
+  produced by the Store's atomic cascade. Do not include unrelated or already
+  obsolete lessons, and do not duplicate the cascade state machine in the CLI.
+- Emit only kind, ID, previous/current status, change flag, cascade IDs/count,
+  and `written`; never echo memory text, scope, Trace data, or tool evidence.
+- Keep every operation a dry-run until explicit `--write` reuses same-path
+  atomic snapshot replacement. Serialize before persistence and treat stdout
+  closure after a committed write as success.
+- Do not add reactivation, actor/reason fields, PostgreSQL access, or a CLI
+  batch loop; multi-record obsolescence requires a future Store-level
+  all-or-nothing API.
+- Persist no command or cascade manifest. Preserve snapshot version 2, JSON
+  Schemas, active-lessons YAML, all 18 packaged resource bytes,
+  `schemas/postgres.sql`, public exports, and PostgreSQL schema version 1.

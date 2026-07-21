@@ -136,11 +136,22 @@ Store's merge, duplicate, shared-ID, scope, source-case, and all-or-nothing
 rules remain authoritative. Only explicit `--write` may publish the fully
 validated in-memory result back to the same snapshot.
 
-Treat every `complete`, `complete-batch`, `recover`, `recover-batch`, and
-`recover-ready` command as a dry-run unless `--write` is explicit. A dry-run
-may mutate the reconstructed store in memory but must leave the source bytes
-unchanged. A write is permitted only after the whole operation succeeds, and
-it must use `save_json()` to replace the same snapshot atomically.
+Use `obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID
+[--write]` only for forward-only deactivation. Require an explicit kind; do not
+guess from the shared runtime memory ID namespace. The Store must remain
+authoritative for identity validation, current state, idempotence, and the
+failure-case cascade to every active derived lesson. Preview the exact sorted
+cascade by default and require `--write` for same-snapshot publication. Do not
+reactivate obsolete memory, claim an actor/reason audit field that the record
+does not store, echo memory text or execution evidence, or implement a batch
+through repeated single-record calls. A future batch needs one Store-level
+all-or-nothing transition.
+
+Treat every `obsolete`, `complete`, `complete-batch`, `recover`,
+`recover-batch`, and `recover-ready` command as a dry-run unless `--write` is
+explicit. A dry-run may mutate the reconstructed store in memory but must leave
+the source bytes unchanged. A write is permitted only after the whole operation
+succeeds, and it must use `save_json()` to replace the same snapshot atomically.
 
 Use `complete` only to submit a fresh measured result for an exact linked
 Trace and decision. Require `--eval-result` to state `pass`, `fail`, or `error`;
@@ -172,12 +183,12 @@ using the CLI to choose a historical side.
 Automation may consume the single deterministic JSON value written on
 success. Failures write one structured JSON error without a traceback. Exit
 codes are 0 for success or no-op, 1 for an internal failure, 2 for usage,
-snapshot, or lesson input, 3 for recovery-state or attribution rejection, and
-4 for a lesson destination or snapshot write failure. Error text is capped at
-2,048 characters. JSON serialization must finish before persistence. After an
-export or requested write commits, a downstream stdout pipe closure must not
-falsely report that committed operation as failed. Human-readable `--help`
-output is outside the JSON contract.
+snapshot, or lesson input, 3 for recovery-state, attribution, or obsolescence
+rejection, and 4 for a lesson destination or snapshot write failure. Error text
+is capped at 2,048 characters. JSON serialization must
+finish before persistence. After an export or requested write commits, a
+downstream stdout pipe closure must not falsely report that committed operation
+as failed. Human-readable `--help` output is outside the JSON contract.
 
 CLI reads, audits, metrics, remediation plans, and completion wrappers are not
 persisted. Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL

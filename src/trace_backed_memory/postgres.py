@@ -9,6 +9,7 @@ import math
 from typing import Any, Literal
 
 from ._ingestion import (
+    SNAPSHOT_FILE_MAX_BYTES,
     SNAPSHOT_MAX_RECORDS_PER_COLLECTION,
     SNAPSHOT_MAX_TOTAL_RECORDS,
     validate_snapshot_record_count,
@@ -18,6 +19,8 @@ from .store import SNAPSHOT_COLLECTION_NAMES, TraceBackedMemoryStore
 
 
 POSTGRES_SCHEMA_VERSION = 1
+_POSTGRES_LOAD_MAX_RECORD_BYTES = SNAPSHOT_FILE_MAX_BYTES
+_POSTGRES_LOAD_MAX_TOTAL_PAYLOAD_BYTES = SNAPSHOT_FILE_MAX_BYTES
 _MEASURED_EVAL_RESULTS = frozenset({"pass", "fail", "error"})
 _TRACE_COMPLETION_FIELDS = frozenset(
     {
@@ -74,6 +77,59 @@ SELECT (SELECT pg_catalog.count(*) FROM public.traces) AS traces,
        (SELECT pg_catalog.count(*) FROM public.lessons) AS lessons,
        (SELECT pg_catalog.count(*) FROM public.project_policies) AS project_policies,
        (SELECT pg_catalog.count(*) FROM public.memory_usage_decisions) AS usage_logs
+"""
+
+_MEASURE_SNAPSHOT_PAYLOAD_BYTES = """
+WITH snapshot_rows(payload_bytes) AS (
+    SELECT pg_catalog.octet_length(
+               pg_catalog.convert_to(
+                   pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text,
+                   'UTF8'
+               )
+           )::pg_catalog.int8
+    FROM public.traces AS snapshot_row
+    UNION ALL
+    SELECT pg_catalog.octet_length(
+               pg_catalog.convert_to(
+                   pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text,
+                   'UTF8'
+               )
+           )::pg_catalog.int8
+    FROM public.failure_cases AS snapshot_row
+    UNION ALL
+    SELECT pg_catalog.octet_length(
+               pg_catalog.convert_to(
+                   pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text,
+                   'UTF8'
+               )
+           )::pg_catalog.int8
+    FROM public.lessons AS snapshot_row
+    UNION ALL
+    SELECT pg_catalog.octet_length(
+               pg_catalog.convert_to(
+                   pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text,
+                   'UTF8'
+               )
+           )::pg_catalog.int8
+    FROM public.project_policies AS snapshot_row
+    UNION ALL
+    SELECT pg_catalog.octet_length(
+               pg_catalog.convert_to(
+                   pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text,
+                   'UTF8'
+               )
+           )::pg_catalog.int8
+    FROM public.memory_usage_decisions AS snapshot_row
+)
+SELECT COALESCE(
+           pg_catalog.max(payload_bytes),
+           0::pg_catalog.int8
+       ) AS max_record_bytes,
+       COALESCE(
+           pg_catalog.sum(payload_bytes),
+           0::pg_catalog.numeric
+       )::pg_catalog.int8 AS total_bytes
+FROM snapshot_rows
 """
 
 _SELECT_TRACES = """
@@ -310,6 +366,43 @@ def _validate_snapshot_record_counts(counts: Mapping[str, object]) -> None:
         total_records,
         max_total_records=SNAPSHOT_MAX_TOTAL_RECORDS,
     )
+
+
+def _validate_snapshot_payload_sizes(sizes: Mapping[str, object]) -> None:
+    if not isinstance(sizes, Mapping):
+        raise ValueError("PostgreSQL snapshot payload sizes must be a mapping")
+    validated: dict[str, int] = {}
+    for field_name in ("max_record_bytes", "total_bytes"):
+        if field_name not in sizes:
+            raise ValueError(
+                "PostgreSQL snapshot payload sizes are missing field "
+                f"{field_name!r}"
+            )
+        value = sizes[field_name]
+        if type(value) is not int or value < 0:
+            raise ValueError(
+                f"PostgreSQL snapshot payload field {field_name!r} must be a "
+                "non-negative integer"
+            )
+        validated[field_name] = value
+
+    max_record_bytes = validated["max_record_bytes"]
+    total_bytes = validated["total_bytes"]
+    if max_record_bytes > total_bytes:
+        raise ValueError(
+            "PostgreSQL snapshot maximum record payload cannot exceed total payload"
+        )
+    if max_record_bytes > _POSTGRES_LOAD_MAX_RECORD_BYTES:
+        raise ValueError(
+            "PostgreSQL snapshot record payload contains "
+            f"{max_record_bytes} bytes; maximum is "
+            f"{_POSTGRES_LOAD_MAX_RECORD_BYTES}"
+        )
+    if total_bytes > _POSTGRES_LOAD_MAX_TOTAL_PAYLOAD_BYTES:
+        raise ValueError(
+            f"PostgreSQL snapshot payload contains {total_bytes} bytes; maximum "
+            f"is {_POSTGRES_LOAD_MAX_TOTAL_PAYLOAD_BYTES}"
+        )
 
 
 def _load_psycopg() -> tuple[Any, Any, Any]:
@@ -1031,6 +1124,16 @@ class PostgresMemoryRepository:
             )
         return dict(rows[0])
 
+    def _snapshot_payload_sizes(self, cursor: object) -> dict[str, object]:
+        cursor.execute(_MEASURE_SNAPSHOT_PAYLOAD_BYTES)
+        rows = cursor.fetchall()
+        if len(rows) != 1 or not isinstance(rows[0], Mapping):
+            raise ValueError(
+                "PostgreSQL snapshot payload query must return exactly one "
+                "mapping row"
+            )
+        return dict(rows[0])
+
     def _load_traces(self, cursor: object) -> list[dict[str, object]]:
         cursor.execute(_SELECT_TRACES)
         return [_decode_trace(row) for row in cursor.fetchall()]
@@ -1171,6 +1274,9 @@ class PostgresMemoryRepository:
                     self._lock_snapshot_tables(cursor)
                     _validate_snapshot_record_counts(
                         self._snapshot_record_counts(cursor)
+                    )
+                    _validate_snapshot_payload_sizes(
+                        self._snapshot_payload_sizes(cursor)
                     )
                     snapshot = {
                         "snapshot_version": 2,

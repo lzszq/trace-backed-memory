@@ -67,7 +67,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类；bounded local document ingestion 对本地 JSON/YAML 先限额再校验，并以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
 | PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配，以及可直接接入流水线的 `pr-report` JSON 输出 |
-| 持久化 | 同目录临时文件、落盘同步和原子替换的 JSON snapshot / active lesson YAML；lesson 多段文本保真；可选同步 PostgreSQL Repository；五表锁后 `count(*)` count preflight 在记录物化前限制数据库加载规模 |
+| 持久化 | 同目录临时文件、落盘同步和原子替换的 JSON snapshot / active lesson YAML；lesson 多段文本保真；可选同步 PostgreSQL Repository；五表锁后以 count 与 UTF-8 payload 双预检在记录物化前限制数据库加载规模 |
 
 所有 caller-owned JSON 都在转换为普通 mapping 前执行对象键唯一性检查：`TraceBackedMemoryStore.load_json()`、`parse_memory_context()`、`parse_memory_decision()` 和 CLI JSON 文件解析会在任意嵌套层拒绝 duplicate object keys，不采用 last-key-wins。有效 JSON、直接 Mapping 输入、snapshot version 2 与 PostgreSQL schema version 1 保持兼容。
 
@@ -149,12 +149,12 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - 使用 PostgreSQL 12+ 和 fresh-install `schemas/postgres.sql`；pip 安装用户可先用 `tbm resource export schemas/postgres.sql postgres.sql` 导出同一份字节。
 - 当前 PostgreSQL schema version 为 1。
 - canonical 与 packaged Trace Schema 使用 `minimum: 0` 与 `maximum: 2147483647`；fresh-install DDL 的 `traces_latency_ms_non_negative` CHECK 提供下界，signed `INTEGER` 列提供相同上界。既有 schema-version-1 数据库已具备该物理上界，Phase 47 不需数据库迁移；资源路径/数量仍为 18，仅 Trace Schema 字节更新，DDL 字节不变。
-- Repository 提供同步 `sync()` / `load()`、事务回滚、borrowed/owned connection 和 caller transaction savepoint；`load()` 使用 schema owner 或具备表级写权限的 repository role，以五表有序 `SHARE` 锁读取一致状态并等待 external writer，再以单条五表 `count(*)` count preflight 在任何记录读取前执行每集合 100,000 条、总计 250,000 条的既有限额；`sync()` 对全部既有目标行使用 `FOR UPDATE` 后再做 canonical conflict validation；嵌套调用取得的锁持续到 caller outer transaction 最终 commit/rollback。
+- Repository 提供同步 `sync()` / `load()`、事务回滚、borrowed/owned connection 和 caller transaction savepoint；`load()` 使用 schema owner 或具备表级写权限的 repository role，以五表有序 `SHARE` 锁读取一致状态并等待 external writer，再依次执行单条五表 `count(*)` count preflight（每集合 100,000 条、总计 250,000 条）和 UTF-8 row-JSON payload preflight（最大单行与五表总计均为 64 MiB），全部通过后才读取记录；`sync()` 对全部既有目标行使用 `FOR UPDATE` 后再做 canonical conflict validation，其 accepted set 不因 load guard 改变；嵌套调用取得的锁持续到 caller outer transaction 最终 commit/rollback。
 - 缺失行的 INSERT 使用 nested savepoint；same-primary-key concurrent INSERT 返回 `23505` 或 registry 精确 `P0001` 时重新 `FOR UPDATE`。精确重放为 `unchanged`，合法前向转换为 `updated`，保护字段差异为 `PostgresConflictError`，目标仍缺失或其他驱动错误保持 `PostgresPersistenceError`。
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-47，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，在记录物化前拒绝超限数据库；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。该 guard 不限制单个 JSONB/text 值的字节数。Phase 45 将 `latency_ms` 统一为 None 或 non-negative integer，并同步 Trace Schema 与 fresh-install PostgreSQL CHECK；Phase 46 补齐既有 `obsolete_project_policy()` 的根包公开导出；Phase 47 将延迟上界与 PostgreSQL signed `INTEGER` 的 2,147,483,647 对齐，在数据库同步前拒绝不可持久化值。snapshot version 2、active-lessons YAML、18 份 packaged resource 路径/数量、PostgreSQL DDL 与 schema version 1 保持不变，仅 Trace Schema 的 canonical/package 字节更新。
+当前版本已完成路线图 Phase 0-48，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后依次以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，再以 UTF-8 row-JSON payload preflight 将最大单行与五表总计限制为 64 MiB，在 collection fetch 前拒绝超限数据库；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。Phase 45 将 `latency_ms` 统一为 None 或 non-negative integer，并同步 Trace Schema 与 fresh-install PostgreSQL CHECK；Phase 46 补齐既有 `obsolete_project_policy()` 的根包公开导出；Phase 47 将延迟上界与 PostgreSQL signed `INTEGER` 的 2,147,483,647 对齐，在数据库同步前拒绝不可持久化值；Phase 48 为数据库加载补齐最大单行与累计 payload 字节预算。snapshot version 2、active-lessons YAML、18 份 packaged resource 路径/数量、PostgreSQL DDL 与 schema version 1 保持不变，仅 Phase 47 的 Trace Schema canonical/package 字节更新。
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry，包括 1,000 项输入边界、重复项计数、有界 generator 消费与 overflow 零子进程；
@@ -172,6 +172,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - 真实临时 PostgreSQL 集群上的 DDL、事务、并发锁和同步；
 - PostgreSQL 五表一致 load snapshot、外部 writer exclusion，以及 failure-case/lesson/project-policy 行锁后的冲突重验证；
 - PostgreSQL 锁后 count preflight 的精确边界、异常计数结果、物化前拒绝、sanitized error wrapping 与既有一致性并发路径；
+- PostgreSQL 锁后 payload preflight 的最大单行/累计 64 MiB 精确边界、UTF-8 非 ASCII 计数、异常统计结果、collection fetch 前拒绝、sanitized error wrapping 与连接复用；
 - PostgreSQL 五类记录 same-primary-key concurrent INSERT 的 exact replay、forward update、protected conflict、registry `P0001` 与 target-absent persistence error；
 - CI 通过 `TBM_REQUIRE_POSTGRES=1` 强制执行 PostgreSQL 集成与 Repository 测试，并在独立 `windows-latest` job 运行完整回归；本地缺少数据库工具时仍保持可选 skip；
 - README 工作流与产品文档契约。

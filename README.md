@@ -432,9 +432,19 @@ transaction.
 After those locks and before any record query, load runs one five-table
 `count(*)` count preflight. It rejects more than 100,000 records in any one
 collection or more than 250,000 records in total before a record row is fetched
-or decoded. The regular Store snapshot validator repeats the same checks after
-the bounded reads. This changes no public API, snapshot version 2, JSON Schema,
-active-lessons YAML, packaged resource, or PostgreSQL schema version 1.
+or decoded. After accepted counts, a second scalar preflight encodes every
+persisted row as a PostgreSQL JSON object, measures its UTF-8 bytes, and rejects
+either a largest row or five-table aggregate above 64 MiB before any collection
+row enters psycopg. The regular Store snapshot validator repeats the record
+checks after the bounded reads.
+
+The payload accounting is a database-load budget, not an exact measurement of
+the indented `save_json()` file envelope. Boundary values are accepted. An
+overflow is a sanitized `PostgresPersistenceError`, performs no partial load,
+and leaves the connection reusable. `sync()` behavior is unchanged because its
+Store is already caller-owned client memory. This changes no public API,
+snapshot version 2, JSON Schema, active-lessons YAML, packaged resource,
+PostgreSQL DDL, or schema version 1.
 
 Use the schema owner or the same write-capable role intended for `sync()`.
 PostgreSQL 12 requires table-level `UPDATE`, `DELETE`, or `TRUNCATE` privilege
@@ -1545,6 +1555,7 @@ Implemented pieces:
 - Store-level checks that reject project policies with empty identity/text fields, invalid status, invalid scope, unbounded confidence, or IDs that collide with failure case, lesson, or project policy memory IDs.
 - JSON schemas for stored records and full memory-store snapshots.
 - Postgres schema parity checks for model defaults, an atomic fresh-install transaction pinned to `public`, invariant functions pinned to `pg_catalog`, a trigger-owned shared runtime memory ID registry that rejects direct DML, `TRUNCATE`, helper-shadow bypasses, and ghost usage, non-empty required text, composite case/trace commit provenance, forward-only status updates, `FOR SHARE` parent/lesson lifecycle serialization and cascades, JSONB object/array and element-type checks, required usage-decision audit evidence, and context example parsing.
+- PostgreSQL load preflights for per-collection/total counts plus largest-row and aggregate UTF-8 payload bytes, including exact boundaries, malformed scalar results, pre-fetch rejection, sanitized errors, and connection reuse.
 - Lesson safety flags for sensitive or eval-leaking memory are preserved through retrieval and blocked by System Gate.
 - PR reports can reuse current-commit-bound ancestry evidence to exclude unrelated historical failure cases before generating report content.
 - PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, warns on risky prompt/tool/model/eval-suite changes, and supports immutable complete-endpoint `PRChangeSet` matching with old/new/both provenance.

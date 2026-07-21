@@ -303,6 +303,15 @@ def _postgres_snapshot_counts(**overrides: int) -> dict[str, int]:
     return counts
 
 
+def _postgres_snapshot_payload_sizes(**overrides: int) -> dict[str, int]:
+    sizes = {
+        "max_record_bytes": 0,
+        "total_bytes": 0,
+    }
+    sizes.update(overrides)
+    return sizes
+
+
 _POSTGRES_RACE_COLLECTIONS = {
     "traces": "traces",
     "failure_cases": "failure_cases",
@@ -585,6 +594,27 @@ def test_runtime_sql_declares_snapshot_and_lifecycle_locks():
     assert table_lock_sql.endswith("IN SHARE MODE")
 
 
+def test_runtime_payload_sql_qualifies_all_tables_and_encoding_functions():
+    from trace_backed_memory import postgres
+
+    payload_sql = " ".join(postgres._MEASURE_SNAPSHOT_PAYLOAD_BYTES.split())
+    expected_tables = (
+        "public.traces",
+        "public.failure_cases",
+        "public.lessons",
+        "public.project_policies",
+        "public.memory_usage_decisions",
+    )
+    positions = [payload_sql.index(table) for table in expected_tables]
+
+    assert positions == sorted(positions)
+    assert payload_sql.count("pg_catalog.to_jsonb(snapshot_row)") == 5
+    assert payload_sql.count("pg_catalog.convert_to(") == 5
+    assert payload_sql.count("pg_catalog.octet_length(") == 5
+    assert payload_sql.count("UNION ALL") == 4
+    assert "'UTF8'" in payload_sql
+
+
 @pytest.mark.parametrize(
     ("counts", "message"),
     [
@@ -733,6 +763,255 @@ def test_postgres_snapshot_count_query_reports_all_real_collections(
         lessons=1,
         project_policies=1,
         usage_logs=1,
+    )
+
+
+@pytest.mark.parametrize(
+    ("sizes", "message"),
+    [
+        (
+            _postgres_snapshot_payload_sizes(
+                max_record_bytes=(64 * 1024 * 1024) + 1,
+                total_bytes=(64 * 1024 * 1024) + 1,
+            ),
+            (
+                "PostgreSQL snapshot record payload contains 67108865 bytes; "
+                "maximum is 67108864"
+            ),
+        ),
+        (
+            _postgres_snapshot_payload_sizes(
+                max_record_bytes=64 * 1024 * 1024,
+                total_bytes=(64 * 1024 * 1024) + 1,
+            ),
+            (
+                "PostgreSQL snapshot payload contains 67108865 bytes; maximum "
+                "is 67108864"
+            ),
+        ),
+    ],
+)
+def test_postgres_snapshot_payload_preflight_rejects_exact_overflow(
+    sizes,
+    message,
+):
+    from trace_backed_memory import postgres
+
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        postgres._validate_snapshot_payload_sizes(sizes)
+
+
+def test_postgres_snapshot_payload_preflight_accepts_exact_boundaries():
+    from trace_backed_memory import postgres
+
+    postgres._validate_snapshot_payload_sizes(
+        _postgres_snapshot_payload_sizes(
+            max_record_bytes=64 * 1024 * 1024,
+            total_bytes=64 * 1024 * 1024,
+        )
+    )
+
+
+@pytest.mark.parametrize("field_name", ["max_record_bytes", "total_bytes"])
+@pytest.mark.parametrize("invalid_size", [None, True, -1, 1.5, "1"])
+def test_postgres_snapshot_payload_preflight_rejects_malformed_sizes(
+    field_name,
+    invalid_size,
+):
+    from trace_backed_memory import postgres
+
+    sizes = _postgres_snapshot_payload_sizes()
+    sizes[field_name] = invalid_size
+    with pytest.raises(
+        ValueError,
+        match=f"^PostgreSQL snapshot payload field {field_name!r} must be a "
+        "non-negative integer$",
+    ):
+        postgres._validate_snapshot_payload_sizes(sizes)
+
+
+def test_postgres_snapshot_payload_preflight_rejects_non_mapping():
+    from trace_backed_memory import postgres
+
+    with pytest.raises(
+        ValueError,
+        match="^PostgreSQL snapshot payload sizes must be a mapping$",
+    ):
+        postgres._validate_snapshot_payload_sizes([])
+
+
+def test_postgres_snapshot_payload_preflight_rejects_missing_field():
+    from trace_backed_memory import postgres
+
+    sizes = _postgres_snapshot_payload_sizes()
+    del sizes["total_bytes"]
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^PostgreSQL snapshot payload sizes are missing field "
+            "'total_bytes'$"
+        ),
+    ):
+        postgres._validate_snapshot_payload_sizes(sizes)
+
+
+def test_postgres_snapshot_payload_preflight_rejects_impossible_maximum():
+    from trace_backed_memory import postgres
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^PostgreSQL snapshot maximum record payload cannot exceed total "
+            "payload$"
+        ),
+    ):
+        postgres._validate_snapshot_payload_sizes(
+            _postgres_snapshot_payload_sizes(
+                max_record_bytes=2,
+                total_bytes=1,
+            )
+        )
+
+
+def test_postgres_snapshot_payload_query_returns_one_named_row():
+    from trace_backed_memory import postgres
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    expected = _postgres_snapshot_payload_sizes(
+        max_record_bytes=321,
+        total_bytes=654,
+    )
+
+    class PayloadCursor:
+        def __init__(self):
+            self.executions = []
+
+        def execute(self, query):
+            self.executions.append(query)
+
+        def fetchall(self):
+            return [dict(expected)]
+
+    cursor = PayloadCursor()
+    repository = PostgresMemoryRepository(object())
+
+    assert repository._snapshot_payload_sizes(cursor) == expected
+    assert cursor.executions == [postgres._MEASURE_SNAPSHOT_PAYLOAD_BYTES]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [],
+        [{}, {}],
+        [(0, 0)],
+    ],
+)
+def test_postgres_snapshot_payload_query_rejects_malformed_rows(rows):
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    class PayloadCursor:
+        def execute(self, _query):
+            pass
+
+        def fetchall(self):
+            return rows
+
+    repository = PostgresMemoryRepository(object())
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^PostgreSQL snapshot payload query must return exactly one "
+            "mapping row$"
+        ),
+    ):
+        repository._snapshot_payload_sizes(PayloadCursor())
+
+
+def test_postgres_snapshot_payload_query_reports_empty_tables(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from psycopg.rows import dict_row
+
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        with connection.cursor(row_factory=dict_row) as cursor:
+            sizes = repository._snapshot_payload_sizes(cursor)
+
+    assert sizes == _postgres_snapshot_payload_sizes()
+
+
+def test_postgres_snapshot_payload_query_counts_utf8_row_bytes(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from psycopg.rows import dict_row
+
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        connection.execute(
+            "INSERT INTO public.traces (trace_id, run_id, commit_sha, error) "
+            "VALUES (%s, %s, %s, %s)",
+            ("trace_payload", "run_payload", "commit_payload", "界"),
+        )
+        repository = PostgresMemoryRepository(connection)
+        with connection.cursor(row_factory=dict_row) as cursor:
+            sizes = repository._snapshot_payload_sizes(cursor)
+            cursor.execute(
+                "SELECT pg_catalog.octet_length(pg_catalog.convert_to("
+                "pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text, "
+                "'UTF8')) AS payload_bytes "
+                "FROM public.traces AS snapshot_row "
+                "WHERE trace_id = %s",
+                ("trace_payload",),
+            )
+            expected_bytes = cursor.fetchone()["payload_bytes"]
+
+    assert sizes == _postgres_snapshot_payload_sizes(
+        max_record_bytes=expected_bytes,
+        total_bytes=expected_bytes,
+    )
+    assert expected_bytes > len("界")
+
+
+def test_postgres_snapshot_payload_query_aggregates_all_real_collections(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from psycopg.rows import dict_row
+
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(_complete_store())
+        with connection.cursor(row_factory=dict_row) as cursor:
+            sizes = repository._snapshot_payload_sizes(cursor)
+            row_sizes = []
+            for table_name in (
+                "traces",
+                "failure_cases",
+                "lessons",
+                "project_policies",
+                "memory_usage_decisions",
+            ):
+                cursor.execute(
+                    "SELECT pg_catalog.octet_length(pg_catalog.convert_to("
+                    "pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text, "
+                    "'UTF8')) AS payload_bytes "
+                    f"FROM public.{table_name} AS snapshot_row"
+                )
+                row_sizes.extend(
+                    row["payload_bytes"] for row in cursor.fetchall()
+                )
+
+    assert len(row_sizes) == 5
+    assert sizes == _postgres_snapshot_payload_sizes(
+        max_record_bytes=max(row_sizes),
+        total_bytes=sum(row_sizes),
     )
 
 
@@ -2100,6 +2379,15 @@ def test_repository_load_rejects_count_overflow_before_record_fetch(
             lambda _cursor: dict(counts),
         )
 
+        def fail_if_payload_is_measured(_cursor):
+            pytest.fail("payload preflight ran after an oversized count preflight")
+
+        monkeypatch.setattr(
+            repository,
+            "_snapshot_payload_sizes",
+            fail_if_payload_is_measured,
+        )
+
         def fail_if_records_are_queried(_cursor):
             pytest.fail("record loader ran after an oversized count preflight")
 
@@ -2119,6 +2407,161 @@ def test_repository_load_rejects_count_overflow_before_record_fetch(
         with pytest.raises(PostgresPersistenceError) as error:
             repository.load()
 
+        assert str(error.value) == "failed to load memory store from PostgreSQL"
+        assert type(error.value.__cause__) is ValueError
+        assert str(error.value.__cause__) == message
+        assert connection.execute("SELECT 1").fetchone() == (1,)
+
+
+def test_repository_load_accepts_exact_payload_boundaries_and_fetches(
+    postgres_cluster,
+    monkeypatch,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    events = []
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+
+        def accepted_counts(_cursor):
+            events.append("counts")
+            return _postgres_snapshot_counts()
+
+        def accepted_payload(_cursor):
+            events.append("payload")
+            return _postgres_snapshot_payload_sizes(
+                max_record_bytes=64 * 1024 * 1024,
+                total_bytes=64 * 1024 * 1024,
+            )
+
+        monkeypatch.setattr(
+            repository,
+            "_snapshot_record_counts",
+            accepted_counts,
+        )
+        monkeypatch.setattr(
+            repository,
+            "_snapshot_payload_sizes",
+            accepted_payload,
+        )
+
+        for loader_name in (
+            "_load_traces",
+            "_load_failure_cases",
+            "_load_lessons",
+            "_load_project_policies",
+            "_load_usage_logs",
+        ):
+            monkeypatch.setattr(
+                repository,
+                loader_name,
+                lambda _cursor, name=loader_name: events.append(name) or [],
+            )
+
+        restored = repository.load()
+
+    assert restored.to_snapshot() == {
+        "snapshot_version": 2,
+        "traces": [],
+        "failure_cases": [],
+        "lessons": [],
+        "project_policies": [],
+        "usage_logs": [],
+    }
+    assert events == [
+        "counts",
+        "payload",
+        "_load_traces",
+        "_load_failure_cases",
+        "_load_lessons",
+        "_load_project_policies",
+        "_load_usage_logs",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("sizes", "message"),
+    [
+        (
+            _postgres_snapshot_payload_sizes(
+                max_record_bytes=(64 * 1024 * 1024) + 1,
+                total_bytes=(64 * 1024 * 1024) + 1,
+            ),
+            (
+                "PostgreSQL snapshot record payload contains 67108865 bytes; "
+                "maximum is 67108864"
+            ),
+        ),
+        (
+            _postgres_snapshot_payload_sizes(
+                max_record_bytes=64 * 1024 * 1024,
+                total_bytes=(64 * 1024 * 1024) + 1,
+            ),
+            (
+                "PostgreSQL snapshot payload contains 67108865 bytes; maximum "
+                "is 67108864"
+            ),
+        ),
+    ],
+)
+def test_repository_load_rejects_payload_overflow_before_record_fetch(
+    postgres_cluster,
+    monkeypatch,
+    sizes,
+    message,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresPersistenceError,
+    )
+
+    postgres_cluster.load_schema()
+    events = []
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+
+        def accepted_counts(_cursor):
+            events.append("counts")
+            return _postgres_snapshot_counts()
+
+        def oversized_payload(_cursor):
+            events.append("payload")
+            return dict(sizes)
+
+        monkeypatch.setattr(
+            repository,
+            "_snapshot_record_counts",
+            accepted_counts,
+        )
+        monkeypatch.setattr(
+            repository,
+            "_snapshot_payload_sizes",
+            oversized_payload,
+        )
+
+        def fail_if_records_are_queried(_cursor):
+            pytest.fail("record loader ran after an oversized payload preflight")
+
+        for loader_name in (
+            "_load_traces",
+            "_load_failure_cases",
+            "_load_lessons",
+            "_load_project_policies",
+            "_load_usage_logs",
+        ):
+            monkeypatch.setattr(
+                repository,
+                loader_name,
+                fail_if_records_are_queried,
+            )
+
+        with pytest.raises(PostgresPersistenceError) as error:
+            repository.load()
+
+        assert events == ["counts", "payload"]
         assert str(error.value) == "failed to load memory store from PostgreSQL"
         assert type(error.value.__cause__) is ValueError
         assert str(error.value.__cause__) == message

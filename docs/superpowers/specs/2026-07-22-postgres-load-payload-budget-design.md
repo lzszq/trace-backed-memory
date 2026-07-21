@@ -26,8 +26,9 @@ query that returns:
 - `total_bytes`: the sum across all five tables.
 
 Empty tables return zero for both fields through `COALESCE`. The sum is cast to
-`bigint`; the existing record ceilings keep the theoretical result within that
-range. Functions and tables are schema-qualified so caller `search_path`
+PostgreSQL `bigint` through its schema-qualified `pg_catalog.int8` type so
+psycopg returns an exact Python integer. Functions and tables are
+schema-qualified so caller `search_path`
 cannot substitute a helper.
 
 This is a PostgreSQL load-payload budget, not an assertion that its byte count

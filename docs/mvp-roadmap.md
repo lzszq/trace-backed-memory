@@ -849,3 +849,24 @@ Track:
   and PostgreSQL schema version 1. Only Trace Schema bytes change; existing
   schema-version-1 databases already enforce the upper range and need no
   migration.
+
+## Phase 48: PostgreSQL bounded load payloads (implemented)
+
+- After the existing five-table count preflight succeeds, run one scalar
+  payload query while the ordered `SHARE` locks remain held and before the
+  first collection selector.
+- Convert each persisted row to a PostgreSQL JSON object and measure its UTF-8
+  representation, returning only `max_record_bytes` and `total_bytes` to the
+  client.
+- Accept both exact 64 MiB boundaries and reject a largest row or five-table
+  aggregate one byte above the limit before psycopg fetches collection rows.
+- Require exactly one mapping result with non-negative exact integers, reject
+  malformed or impossible maximum/total pairs, and preserve sanitized
+  `PostgresPersistenceError` wrapping plus connection reuse.
+- Keep count validation first so a count-overflow database is rejected without
+  detoasting payloads; retain the stable table locks through both preflights
+  and all bounded collection reads.
+- Leave `sync()` behavior unchanged because its Store is already caller-owned
+  client memory. Preserve public APIs, dependencies, snapshot version 2, every
+  JSON Schema, active-lessons YAML, all 18 packaged resources, PostgreSQL DDL,
+  and PostgreSQL schema version 1.

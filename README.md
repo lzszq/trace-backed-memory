@@ -136,16 +136,19 @@ duplicate ID or later semantic failure cannot partially import earlier records.
 This hardening changes no valid YAML shape, snapshot version 2, JSON Schema, or
 PostgreSQL schema version 1.
 
-`save_json()` and `save_lessons_yaml()` publish through a sibling temporary file:
-they write canonical LF text, flush it, call `os.fsync()`, and then call
-`os.replace()`. A serialization, sync, or replacement failure preserves the
-previous destination and cleans up the temporary file. Lesson exports use the
-canonical `lesson_text: |` block form; imports accept both `|` and the legacy
-`>` form while preserving blank lines, leading and trailing LF characters, and
+`save_json()` and `save_lessons_yaml()` publish through a sibling temporary
+file: they write canonical LF text, flush it, call `os.fsync()`, and then
+publish atomically. Existing Python calls retain `os.replace()` behavior;
+`save_lessons_yaml(..., overwrite=False)` uses one `os.link()` publication to
+refuse an existing destination without a racy pre-check. A serialization,
+sync, link, or replacement failure preserves the previous destination and
+cleans up the temporary file. Lesson exports use the canonical
+`lesson_text: |` block form; imports accept both `|` and the legacy `>` form
+while preserving blank lines, leading and trailing LF characters, and
 intra-line spaces. This constrained adapter preserves its historical
 literal-line behavior for `>`; it does not implement general YAML folding or
-chomping. These durability and text-fidelity guarantees add no stored
-fields: snapshot version 2, JSON Schemas, and PostgreSQL schema version 1 remain
+chomping. These durability and text-fidelity guarantees add no stored fields:
+snapshot version 2, JSON Schemas, and PostgreSQL schema version 1 remain
 unchanged.
 
 ## Bounded Local Document Ingestion
@@ -182,6 +185,8 @@ same command surface is available through `python -m trace_backed_memory`:
 ```text
 tbm snapshot validate SNAPSHOT
 tbm snapshot stats SNAPSHOT
+tbm lessons export SNAPSHOT DESTINATION [--overwrite]
+tbm lessons import SNAPSHOT SOURCE_YAML [--write]
 tbm audit SNAPSHOT
 tbm metrics SNAPSHOT
 tbm remediation SNAPSHOT
@@ -200,6 +205,24 @@ decision IDs, and a `written` flag. They are dry-run by default: the input
 bytes change only when `--write` is explicit and the complete operation
 succeeds. A write reuses the store's same-directory temporary file and atomic
 replacement behavior.
+
+`lessons export` writes the Store's active lessons only, in Store order, using
+the canonical constrained YAML serializer. It reports `exported_count`,
+`exported_lesson_ids`, the destination, and the overwrite choice. Export
+refuses any existing filesystem entry unless `--overwrite` is explicit, and
+it always rejects a destination that identifies the source snapshot through
+the same path, a symbolic link, or a hard link. Empty stores produce exactly
+`lessons: []`. The source snapshot is never changed.
+
+`lessons import` reads `SOURCE_YAML` with the fixed 8 MiB and 10,000-lesson
+limits, then delegates duplicate-key checks, Lesson construction, shared-ID
+collision checks, and Trace/case provenance validation to
+`load_lessons_yaml()`. Import merges all records or none; it is not an upsert,
+so an existing lesson ID is an input error even when values match. The command
+returns `imported_count`, source-ordered `imported_lesson_ids`, and `written`.
+It is a full validation dry-run by default and changes the same snapshot only
+after complete success with explicit `--write`. CLI callers cannot disable the
+safe ingestion limits.
 
 `complete` submits a fresh measured result for the exact linked Trace and
 decision. It requires `--eval-result`; failure attribution defaults to false
@@ -242,18 +265,20 @@ exit code 3.
 
 Failures emit one structured JSON error to stderr without a traceback. Exit
 codes are `0` for success or a no-op, `1` for an unexpected internal failure,
-`2` for usage/path/encoding/JSON/snapshot input, `3` for a rejected completion,
-recovery, PR report, Git ancestry, linkage, attribution, or evidence state, and `4` for a
-snapshot write failure. Help remains normal human-readable argparse output.
-Error text is capped at 2,048 characters, and successful JSON is serialized
-before persistence. If a downstream pipe closes stdout after `--write`
-commits, the already-persisted operation remains a success rather than
-inviting an unsafe retry.
+`2` for usage/path/encoding/JSON/YAML/snapshot input, `3` for a rejected
+completion, recovery, PR report, Git ancestry, linkage, attribution, or
+evidence state, and `4` for a lesson destination or snapshot write failure.
+Help remains normal human-readable argparse output. Error text is capped at
+2,048 characters, and successful JSON is serialized before persistence. If a
+downstream pipe closes stdout after an export or `--write` commit, the
+already-persisted operation remains a success rather than inviting an unsafe
+retry.
 
-This interface accepts neither stdin nor remote URLs, PostgreSQL connections,
-or alternate output paths. It adds no persisted CLI or report state: snapshot
-version 2, active-lessons YAML, JSON Schemas, and PostgreSQL schema version 1
-remain unchanged.
+This interface accepts neither stdin nor remote URLs or PostgreSQL
+connections. Lesson export has one explicit destination; no command accepts an
+alternate snapshot output path. It adds no persisted CLI or report state:
+snapshot version 2, active-lessons YAML, JSON Schemas, and PostgreSQL schema
+version 1 remain unchanged.
 
 ## PostgreSQL Repository
 
@@ -1231,7 +1256,7 @@ snapshot = store.to_snapshot()
 restored = TraceBackedMemoryStore.from_snapshot(snapshot)
 store.save_json("memory-store.snapshot.json")
 restored_from_disk = TraceBackedMemoryStore.load_json("memory-store.snapshot.json")
-store.save_lessons_yaml("lessons.active.yaml")
+store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 lesson_only_store = TraceBackedMemoryStore()
 lesson_only_store.record_trace(trace)
 lesson_only_store.add_failure_case(verified)

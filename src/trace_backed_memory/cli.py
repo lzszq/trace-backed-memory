@@ -17,6 +17,7 @@ from ._ingestion import (
 )
 from .capture import CommitAncestryCaptureError, capture_commit_ancestry
 from .models import (
+    Lesson,
     MemoryContext,
     MemoryRunCompletion,
     MemoryRunResult,
@@ -126,6 +127,41 @@ def _build_parser() -> argparse.ArgumentParser:
     ):
         subcommand = commands.add_parser(command, help=help_text)
         subcommand.add_argument("snapshot", type=Path)
+
+    lessons = commands.add_parser(
+        "lessons",
+        help="Import and export active lessons YAML.",
+    )
+    lesson_commands = lessons.add_subparsers(
+        dest="lessons_command",
+        required=True,
+    )
+    lesson_export = lesson_commands.add_parser(
+        "export",
+        help="Export active lessons from a snapshot.",
+    )
+    lesson_export.add_argument("snapshot", type=Path)
+    lesson_export.add_argument("destination", type=Path)
+    lesson_export.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Atomically replace an existing destination.",
+    )
+    lesson_import = lesson_commands.add_parser(
+        "import",
+        help="Validate and import active lessons into a snapshot.",
+    )
+    lesson_import.add_argument("snapshot", type=Path)
+    lesson_import.add_argument(
+        "source_yaml",
+        type=Path,
+        metavar="SOURCE_YAML",
+    )
+    lesson_import.add_argument(
+        "--write",
+        action="store_true",
+        help="Atomically replace the snapshot after a successful import.",
+    )
 
     pr_report = commands.add_parser(
         "pr-report",
@@ -426,6 +462,24 @@ def _load_pr_context(path: Path) -> MemoryContext:
     return context
 
 
+def _load_lessons_yaml(
+    store: TraceBackedMemoryStore,
+    path: Path,
+) -> list[Lesson]:
+    try:
+        return store.load_lessons_yaml(path)
+    except UnicodeDecodeError as error:
+        raise CLIInputError(
+            f"active lessons YAML must be UTF-8: {path}"
+        ) from error
+    except OSError as error:
+        raise CLIInputError(
+            f"cannot read active lessons YAML file {path}: {error}"
+        ) from error
+    except (ValueError, TypeError, OverflowError) as error:
+        raise CLIInputError(str(error)) from error
+
+
 def _load_pr_change_set(path: Path) -> PRChangeSet:
     payload = _load_json_file(path, "PR change set")
     if type(payload) is not dict:
@@ -709,6 +763,43 @@ def _execute(
             for remediation in store.memory_run_remediations()
         ]
 
+    if args.command == "lessons":
+        if args.lessons_command == "export":
+            try:
+                destination_is_snapshot = args.snapshot.samefile(
+                    args.destination
+                )
+            except FileNotFoundError:
+                destination_is_snapshot = False
+            except OSError as error:
+                raise CLIInputError(
+                    "cannot compare lesson export destination with snapshot: "
+                    f"{error}"
+                ) from error
+            if destination_is_snapshot:
+                raise CLIInputError(
+                    "lesson export destination must differ from snapshot"
+                )
+            exported_ids = [
+                lesson.lesson_id
+                for lesson in store.lessons.values()
+                if lesson.status == "active"
+            ]
+            return {
+                "destination": str(args.destination),
+                "exported_count": len(exported_ids),
+                "exported_lesson_ids": exported_ids,
+                "overwrite": args.overwrite,
+            }
+        imported_lessons = _load_lessons_yaml(store, args.source_yaml)
+        return {
+            "imported_count": len(imported_lessons),
+            "imported_lesson_ids": [
+                lesson.lesson_id for lesson in imported_lessons
+            ],
+            "written": args.write,
+        }
+
     if args.command == "pr-report":
         context = _load_pr_context(args.context_json)
         change_set = _load_pr_change_set(args.change_set_json)
@@ -814,16 +905,27 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception as error:
         return _emit_error("internal", error, 1)
 
-    if getattr(args, "write", False):
+    published = False
+    if args.command == "lessons" and args.lessons_command == "export":
+        try:
+            store.save_lessons_yaml(
+                args.destination,
+                overwrite=args.overwrite,
+            )
+        except Exception as error:
+            return _emit_error("write", error, 4)
+        published = True
+    elif getattr(args, "write", False):
         try:
             store.save_json(args.snapshot)
         except Exception as error:
             return _emit_error("write", error, 4)
+        published = True
 
     try:
         _write_text(sys.stdout, output)
     except Exception as error:
-        if getattr(args, "write", False):
+        if published:
             return 0
         return _emit_error("internal", error, 1)
     return 0

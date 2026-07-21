@@ -575,3 +575,27 @@ Track:
   or Schema. Preserve snapshot version 2, JSON Schemas, active-lessons YAML,
   packaged resource bytes, `schemas/postgres.sql`, and PostgreSQL schema
   version 1.
+
+## Phase 34: Active lessons portability CLI (implemented)
+
+- Add `lessons export SNAPSHOT DESTINATION [--overwrite]` and `lessons import
+  SNAPSHOT SOURCE_YAML [--write]` to both installed entry points.
+- Reuse `save_lessons_yaml()` for active-only, Store-ordered canonical output.
+  Refuse existing destinations by default through atomic no-replace
+  publication, and reject any destination alias of the source snapshot.
+- Reuse `load_lessons_yaml()` exactly once with fixed 8 MiB and 10,000-record
+  limits. Preserve constrained parsing, duplicate rejection, shared-ID and
+  provenance validation, source order, merge semantics, and all-or-nothing
+  Store mutation.
+- Keep import a complete validation dry-run by default. Require explicit
+  `--write` before same-path atomic snapshot replacement; export alone writes
+  its explicit destination and requires `--overwrite` for replacement.
+- Serialize deterministic result envelopes before publication, classify lesson
+  input failures as exit 2 and publication failures as exit 4, and treat a
+  closed stdout after a committed export or import as success.
+- Extend `save_lessons_yaml()` with a backward-compatible keyword-only
+  `overwrite` argument whose default preserves Python replacement behavior.
+- Persist no command, import manifest, or export metadata. Preserve snapshot
+  version 2, JSON Schemas, active-lessons YAML shape, all 18 packaged resource
+  bytes, `schemas/postgres.sql`, public exports, and PostgreSQL schema version
+  1.

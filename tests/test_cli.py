@@ -259,6 +259,67 @@ def _pr_report_documents(
     return context_path, change_set_path
 
 
+def _lesson_portability_store(
+    *,
+    include_lessons: bool,
+) -> tuple[TraceBackedMemoryStore, tuple[Lesson, Lesson]]:
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_cli_lessons",
+            run_id="run_cli_lessons",
+            commit_sha="commit_cli_lessons",
+            repo="repo_cli",
+            tenant="tenant_cli",
+            eval_result="fail",
+        )
+    )
+    case = store.add_failure_case(
+        FailureCase(
+            case_id="case_cli_lessons",
+            source_trace_id=trace.trace_id,
+            commit_sha=trace.commit_sha,
+            failure_type="executor_failure",
+            symptom="executor timed out",
+            fix="bound executor runtime",
+            fix_commit_sha="commit_cli_lessons_fix",
+            regression_passed=True,
+            status="verified",
+        )
+    )
+    active_lessons = (
+        Lesson(
+            lesson_id="lesson_cli_export_first",
+            source_case_id=case.case_id,
+            lesson_text="Bound executor runtime.\n\nRetry only after cleanup.",
+            memory_type="procedural",
+            scope={"repo": "repo_cli", "tenant": "tenant_cli"},
+        ),
+        Lesson(
+            lesson_id="lesson_cli_export_second",
+            source_case_id=case.case_id,
+            lesson_text="Record timeout evidence before retrying.",
+            memory_type="semantic",
+            scope={"repo": "repo_cli", "tenant": "tenant_cli"},
+            confidence=0.8,
+        ),
+    )
+    if include_lessons:
+        for lesson in active_lessons:
+            store.add_lesson(lesson)
+        store.add_lesson(
+            Lesson(
+                lesson_id="lesson_cli_export_obsolete",
+                source_case_id=case.case_id,
+                lesson_text="Retry immediately.",
+                memory_type="procedural",
+                scope={"repo": "repo_cli", "tenant": "tenant_cli"},
+                status="obsolete",
+            )
+        )
+    return store, active_lessons
+
+
 def test_cli_resource_commands_list_read_and_export(tmp_path, capsys):
     code, payload, error = _run(capsys, "resource", "list")
 
@@ -327,6 +388,437 @@ def test_cli_resource_commands_list_read_and_export(tmp_path, capsys):
     assert code == 0
     assert error is None
     assert payload["overwrite"] is True
+
+
+def test_cli_lessons_export_is_active_only_and_protects_destination(
+    tmp_path,
+    capsys,
+):
+    store, active_lessons = _lesson_portability_store(include_lessons=True)
+    snapshot_path = tmp_path / "lessons-export.snapshot.json"
+    destination = tmp_path / "lessons.active.yaml"
+    store.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "export",
+        str(snapshot_path),
+        str(destination),
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload == {
+        "destination": str(destination),
+        "exported_count": 2,
+        "exported_lesson_ids": [
+            lesson.lesson_id for lesson in active_lessons
+        ],
+        "overwrite": False,
+    }
+    exported = destination.read_text(encoding="utf-8")
+    assert "lesson_cli_export_first" in exported
+    assert "lesson_cli_export_second" in exported
+    assert "lesson_cli_export_obsolete" not in exported
+    assert "    lesson_text: |\n" in exported
+    assert snapshot_path.read_bytes() == original_snapshot
+
+    destination.write_bytes(b"caller-owned lessons\n")
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "export",
+        str(snapshot_path),
+        str(destination),
+    )
+
+    assert code == 4
+    assert payload is None
+    assert error["error"]["kind"] == "write"
+    assert destination.read_bytes() == b"caller-owned lessons\n"
+    assert snapshot_path.read_bytes() == original_snapshot
+
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "export",
+        str(snapshot_path),
+        str(destination),
+        "--overwrite",
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["overwrite"] is True
+    assert "lesson_cli_export_first" in destination.read_text(encoding="utf-8")
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+def test_cli_lessons_import_is_dry_run_until_write(
+    tmp_path,
+    capsys,
+):
+    source, active_lessons = _lesson_portability_store(include_lessons=True)
+    yaml_path = tmp_path / "lessons-to-import.yaml"
+    source.save_lessons_yaml(yaml_path)
+    target, _ = _lesson_portability_store(include_lessons=False)
+    snapshot_path = tmp_path / "lessons-import.snapshot.json"
+    target.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "import",
+        str(snapshot_path),
+        str(yaml_path),
+    )
+
+    expected_ids = [lesson.lesson_id for lesson in active_lessons]
+    assert code == 0
+    assert error is None
+    assert payload == {
+        "imported_count": 2,
+        "imported_lesson_ids": expected_ids,
+        "written": False,
+    }
+    assert snapshot_path.read_bytes() == original_snapshot
+    assert TraceBackedMemoryStore.load_json(snapshot_path).lessons == {}
+
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "import",
+        str(snapshot_path),
+        str(yaml_path),
+        "--write",
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload == {
+        "imported_count": 2,
+        "imported_lesson_ids": expected_ids,
+        "written": True,
+    }
+    assert snapshot_path.read_bytes() != original_snapshot
+    restored = TraceBackedMemoryStore.load_json(snapshot_path)
+    assert list(restored.lessons) == expected_ids
+    assert list(restored.lessons.values()) == list(active_lessons)
+
+
+def test_cli_lessons_export_empty_store_and_structured_write_failure(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    snapshot_path = tmp_path / "empty-lessons.snapshot.json"
+    TraceBackedMemoryStore().save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+    destination = tmp_path / "empty-lessons.yaml"
+
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "export",
+        str(snapshot_path),
+        str(destination),
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload == {
+        "destination": str(destination),
+        "exported_count": 0,
+        "exported_lesson_ids": [],
+        "overwrite": False,
+    }
+    assert destination.read_bytes() == b"lessons: []\n"
+
+    def reject_export(_store, _destination, *, overwrite=True):
+        raise OSError("injected lesson export failure")
+
+    monkeypatch.setattr(
+        TraceBackedMemoryStore,
+        "save_lessons_yaml",
+        reject_export,
+    )
+    failed_destination = tmp_path / "failed-lessons.yaml"
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "export",
+        str(snapshot_path),
+        str(failed_destination),
+    )
+
+    assert code == 4
+    assert payload is None
+    assert error["error"] == {
+        "kind": "write",
+        "message": "injected lesson export failure",
+        "type": "OSError",
+    }
+    assert not failed_destination.exists()
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+def test_cli_lessons_export_cannot_replace_snapshot_through_an_alias(
+    tmp_path,
+    capsys,
+):
+    store, _active_lessons = _lesson_portability_store(include_lessons=True)
+    snapshot_path = tmp_path / "protected.snapshot.json"
+    alias_path = tmp_path / "protected.snapshot.alias"
+    store.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+    os.link(snapshot_path, alias_path)
+
+    for destination in (snapshot_path, alias_path):
+        code, payload, error = _run(
+            capsys,
+            "lessons",
+            "export",
+            str(snapshot_path),
+            str(destination),
+            "--overwrite",
+        )
+
+        assert code == 2
+        assert payload is None
+        assert error["error"]["kind"] == "input"
+        assert "destination must differ from snapshot" in (
+            error["error"]["message"]
+        )
+        assert snapshot_path.read_bytes() == original_snapshot
+        assert alias_path.read_bytes() == original_snapshot
+
+
+def test_cli_lessons_import_empty_document_is_valid_no_op(tmp_path, capsys):
+    target, _ = _lesson_portability_store(include_lessons=False)
+    snapshot_path = tmp_path / "empty-import.snapshot.json"
+    target.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+    yaml_path = tmp_path / "empty-import.yaml"
+    yaml_path.write_bytes(b"lessons: []\n")
+
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "import",
+        str(snapshot_path),
+        str(yaml_path),
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload == {
+        "imported_count": 0,
+        "imported_lesson_ids": [],
+        "written": False,
+    }
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+def test_cli_lessons_import_rejects_bad_documents_without_writing(
+    tmp_path,
+    capsys,
+):
+    target, _ = _lesson_portability_store(include_lessons=False)
+    snapshot_path = tmp_path / "bad-import.snapshot.json"
+    target.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+    documents = (
+        (
+            "invalid-utf8.yaml",
+            b"lessons:\n\xff",
+            "active lessons YAML must be UTF-8",
+        ),
+        (
+            "wrong-root.yaml",
+            b"records: []\n",
+            "lessons YAML must start with 'lessons:'",
+        ),
+        (
+            "duplicate-key.yaml",
+            (
+                "lessons:\n"
+                '  - lesson_id: "duplicate-first"\n'
+                '    lesson_id: "duplicate-second"\n'
+            ).encode("utf-8"),
+            "duplicate lesson field: lesson_id",
+        ),
+    )
+
+    for name, content, message in documents:
+        yaml_path = tmp_path / name
+        yaml_path.write_bytes(content)
+        code, payload, error = _run(
+            capsys,
+            "lessons",
+            "import",
+            str(snapshot_path),
+            str(yaml_path),
+            "--write",
+        )
+
+        assert code == 2
+        assert payload is None
+        assert error["error"]["kind"] == "input"
+        assert message in error["error"]["message"]
+        assert snapshot_path.read_bytes() == original_snapshot
+
+    missing_path = tmp_path / "missing-lessons.yaml"
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "import",
+        str(snapshot_path),
+        str(missing_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "cannot read active lessons YAML file" in error["error"]["message"]
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+def test_cli_lessons_import_rejects_merge_and_provenance_failures(
+    tmp_path,
+    capsys,
+):
+    source, _active_lessons = _lesson_portability_store(include_lessons=True)
+    yaml_path = tmp_path / "conflicting-lessons.yaml"
+    source.save_lessons_yaml(yaml_path)
+
+    conflicting_snapshot = tmp_path / "conflicting.snapshot.json"
+    source.save_json(conflicting_snapshot)
+    conflicting_original = conflicting_snapshot.read_bytes()
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "import",
+        str(conflicting_snapshot),
+        str(yaml_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "duplicate lesson_id" in error["error"]["message"]
+    assert conflicting_snapshot.read_bytes() == conflicting_original
+
+    empty_snapshot = tmp_path / "missing-provenance.snapshot.json"
+    TraceBackedMemoryStore().save_json(empty_snapshot)
+    empty_original = empty_snapshot.read_bytes()
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "import",
+        str(empty_snapshot),
+        str(yaml_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "source_case_id" in error["error"]["message"]
+    assert empty_snapshot.read_bytes() == empty_original
+
+
+def test_cli_lessons_import_enforces_fixed_byte_and_record_budgets(
+    tmp_path,
+    capsys,
+):
+    target, _ = _lesson_portability_store(include_lessons=False)
+    snapshot_path = tmp_path / "bounded-import.snapshot.json"
+    target.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    oversized_path = tmp_path / "oversized-lessons.yaml"
+    oversized_path.write_bytes(b"lessons: []\n" + b" " * (8 * 1024 * 1024))
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "import",
+        str(snapshot_path),
+        str(oversized_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "active lessons YAML file exceeds maximum size" in (
+        error["error"]["message"]
+    )
+    assert snapshot_path.read_bytes() == original_snapshot
+
+    too_many_path = tmp_path / "too-many-lessons.yaml"
+    too_many_path.write_text(
+        "lessons:\n"
+        + "".join(
+            f'  - lesson_id: "lesson_{index}"\n'
+            for index in range(10_001)
+        ),
+        encoding="utf-8",
+    )
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "import",
+        str(snapshot_path),
+        str(too_many_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "more than 10000 records" in error["error"]["message"]
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+def test_cli_lessons_commands_reject_the_other_publication_flag(
+    tmp_path,
+    capsys,
+):
+    snapshot_path = tmp_path / "flag-shape.snapshot.json"
+    TraceBackedMemoryStore().save_json(snapshot_path)
+    yaml_path = tmp_path / "flag-shape.yaml"
+    yaml_path.write_bytes(b"lessons: []\n")
+
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "export",
+        str(snapshot_path),
+        str(tmp_path / "destination.yaml"),
+        "--write",
+    )
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "--write" in error["error"]["message"]
+
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "import",
+        str(snapshot_path),
+        str(yaml_path),
+        "--overwrite",
+    )
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "--overwrite" in error["error"]["message"]
 
 
 def test_cli_resource_errors_preserve_input_read_and_write_classes(
@@ -1800,6 +2292,89 @@ def test_cli_broken_stdout_after_resource_export_does_not_invite_retry(
     ).read_bytes()
 
 
+def test_cli_broken_stdout_after_lessons_export_does_not_invite_retry(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    store, _active_lessons = _lesson_portability_store(include_lessons=True)
+    snapshot_path = tmp_path / "pipe-export.snapshot.json"
+    destination = tmp_path / "pipe-export.lessons.yaml"
+    store.save_json(snapshot_path)
+
+    class BrokenStream:
+        def write(self, _value):
+            raise BrokenPipeError("injected closed lessons export stdout")
+
+    monkeypatch.setattr(cli.sys, "stdout", BrokenStream())
+
+    code = cli.main(
+        [
+            "lessons",
+            "export",
+            str(snapshot_path),
+            str(destination),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert captured.err == ""
+    assert b"lesson_cli_export_first" in destination.read_bytes()
+
+
+def test_cli_lessons_import_broken_stdout_tracks_snapshot_publication(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    source, active_lessons = _lesson_portability_store(include_lessons=True)
+    yaml_path = tmp_path / "pipe-import.lessons.yaml"
+    source.save_lessons_yaml(yaml_path)
+    target, _ = _lesson_portability_store(include_lessons=False)
+    snapshot_path = tmp_path / "pipe-import.snapshot.json"
+    target.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    class BrokenStream:
+        def write(self, _value):
+            raise BrokenPipeError("injected closed lessons import stdout")
+
+    monkeypatch.setattr(cli.sys, "stdout", BrokenStream())
+
+    code = cli.main(
+        [
+            "lessons",
+            "import",
+            str(snapshot_path),
+            str(yaml_path),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 1
+    assert json.loads(captured.err)["error"]["kind"] == "internal"
+    assert snapshot_path.read_bytes() == original_snapshot
+
+    code = cli.main(
+        [
+            "lessons",
+            "import",
+            str(snapshot_path),
+            str(yaml_path),
+            "--write",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert captured.err == ""
+    restored = TraceBackedMemoryStore.load_json(snapshot_path)
+    assert list(restored.lessons) == [
+        lesson.lesson_id for lesson in active_lessons
+    ]
+
+
 def test_cli_bounds_error_messages(capsys):
     code = cli._emit_error("internal", RuntimeError("x" * 3000), 1)
     captured = capsys.readouterr()
@@ -2521,3 +3096,78 @@ def test_module_entry_point_emits_read_only_pr_report(tmp_path):
         },
     }
     assert snapshot_path.read_bytes() == original
+
+
+def test_module_entry_point_exports_and_imports_lessons(tmp_path):
+    source, active_lessons = _lesson_portability_store(include_lessons=True)
+    source_snapshot = tmp_path / "module-export.snapshot.json"
+    destination = tmp_path / "module-export.lessons.yaml"
+    source.save_json(source_snapshot)
+    target, _ = _lesson_portability_store(include_lessons=False)
+    target_snapshot = tmp_path / "module-import.snapshot.json"
+    target.save_json(target_snapshot)
+    root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    existing_pythonpath = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        item
+        for item in (str(root / "src"), existing_pythonpath)
+        if item
+    )
+
+    export_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "trace_backed_memory",
+            "lessons",
+            "export",
+            str(source_snapshot),
+            str(destination),
+        ],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert export_result.returncode == 0, export_result.stderr
+    assert export_result.stderr == ""
+    assert export_result.stdout.count("\n") == 1
+    assert json.loads(export_result.stdout)["exported_lesson_ids"] == [
+        lesson.lesson_id for lesson in active_lessons
+    ]
+
+    import_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "trace_backed_memory",
+            "lessons",
+            "import",
+            str(target_snapshot),
+            str(destination),
+            "--write",
+        ],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert import_result.returncode == 0, import_result.stderr
+    assert import_result.stderr == ""
+    assert import_result.stdout.count("\n") == 1
+    assert json.loads(import_result.stdout) == {
+        "imported_count": 2,
+        "imported_lesson_ids": [
+            lesson.lesson_id for lesson in active_lessons
+        ],
+        "written": True,
+    }
+    restored = TraceBackedMemoryStore.load_json(target_snapshot)
+    assert list(restored.lessons) == [
+        lesson.lesson_id for lesson in active_lessons
+    ]

@@ -45,6 +45,21 @@ jobs:
           .package-smoke/bin/tbm snapshot validate dist/empty.snapshot.json
           .package-smoke/bin/python -m trace_backed_memory snapshot stats dist/empty.snapshot.json
           .package-smoke/bin/python - <<'PY'
+          from trace_backed_memory import FailureCase, Lesson, Trace, TraceBackedMemoryStore
+
+          store = TraceBackedMemoryStore()
+          trace = store.record_trace(Trace(trace_id="trace_lessons_smoke", run_id="run_lessons_smoke", commit_sha="commit_package_smoke", repo="repo_package_smoke", eval_result="fail"))
+          case = store.add_failure_case(FailureCase(case_id="case_lessons_smoke", source_trace_id=trace.trace_id, commit_sha=trace.commit_sha, failure_type="executor_failure", symptom="executor timed out", fix="bound executor runtime", fix_commit_sha="fix_package_smoke", regression_passed=True, status="verified"))
+          store.save_json("dist/lessons-target-wheel.snapshot.json")
+          store.save_json("dist/lessons-target-sdist.snapshot.json")
+          store.add_lesson(Lesson(lesson_id="lesson_package_smoke", source_case_id=case.case_id, lesson_text="Bound executor runtime before retrying.", memory_type="procedural", scope={"repo": trace.repo}))
+          store.add_lesson(Lesson(lesson_id="lesson_package_obsolete", source_case_id=case.case_id, lesson_text="Retry immediately.", memory_type="procedural", scope={"repo": trace.repo}, status="obsolete"))
+          store.save_json("dist/lessons-source.snapshot.json")
+          PY
+          .package-smoke/bin/tbm lessons export dist/lessons-source.snapshot.json dist/lessons.wheel.yaml > dist/lessons-export.wheel.json
+          .package-smoke/bin/tbm lessons import dist/lessons-target-wheel.snapshot.json dist/lessons.wheel.yaml --write > dist/lessons-import.wheel.json
+          .package-smoke/bin/python -c "import json; from pathlib import Path; from trace_backed_memory import TraceBackedMemoryStore; exported = json.loads(Path('dist/lessons-export.wheel.json').read_text()); imported = json.loads(Path('dist/lessons-import.wheel.json').read_text()); assert exported['exported_lesson_ids'] == ['lesson_package_smoke']; assert imported['written'] is True; assert list(TraceBackedMemoryStore.load_json('dist/lessons-target-wheel.snapshot.json').lessons) == ['lesson_package_smoke']; assert b'lesson_package_obsolete' not in Path('dist/lessons.wheel.yaml').read_bytes()"
+          .package-smoke/bin/python - <<'PY'
           import json
           from pathlib import Path
 
@@ -96,3 +111,6 @@ jobs:
           .sdist-smoke/bin/python -m trace_backed_memory complete-batch dist/pending-batch.snapshot.json dist/measurements.json
           .sdist-smoke/bin/python -m trace_backed_memory pr-report dist/empty.snapshot.json dist/pr-context.json dist/pr-change-set.json --repo-path . > dist/pr-report.sdist.json
           .sdist-smoke/bin/python -c "import json; from pathlib import Path; payload = json.loads(Path('dist/pr-report.sdist.json').read_text()); assert payload['commit_ancestry']['commit_relations'] == []; assert payload['report']['related_case_ids'] == []"
+          .sdist-smoke/bin/python -m trace_backed_memory lessons export dist/lessons-source.snapshot.json dist/lessons.sdist.yaml > dist/lessons-export.sdist.json
+          .sdist-smoke/bin/python -m trace_backed_memory lessons import dist/lessons-target-sdist.snapshot.json dist/lessons.sdist.yaml --write > dist/lessons-import.sdist.json
+          .sdist-smoke/bin/python -c "import json; from pathlib import Path; from trace_backed_memory import TraceBackedMemoryStore; exported = json.loads(Path('dist/lessons-export.sdist.json').read_text()); imported = json.loads(Path('dist/lessons-import.sdist.json').read_text()); assert exported['exported_count'] == 1; assert imported['imported_lesson_ids'] == ['lesson_package_smoke']; assert imported['written'] is True; assert b'lesson_package_obsolete' not in Path('dist/lessons.sdist.yaml').read_bytes(); assert list(TraceBackedMemoryStore.load_json('dist/lessons-target-sdist.snapshot.json').lessons) == ['lesson_package_smoke']"

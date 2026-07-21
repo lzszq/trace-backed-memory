@@ -8497,6 +8497,64 @@ def test_save_lessons_yaml_syncs_and_replaces_with_a_sibling(
     assert list(tmp_path.glob(".lessons.yaml.*.tmp")) == []
 
 
+def test_save_lessons_yaml_can_publish_without_replacing(
+    monkeypatch,
+    tmp_path,
+):
+    store, _trace, _case, _lesson = store_with_active_lesson()
+    target = tmp_path / "lessons.yaml"
+    links = []
+    real_link = os.link
+
+    def recording_link(source, destination):
+        links.append((Path(source), Path(destination)))
+        real_link(source, destination)
+
+    monkeypatch.setattr(os, "link", recording_link)
+
+    store.save_lessons_yaml(target, overwrite=False)
+
+    assert len(links) == 1
+    assert links[0][0].parent == target.parent
+    assert links[0][1] == target
+    assert b"lesson_001" in target.read_bytes()
+    assert list(tmp_path.glob(".lessons.yaml.*.tmp")) == []
+
+
+def test_save_lessons_yaml_no_replace_preserves_existing_destination(
+    tmp_path,
+):
+    store, _trace, _case, _lesson = store_with_active_lesson()
+    target = tmp_path / "lessons.yaml"
+    original = b"caller-owned lessons\n"
+    target.write_bytes(original)
+
+    with pytest.raises(FileExistsError):
+        store.save_lessons_yaml(target, overwrite=False)
+
+    assert target.read_bytes() == original
+    assert list(tmp_path.glob(".lessons.yaml.*.tmp")) == []
+
+
+def test_save_lessons_yaml_no_replace_link_failure_cleans_temporary_file(
+    monkeypatch,
+    tmp_path,
+):
+    store, _trace, _case, _lesson = store_with_active_lesson()
+    target = tmp_path / "lessons.yaml"
+
+    def fail_link(_source, _destination):
+        raise OSError("injected lesson link failure")
+
+    monkeypatch.setattr(os, "link", fail_link)
+
+    with pytest.raises(OSError, match="injected lesson link failure"):
+        store.save_lessons_yaml(target, overwrite=False)
+
+    assert not target.exists()
+    assert list(tmp_path.glob(".lessons.yaml.*.tmp")) == []
+
+
 @pytest.mark.parametrize("failure_point", ["serialize", "fsync", "replace"])
 def test_save_lessons_yaml_failure_preserves_existing_file_and_cleans_temp(
     monkeypatch,

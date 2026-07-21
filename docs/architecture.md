@@ -200,15 +200,18 @@ cannot partially import preceding lessons.
 
 `save_json()` and `save_lessons_yaml()` share one durability boundary. Each
 writes canonical LF text through a sibling temporary file, flushes it, calls
-`os.fsync()`, closes it, and publishes it with `os.replace()`. Serialization,
-sync, or replacement failure removes the temporary file and leaves an existing
-destination unchanged. The lesson serializer emits canonical `lesson_text: |`
-blocks. The constrained reader accepts both `|` and legacy `>` while preserving
-blank lines, leading and trailing LF characters, and intra-line spaces instead
-of globally trimming block content. It retains the adapter's historical
-literal-line interpretation of `>` rather than implementing general YAML
-folding or chomping. This changes no stored field: snapshot
-version 2, JSON Schemas, and PostgreSQL schema version 1 remain unchanged.
+`os.fsync()`, closes it, and publishes atomically. The default replacement path
+uses `os.replace()`; the additive lesson-writer `overwrite=False` path uses
+`os.link()` to combine the no-existing-destination condition and publication
+without a racy pre-check. Serialization, sync, link, or replacement failure
+removes the temporary file and leaves an existing destination unchanged. The
+lesson serializer emits canonical `lesson_text: |` blocks. The constrained
+reader accepts both `|` and legacy `>` while preserving blank lines, leading
+and trailing LF characters, and intra-line spaces instead of globally trimming
+block content. It retains the adapter's historical literal-line interpretation
+of `>` rather than implementing general YAML folding or chomping. This changes
+no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
+1 remain unchanged.
 
 ## Packaged Distribution Resources
 
@@ -263,11 +266,12 @@ and PostgreSQL schema version 1 remain unchanged.
 ## Snapshot Operations CLI
 
 The dependency-free snapshot operations adapter is exposed as `tbm` and
-`python -m trace_backed_memory`. Snapshot commands accept exactly one local
-snapshot path and always reconstruct the store through
+`python -m trace_backed_memory`. Snapshot-backed commands accept exactly one
+local snapshot path and always reconstruct the store through
 `TraceBackedMemoryStore.load_json()`. They do not accept stdin, remote URLs,
-PostgreSQL connections, or an alternate output path. Resource commands are
-handled before snapshot loading and add no Store state.
+PostgreSQL connections, or an alternate snapshot output path. Resource
+commands are handled before snapshot loading and add no Store state. Lesson
+export alone accepts one caller-owned destination.
 
 The read surface maps directly to existing store views. `snapshot validate`
 performs full reconstruction and returns validity, snapshot version, and
@@ -294,22 +298,34 @@ Trace linkage. One `complete_memory_runs()` call derives every Trace ID, stages
 the batch all-or-nothing, and returns completions in manifest order. The
 manifest is an ephemeral command input rather than a new persisted schema.
 
+`lessons export SNAPSHOT DESTINATION [--overwrite]` delegates active-only
+selection and canonical YAML serialization to `save_lessons_yaml()`. The CLI
+passes `overwrite=False` unless replacement is explicit and rejects a
+destination that aliases the source snapshot. Its deterministic result names
+the active lesson IDs selected in Store order. `lessons import SNAPSHOT
+SOURCE_YAML [--write]` calls `load_lessons_yaml()` once with the fixed 8 MiB and
+10,000-record defaults. The Store owns constrained parsing, duplicate checks,
+shared-ID and provenance validation, source order, merge semantics, and the
+all-or-nothing mutation boundary.
+
 Every mutation first changes only the loaded in-memory store and is a dry-run
-unless `--write` is explicit. After a complete successful operation, `--write`
-calls `save_json()` on the input path, reusing its same-directory temporary file
-and atomic replacement. Completion, batch validation, and recovery remain
-all-or-nothing in the store; the CLI does not stage or classify records
-independently.
+unless `--write` is explicit. This includes lesson import; lesson export is an
+explicit destination publication rather than a Store mutation. After a
+complete successful operation, `--write` calls `save_json()` on the input path,
+reusing its same-directory temporary file and atomic replacement. Completion,
+batch validation, recovery, and lesson import remain all-or-nothing in the
+store; the CLI does not stage, parse YAML, or classify records independently.
 
 Successful commands emit one deterministic JSON value plus a newline. Failures
 emit one structured JSON object to stderr without a traceback. Exit codes are
 0 for success or no-op, 1 for an unexpected internal failure, 2 for command,
-snapshot, or structured-evidence input, 3 for completion or recovery state,
-linkage, attribution, or evidence rejection, and 4 for a write failure. Error
-text is capped at 2,048 characters. Successful output is serialized before
-persistence; after a requested write commits, a downstream stdout pipe closure
-does not report the already-persisted operation as failed. Help is the sole
-normal argparse text path.
+snapshot, YAML, or structured-evidence input, 3 for completion or recovery
+state, linkage, attribution, or evidence rejection, and 4 for a lesson
+destination or snapshot write failure. Error text is capped at 2,048
+characters. Successful output is serialized before persistence; after an
+export or requested write commits, a downstream stdout pipe closure does not
+report the already-persisted operation as failed. Help is the sole normal
+argparse text path.
 
 The adapter persists no command, audit, metrics, or remediation record. It
 leaves snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL

@@ -31,7 +31,9 @@ literal `lesson_text: |` blocks. The snapshot is never mutated or saved.
 
 The destination is caller-owned. By default, publication must fail if any
 filesystem entry already exists there. `--overwrite` explicitly permits
-atomic replacement. Extend `save_lessons_yaml()` with a backward-compatible
+atomic replacement, except that the destination must not identify the source
+snapshot through the same path, a symbolic link, or a hard link. Extend
+`save_lessons_yaml()` with a backward-compatible
 keyword-only `overwrite` argument whose default remains `True` for existing
 Python callers; the CLI always passes its explicit flag. The common sibling
 temporary-file writer keeps its write, flush, `fsync`, and cleanup behavior.

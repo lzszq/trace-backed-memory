@@ -745,6 +745,8 @@ def test_readme_publishes_snapshot_operations_cli_contract():
     for command in [
         "tbm snapshot validate SNAPSHOT",
         "tbm snapshot stats SNAPSHOT",
+        "tbm lessons export SNAPSHOT DESTINATION [--overwrite]",
+        "tbm lessons import SNAPSHOT SOURCE_YAML [--write]",
         "tbm audit SNAPSHOT",
         "tbm metrics SNAPSHOT",
         "tbm remediation SNAPSHOT",
@@ -764,6 +766,30 @@ def test_readme_publishes_snapshot_operations_cli_contract():
     assert "structured JSON" in normalized
     assert "2,048 characters" in normalized
     assert "snapshot version 2" in normalized
+
+
+def test_readme_publishes_active_lessons_cli_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for contract in [
+        "tbm lessons export SNAPSHOT DESTINATION [--overwrite]",
+        "tbm lessons import SNAPSHOT SOURCE_YAML [--write]",
+        "active lessons only",
+        "Store order",
+        "8 MiB",
+        "10,000-lesson",
+        "not an upsert",
+        "full validation dry-run",
+        "symbolic link",
+        "hard link",
+        "`load_lessons_yaml()`",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]:
+        assert contract in normalized
 
 
 def test_readme_publishes_measured_completion_cli_contract():

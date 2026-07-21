@@ -83,14 +83,17 @@ persisted evidence and leave snapshot version 2, JSON Schemas, active-lessons
 YAML, and PostgreSQL schema version 1 unchanged.
 
 Persist local snapshots and active lessons only through `save_json()` and
-`save_lessons_yaml()`. Both write canonical LF text to a sibling temporary file,
-flush it, call `os.fsync()`, and publish with `os.replace()`; a failed
-serialization, sync, or replacement must preserve the old destination and
-remove the temporary file. New lesson exports use `lesson_text: |`. Imports may
-accept legacy `>` blocks, but must preserve blank lines, leading and trailing LF
-characters, intra-line spaces, and the adapter's historical literal line breaks
-exactly; do not assume general YAML folding or chomping. These rules do not change snapshot
-version 2, JSON Schemas, or PostgreSQL schema version 1.
+`save_lessons_yaml()`. Both write canonical LF text to a sibling temporary
+file, flush it, call `os.fsync()`, and publish atomically. Replacement uses
+`os.replace()`; lesson export may set `overwrite=False` to publish with
+`os.link()` and reject an existing destination in the same filesystem
+operation. A failed serialization, sync, link, or replacement must preserve
+the old destination and remove the temporary file. New lesson exports use
+`lesson_text: |`. Imports may accept legacy `>` blocks, but must preserve blank
+lines, leading and trailing LF characters, intra-line spaces, and the adapter's
+historical literal line breaks exactly; do not assume general YAML folding or
+chomping. These rules do not change snapshot version 2, JSON Schemas, or
+PostgreSQL schema version 1.
 
 ## Bounded Local Document Ingestion
 
@@ -117,6 +120,21 @@ or persistence layer: `snapshot validate`, `snapshot stats`, `audit`,
 `metrics`, and `remediation` must reuse the store's validation and derived
 views. Commands accept one local snapshot only; they do not connect to the
 PostgreSQL repository.
+
+Use `lessons export SNAPSHOT DESTINATION [--overwrite]` only as an active-only
+portable artifact export. Refuse every existing destination by default, reject
+the snapshot itself or any file alias as a destination even with overwrite,
+and let `save_lessons_yaml()` own canonical serialization and atomic
+publication. Report selected lesson IDs in Store order. Do not mutate or save
+the source snapshot.
+
+Use `lessons import SNAPSHOT SOURCE_YAML [--write]` as a complete validation
+dry-run by default. Always retain the fixed 8 MiB and 10,000-lesson limits and
+call `load_lessons_yaml()` exactly once. Do not add a second YAML parser,
+replace existing IDs, skip provenance, or partially accept a document. The
+Store's merge, duplicate, shared-ID, scope, source-case, and all-or-nothing
+rules remain authoritative. Only explicit `--write` may publish the fully
+validated in-memory result back to the same snapshot.
 
 Treat every `complete`, `complete-batch`, `recover`, `recover-batch`, and
 `recover-ready` command as a dry-run unless `--write` is explicit. A dry-run
@@ -153,12 +171,13 @@ using the CLI to choose a historical side.
 
 Automation may consume the single deterministic JSON value written on
 success. Failures write one structured JSON error without a traceback. Exit
-codes are 0 for success or no-op, 1 for an internal failure, 2 for usage or
-snapshot input, 3 for recovery-state or attribution rejection, and 4 for a
-write failure. Error text is capped at 2,048 characters. JSON serialization
-must finish before persistence. After a requested write commits, a downstream
-stdout pipe closure must not falsely report that committed completion or
-recovery as failed. Human-readable `--help` output is outside the JSON contract.
+codes are 0 for success or no-op, 1 for an internal failure, 2 for usage,
+snapshot, or lesson input, 3 for recovery-state or attribution rejection, and
+4 for a lesson destination or snapshot write failure. Error text is capped at
+2,048 characters. JSON serialization must finish before persistence. After an
+export or requested write commits, a downstream stdout pipe closure must not
+falsely report that committed operation as failed. Human-readable `--help`
+output is outside the JSON contract.
 
 CLI reads, audits, metrics, remediation plans, and completion wrappers are not
 persisted. Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL

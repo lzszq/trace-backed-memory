@@ -286,14 +286,22 @@ class TraceBackedMemoryStore:
         )
 
     @_synchronized
-    def save_lessons_yaml(self, path: str | Path) -> None:
+    def save_lessons_yaml(
+        self,
+        path: str | Path,
+        *,
+        overwrite: bool = True,
+    ) -> None:
         active_lessons = [
             lesson
             for lesson in self._lessons.values()
             if lesson.status == "active"
         ]
         target = Path(path)
-        with _atomic_utf8_writer(target) as temporary_file:
+        with _atomic_utf8_writer(
+            target,
+            overwrite=overwrite,
+        ) as temporary_file:
             temporary_file.write(_lessons_to_yaml(active_lessons))
 
     @_synchronized
@@ -2776,7 +2784,11 @@ def _utc_timestamp() -> str:
 
 
 @contextmanager
-def _atomic_utf8_writer(target: Path) -> Iterator[TextIO]:
+def _atomic_utf8_writer(
+    target: Path,
+    *,
+    overwrite: bool = True,
+) -> Iterator[TextIO]:
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -2792,14 +2804,16 @@ def _atomic_utf8_writer(target: Path) -> Iterator[TextIO]:
             yield temporary_file
             temporary_file.flush()
             os.fsync(temporary_file.fileno())
-        os.replace(temporary_path, target)
-    except BaseException:
+        if overwrite:
+            os.replace(temporary_path, target)
+        else:
+            os.link(temporary_path, target)
+    finally:
         if temporary_path is not None:
             try:
                 temporary_path.unlink(missing_ok=True)
             except OSError:
                 pass
-        raise
 
 
 def _lessons_to_yaml(lessons: list[Lesson]) -> str:

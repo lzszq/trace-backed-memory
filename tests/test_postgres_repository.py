@@ -303,6 +303,152 @@ def _postgres_snapshot_counts(**overrides: int) -> dict[str, int]:
     return counts
 
 
+_POSTGRES_RACE_COLLECTIONS = {
+    "traces": "traces",
+    "failure_cases": "failure_cases",
+    "lessons": "lessons",
+    "project_policies": "project_policies",
+    "memory_usage_decisions": "usage_logs",
+}
+_POSTGRES_RACE_ID_FIELDS = {
+    "traces": "trace_id",
+    "failure_cases": "case_id",
+    "lessons": "lesson_id",
+    "project_policies": "policy_id",
+    "memory_usage_decisions": "decision_id",
+}
+_POSTGRES_RACE_SEED_COLLECTIONS = {
+    "traces": (),
+    "failure_cases": ("traces",),
+    "lessons": ("traces", "failure_cases"),
+    "project_policies": (),
+    "memory_usage_decisions": (
+        "traces",
+        "failure_cases",
+        "lessons",
+        "project_policies",
+    ),
+}
+_POSTGRES_RACE_CONFLICT_FIELDS = {
+    "traces": ("model", "external_model"),
+    "failure_cases": ("created_at", "2025-02-03T04:05:06Z"),
+    "lessons": ("lesson_text", "External concurrent lesson."),
+    "project_policies": ("policy_text", "External concurrent policy."),
+    "memory_usage_decisions": ("reason", "external concurrent decision"),
+}
+
+
+def _postgres_insert_race_state(table: str):
+    from trace_backed_memory import TraceBackedMemoryStore
+
+    source = _complete_store().to_snapshot()
+    seed = {
+        "snapshot_version": 2,
+        "traces": [],
+        "failure_cases": [],
+        "lessons": [],
+        "project_policies": [],
+        "usage_logs": [],
+    }
+    for collection_name in _POSTGRES_RACE_SEED_COLLECTIONS[table]:
+        seed[collection_name] = source[collection_name]
+    collection_name = _POSTGRES_RACE_COLLECTIONS[table]
+    incoming = dict(source[collection_name][0])
+    return TraceBackedMemoryStore.from_snapshot(seed), incoming
+
+
+def _insert_postgres_snapshot_row(
+    connection: object,
+    table: str,
+    record: dict[str, object],
+) -> None:
+    from psycopg.types.json import Jsonb
+
+    from trace_backed_memory import postgres
+
+    canonical = postgres._canonical_incoming_record(table, record)
+    insert_sql, encoder = {
+        "traces": (postgres._INSERT_TRACE, postgres._encode_trace),
+        "failure_cases": (
+            postgres._INSERT_FAILURE_CASE,
+            postgres._encode_failure_case,
+        ),
+        "lessons": (postgres._INSERT_LESSON, postgres._encode_lesson),
+        "project_policies": (
+            postgres._INSERT_PROJECT_POLICY,
+            postgres._encode_project_policy,
+        ),
+        "memory_usage_decisions": (
+            postgres._INSERT_USAGE_LOG,
+            postgres._encode_usage_log,
+        ),
+    }[table]
+    connection.execute(insert_sql, encoder(canonical, Jsonb))
+
+
+def _sync_postgres_snapshot_row(
+    connection: object,
+    table: str,
+    incoming: dict[str, object],
+):
+    import psycopg
+    from psycopg.rows import dict_row
+
+    from trace_backed_memory import postgres
+
+    id_field = _POSTGRES_RACE_ID_FIELDS[table]
+    record_id = incoming[id_field]
+
+    with connection.transaction():
+        with connection.cursor(row_factory=dict_row) as cursor:
+            if table == "traces":
+                sync_row = lambda: postgres._sync_trace_row(
+                    cursor,
+                    record_id=record_id,
+                    incoming=incoming,
+                )
+            elif table == "failure_cases":
+                sync_row = lambda: postgres._sync_failure_case_row(
+                    cursor,
+                    record_id=record_id,
+                    incoming=incoming,
+                )
+            elif table == "memory_usage_decisions":
+                sync_row = lambda: postgres._sync_usage_log_row(
+                    cursor,
+                    record_id=record_id,
+                    incoming=incoming,
+                )
+            else:
+                select_sql, insert_sql, update_sql = {
+                    "lessons": (
+                        postgres._SELECT_LESSON_BY_ID,
+                        postgres._INSERT_LESSON,
+                        postgres._UPDATE_LESSON_STATUS,
+                    ),
+                    "project_policies": (
+                        postgres._SELECT_PROJECT_POLICY_BY_ID,
+                        postgres._INSERT_PROJECT_POLICY,
+                        postgres._UPDATE_PROJECT_POLICY_STATUS,
+                    ),
+                }[table]
+                sync_row = lambda: postgres._sync_status_row(
+                    cursor,
+                    table=table,
+                    record_id=record_id,
+                    incoming=incoming,
+                    select_sql=select_sql,
+                    insert_sql=insert_sql,
+                    update_sql=update_sql,
+                )
+            return postgres._sync_row_with_context(
+                sync_row,
+                table=table,
+                record_id=record_id,
+                driver_error=psycopg.Error,
+            )
+
+
 def test_repository_sync_updates_failure_case_lifecycle_and_cascades_lessons(
     postgres_cluster,
 ):
@@ -2048,6 +2194,274 @@ def test_repository_sync_revalidates_lifecycle_rows_after_external_writer(
                 (record_id,),
             ).fetchone()
             assert persisted == ("Externally changed policy.", "active")
+
+
+@pytest.mark.parametrize(
+    "table",
+    [
+        "failure_cases",
+        "lessons",
+        "project_policies",
+        "memory_usage_decisions",
+    ],
+)
+@pytest.mark.parametrize(
+    "conflicting",
+    [False, True],
+    ids=["exact-row", "protected-conflict"],
+)
+def test_sync_row_revalidates_concurrent_insert_after_collision(
+    postgres_cluster,
+    table,
+    conflicting,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+    )
+
+    postgres_cluster.load_schema()
+    seed_store, incoming = _postgres_insert_race_state(table)
+    external_record = dict(incoming)
+    conflict_field, conflict_value = _POSTGRES_RACE_CONFLICT_FIELDS[table]
+    if conflicting:
+        external_record[conflict_field] = conflict_value
+
+    with (
+        psycopg.connect(**postgres_cluster.connection_kwargs()) as external,
+        psycopg.connect(**postgres_cluster.connection_kwargs()) as worker,
+    ):
+        PostgresMemoryRepository(external).sync(seed_store)
+        _insert_postgres_snapshot_row(external, table, external_record)
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                _sync_postgres_snapshot_row,
+                worker,
+                table,
+                incoming,
+            )
+            _wait_for_backend_lock(external, worker.info.backend_pid, future)
+            external.commit()
+
+            if conflicting:
+                with pytest.raises(
+                    PostgresConflictError,
+                    match=f"{table}.*{incoming[_POSTGRES_RACE_ID_FIELDS[table]]}",
+                ):
+                    future.result(timeout=10.0)
+            else:
+                assert future.result(timeout=10.0) == "unchanged"
+
+        assert worker.execute("SELECT 1").fetchone() == (1,)
+        worker.rollback()
+        snapshot = PostgresMemoryRepository(worker).load().to_snapshot()
+        collection = snapshot[_POSTGRES_RACE_COLLECTIONS[table]]
+        persisted = next(
+            record
+            for record in collection
+            if record[_POSTGRES_RACE_ID_FIELDS[table]]
+            == incoming[_POSTGRES_RACE_ID_FIELDS[table]]
+        )
+        assert persisted[conflict_field] == external_record[conflict_field]
+
+
+@pytest.mark.parametrize(
+    "conflicting",
+    [False, True],
+    ids=["exact-row", "protected-conflict"],
+)
+def test_repository_sync_revalidates_concurrently_inserted_trace(
+    postgres_cluster,
+    conflicting,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+        PostgresSyncCounts,
+    )
+
+    postgres_cluster.load_schema()
+    _, incoming = _postgres_insert_race_state("traces")
+    incoming_store = TraceBackedMemoryStore.from_snapshot(
+        {
+            "snapshot_version": 2,
+            "traces": [incoming],
+            "failure_cases": [],
+            "lessons": [],
+            "project_policies": [],
+            "usage_logs": [],
+        }
+    )
+    external_record = dict(incoming)
+    if conflicting:
+        external_record["model"] = "external_model"
+
+    with (
+        psycopg.connect(**postgres_cluster.connection_kwargs()) as external,
+        psycopg.connect(**postgres_cluster.connection_kwargs()) as worker,
+    ):
+        _insert_postgres_snapshot_row(external, "traces", external_record)
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                PostgresMemoryRepository(worker).sync,
+                incoming_store,
+            )
+            _wait_for_backend_lock(external, worker.info.backend_pid, future)
+            external.commit()
+
+            if conflicting:
+                with pytest.raises(
+                    PostgresConflictError,
+                    match="traces.*trace_sync",
+                ):
+                    future.result(timeout=10.0)
+            else:
+                result = future.result(timeout=10.0)
+                assert result.traces == PostgresSyncCounts(unchanged=1)
+                assert result.failure_cases == PostgresSyncCounts()
+                assert result.lessons == PostgresSyncCounts()
+                assert result.project_policies == PostgresSyncCounts()
+                assert result.usage_logs == PostgresSyncCounts()
+
+        assert worker.execute("SELECT 1").fetchone() == (1,)
+        worker.rollback()
+        persisted = PostgresMemoryRepository(worker).load().traces["trace_sync"]
+        assert persisted.model == external_record["model"]
+
+
+@pytest.mark.parametrize(
+    "table",
+    [
+        "traces",
+        "failure_cases",
+        "lessons",
+        "project_policies",
+        "memory_usage_decisions",
+    ],
+)
+def test_sync_row_applies_supported_transition_after_concurrent_insert(
+    postgres_cluster,
+    table,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    seed_store, source_record = _postgres_insert_race_state(table)
+    incoming = dict(source_record)
+    external_record = dict(source_record)
+    if table == "traces":
+        external_record.update(
+            {
+                "output_hash": None,
+                "tool_outputs": [],
+                "eval_result": "unknown",
+                "latency_ms": None,
+                "cost_usd": None,
+                "error": None,
+                "trace_uri": None,
+            }
+        )
+    elif table == "failure_cases":
+        external_record.update(
+            {
+                "root_cause": None,
+                "reviewed_by": None,
+                "review_notes": None,
+                "reviewed_at": None,
+                "fix": None,
+                "fix_commit_sha": None,
+                "regression_passed": False,
+                "status": "draft",
+            }
+        )
+    elif table in {"lessons", "project_policies"}:
+        incoming["status"] = "obsolete"
+    else:
+        external_record["eval_result"] = "unknown"
+        external_record["memory_caused_failure"] = False
+
+    with (
+        psycopg.connect(**postgres_cluster.connection_kwargs()) as external,
+        psycopg.connect(**postgres_cluster.connection_kwargs()) as worker,
+    ):
+        PostgresMemoryRepository(external).sync(seed_store)
+        _insert_postgres_snapshot_row(external, table, external_record)
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                _sync_postgres_snapshot_row,
+                worker,
+                table,
+                incoming,
+            )
+            _wait_for_backend_lock(external, worker.info.backend_pid, future)
+            external.commit()
+            assert future.result(timeout=10.0) == "updated"
+
+        snapshot = PostgresMemoryRepository(worker).load().to_snapshot()
+        collection = snapshot[_POSTGRES_RACE_COLLECTIONS[table]]
+        persisted = next(
+            record
+            for record in collection
+            if record[_POSTGRES_RACE_ID_FIELDS[table]]
+            == incoming[_POSTGRES_RACE_ID_FIELDS[table]]
+        )
+        assert persisted == incoming
+
+
+def test_sync_row_preserves_cross_kind_memory_id_registry_collision(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresPersistenceError,
+    )
+
+    postgres_cluster.load_schema()
+    source = _complete_store().to_snapshot()
+    incoming = dict(source["lessons"][0])
+    policy = dict(source["project_policies"][0])
+    policy["policy_id"] = incoming["lesson_id"]
+    seed_store = TraceBackedMemoryStore.from_snapshot(
+        {
+            "snapshot_version": 2,
+            "traces": source["traces"],
+            "failure_cases": source["failure_cases"],
+            "lessons": [],
+            "project_policies": [policy],
+            "usage_logs": [],
+        }
+    )
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(seed_store)
+
+        with pytest.raises(
+            PostgresPersistenceError,
+            match="failed to sync lessons row lesson_sync",
+        ) as error:
+            _sync_postgres_snapshot_row(
+                connection,
+                "lessons",
+                incoming,
+            )
+
+        assert isinstance(error.value.__cause__, psycopg.errors.RaiseException)
+        assert error.value.__cause__.sqlstate == "P0001"
+        assert connection.execute("SELECT 1").fetchone() == (1,)
+        connection.rollback()
+        loaded = repository.load()
+        assert "lesson_sync" not in loaded.lessons
+        assert loaded.project_policies["lesson_sync"].policy_text == policy["policy_text"]
 
 
 def test_repository_sync_preserves_database_only_trace_case_chains(postgres_cluster):

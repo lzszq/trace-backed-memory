@@ -387,6 +387,18 @@ immutable ID conflicts. Every existing target row is selected `FOR UPDATE`, so
 a concurrent external writer completes before canonical validation and cannot
 slip a protected-field change between validation and a lifecycle write. Any
 conflict rolls back the whole synchronization.
+
+A missing primary-key row cannot be locked. Each absent-row INSERT therefore
+runs inside a nested savepoint. If a concurrent same-primary-key INSERT commits
+during that window, sync recognizes SQLSTATE `23505` or the runtime-memory
+registry trigger's exact `P0001` signal, reselects the target `FOR UPDATE`, and
+uses the same canonical rules. Exact replay is `unchanged`, a supported forward
+transition is `updated`, and a protected difference raises
+`PostgresConflictError`. A recognized collision with no target row, including a
+cross-kind runtime memory ID collision, and every other driver error remain
+sanitized `PostgresPersistenceError` failures. No concurrent value is silently
+overwritten.
+
 `repository.load()` returns a normalized, validated
 `TraceBackedMemoryStore`, not a snapshot object. Before its five ordered
 collection reads, it takes `SHARE` locks on all five persistence tables. Other

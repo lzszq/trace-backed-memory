@@ -39,6 +39,8 @@ _TRACE_OPTIONAL_COMPLETION_FIELDS = (
     "trace_uri",
 )
 _USAGE_OUTCOME_FIELDS = frozenset({"eval_result", "memory_caused_failure"})
+_UNIQUE_VIOLATION_SQLSTATE = "23505"
+_RAISE_EXCEPTION_SQLSTATE = "P0001"
 _UNDEFINED_TABLE_SQLSTATE = "42P01"
 _MISSING_SCHEMA_MESSAGE = "PostgreSQL schema is missing or incomplete"
 
@@ -669,6 +671,43 @@ def _trace_completion_slot_is_empty(field_name: str, value: object) -> bool:
     return value is None
 
 
+def _is_recoverable_insert_collision(error: BaseException, record_id: str) -> bool:
+    if getattr(error, "sqlstate", None) == _UNIQUE_VIOLATION_SQLSTATE:
+        return True
+
+    diagnostics = getattr(error, "diag", None)
+    context = getattr(diagnostics, "context", None) or ""
+    return (
+        getattr(error, "sqlstate", None) == _RAISE_EXCEPTION_SQLSTATE
+        and getattr(diagnostics, "message_primary", None)
+        == f"duplicate runtime memory_id: {record_id}"
+        and "register_runtime_memory_id()" in context
+    )
+
+
+def _insert_or_reselect_concurrent_row(
+    cursor: object,
+    *,
+    record_id: str,
+    select_sql: str,
+    insert_sql: str,
+    insert_params: tuple[object, ...],
+) -> list[Mapping[str, object]] | None:
+    psycopg, _dict_row, _Jsonb = _load_psycopg()
+    try:
+        with cursor.connection.transaction():
+            cursor.execute(insert_sql, insert_params)
+    except psycopg.Error as exc:
+        if not _is_recoverable_insert_collision(exc, record_id):
+            raise
+        cursor.execute(select_sql, (record_id,))
+        rows = cursor.fetchall()
+        if not rows:
+            raise
+        return rows
+    return None
+
+
 def _sync_trace_row(
     cursor: object,
     *,
@@ -680,8 +719,15 @@ def _sync_trace_row(
     rows = cursor.fetchall()
     if not rows:
         _psycopg, _dict_row, Jsonb = _load_psycopg()
-        cursor.execute(_INSERT_TRACE, _encode_trace(canonical_incoming, Jsonb))
-        return "inserted"
+        rows = _insert_or_reselect_concurrent_row(
+            cursor,
+            record_id=record_id,
+            select_sql=_SELECT_TRACE_BY_ID,
+            insert_sql=_INSERT_TRACE,
+            insert_params=_encode_trace(canonical_incoming, Jsonb),
+        )
+        if rows is None:
+            return "inserted"
     if len(rows) != 1:
         raise PostgresConflictError(
             f"PostgreSQL conflict for traces row {record_id}"
@@ -752,11 +798,15 @@ def _sync_failure_case_row(
     rows = cursor.fetchall()
     if not rows:
         _psycopg, _dict_row, Jsonb = _load_psycopg()
-        cursor.execute(
-            _INSERT_FAILURE_CASE,
-            _encode_failure_case(canonical_incoming, Jsonb),
+        rows = _insert_or_reselect_concurrent_row(
+            cursor,
+            record_id=record_id,
+            select_sql=_SELECT_FAILURE_CASE_BY_ID,
+            insert_sql=_INSERT_FAILURE_CASE,
+            insert_params=_encode_failure_case(canonical_incoming, Jsonb),
         )
-        return "inserted"
+        if rows is None:
+            return "inserted"
     if len(rows) != 1:
         raise PostgresConflictError(
             f"PostgreSQL conflict for failure_cases row {record_id}"
@@ -810,11 +860,15 @@ def _sync_usage_log_row(
     rows = cursor.fetchall()
     if not rows:
         _psycopg, _dict_row, Jsonb = _load_psycopg()
-        cursor.execute(
-            _INSERT_USAGE_LOG,
-            _encode_usage_log(canonical_incoming, Jsonb),
+        rows = _insert_or_reselect_concurrent_row(
+            cursor,
+            record_id=record_id,
+            select_sql=_SELECT_USAGE_LOG_BY_ID,
+            insert_sql=_INSERT_USAGE_LOG,
+            insert_params=_encode_usage_log(canonical_incoming, Jsonb),
         )
-        return "inserted"
+        if rows is None:
+            return "inserted"
     if len(rows) != 1:
         raise PostgresConflictError(
             f"PostgreSQL conflict for memory_usage_decisions row {record_id}"
@@ -871,8 +925,15 @@ def _sync_status_row(
     rows = cursor.fetchall()
     if not rows:
         _psycopg, _dict_row, Jsonb = _load_psycopg()
-        cursor.execute(insert_sql, encoder(canonical_incoming, Jsonb))
-        return "inserted"
+        rows = _insert_or_reselect_concurrent_row(
+            cursor,
+            record_id=record_id,
+            select_sql=select_sql,
+            insert_sql=insert_sql,
+            insert_params=encoder(canonical_incoming, Jsonb),
+        )
+        if rows is None:
+            return "inserted"
     if len(rows) != 1:
         raise PostgresConflictError(f"PostgreSQL conflict for {table} row {record_id}")
 

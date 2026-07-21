@@ -744,3 +744,24 @@ Track:
 - Preserve snapshot version 2, active-lessons YAML, all 18 packaged resource
   paths, PostgreSQL DDL/schema version 1, models, and dependencies. Only the
   memory-decision Schema resource bytes intentionally change.
+
+## Phase 42: PostgreSQL concurrent insert revalidation (implemented)
+
+- Attempt every absent-row PostgreSQL INSERT inside a nested savepoint, keeping
+  the existing plain INSERT statements and database triggers intact.
+- Recover SQLSTATE `23505` and the runtime memory registry trigger's exact
+  `P0001` signal, then rerun the same primary-key selector `FOR UPDATE` after
+  the failed statement and trigger effects have rolled back.
+- Classify a concurrently committed same-primary-key row with the existing
+  canonical rules: exact replay is `unchanged`, a supported forward transition
+  is `updated`, and a protected difference raises `PostgresConflictError` and
+  rolls back the whole synchronization.
+- Re-raise a recognized collision when the target row remains absent, so a
+  cross-kind runtime memory ID collision remains `PostgresPersistenceError`;
+  let every other driver error bypass revalidation.
+- Cover all five persisted record kinds with real lock-wait races, including
+  runtime memory registration triggers, full repository rollback, external row
+  preservation, and post-error connection reuse.
+- Preserve the public API, snapshot version 2, every JSON Schema,
+  active-lessons YAML, all 18 packaged resource paths and bytes, PostgreSQL DDL
+  and schema version 1, models, and dependencies.

@@ -840,6 +840,17 @@ Their identity, source provenance, and creation timestamp remain immutable. For
 existing rows, lessons and project policies may update only `status`; a
 difference in any other field is a conflict.
 
+An absent selector cannot lock a primary-key gap. The repository attempts each
+absent-row INSERT inside a nested savepoint. SQLSTATE `23505`, or the runtime
+memory registry trigger's exact `P0001` message and function context, causes the
+same ID selector to run again `FOR UPDATE` after the failed INSERT is rolled
+back. A concurrent same-primary-key row then follows the existing canonical
+path: exact replay is `unchanged`, a supported forward transition is `updated`,
+and a protected difference raises `PostgresConflictError`. If the target row is
+still absent, the original collision is re-raised and sanitized as
+`PostgresPersistenceError`; all other driver errors bypass revalidation. This
+does not overwrite the concurrent row or change the DDL.
+
 A store completed through `complete_memory_run()` still contains the same two
 persisted records; `MemoryRunCompletion` is not stored. `sync(store)` processes
 the linked `trace_id` and `decision_id` updates in its existing transaction, so

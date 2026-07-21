@@ -43,6 +43,15 @@ connection borrows it; `connect()` owns and closes the connection. Schema
 migration, connection pooling, and async access are outside this repository's
 current policy and implementation.
 
+Because a missing primary-key row cannot be locked, each absent-row INSERT uses
+a nested savepoint. A concurrent same-primary-key INSERT that reports SQLSTATE
+`23505`, or the runtime registry trigger's exact `P0001` signal, is reselected
+`FOR UPDATE` and classified by the same rules: exact replay is `unchanged`, a
+supported forward transition is `updated`, and a protected difference raises
+`PostgresConflictError`. A collision with no target row and every unrelated
+driver error remain `PostgresPersistenceError`; sync never overwrites the
+concurrent value.
+
 The count preflight is a runtime guard only. It changes no public API, snapshot
 version 2, JSON Schema, active-lessons YAML, packaged resource, or PostgreSQL
 schema version 1, and it does not cap the byte size of one JSONB or text value.

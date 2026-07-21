@@ -12,12 +12,11 @@ repository selector and its INSERT, then apply existing canonical sync rules.
    usage decisions.
 2. Add a repository-level race test for contextual errors, whole-sync rollback,
    external row preservation, and connection reuse.
-3. Introduce one private insert/savepoint/reselect helper that catches only
-   `psycopg.errors.UniqueViolation`.
+3. Introduce one private insert/savepoint/reselect helper that recovers SQLSTATE
+   `23505` and the registry trigger's exact `P0001` signal only.
 4. Reuse the helper in all four row-sync implementations, including the generic
    lesson/project-policy status path.
-5. Prove a unique registry collision without a target row remains a persistence
-   error.
+5. Prove a registry collision without a target row remains a persistence error.
 6. Publish Phase 42 behavior in README, architecture, usage policy, product,
    roadmap, and contract tests.
 7. Run focused and full tests, build/verify wheel and sdist, independently
@@ -27,8 +26,8 @@ repository selector and its INSERT, then apply existing canonical sync rules.
 
 - Exact concurrent replays become `unchanged`; existing forward transitions
   remain `updated`; protected differences remain conflicts.
-- Non-unique errors and target-absent unique errors keep persistence semantics.
+- Other driver errors and target-absent collision errors keep persistence
+  semantics.
 - Public signatures, DDL, snapshot version 2, PostgreSQL schema version 1,
   JSON Schemas, YAML, dependencies, and the 18-resource inventory do not
   change.
-

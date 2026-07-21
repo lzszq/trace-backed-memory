@@ -6,8 +6,8 @@
 `SELECT ... FOR UPDATE` cannot lock a missing primary key. An external writer
 can therefore insert the same ID after the repository observes no row and
 before its plain `INSERT`. If the external transaction commits, the repository
-currently receives `unique_violation` and reports a generic persistence error
-instead of applying its canonical replay/conflict rules.
+currently receives an insert-collision error and reports a generic persistence
+error instead of applying its canonical replay/conflict rules.
 
 Phase 42 recovers only this absent-row race. It keeps the existing table order,
 row locks, lifecycle rules, triggers, and error boundaries.
@@ -18,8 +18,8 @@ row locks, lifecycle rules, triggers, and error boundaries.
 decisions, but not uniformly for runtime memory tables. Failure cases, lessons,
 and project policies have `BEFORE INSERT` triggers that first register a global
 memory ID. PostgreSQL runs those triggers before conflict arbitration, so a
-same-row replay can raise the registry's custom `unique_violation` before
-`DO NOTHING` sees the source-table primary key.
+same-row replay can raise the registry's custom `P0001` exception before `DO
+NOTHING` sees the source-table primary key.
 
 Changing those security-definer triggers or the registry is outside this
 runtime adapter fix and would require a separate DDL/version decision.
@@ -31,16 +31,18 @@ After an initial ID selector returns no rows, a shared private helper:
 1. opens a nested `connection.transaction()` savepoint;
 2. executes the existing plain `INSERT` with all existing triggers intact;
 3. returns `inserted` when it succeeds;
-4. catches only `psycopg.errors.UniqueViolation` after the savepoint has rolled
-   back the failed statement and all trigger side effects;
+4. recovers only SQLSTATE `23505`, or the registry trigger's exact `P0001`
+   message and function context, after the savepoint has rolled back the failed
+   statement and all trigger side effects;
 5. reruns the same primary-key selector `FOR UPDATE` in a fresh READ COMMITTED
    command;
-6. re-raises the original unique violation when the target row is still absent;
+6. re-raises the original collision when the target row is still absent;
 7. otherwise returns the locked row to the existing canonical comparison.
 
-Every non-unique driver error bypasses recovery. A cross-kind memory registry
-collision leaves the target table row absent and therefore remains a sanitized
-`PostgresPersistenceError`, not an immutable row conflict.
+Every other driver error bypasses recovery. A cross-kind memory registry
+collision has the recognized trigger signal but leaves the target table row
+absent, so it remains a sanitized `PostgresPersistenceError`, not an immutable
+row conflict.
 
 ## Canonical Outcomes
 
@@ -80,8 +82,8 @@ then assert exact replay or protected-field conflict. A repository-level Trace
 test additionally verifies contextual conflict wrapping, full rollback, row
 preservation, and connection reuse.
 
-Tests also prove that a unique violation with no target row is not converted to
-`PostgresConflictError`.
+Tests also prove that a recognized registry collision with no target row is not
+converted to `PostgresConflictError`.
 
 ## Compatibility
 
@@ -90,4 +92,3 @@ dependency, or resource changes. Snapshot version 2, every JSON Schema,
 active-lessons YAML, all 18 packaged resources, and PostgreSQL schema version 1
 remain unchanged. The only new behavior is correct canonical classification of
 a same-primary-key insert committed during sync.
-

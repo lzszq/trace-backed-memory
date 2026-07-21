@@ -57,7 +57,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`MemoryRunMeasurement`",
         "`MemoryObsolescenceRequest`",
         "`obsolete_memories()`",
-        "Phase 0-41",
+        "Phase 0-42",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -2160,7 +2160,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-41" in documents["docs/product.md"]
+    assert "Phase 0-42" in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2206,7 +2206,7 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
         encoding="utf-8"
     )
 
-    assert "Phase 0-41" in product
+    assert "Phase 0-42" in product
     assert (
         "Phase 37: Required PostgreSQL and Windows CI coverage (implemented)"
         in roadmap
@@ -2261,7 +2261,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-41" in product
+    assert "Phase 0-42" in product
     assert "decision-only `outcome` CLI" in product
     assert (
         "Phase 38: Deferred decision outcome CLI (implemented)"
@@ -2320,7 +2320,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
         assert "outer" in normalized
         assert "commit or rollback" in normalized
 
-    assert "Phase 0-41" in documents["docs/product.md"]
+    assert "Phase 0-42" in documents["docs/product.md"]
     assert (
         "Phase 39: PostgreSQL consistent snapshots and lifecycle row locks "
         "(implemented)"
@@ -2364,7 +2364,7 @@ def test_docs_publish_postgres_bounded_load_before_materialization():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-41" in documents["docs/product.md"]
+    assert "Phase 0-42" in documents["docs/product.md"]
     assert (
         "Phase 40: PostgreSQL bounded load materialization (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2415,7 +2415,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-41" in documents["docs/product.md"]
+    assert "Phase 0-42" in documents["docs/product.md"]
     assert (
         "Phase 41: Runtime collection cardinality limits (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2445,6 +2445,71 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
     assert "commit_ancestry_max_anchors" not in postgres_schema
+
+
+def test_docs_publish_postgres_concurrent_insert_revalidation():
+    from trace_backed_memory import packaged_resources
+
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in (
+            "same-primary-key",
+            "savepoint",
+            "23505",
+            "p0001",
+            "for update",
+            "unchanged",
+            "updated",
+            "postgresconflicterror",
+            "postgrespersistenceerror",
+            "snapshot version 2",
+            "postgresql schema version 1",
+        ):
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert "Phase 0-42" in documents["docs/product.md"]
+    assert (
+        "Phase 42: PostgreSQL concurrent insert revalidation (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+
+    runtime = (
+        ROOT / "src" / "trace_backed_memory" / "postgres.py"
+    ).read_text(encoding="utf-8")
+    for contract in (
+        '_UNIQUE_VIOLATION_SQLSTATE = "23505"',
+        '_RAISE_EXCEPTION_SQLSTATE = "P0001"',
+        "def _is_recoverable_insert_collision(",
+        "def _insert_or_reselect_concurrent_row(",
+        "register_runtime_memory_id()",
+    ):
+        assert contract in runtime
+
+    canonical_postgres = (ROOT / "schemas" / "postgres.sql").read_bytes()
+    packaged_postgres = (
+        ROOT
+        / "src"
+        / "trace_backed_memory"
+        / "_resources"
+        / "schemas"
+        / "postgres.sql"
+    ).read_bytes()
+    assert packaged_postgres == canonical_postgres
+    assert len(packaged_resources()) == 18
+
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "VALUES (true, 1)" in _postgres_schema()
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

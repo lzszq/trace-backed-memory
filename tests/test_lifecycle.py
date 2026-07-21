@@ -254,6 +254,7 @@ def test_lesson_scope_fields_must_be_known_non_empty_strings():
     invalid_scopes = [
         {"unknown_field": "search_docs"},
         {"tool": ""},
+        {"tool": " \t "},
         {"tool": ["search_docs"]},
     ]
 
@@ -270,6 +271,52 @@ def test_lesson_scope_fields_must_be_known_non_empty_strings():
             assert "scope" in str(exc)
         else:
             raise AssertionError("lesson scope fields must be known non-empty strings")
+
+
+@pytest.mark.parametrize("field_name", ["case_id", "failure_type", "symptom"])
+def test_draft_failure_case_rejects_whitespace_required_strings(field_name: str):
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="fail",
+    )
+    values = {
+        "case_id": "case_001",
+        "failure_type": "invalid_tool_argument",
+        "symptom": "empty query",
+    }
+    values[field_name] = " \t "
+
+    with pytest.raises(ValueError, match=field_name):
+        draft_failure_case(trace, **values)
+
+
+@pytest.mark.parametrize("field_name", ["fix", "fix_commit_sha"])
+def test_verify_failure_case_rejects_whitespace_required_strings(
+    field_name: str,
+):
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="fail",
+    )
+    case = draft_failure_case(
+        trace,
+        case_id="case_001",
+        failure_type="invalid_tool_argument",
+        symptom="empty query",
+    )
+    values = {
+        "fix": "validate query",
+        "fix_commit_sha": "def456",
+        "regression_passed": True,
+    }
+    values[field_name] = " \t "
+
+    with pytest.raises(ValueError, match=field_name):
+        verify_failure_case(case, **values)
 
 
 def test_verification_requires_regression_pass():

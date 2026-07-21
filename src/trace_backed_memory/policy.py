@@ -117,7 +117,7 @@ def _blocked_reason(context: MemoryContext, memory: MemoryItem) -> str | None:
 
 
 def _memory_item_contract_error(memory: MemoryItem) -> str | None:
-    if not isinstance(memory.memory_id, str) or not memory.memory_id:
+    if not isinstance(memory.memory_id, str) or not memory.memory_id.strip():
         return "memory_id must be a non-empty string"
     if len(memory.memory_id) > MEMORY_ID_MAX_CHARS:
         return f"memory_id must be at most {MEMORY_ID_MAX_CHARS} characters"
@@ -132,7 +132,7 @@ def _memory_item_contract_error(memory: MemoryItem) -> str | None:
     for key, value in memory.scope.items():
         if key not in CONTEXT_STRING_FIELDS or key in {"mode", "commit_sha", "input_hash"}:
             return f"scope field {key!r} is not allowed"
-        if not isinstance(value, str) or not value:
+        if not isinstance(value, str) or not value.strip():
             return f"scope field {key!r} must be a non-empty string"
         if len(value) > METADATA_VALUE_MAX_CHARS:
             return (
@@ -175,7 +175,7 @@ def _memory_item_contract_error(memory: MemoryItem) -> str | None:
 def _context_contract_error(context: MemoryContext) -> str | None:
     for field_name in CONTEXT_REQUIRED_FIELDS:
         value = getattr(context, field_name)
-        if not isinstance(value, str) or not value:
+        if not isinstance(value, str) or not value.strip():
             return f"context {field_name} must be a non-empty string"
         if len(value) > METADATA_VALUE_MAX_CHARS:
             return (
@@ -184,7 +184,9 @@ def _context_contract_error(context: MemoryContext) -> str | None:
             )
     for field_name in CONTEXT_STRING_FIELDS - CONTEXT_REQUIRED_FIELDS:
         value = getattr(context, field_name)
-        if value is not None and (not isinstance(value, str) or not value):
+        if value is not None and (
+            not isinstance(value, str) or not value.strip()
+        ):
             return f"context {field_name} must be a non-empty string"
         if value is not None and len(value) > METADATA_VALUE_MAX_CHARS:
             return (
@@ -402,7 +404,7 @@ def parse_memory_context(payload: str | Mapping[str, Any]) -> MemoryContext:
         value = data[field_name]
         if not isinstance(value, str):
             raise ValueError(f"{field_name} must be a string")
-        if not value:
+        if not value.strip():
             raise ValueError(f"{field_name} must be a non-empty string")
         if len(value) > METADATA_VALUE_MAX_CHARS:
             raise ValueError(

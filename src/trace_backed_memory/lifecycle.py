@@ -26,7 +26,7 @@ _SUPPORTED_POLICY_STATUSES = set(get_args(LessonStatus))
 
 
 def _require_non_empty_string(value: str, field_name: str) -> None:
-    if not isinstance(value, str) or not value:
+    if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field_name} must be a non-empty string")
 
 
@@ -41,7 +41,7 @@ def validate_lesson_contract(*, lesson_text: str, scope: dict[str, str], confide
     for key, value in scope.items():
         if key not in SCOPE_FIELDS:
             raise ValueError(f"lesson scope field is not supported: {key}")
-        if not isinstance(value, str) or not value:
+        if not isinstance(value, str) or not value.strip():
             raise ValueError(f"lesson scope field {key!r} must be a non-empty string")
         if len(value) > METADATA_VALUE_MAX_CHARS:
             raise ValueError(
@@ -92,10 +92,8 @@ def verify_failure_case(
 ) -> FailureCase:
     if case.status != "draft":
         raise ValueError("only draft failure cases can be verified")
-    if not fix:
-        raise ValueError("verified failure cases require a fix")
-    if not fix_commit_sha:
-        raise ValueError("verified failure cases require fix_commit_sha")
+    _require_non_empty_string(fix, "fix")
+    _require_non_empty_string(fix_commit_sha, "fix_commit_sha")
     if type(regression_passed) is not bool or not regression_passed:
         raise ValueError("verified failure cases require a passing regression")
 

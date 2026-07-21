@@ -446,6 +446,23 @@ Store is already caller-owned client memory. This changes no public API,
 snapshot version 2, JSON Schema, active-lessons YAML, packaged resource,
 PostgreSQL DDL, or schema version 1.
 
+Persisted identities, linkage, required failure text, lesson/policy scope,
+Memory Context values, and usage-audit mapping keys and values must contain at
+least one non-whitespace character. The Store applies this contract before a
+write or snapshot publication, and the six corresponding canonical and
+packaged JSON Schemas publish `pattern: "\\S"`. Accepted strings are preserved
+exactly; validation does not trim them. Optional Trace metadata, unrelated
+Failure Case narrative fields, and candidate/used/blocked memory-ID arrays keep
+their existing non-empty behavior. Snapshot CLI reads classify a rejected
+record as an `input` error with exit code 2 and never rewrite the source file.
+
+PostgreSQL schema version 1 already rejects ordinary-space-only values in these
+persisted positions. Its default `btrim(text)` is narrower than Python/JSON
+Schema whitespace classification, so direct SQL can still create some tab- or
+Unicode-whitespace-only rows that repository load will reject. The supported
+Store-to-repository path enforces the stronger portable contract before sync;
+this phase changes no PostgreSQL DDL or schema version.
+
 Use the schema owner or the same write-capable role intended for `sync()`.
 PostgreSQL 12 requires table-level `UPDATE`, `DELETE`, or `TRUNCATE` privilege
 to acquire these `SHARE` locks. When `load()` or `sync()` runs inside a caller

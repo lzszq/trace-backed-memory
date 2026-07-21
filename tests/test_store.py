@@ -4203,6 +4203,260 @@ def _snapshot_record(
     return record
 
 
+def _replace_usage_memory_id(
+    snapshot: dict[str, object], old_id: str, new_id: str
+) -> None:
+    log = _snapshot_record(snapshot, "usage_logs")
+    for field_name in (
+        "candidate_memory_ids",
+        "used_memory_ids",
+        "blocked_memory_ids",
+    ):
+        memory_ids = log[field_name]
+        assert isinstance(memory_ids, list)
+        log[field_name] = [
+            new_id if memory_id == old_id else memory_id
+            for memory_id in memory_ids
+        ]
+    statuses = log["candidate_memory_statuses"]
+    assert isinstance(statuses, dict)
+    if old_id in statuses:
+        statuses[new_id] = statuses.pop(old_id)
+
+
+@pytest.mark.parametrize(
+    ("case_name", "expected_field"),
+    [
+        ("trace", "run_id"),
+        ("failure_case", "symptom"),
+        ("lesson", "lesson_id"),
+        ("lesson_scope", "scope"),
+        ("project_policy", "policy_id"),
+        ("project_policy_scope", "scope"),
+        ("usage_log", "decision_id"),
+        ("usage_context", "context"),
+    ],
+)
+def test_v2_snapshot_rejects_postgres_incompatible_whitespace_strings(
+    case_name: str, expected_field: str
+):
+    snapshot = fully_populated_snapshot()
+    blank = " \t "
+
+    if case_name == "trace":
+        _snapshot_record(snapshot, "traces")["run_id"] = blank
+        _snapshot_record(snapshot, "usage_logs")["run_id"] = blank
+    elif case_name == "failure_case":
+        _snapshot_record(snapshot, "failure_cases")["symptom"] = blank
+    elif case_name == "lesson":
+        _snapshot_record(snapshot, "lessons")["lesson_id"] = blank
+        _replace_usage_memory_id(snapshot, "lesson_a", blank)
+    elif case_name == "lesson_scope":
+        lesson_scope = _snapshot_record(snapshot, "lessons")["scope"]
+        assert isinstance(lesson_scope, dict)
+        lesson_scope["repo"] = blank
+    elif case_name == "project_policy":
+        _snapshot_record(snapshot, "project_policies")["policy_id"] = blank
+        _replace_usage_memory_id(snapshot, "policy_a", blank)
+    elif case_name == "project_policy_scope":
+        policy_scope = _snapshot_record(snapshot, "project_policies")["scope"]
+        assert isinstance(policy_scope, dict)
+        policy_scope["repo"] = blank
+    elif case_name == "usage_log":
+        _snapshot_record(snapshot, "usage_logs")["decision_id"] = blank
+    else:
+        context = _snapshot_record(snapshot, "usage_logs")["context"]
+        assert isinstance(context, dict)
+        context["task_type"] = blank
+
+    with pytest.raises(ValueError, match=expected_field):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
+def test_v2_snapshot_preserves_nonblank_surrounding_whitespace():
+    snapshot = fully_populated_snapshot()
+    trace = _snapshot_record(snapshot, "traces")
+    case = _snapshot_record(snapshot, "failure_cases")
+    lesson = _snapshot_record(snapshot, "lessons")
+    policy = _snapshot_record(snapshot, "project_policies")
+    log = _snapshot_record(snapshot, "usage_logs")
+
+    trace["run_id"] = " run_a "
+    trace["tenant"] = " tenant "
+    log["run_id"] = " run_a "
+    case["symptom"] = " symptom a "
+    case["fix"] = " fix a "
+    lesson["lesson_id"] = " lesson_a "
+    lesson["lesson_text"] = " lesson text a "
+    lesson_scope = lesson["scope"]
+    assert isinstance(lesson_scope, dict)
+    lesson_scope["tenant"] = " tenant "
+    _replace_usage_memory_id(snapshot, "lesson_a", " lesson_a ")
+    policy["policy_id"] = " policy_a "
+    policy["policy_text"] = " policy text a "
+    _replace_usage_memory_id(snapshot, "policy_a", " policy_a ")
+    log["decision_id"] = " decision_000001 "
+    context = log["context"]
+    assert isinstance(context, dict)
+    context["tenant"] = " tenant "
+    context["task_type"] = " repair task "
+    log["system_blocked_reasons"] = {" lesson_a ": " deferred block "}
+
+    restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+    restored_snapshot = restored.to_snapshot()
+
+    assert _snapshot_record(restored_snapshot, "traces")["run_id"] == " run_a "
+    restored_case = _snapshot_record(restored_snapshot, "failure_cases")
+    assert restored_case["symptom"] == " symptom a "
+    assert restored_case["fix"] == " fix a "
+    restored_lesson = _snapshot_record(restored_snapshot, "lessons")
+    assert restored_lesson["lesson_id"] == " lesson_a "
+    assert restored_lesson["lesson_text"] == " lesson text a "
+    assert restored_lesson["scope"]["tenant"] == " tenant "
+    restored_policy = _snapshot_record(restored_snapshot, "project_policies")
+    assert restored_policy["policy_id"] == " policy_a "
+    assert restored_policy["policy_text"] == " policy text a "
+    restored_log = _snapshot_record(restored_snapshot, "usage_logs")
+    assert restored_log["decision_id"] == " decision_000001 "
+    assert restored_log["context"]["task_type"] == " repair task "
+    assert restored_log["system_blocked_reasons"] == {
+        " lesson_a ": " deferred block "
+    }
+
+
+@pytest.mark.parametrize(
+    ("record_kind", "field_name"),
+    [
+        ("trace", "trace_id"),
+        ("trace", "run_id"),
+        ("trace", "commit_sha"),
+        ("failure_case", "case_id"),
+        ("failure_case", "source_trace_id"),
+        ("failure_case", "commit_sha"),
+        ("failure_case", "failure_type"),
+        ("failure_case", "symptom"),
+        ("failure_case", "fix"),
+        ("failure_case", "fix_commit_sha"),
+        ("lesson", "lesson_id"),
+        ("lesson", "source_case_id"),
+        ("project_policy", "policy_id"),
+        ("usage_log", "decision_id"),
+        ("usage_log", "run_id"),
+        ("usage_log", "trace_id"),
+    ],
+)
+def test_runtime_records_reject_postgres_incompatible_whitespace_strings(
+    record_kind: str, field_name: str
+):
+    records_and_validators = {
+        "trace": (
+            Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc"),
+            store_module._validate_trace,
+        ),
+        "failure_case": (
+            FailureCase(
+                case_id="case_001",
+                source_trace_id="trace_001",
+                commit_sha="abc",
+                failure_type="invalid_tool_argument",
+                symptom="empty query",
+                fix="validate query",
+                fix_commit_sha="def",
+                regression_passed=True,
+                status="verified",
+            ),
+            store_module._validate_failure_case,
+        ),
+        "lesson": (
+            Lesson(
+                lesson_id="lesson_001",
+                source_case_id="case_001",
+                lesson_text="Validate the query.",
+                memory_type="procedural",
+                scope={"repo": "repo"},
+            ),
+            store_module._validate_lesson_record,
+        ),
+        "project_policy": (
+            ProjectPolicy(
+                policy_id="policy_001",
+                policy_text="Validate all tool inputs.",
+                scope={"repo": "repo"},
+            ),
+            store_module._validate_project_policy,
+        ),
+        "usage_log": (
+            MemoryUsageLog(
+                decision_id="decision_000001",
+                run_id="run_001",
+                mode="repair",
+                candidate_memory_ids=[],
+                used_memory_ids=[],
+                blocked_memory_ids=[],
+                reason="no matching memory",
+                risk="none",
+                recommended_injection="none",
+                trace_id="trace_001",
+            ),
+            store_module._validate_usage_log,
+        ),
+    }
+    record, validator = records_and_validators[record_kind]
+
+    with pytest.raises(ValueError, match=field_name):
+        validator(replace(record, **{field_name: " \t "}))
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("context", {"   ": "repair"}),
+        ("context", {"task_type": " \t "}),
+        ("system_blocked_reasons", {"   ": "blocked"}),
+        ("system_blocked_reasons", {"lesson_001": " \t "}),
+    ],
+)
+def test_usage_log_string_mappings_reject_whitespace_keys_and_values(
+    field_name: str, value: dict[str, str]
+):
+    with pytest.raises(ValueError, match=field_name):
+        store_module._validate_string_mapping(value, field_name)
+
+
+def test_usage_log_candidate_statuses_reject_whitespace_memory_ids():
+    with pytest.raises(ValueError, match="candidate_memory_statuses"):
+        store_module._validate_status_mapping({" \t ": "active"}, [" \t "])
+
+
+def test_record_trace_rejects_whitespace_identity_atomically():
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc")
+    )
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="trace_id"):
+        store.record_trace(
+            Trace(trace_id=" \t ", run_id="run_002", commit_sha="def")
+        )
+
+    assert store.to_snapshot() == before
+
+
+def test_required_strings_with_surrounding_whitespace_are_preserved():
+    stored = TraceBackedMemoryStore().record_trace(
+        Trace(
+            trace_id=" trace_001 ",
+            run_id=" run_001 ",
+            commit_sha=" abc ",
+        )
+    )
+
+    assert stored.trace_id == " trace_001 "
+    assert stored.run_id == " run_001 "
+    assert stored.commit_sha == " abc "
+
+
 @pytest.mark.parametrize(
     ("field_name", "invalid_value"),
     [

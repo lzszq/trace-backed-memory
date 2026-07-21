@@ -5,9 +5,9 @@
   "type": "object",
   "required": ["trace_id", "run_id", "commit_sha"],
   "properties": {
-    "trace_id": {"type": "string", "minLength": 1, "maxLength": 128},
-    "run_id": {"type": "string", "minLength": 1, "maxLength": 128},
-    "commit_sha": {"type": "string", "minLength": 1, "maxLength": 512},
+    "trace_id": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 128},
+    "run_id": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 128},
+    "commit_sha": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512},
     "repo": {"type": ["string", "null"], "minLength": 1, "maxLength": 512},
     "tenant": {"type": ["string", "null"], "minLength": 1, "maxLength": 512},
     "branch": {"type": ["string", "null"], "minLength": 1, "maxLength": 512},

@@ -63,6 +63,21 @@ reusable connection. `sync()` behavior is unchanged. The guards change no
 public API, snapshot version 2, JSON Schema, active-lessons YAML, packaged
 resource, PostgreSQL DDL, or PostgreSQL schema version 1.
 
+Before persistence, require at least one non-whitespace character in stored
+identity/linkage fields, required failure text, lesson and policy scope values,
+Memory Context string values, and usage-audit mapping keys and values. Preserve
+accepted bytes exactly; do not trim or normalize. Keep optional Trace metadata,
+unrelated Failure Case narrative fields, and candidate/used/blocked memory-ID
+arrays on their existing contract. Canonical and packaged Schemas publish the
+same `pattern: "\\S"` boundary, and snapshot CLI reads report violations as
+input errors without rewriting the source.
+
+Schema-version-1 `btrim` checks already reject ordinary-space-only values but
+are narrower than the portable Python/JSON Schema rule. Repository sync always
+receives a validated Store. Direct SQL that writes other whitespace-only values
+is outside that write contract and may make repository load fail until the row
+is cleaned. Phase 49 does not alter PostgreSQL DDL or schema version 1.
+
 Use the schema owner or a write-capable repository role. PostgreSQL 12 requires
 table-level `UPDATE`, `DELETE`, or `TRUNCATE` privilege for the explicit
 `SHARE` locks used by load. Inside a caller-owned transaction, successful table
@@ -287,7 +302,7 @@ schema version 1 remain unchanged.
 Runtime context should be parsed through `parse_memory_context()` before
 retrieval or gating. The parser accepts JSON strings or mappings, requires
 `mode`, `repo`, and `commit_sha`, validates supported modes, and keeps only
-known non-empty string fields from `schemas/memory_context.schema.json`.
+known nonblank string fields from `schemas/memory_context.schema.json`.
 Direct helper calls are held to the same boundary: candidates and injection
 inputs must be lists of unique `MemoryItem` records, System Gate block reasons
 must be a string mapping, gate tasks must be non-empty strings, summaries must
@@ -301,7 +316,7 @@ status in ["active", "verified"]
 memory_type in ["procedural", "semantic", "episodic", "policy"]
 scope matches current task
 scope keys are known MemoryContext fields
-scope values are non-empty strings
+scope values contain at least one non-whitespace character
 repo / branch / tenant allowed
 not obsolete
 not sensitive

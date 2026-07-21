@@ -5,14 +5,14 @@
   "type": "object",
   "required": ["case_id", "source_trace_id", "commit_sha", "failure_type", "symptom"],
   "properties": {
-    "case_id": {"type": "string", "minLength": 1, "maxLength": 128},
-    "source_trace_id": {"type": "string", "minLength": 1, "maxLength": 128},
-    "commit_sha": {"type": "string", "minLength": 1, "maxLength": 512},
-    "failure_type": {"type": "string", "minLength": 1, "maxLength": 512},
-    "symptom": {"type": "string", "minLength": 1},
+    "case_id": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 128},
+    "source_trace_id": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 128},
+    "commit_sha": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512},
+    "failure_type": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512},
+    "symptom": {"type": "string", "pattern": "\\S", "minLength": 1},
     "root_cause": {"type": ["string", "null"], "minLength": 1},
-    "fix": {"type": ["string", "null"], "minLength": 1},
-    "fix_commit_sha": {"type": ["string", "null"], "minLength": 1, "maxLength": 512},
+    "fix": {"type": ["string", "null"], "pattern": "\\S", "minLength": 1},
+    "fix_commit_sha": {"type": ["string", "null"], "pattern": "\\S", "minLength": 1, "maxLength": 512},
     "regression_passed": {"type": "boolean", "default": false},
     "reviewed_by": {"type": ["string", "null"], "minLength": 1, "maxLength": 512},
     "review_notes": {"type": ["string", "null"], "minLength": 1},
@@ -33,8 +33,8 @@
       "then": {
         "required": ["fix", "fix_commit_sha"],
         "properties": {
-          "fix": {"type": "string", "minLength": 1},
-          "fix_commit_sha": {"type": "string", "minLength": 1, "maxLength": 512},
+          "fix": {"type": "string", "pattern": "\\S", "minLength": 1},
+          "fix_commit_sha": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512},
           "regression_passed": {"const": true}
         }
       }

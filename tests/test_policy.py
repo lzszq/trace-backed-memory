@@ -1813,7 +1813,14 @@ def test_parse_memory_context_rejects_non_string_optional_fields():
 def test_parse_memory_context_rejects_empty_string_fields():
     invalid_contexts = [
         {"mode": "repair", "repo": "", "commit_sha": "abc123"},
+        {"mode": "repair", "repo": " \t ", "commit_sha": "abc123"},
         {"mode": "repair", "repo": "agent-harness", "commit_sha": "abc123", "tool": ""},
+        {
+            "mode": "repair",
+            "repo": "agent-harness",
+            "commit_sha": "abc123",
+            "tool": " \t ",
+        },
     ]
 
     for payload in invalid_contexts:
@@ -1823,6 +1830,21 @@ def test_parse_memory_context_rejects_empty_string_fields():
             assert "non-empty" in str(exc)
         else:
             raise AssertionError("context string fields must be non-empty")
+
+
+def test_parse_memory_context_preserves_nonblank_surrounding_whitespace():
+    context = parse_memory_context(
+        {
+            "mode": "repair",
+            "repo": " agent-harness ",
+            "commit_sha": " abc123 ",
+            "tool": " search_docs ",
+        }
+    )
+
+    assert context.repo == " agent-harness "
+    assert context.commit_sha == " abc123 "
+    assert context.tool == " search_docs "
 
 
 def test_parse_memory_context_rejects_non_mapping_payloads():

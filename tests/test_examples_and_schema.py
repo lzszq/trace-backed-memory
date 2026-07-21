@@ -57,7 +57,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`MemoryRunMeasurement`",
         "`MemoryObsolescenceRequest`",
         "`obsolete_memories()`",
-        "Phase 0-48",
+        "Phase 0-49",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -534,6 +534,83 @@ def test_schemas_and_docs_publish_aggregate_and_field_budgets():
         for constant_name, value in expected_limits.items():
             assert constant_name in document
             assert value in document
+
+
+def test_stored_schemas_match_postgres_nonblank_string_contracts():
+    trace_properties = _schema_properties(_json_schema("trace.schema.json"))
+    for field_name in ["trace_id", "run_id", "commit_sha"]:
+        assert trace_properties[field_name]["pattern"] == r"\S"
+    for field_name in ["repo", "tenant", "error", "trace_uri"]:
+        assert "pattern" not in trace_properties[field_name]
+
+    failure_schema = _json_schema("failure_case.schema.json")
+    failure_properties = _schema_properties(failure_schema)
+    for field_name in [
+        "case_id",
+        "source_trace_id",
+        "commit_sha",
+        "failure_type",
+        "symptom",
+        "fix",
+        "fix_commit_sha",
+    ]:
+        assert failure_properties[field_name]["pattern"] == r"\S"
+    for field_name in ["root_cause", "reviewed_by", "review_notes"]:
+        assert "pattern" not in failure_properties[field_name]
+    verified_properties = failure_schema["allOf"][0]["then"]["properties"]
+    assert verified_properties["fix"]["pattern"] == r"\S"
+    assert verified_properties["fix_commit_sha"]["pattern"] == r"\S"
+
+    lesson_schema = _json_schema("lesson.schema.json")
+    lesson_properties = _schema_properties(lesson_schema)
+    for field_name in ["lesson_id", "source_case_id", "lesson_text"]:
+        assert lesson_properties[field_name]["pattern"] == r"\S"
+    assert lesson_schema["$defs"]["scope"]["additionalProperties"]["pattern"] == r"\S"
+
+    policy_schema = _json_schema("project_policy.schema.json")
+    policy_properties = _schema_properties(policy_schema)
+    for field_name in ["policy_id", "policy_text"]:
+        assert policy_properties[field_name]["pattern"] == r"\S"
+    assert policy_schema["$defs"]["scope"]["additionalProperties"]["pattern"] == r"\S"
+
+    context_properties = _schema_properties(
+        _json_schema("memory_context.schema.json")
+    )
+    for field_name, field_schema in context_properties.items():
+        if field_name != "mode":
+            assert field_schema["pattern"] == r"\S"
+
+    usage_schema = _json_schema("memory_usage_log.schema.json")
+    usage_properties = _schema_properties(usage_schema)
+    for field_name in ["decision_id", "run_id", "reason", "trace_id"]:
+        assert usage_properties[field_name]["pattern"] == r"\S"
+    assert usage_properties["context"]["propertyNames"] == {"pattern": r"\S"}
+    assert usage_properties["context"]["additionalProperties"]["pattern"] == r"\S"
+    assert usage_properties["candidate_memory_statuses"]["propertyNames"] == {
+        "pattern": r"\S",
+        "maxLength": 128,
+    }
+    assert usage_properties["system_blocked_reasons"]["propertyNames"] == {
+        "pattern": r"\S",
+        "maxLength": 128,
+    }
+    assert usage_properties["system_blocked_reasons"]["additionalProperties"][
+        "pattern"
+    ] == r"\S"
+    assert "pattern" not in usage_schema["$defs"]["memory_id_list"]["items"]
+
+    changed_schema_names = [
+        "trace.schema.json",
+        "failure_case.schema.json",
+        "lesson.schema.json",
+        "project_policy.schema.json",
+        "memory_context.schema.json",
+        "memory_usage_log.schema.json",
+    ]
+    for schema_name in changed_schema_names:
+        assert (
+            ROOT / "src" / "trace_backed_memory" / "_resources" / "schemas" / schema_name
+        ).read_bytes() == (ROOT / "schemas" / schema_name).read_bytes()
 
 
 def test_memory_decision_schema_encodes_use_memory_consistency_rules():
@@ -1013,6 +1090,7 @@ def test_memory_context_schema_requires_complete_input_hash_identity_pair():
 
     assert properties["input_hash"] == {
         "type": "string",
+        "pattern": r"\S",
         "minLength": 1,
         "maxLength": 512,
     }
@@ -2176,7 +2254,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2222,7 +2300,7 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
         encoding="utf-8"
     )
 
-    assert "Phase 0-48" in product
+    assert "Phase 0-49" in product
     assert (
         "Phase 37: Required PostgreSQL and Windows CI coverage (implemented)"
         in roadmap
@@ -2277,7 +2355,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-48" in product
+    assert "Phase 0-49" in product
     assert "decision-only `outcome` CLI" in product
     assert (
         "Phase 38: Deferred decision outcome CLI (implemented)"
@@ -2336,7 +2414,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
         assert "outer" in normalized
         assert "commit or rollback" in normalized
 
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 39: PostgreSQL consistent snapshots and lifecycle row locks "
         "(implemented)"
@@ -2380,7 +2458,7 @@ def test_docs_publish_postgres_bounded_load_before_materialization():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 40: PostgreSQL bounded load materialization (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2431,7 +2509,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 41: Runtime collection cardinality limits (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2490,7 +2568,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 42: PostgreSQL concurrent insert revalidation (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2551,7 +2629,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 43: Strict JSON object key uniqueness (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2613,7 +2691,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
     ):
         assert contract in published_contract
 
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 44: Bounded recover-batch arguments (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2671,7 +2749,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
     ):
         assert contract in published_contract
 
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 45: Non-negative trace latency (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2745,7 +2823,7 @@ def test_docs_publish_public_project_policy_obsolescence_export():
     assert "package root" in documents["README.md"]
     assert "package root" in documents["docs/architecture.md"]
     assert "根包" in documents["docs/product.md"]
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 46: Public project-policy obsolescence export (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2783,7 +2861,7 @@ def test_docs_publish_postgres_compatible_trace_latency_range():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 47: PostgreSQL-compatible trace latency range (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2861,7 +2939,7 @@ def test_docs_publish_postgres_bounded_load_payloads():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-48" in documents["docs/product.md"]
+    assert "Phase 0-49" in documents["docs/product.md"]
     assert (
         "Phase 48: PostgreSQL bounded load payloads (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2896,6 +2974,59 @@ def test_docs_publish_postgres_bounded_load_payloads():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
     assert "snapshot_payload_bytes" not in postgres_schema
+    assert len(packaged_resources()) == 18
+
+
+def test_docs_publish_portable_nonblank_persisted_strings():
+    from trace_backed_memory import packaged_resources
+
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in (
+            "non-whitespace",
+            "snapshot version 2",
+            "postgresql schema version 1",
+        ):
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert "Phase 0-49" in documents["docs/product.md"]
+    assert (
+        "Phase 49: Portable nonblank persisted strings (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    assert '`pattern: "\\\\S"`' in documents["README.md"]
+    assert "default `btrim(text)`" in documents["docs/architecture.md"]
+    assert "Direct SQL" in documents["docs/usage-policy.md"]
+
+    store_source = (
+        ROOT / "src" / "trace_backed_memory" / "store.py"
+    ).read_text(encoding="utf-8")
+    policy_source = (
+        ROOT / "src" / "trace_backed_memory" / "policy.py"
+    ).read_text(encoding="utf-8")
+    lifecycle_source = (
+        ROOT / "src" / "trace_backed_memory" / "lifecycle.py"
+    ).read_text(encoding="utf-8")
+    assert "not value.strip()" in store_source
+    assert "not memory_id.strip()" in store_source
+    assert "not value.strip()" in policy_source
+    assert "not value.strip()" in lifecycle_source
+
+    postgres_schema = _postgres_schema()
+    assert "CHECK (btrim(trace_id) <> '')" in postgres_schema
+    assert "VALUES (true, 1)" in postgres_schema
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
     assert len(packaged_resources()) == 18
 
 

@@ -3241,6 +3241,44 @@ def test_repository_rejects_missing_or_unknown_schema(postgres_cluster):
             repository.load()
 
 
+def test_postgres_schema_locks_ascii_space_only_string_boundary(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from psycopg.types.json import Jsonb
+
+    postgres_cluster.load_schema()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        assert connection.execute(
+            "SELECT pg_catalog.btrim(%s), pg_catalog.btrim(%s)",
+            ("   ", "\t"),
+        ).fetchone() == ("", "\t")
+        assert connection.execute(
+            "SELECT public.valid_memory_scope_json(%s)",
+            (Jsonb({"repo": "   "}),),
+        ).fetchone() == (False,)
+        assert connection.execute(
+            "SELECT public.valid_non_empty_text_object(%s), "
+            "public.valid_non_empty_text_object(%s)",
+            (Jsonb({"   ": "value"}), Jsonb({"key": "   "})),
+        ).fetchone() == (False, False)
+        assert connection.execute(
+            "SELECT public.valid_candidate_memory_statuses(%s)",
+            (Jsonb({"   ": "active"}),),
+        ).fetchone() == (False,)
+
+        with pytest.raises(psycopg.errors.CheckViolation):
+            with connection.transaction():
+                connection.execute(
+                    "INSERT INTO public.traces "
+                    "(trace_id, run_id, commit_sha) VALUES (%s, %s, %s)",
+                    ("   ", "run_nonblank", "commit_nonblank"),
+                )
+
+        assert connection.execute(
+            "SELECT count(*) FROM public.traces WHERE run_id = %s",
+            ("run_nonblank",),
+        ).fetchone() == (0,)
+
+
 @pytest.mark.parametrize("schema_state", ["missing", "incomplete"])
 @pytest.mark.parametrize("operation", ["load", "sync"])
 def test_missing_or_incomplete_schema_keeps_sanitized_driver_cause(

@@ -870,3 +870,23 @@ Track:
   client memory. Preserve public APIs, dependencies, snapshot version 2, every
   JSON Schema, active-lessons YAML, all 18 packaged resources, PostgreSQL DDL,
   and PostgreSQL schema version 1.
+
+## Phase 49: Portable nonblank persisted strings (implemented)
+
+- Require at least one non-whitespace character in persisted identity,
+  linkage, required failure text, lesson/policy scope, Memory Context values,
+  and usage-audit mapping keys and values before Store mutation or sync.
+- Preserve accepted strings byte-for-byte. Keep optional Trace metadata,
+  unrelated Failure Case narrative fields, and candidate/used/blocked
+  memory-ID arrays on their existing contracts.
+- Add `pattern: "\\S"` to the six affected canonical/package Schema pairs;
+  preserve snapshot version 2, active-lessons YAML, and all 18 packaged
+  resource paths/count.
+- Keep snapshot CLI read failures as structured input errors with exit code 2
+  and prove rejected reads do not rewrite their source file.
+- Lock the real PostgreSQL boundary: schema-version-1 `btrim` checks reject
+  ordinary spaces but are narrower than Python/JSON Schema whitespace rules.
+  Repository writes use the stronger Store prevalidation; direct-SQL operators
+  own cleanup of out-of-contract whitespace-only rows.
+- Preserve public signatures, dependencies, PostgreSQL DDL, and PostgreSQL
+  schema version 1.

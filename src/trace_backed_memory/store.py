@@ -1445,7 +1445,7 @@ class TraceBackedMemoryStore:
             raise ValueError(f"usage log references unknown memory IDs: {', '.join(unknown_ids)}")
 
     def _validate_usage_log_trace(self, log: MemoryUsageLog) -> None:
-        if not isinstance(log.trace_id, str) or not log.trace_id:
+        if not isinstance(log.trace_id, str) or not log.trace_id.strip():
             raise ValueError("usage log records require trace_id")
         trace = self._traces.get(log.trace_id)
         if trace is None:
@@ -2205,6 +2205,7 @@ def _validate_failure_case(case: FailureCase) -> None:
             getattr(case, field_name),
             field_name,
             "failure case",
+            nonblank=field_name in {"fix", "fix_commit_sha"},
             max_chars=(
                 METADATA_VALUE_MAX_CHARS
                 if field_name in {"fix_commit_sha", "reviewed_by"}
@@ -2293,7 +2294,7 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
     if type(log.memory_caused_failure) is not bool:
         raise ValueError("memory_caused_failure must be a boolean")
     if log.trace_id is not None and (
-        not isinstance(log.trace_id, str) or not log.trace_id
+        not isinstance(log.trace_id, str) or not log.trace_id.strip()
     ):
         raise ValueError("usage log trace_id must be a non-empty string")
     if log.trace_id is not None and len(log.trace_id) > MEMORY_ID_MAX_CHARS:
@@ -2689,7 +2690,7 @@ def _validate_required_string(
     *,
     max_chars: int | None = None,
 ) -> None:
-    if not isinstance(value, str) or not value:
+    if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{message_prefix} {field_name}")
     if max_chars is not None and len(value) > max_chars:
         raise ValueError(f"{field_name} must be at most {max_chars} characters")
@@ -2760,9 +2761,14 @@ def _validate_optional_string(
     field_name: str,
     record_label: str,
     *,
+    nonblank: bool = False,
     max_chars: int | None = None,
 ) -> None:
-    if value is not None and (not isinstance(value, str) or not value):
+    if value is not None and (
+        not isinstance(value, str)
+        or not value
+        or (nonblank and not value.strip())
+    ):
         raise ValueError(
             f"{record_label} {field_name} must be None or a non-empty string"
         )
@@ -2883,9 +2889,9 @@ def _validate_memory_id_list(value: Any, field_name: str) -> None:
 def _validate_string_mapping(value: Any, field_name: str) -> None:
     if not isinstance(value, dict) or any(
         not isinstance(key, str)
-        or not key
+        or not key.strip()
         or not isinstance(item, str)
-        or not item
+        or not item.strip()
         for key, item in value.items()
     ):
         raise ValueError(
@@ -2910,7 +2916,7 @@ def _validate_string_mapping(value: Any, field_name: str) -> None:
 def _validate_status_mapping(value: Any, candidate_memory_ids: list[str]) -> None:
     if not isinstance(value, dict) or any(
         not isinstance(memory_id, str)
-        or not memory_id
+        or not memory_id.strip()
         or not isinstance(status, str)
         or status not in FAILURE_CASE_STATUSES.union(LESSON_STATUSES)
         for memory_id, status in value.items()

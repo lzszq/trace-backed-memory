@@ -4,7 +4,8 @@
 
 Reject whitespace-only persisted identity, linkage, scope, context, and audit
 strings before PostgreSQL synchronization, without normalizing accepted data or
-changing database DDL.
+changing database DDL. The portable Store/Schema contract is broader than
+PostgreSQL's ordinary-space-only default `btrim` checks.
 
 ## Steps
 
@@ -15,8 +16,9 @@ changing database DDL.
    memory scope values while preserving strings containing real content.
 3. Add failing canonical/package Schema tests for `pattern: "\\S"` on the six
    affected record/input Schemas and unchanged memory-ID arrays.
-4. Add a live PostgreSQL regression that locks the existing `btrim` behavior
-   and confirms no DDL or schema-version migration is required.
+4. Add a live PostgreSQL regression that proves ordinary spaces are rejected,
+   locks the existing tab-preserving `btrim` boundary, and confirms no DDL or
+   schema-version migration is included.
 5. Make the shared required-string validator nonblank, add a targeted optional
    nonblank mode for `fix`/`fix_commit_sha`, and align scope/context/usage map
    validators without trimming accepted values.
@@ -31,6 +33,9 @@ changing database DDL.
 
 - Whitespace-only values in the covered fields become invalid before database
   sync; accepted values retain their exact bytes and are never stripped.
+- Ordinary-space-only values already fail PostgreSQL schema version 1. Direct
+  SQL can admit some other whitespace-only values that repository load now
+  rejects, so existing out-of-contract rows require cleanup.
 - Optional Trace metadata, unrelated Failure Case narrative fields, and usage
   memory-ID arrays retain their current behavior.
 - Public APIs, models, dependencies, snapshot version 2, active-lessons YAML,

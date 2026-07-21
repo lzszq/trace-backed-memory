@@ -24,12 +24,12 @@
           "failure_type"
         ]
       },
-      "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 512}
+      "additionalProperties": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512}
     }
   },
   "properties": {
-    "lesson_id": {"type": "string", "minLength": 1, "maxLength": 128},
-    "source_case_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "lesson_id": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 128},
+    "source_case_id": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 128},
     "lesson_text": {"type": "string", "pattern": "\\S"},
     "memory_type": {
       "type": "string",

@@ -1849,6 +1849,32 @@ def test_cli_reports_usage_file_and_snapshot_errors_as_json(tmp_path, capsys):
     assert "snapshot_version" in error["error"]["message"]
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        ("snapshot", "validate"),
+        ("snapshot", "stats"),
+    ],
+)
+def test_cli_snapshot_reads_reject_whitespace_identity_without_rewriting_source(
+    tmp_path, capsys, command: tuple[str, str]
+):
+    path, _decision_ids = _snapshot_with_states(tmp_path, "complete")
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    snapshot["usage_logs"][0]["decision_id"] = "   "
+    path.write_text(json.dumps(snapshot), encoding="utf-8")
+    original = path.read_bytes()
+
+    code, payload, error = _run(capsys, *command, str(path))
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert error["error"]["type"] == "ValueError"
+    assert "decision_id" in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
 def test_cli_outcome_is_a_private_dry_run_and_calls_store_once(
     tmp_path,
     capsys,

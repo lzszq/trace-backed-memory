@@ -76,7 +76,7 @@ failure cases, lessons, project policies, and usage logs. Loading a snapshot
 reuses the same recording methods as live writes, so duplicate IDs, global
 memory ID uniqueness, and lesson provenance checks remain enforced.
 
-Trace writes require non-empty `trace_id`, `run_id`, and `commit_sha`, and
+Trace writes require nonblank `trace_id`, `run_id`, and `commit_sha`, and
 `eval_result` must be one of `pass`, `fail`, `error`, or `unknown`.
 `retrieved_context`, `tool_calls`, and `tool_outputs` must be lists of JSON
 objects so downstream extraction and reporting can safely inspect them.
@@ -680,13 +680,13 @@ Imported version-2 and supplied legacy context evidence is validated by the
 same declared-only rules. This adds no record or column: snapshot version 2 and
 PostgreSQL schema version 1 remain unchanged.
 
-Usage logs persist a non-empty trace ID, serialized context, candidate IDs,
+Usage logs persist a nonblank trace ID, serialized context, candidate IDs,
 candidate status snapshots, System Gate blocked reasons, used IDs, blocked IDs,
 risk, reason, recommended injection, optional eval result, and whether memory
 was attributed as the cause of a failure. These fields feed pass-rate and
 wrong-memory metrics. The in-memory store rejects usage logs whose used memory
 IDs were not present in the recorded candidate set, whose identity fields are
-empty, whose imported decision IDs are duplicated, whose memory ID lists contain
+blank, whose imported decision IDs are duplicated, whose memory ID lists contain
 duplicate, empty-string, or non-string memory IDs, whose used and blocked IDs
 overlap, whose used or blocked IDs were not recorded candidates, or whose mode, risk,
 recommended injection, or optional `eval_result` values are unsupported.
@@ -785,7 +785,17 @@ Trace context/tool JSON is validated recursively before storage. Only JSON
 semantic values with string object keys and finite numbers are accepted;
 cycles, excessive nesting, and values that cannot be serialized by the runtime
 fail with a path-specific `ValueError`.
-PostgreSQL rejects empty required identifiers and text, uses composite
+
+The portable persisted-string boundary requires at least one non-whitespace
+character in identity, linkage, required failure text, lesson/policy scope,
+Memory Context values, and usage-audit mapping keys and values. Shared Store,
+lifecycle, and policy validators reject blank content without normalizing
+accepted strings. Six canonical/package JSON Schema pairs publish the same
+`pattern: "\\S"` rule. Optional Trace metadata, unrelated Failure Case
+narrative fields, and candidate/used/blocked memory-ID arrays retain their
+existing behavior.
+
+PostgreSQL rejects ordinary-space-only required identifiers and text, uses composite
 `(source_trace_id, commit_sha)` provenance to bind cases to their source trace,
 requires non-null lesson and policy confidence, and checks audit JSONB objects
 and values. Failure-case, lesson, and project-policy IDs are immutable and their
@@ -799,6 +809,14 @@ from `PUBLIC`, preserving registry/source parity. The file is a fresh-install
 schema, not an in-place migration for an already deployed database.
 The schema requires PostgreSQL 12+ because its hardened JSONB shape constraints
 use `jsonb_path_exists`.
+
+PostgreSQL's default `btrim(text)` removes ordinary spaces rather than every
+character covered by Python `str.strip()` or JSON Schema `\\S`. Store-to-
+repository writes are therefore prevalidated by the stronger portable rule,
+while direct-SQL rows containing other whitespace-only values can be rejected
+during repository load. Phase 49 changes neither fresh-install DDL nor schema
+version 1; operators of direct-SQL data own cleanup of such out-of-contract
+rows.
 
 Every SQL and PL/pgSQL invariant function executes with
 `search_path = pg_catalog`; application relations remain explicitly qualified

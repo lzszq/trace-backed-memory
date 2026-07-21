@@ -57,7 +57,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`MemoryRunMeasurement`",
         "`MemoryObsolescenceRequest`",
         "`obsolete_memories()`",
-        "Phase 0-46",
+        "Phase 0-47",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -782,7 +782,7 @@ def test_postgres_trace_cost_rejects_non_finite_numeric_values():
     assert "NOT IN" in cost_usd
 
 
-def test_trace_latency_is_non_negative_in_portable_and_postgres_schemas():
+def test_trace_latency_matches_postgres_integer_range_in_portable_schema():
     trace_latency = _schema_properties(
         _json_schema("trace.schema.json")
     )["latency_ms"]
@@ -792,6 +792,7 @@ def test_trace_latency_is_non_negative_in_portable_and_postgres_schemas():
     assert trace_latency == {
         "type": ["integer", "null"],
         "minimum": 0,
+        "maximum": 2_147_483_647,
     }
     assert "traces_latency_ms_non_negative" in postgres_latency
     assert "CHECK (latency_ms >= 0)" in postgres_latency
@@ -2175,7 +2176,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-46" in documents["docs/product.md"]
+    assert "Phase 0-47" in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2221,7 +2222,7 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
         encoding="utf-8"
     )
 
-    assert "Phase 0-46" in product
+    assert "Phase 0-47" in product
     assert (
         "Phase 37: Required PostgreSQL and Windows CI coverage (implemented)"
         in roadmap
@@ -2276,7 +2277,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-46" in product
+    assert "Phase 0-47" in product
     assert "decision-only `outcome` CLI" in product
     assert (
         "Phase 38: Deferred decision outcome CLI (implemented)"
@@ -2335,7 +2336,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
         assert "outer" in normalized
         assert "commit or rollback" in normalized
 
-    assert "Phase 0-46" in documents["docs/product.md"]
+    assert "Phase 0-47" in documents["docs/product.md"]
     assert (
         "Phase 39: PostgreSQL consistent snapshots and lifecycle row locks "
         "(implemented)"
@@ -2379,7 +2380,7 @@ def test_docs_publish_postgres_bounded_load_before_materialization():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-46" in documents["docs/product.md"]
+    assert "Phase 0-47" in documents["docs/product.md"]
     assert (
         "Phase 40: PostgreSQL bounded load materialization (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2430,7 +2431,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-46" in documents["docs/product.md"]
+    assert "Phase 0-47" in documents["docs/product.md"]
     assert (
         "Phase 41: Runtime collection cardinality limits (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2489,7 +2490,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-46" in documents["docs/product.md"]
+    assert "Phase 0-47" in documents["docs/product.md"]
     assert (
         "Phase 42: PostgreSQL concurrent insert revalidation (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2550,7 +2551,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-46" in documents["docs/product.md"]
+    assert "Phase 0-47" in documents["docs/product.md"]
     assert (
         "Phase 43: Strict JSON object key uniqueness (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2612,7 +2613,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
     ):
         assert contract in published_contract
 
-    assert "Phase 0-46" in documents["docs/product.md"]
+    assert "Phase 0-47" in documents["docs/product.md"]
     assert (
         "Phase 44: Bounded recover-batch arguments (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2655,7 +2656,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
         normalized = " ".join(document.split()).lower()
         for contract in (
             "latency_ms",
-            "non-negative",
+            "minimum",
             "snapshot version 2",
             "postgresql schema version 1",
         ):
@@ -2670,7 +2671,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
     ):
         assert contract in published_contract
 
-    assert "Phase 0-46" in documents["docs/product.md"]
+    assert "Phase 0-47" in documents["docs/product.md"]
     assert (
         "Phase 45: Non-negative trace latency (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2686,6 +2687,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
     assert trace_schema["properties"]["latency_ms"] == {
         "type": ["integer", "null"],
         "minimum": 0,
+        "maximum": 2_147_483_647,
     }
     assert trace_schema["properties"]["cost_usd"] == {
         "type": ["number", "null"]
@@ -2743,7 +2745,7 @@ def test_docs_publish_public_project_policy_obsolescence_export():
     assert "package root" in documents["README.md"]
     assert "package root" in documents["docs/architecture.md"]
     assert "根包" in documents["docs/product.md"]
-    assert "Phase 0-46" in documents["docs/product.md"]
+    assert "Phase 0-47" in documents["docs/product.md"]
     assert (
         "Phase 46: Public project-policy obsolescence export (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2751,6 +2753,84 @@ def test_docs_publish_public_project_policy_obsolescence_export():
 
     assert tbm.obsolete_project_policy is lifecycle.obsolete_project_policy
     assert "obsolete_project_policy" in tbm.__all__
+    assert len(packaged_resources()) == 18
+
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "VALUES (true, 1)" in _postgres_schema()
+
+
+def test_docs_publish_postgres_compatible_trace_latency_range():
+    from trace_backed_memory import packaged_resources
+
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in (
+            "latency_ms",
+            "2,147,483,647",
+            "snapshot version 2",
+            "postgresql schema version 1",
+        ):
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert "Phase 0-47" in documents["docs/product.md"]
+    assert (
+        "Phase 47: PostgreSQL-compatible trace latency range (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+
+    store_source = (
+        ROOT / "src" / "trace_backed_memory" / "store.py"
+    ).read_text(encoding="utf-8")
+    assert "TRACE_LATENCY_MAX_MS = 2_147_483_647" in store_source
+    assert "if trace.latency_ms > TRACE_LATENCY_MAX_MS:" in store_source
+    assert "latency_ms must be at most {TRACE_LATENCY_MAX_MS}" in store_source
+
+    trace_schema = _json_schema("trace.schema.json")
+    assert trace_schema["properties"]["latency_ms"] == {
+        "type": ["integer", "null"],
+        "minimum": 0,
+        "maximum": 2_147_483_647,
+    }
+    assert trace_schema["properties"]["cost_usd"] == {
+        "type": ["number", "null"]
+    }
+
+    canonical_trace_schema = (
+        ROOT / "schemas" / "trace.schema.json"
+    ).read_bytes()
+    packaged_trace_schema = (
+        ROOT
+        / "src"
+        / "trace_backed_memory"
+        / "_resources"
+        / "schemas"
+        / "trace.schema.json"
+    ).read_bytes()
+    assert packaged_trace_schema == canonical_trace_schema
+
+    canonical_postgres = (ROOT / "schemas" / "postgres.sql").read_bytes()
+    packaged_postgres = (
+        ROOT
+        / "src"
+        / "trace_backed_memory"
+        / "_resources"
+        / "schemas"
+        / "postgres.sql"
+    ).read_bytes()
+    assert packaged_postgres == canonical_postgres
+    assert b"latency_ms INTEGER" in canonical_postgres
+    assert b"traces_latency_ms_non_negative" in canonical_postgres
     assert len(packaged_resources()) == 18
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")

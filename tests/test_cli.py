@@ -2209,7 +2209,7 @@ def test_cli_complete_writes_full_evidence_and_replays_exactly(tmp_path, capsys)
         "--tool-outputs-file",
         str(tool_outputs_path),
         "--latency-ms",
-        "125",
+        "2147483647",
         "--cost-usd",
         "0.0025",
         "--error",
@@ -2228,7 +2228,7 @@ def test_cli_complete_writes_full_evidence_and_replays_exactly(tmp_path, capsys)
     completed_trace = payload["completions"][0]["trace"]
     assert completed_trace["output_hash"] == "sha256:cli-output"
     assert completed_trace["tool_outputs"] == tool_outputs
-    assert completed_trace["latency_ms"] == 125
+    assert completed_trace["latency_ms"] == 2_147_483_647
     assert completed_trace["cost_usd"] == 0.0025
     assert completed_trace["error"] == "executor failed"
     assert completed_trace["trace_uri"] == "trace://cli/completion"
@@ -2461,6 +2461,12 @@ def test_cli_complete_reports_domain_rejections_without_writing(tmp_path, capsys
             ("--eval-result", "pass", "--latency-ms", "-1"),
             "latency_ms must be non-negative",
         ),
+        (
+            first_trace.trace_id,
+            first_decision_id,
+            ("--eval-result", "pass", "--latency-ms", "2147483648"),
+            "latency_ms must be at most 2147483647",
+        ),
     )
     for trace_id, decision_id, extra_args, message_fragment in cases:
         code, payload, error = _run(
@@ -2575,7 +2581,7 @@ def test_cli_complete_batch_writes_full_evidence_and_replays_exactly(
                 "memory_caused_failure": True,
                 "output_hash": "sha256:batch-output",
                 "tool_outputs": [],
-                "latency_ms": 250,
+                "latency_ms": 2_147_483_647,
                 "cost_usd": 2,
                 "error": "executor timeout",
                 "trace_uri": "trace://cli/batch",
@@ -2608,7 +2614,7 @@ def test_cli_complete_batch_writes_full_evidence_and_replays_exactly(
     assert completed_trace["trace_id"] == measured_trace.trace_id
     assert completed_trace["output_hash"] == "sha256:batch-output"
     assert completed_trace["tool_outputs"] == []
-    assert completed_trace["latency_ms"] == 250
+    assert completed_trace["latency_ms"] == 2_147_483_647
     assert completed_trace["cost_usd"] == 2
     assert completed_trace["error"] == "executor timeout"
     assert completed_trace["trace_uri"] == "trace://cli/batch"
@@ -2792,6 +2798,16 @@ def test_cli_complete_batch_rejects_wrong_field_types_without_writing(
                 }
             ],
             "latency_ms must be non-negative",
+        ),
+        (
+            [
+                {
+                    "decision_id": "{decision_id}",
+                    "eval_result": "pass",
+                    "latency_ms": 2_147_483_648,
+                }
+            ],
+            "latency_ms must be at most 2147483647",
         ),
     ],
 )

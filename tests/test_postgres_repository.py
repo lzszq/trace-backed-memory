@@ -1022,6 +1022,30 @@ def test_repository_sync_round_trips_and_is_idempotent(postgres_cluster):
         assert second.usage_logs == PostgresSyncCounts(unchanged=1)
 
 
+def test_repository_round_trips_maximum_trace_latency(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import Trace, TraceBackedMemoryStore
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id="trace_maximum_latency",
+            run_id="run_maximum_latency",
+            commit_sha="commit_maximum_latency",
+            latency_ms=2_147_483_647,
+        )
+    )
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+        loaded = repository.load()
+
+    assert loaded.traces["trace_maximum_latency"].latency_ms == 2_147_483_647
+
+
 def test_repository_sync_completes_pending_trace_and_is_idempotent(
     postgres_cluster,
 ):

@@ -122,6 +122,7 @@ MEMORY_SOURCE_IDENTITY_CONTEXT_FIELDS = frozenset(
 )
 SNAPSHOT_VERSION = 2
 TRACE_JSON_MAX_DEPTH = 100
+TRACE_LATENCY_MAX_MS = 2_147_483_647
 SNAPSHOT_COLLECTION_NAMES = (
     "traces",
     "failure_cases",
@@ -2154,6 +2155,10 @@ def _validate_trace(trace: Trace) -> None:
         _validate_json_integer(trace.latency_ms, "latency_ms")
         if trace.latency_ms < 0:
             raise ValueError("latency_ms must be non-negative")
+        if trace.latency_ms > TRACE_LATENCY_MAX_MS:
+            raise ValueError(
+                f"latency_ms must be at most {TRACE_LATENCY_MAX_MS}"
+            )
     if trace.cost_usd is not None:
         if not is_finite_number(trace.cost_usd):
             raise ValueError("cost_usd must be a finite number or None")

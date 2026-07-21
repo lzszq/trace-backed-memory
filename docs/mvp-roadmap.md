@@ -832,3 +832,20 @@ Track:
   signature. This additive export does not change models, dependencies,
   snapshot version 2, JSON Schemas, active-lessons YAML, any of the 18 packaged
   resource paths or bytes, PostgreSQL DDL, or PostgreSQL schema version 1.
+
+## Phase 47: PostgreSQL-compatible trace latency range (implemented)
+
+- Define `latency_ms` as `None` or an integer in the inclusive range 0 through
+  2,147,483,647, matching the existing PostgreSQL signed `INTEGER` column.
+- Apply the upper bound in the shared Store validator after exact-type, JSON
+  serialization, and non-negative checks, preserving huge-integer and negative
+  error priority across record, snapshot, execution, and completion paths.
+- Keep scalar and manifest CLI completion delegated to the Store so overflow is
+  a structured `state` error with exit code 3 and cannot partially write.
+- Add `maximum: 2147483647` to both Trace Schema copies and verify the inclusive
+  maximum plus one-value overflow against a real PostgreSQL cluster.
+- Preserve public signatures, dependencies, snapshot version 2,
+  active-lessons YAML, all 18 packaged resource paths/count, PostgreSQL DDL,
+  and PostgreSQL schema version 1. Only Trace Schema bytes change; existing
+  schema-version-1 databases already enforce the upper range and need no
+  migration.

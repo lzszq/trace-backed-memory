@@ -307,7 +307,7 @@ def test_postgres_cluster_meets_documented_version_floor(
     assert server_version >= 120000
 
 
-def test_postgres_trace_latency_accepts_null_and_zero_but_rejects_negative(
+def test_postgres_trace_latency_enforces_signed_integer_range(
     postgres_cluster: PostgresCluster,
 ):
     cluster = postgres_cluster
@@ -319,7 +319,8 @@ def test_postgres_trace_latency_accepts_null_and_zero_but_rejects_negative(
         INSERT INTO traces(trace_id, run_id, commit_sha, latency_ms)
         VALUES
           ('trace_latency_null', 'run_latency_null', 'commit_latency', NULL),
-          ('trace_latency_zero', 'run_latency_zero', 'commit_latency', 0);
+          ('trace_latency_zero', 'run_latency_zero', 'commit_latency', 0),
+          ('trace_latency_max', 'run_latency_max', 'commit_latency', 2147483647);
         """,
     )
     assert_sql_fails(
@@ -330,10 +331,18 @@ def test_postgres_trace_latency_accepts_null_and_zero_but_rejects_negative(
         """,
         "traces_latency_ms_non_negative",
     )
+    assert_sql_fails(
+        cluster,
+        """
+        INSERT INTO traces(trace_id, run_id, commit_sha, latency_ms)
+        VALUES ('trace_latency_overflow', 'run_latency_overflow', 'commit_latency', 2147483648)
+        """,
+        "integer out of range",
+    )
     assert assert_sql_succeeds(
         cluster,
-        "SELECT count(*) FROM traces WHERE latency_ms IS NULL OR latency_ms = 0",
-    ) == "2"
+        "SELECT count(*) FROM traces WHERE latency_ms IS NULL OR latency_ms IN (0, 2147483647)",
+    ) == "3"
 
 
 def test_postgres_schema_install_is_atomic_and_public(

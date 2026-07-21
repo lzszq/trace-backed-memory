@@ -95,10 +95,11 @@ replacement. Exact replay is idempotent and the returned Trace is a defensive
 copy.
 
 Trace latency has one domain invariant across persistence modes:
-`latency_ms` is `None` or a non-negative integer, including zero. The shared
-Trace validator checks it after exact-integer and JSON-serialization bounds,
-so record, snapshot reconstruction, callback execution, and single or batch
-completion cannot diverge. Candidate staging keeps a negative value from
+`latency_ms` is `None` or an integer in the inclusive range 0 through
+2,147,483,647. The shared Trace validator checks exact type, JSON serialization,
+the lower boundary, and then the PostgreSQL-compatible upper boundary, so
+record, snapshot reconstruction, callback execution, and single or batch
+completion cannot diverge. Candidate staging keeps an out-of-range value from
 partially updating a Trace or usage outcome. CLI completion delegates this
 domain check to the Store and reports a structured `state` error with exit code
 3; syntax and type failures remain input errors.
@@ -852,14 +853,17 @@ mechanism.
 
 The fresh-install Trace table uses the named
 `traces_latency_ms_non_negative` CHECK, matching `minimum: 0` in the canonical
-and packaged Trace JSON Schema. Existing schema-version-1 databases do not gain
-the CHECK from a package upgrade; direct-SQL operators own that migration,
-while Store construction and repository `load()` reject negative latency.
-`sync()` accepts only a validated Store and therefore never writes a negative
-value, but its additive semantics do not inspect unrelated database-only rows.
-The two canonical/package resource pairs change bytes, but the packaged
-allowlist remains 18 names. Snapshot version 2 and PostgreSQL schema version 1
-remain unchanged because neither stored shape changes.
+and packaged Trace JSON Schema. Its signed `INTEGER` column matches the Schema's
+`maximum: 2147483647`. Existing schema-version-1 databases already enforce the
+upper bound and need no migration; databases missing the earlier CHECK do not
+gain it from a package upgrade, so direct-SQL operators still own that lower
+constraint migration. Store construction and repository `load()` reject either
+out-of-range direction. `sync()` accepts only a validated Store and therefore
+never writes an out-of-range value, but its additive semantics do not inspect
+unrelated database-only rows. The canonical and packaged Trace Schema bytes
+change in Phase 47; PostgreSQL DDL bytes and the 18-name packaged allowlist do
+not. Snapshot version 2 and PostgreSQL schema version 1 remain unchanged because
+neither stored shape changes.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:

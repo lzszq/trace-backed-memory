@@ -831,22 +831,24 @@ transition and rejects stale, reverse, or conflicting updates atomically.
 Snapshot version 2, active-lessons YAML, and PostgreSQL schema version 1 remain
 unchanged.
 
-`latency_ms` is either `None` or a non-negative integer; zero is a valid
-measurement. The shared Trace validator applies this rule to recording,
-snapshot loading, callback execution, and single or batch completion before
-state is committed. The `complete` and `complete-batch` CLI paths keep the
-Store authoritative: negative latency is a structured `state` error with exit
-code 3, while malformed numeric input remains an `input` error with exit code
-2. `cost_usd` keeps its existing finite-number contract.
+`latency_ms` is either `None` or an integer from 0 through 2,147,483,647;
+both boundaries are valid measurements. The shared Trace validator applies
+this rule to recording, snapshot loading, callback execution, and single or
+batch completion before state is committed. The `complete` and
+`complete-batch` CLI paths keep the Store authoritative: an integer outside
+that range is a structured `state` error with exit code 3, while malformed
+numeric input remains an `input` error with exit code 2. `cost_usd` keeps its
+existing finite-number contract.
 
-The canonical and packaged Trace Schema now declare `minimum: 0`, and the
-canonical and packaged fresh-install PostgreSQL DDL include the named
-`traces_latency_ms_non_negative` CHECK. Existing schema-version-1 databases are
-not migrated automatically; operators permitting direct SQL must apply the
-equivalent constraint through their migration policy. These two packaged
-resource bytes change intentionally, while the allowlist names/count remain
-18, snapshot version 2 remains current, and PostgreSQL schema version 1 remains
-current.
+The canonical and packaged Trace Schema declare `minimum: 0` and
+`maximum: 2147483647`. The canonical and packaged fresh-install PostgreSQL DDL
+keep the named `traces_latency_ms_non_negative` CHECK, while the existing
+signed `INTEGER` column supplies the identical upper boundary. Existing
+schema-version-1 databases already enforce that physical maximum and need no
+Phase 47 migration; operators missing the earlier lower-bound CHECK still own
+that constraint migration. Only the canonical and packaged Trace Schema bytes
+change in Phase 47; PostgreSQL DDL bytes, the 18-resource allowlist, snapshot
+version 2, and PostgreSQL schema version 1 remain current.
 
 ### Deferred decision outcome sealing
 

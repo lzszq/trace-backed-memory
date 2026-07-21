@@ -2120,6 +2120,7 @@ def test_complete_trace_requires_measured_result_without_mutation(
         ("tool_outputs", [1]),
         ("latency_ms", True),
         ("latency_ms", -1),
+        ("latency_ms", 2_147_483_648),
         ("cost_usd", float("inf")),
         ("error", 7),
         ("trace_uri", ""),
@@ -2794,6 +2795,17 @@ def test_complete_memory_runs_validates_inputs_without_partial_mutation():
                     decision_id=second.decision_id,
                     eval_result="pass",
                     latency_ms=-1,
+                ),
+            )
+        )
+    with pytest.raises(ValueError, match="latency_ms must be at most 2147483647"):
+        store.complete_memory_runs(
+            (
+                valid,
+                tbm.MemoryRunResult(
+                    decision_id=second.decision_id,
+                    eval_result="pass",
+                    latency_ms=2_147_483_648,
                 ),
             )
         )
@@ -4222,7 +4234,7 @@ def test_runtime_trace_validation_matches_schema_types(
         TraceBackedMemoryStore().record_trace(Trace(**values))  # type: ignore[arg-type]
 
 
-def test_runtime_trace_and_snapshot_require_non_negative_latency():
+def test_runtime_trace_and_snapshot_require_postgres_compatible_latency():
     store = TraceBackedMemoryStore()
     recorded_unknown = store.record_trace(
         Trace(
@@ -4240,8 +4252,19 @@ def test_runtime_trace_and_snapshot_require_non_negative_latency():
             latency_ms=0,
         )
     )
+    recorded_maximum = store.record_trace(
+        Trace(
+            trace_id="trace_maximum_latency",
+            run_id="run_maximum_latency",
+            commit_sha="abc",
+            latency_ms=2_147_483_647,
+        )
+    )
     assert recorded_unknown.latency_ms is None
     assert recorded.latency_ms == 0
+    assert recorded_maximum.latency_ms == 2_147_483_647
+    restored = TraceBackedMemoryStore.from_snapshot(store.to_snapshot())
+    assert restored.traces[recorded_maximum.trace_id].latency_ms == 2_147_483_647
 
     with pytest.raises(ValueError, match="latency_ms must be non-negative"):
         store.record_trace(
@@ -4253,9 +4276,29 @@ def test_runtime_trace_and_snapshot_require_non_negative_latency():
             )
         )
 
+    with pytest.raises(
+        ValueError,
+        match="latency_ms must be at most 2147483647",
+    ):
+        store.record_trace(
+            Trace(
+                trace_id="trace_overflow_latency",
+                run_id="run_overflow_latency",
+                commit_sha="abc",
+                latency_ms=2_147_483_648,
+            )
+        )
+
     snapshot = fully_populated_snapshot()
     _snapshot_record(snapshot, "traces")["latency_ms"] = -1
     with pytest.raises(ValueError, match="latency_ms must be non-negative"):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+    _snapshot_record(snapshot, "traces")["latency_ms"] = 2_147_483_648
+    with pytest.raises(
+        ValueError,
+        match="latency_ms must be at most 2147483647",
+    ):
         TraceBackedMemoryStore.from_snapshot(snapshot)
 
 

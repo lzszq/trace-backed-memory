@@ -213,6 +213,14 @@ remain current. Rebuild this nonserialized index during validated snapshot
 loading without changing legacy migration, canonical output, snapshot version
 2, or PostgreSQL schema version 1.
 
+Bound live usage-log memory existence validation by its referenced IDs. When
+no snapshot-local `known_memory_ids` set is provided, check each distinct ID
+directly against the failure-case, lesson, and project-policy maps in average
+O(r), where `r` is the number of referenced IDs. Keep one reused
+`known_memory_ids` set for snapshot reconstruction. Add no new derived index,
+and preserve deduplication, sorted unknown-ID diagnostics, validation order,
+snapshot version 2, and PostgreSQL schema version 1.
+
 Also cap `recover-batch` at 10,000 decision IDs and 10,000 attribution options.
 Count submitted values before duplicate detection and reject overflow as input
 before snapshot loading, Store construction, recovery, or publication. Do not

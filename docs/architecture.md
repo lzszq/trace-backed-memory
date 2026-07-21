@@ -307,6 +307,16 @@ rebuilds this nonserialized state through `record_trace()`. Canonical output,
 legacy migration, snapshot version 2, and PostgreSQL schema version 1 remain
 unchanged.
 
+Live usage-log memory existence checks are bounded by the referenced IDs. If
+the caller does not supply the snapshot-local `known_memory_ids` set, the
+validator checks every distinct reference directly against `_failure_cases`,
+`_lessons`, and `_project_policies`. This is average O(r), where `r` is the
+number of referenced IDs, and allocates no full catalog copy. Snapshot loading
+continues to reuse one `known_memory_ids` set across all imported logs. No new
+derived index is introduced; deduplication, sorted unknown-ID errors,
+validation order, snapshot version 2, and PostgreSQL schema version 1 remain
+unchanged.
+
 The `recover-batch` argv surface separately caps submitted values at 10,000
 decision IDs and 10,000 attribution options. A preload cardinality check runs
 immediately after argparse and before snapshot loading, tuple/set/dictionary

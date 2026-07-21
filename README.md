@@ -218,6 +218,14 @@ lock, and validated snapshot reconstruction rebuilds the index. It is not
 serialized, and snapshot version 2 and PostgreSQL schema version 1 do not
 change.
 
+Live usage-log memory existence validation now examines only the referenced
+IDs. When no load-local `known_memory_ids` set is supplied, each distinct ID is
+checked directly against the failure-case, lesson, and project-policy maps in
+average O(r), where `r` is the number of referenced IDs. Snapshot import keeps
+reusing one `known_memory_ids` set across its logs. No new derived index is
+added, unknown IDs remain sorted in errors, and snapshot version 2 and
+PostgreSQL schema version 1 do not change.
+
 ## Snapshot Operations CLI
 
 Installing the package exposes the dependency-free `tbm` console script. The

@@ -9664,6 +9664,149 @@ def test_snapshot_reuses_known_memory_ids_across_usage_logs():
 
 
 @pytest.mark.parametrize("record_count", [16, 64])
+def test_live_usage_log_validation_does_not_iterate_memory_catalogs(
+    record_count: int,
+):
+    class IterationCountingMemoryMap(dict):
+        iterated_items = 0
+
+        def __iter__(self):
+            for item in super().__iter__():
+                type(self).iterated_items += 1
+                yield item
+
+        def keys(self):
+            type(self).iterated_items += len(self)
+            return super().keys()
+
+        def items(self):
+            type(self).iterated_items += len(self)
+            return super().items()
+
+        def values(self):
+            type(self).iterated_items += len(self)
+            return super().values()
+
+    store, trace, _case, lesson = store_with_active_lesson()
+    for index in range(record_count):
+        store.add_project_policy(
+            ProjectPolicy(
+                policy_id=f"policy_live_validation_{index:06d}",
+                policy_text="Keep runtime memory validation bounded.",
+                scope={"repo": "repo"},
+            )
+        )
+    store._failure_cases = IterationCountingMemoryMap(store._failure_cases)
+    store._lessons = IterationCountingMemoryMap(store._lessons)
+    store._project_policies = IterationCountingMemoryMap(
+        store._project_policies
+    )
+    IterationCountingMemoryMap.iterated_items = 0
+
+    log = store.log_decision(
+        trace.run_id,
+        matching_context(trace),
+        [lesson.lesson_id],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=[lesson.lesson_id],
+            blocked_memory_ids=[],
+            reason="the verified lesson is relevant",
+            risk="low",
+            recommended_injection="short_summary",
+        ),
+    )
+    sealed = store.record_decision_outcome(log.decision_id, "pass")
+
+    assert sealed.eval_result == "pass"
+    assert IterationCountingMemoryMap.iterated_items == 0
+
+
+def test_live_memory_id_validation_preserves_sorted_unknown_error_without_scan():
+    class NonIterableMemoryMap(dict):
+        def __iter__(self):
+            raise AssertionError("live validation must not iterate the catalog")
+
+        def keys(self):
+            raise AssertionError("live validation must not scan catalog keys")
+
+        def items(self):
+            raise AssertionError("live validation must not scan catalog items")
+
+        def values(self):
+            raise AssertionError("live validation must not scan catalog values")
+
+    store, trace, _case, lesson = store_with_active_lesson()
+    store._failure_cases = NonIterableMemoryMap(store._failure_cases)
+    store._lessons = NonIterableMemoryMap(store._lessons)
+    store._project_policies = NonIterableMemoryMap(
+        store._project_policies
+    )
+    log = MemoryUsageLog(
+        decision_id="decision_live_validation",
+        run_id=trace.run_id,
+        mode="repair",
+        candidate_memory_ids=[
+            "missing_z",
+            lesson.lesson_id,
+            "missing_a",
+            "missing_z",
+        ],
+        used_memory_ids=[],
+        blocked_memory_ids=[],
+        reason="validate referenced IDs",
+        risk="none",
+        recommended_injection="none",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^usage log references unknown memory IDs: "
+            "missing_a, missing_z$"
+        ),
+    ):
+        store._validate_usage_log_memory_ids(log)
+
+
+@pytest.mark.parametrize("operation", ["complete", "recover"])
+def test_memory_run_validation_does_not_scan_memory_catalogs(operation: str):
+    class NonIterableMemoryMap(dict):
+        def __iter__(self):
+            raise AssertionError("memory-run validation must not iterate catalogs")
+
+        def keys(self):
+            raise AssertionError("memory-run validation must not scan keys")
+
+        def items(self):
+            raise AssertionError("memory-run validation must not scan items")
+
+        def values(self):
+            raise AssertionError("memory-run validation must not scan values")
+
+    store, current, result, _lesson = store_with_pending_memory_run()
+    if operation == "recover":
+        store.complete_trace(current.trace_id, eval_result="pass")
+    store._failure_cases = NonIterableMemoryMap(store._failure_cases)
+    store._lessons = NonIterableMemoryMap(store._lessons)
+    store._project_policies = NonIterableMemoryMap(
+        store._project_policies
+    )
+
+    if operation == "complete":
+        completion = store.complete_memory_run(
+            trace_id=current.trace_id,
+            decision_id=result.decision_id,
+            eval_result="pass",
+        )
+    else:
+        completion = store.recover_memory_run(result.decision_id)
+
+    assert completion.trace.eval_result == "pass"
+    assert completion.usage_log.eval_result == "pass"
+
+
+@pytest.mark.parametrize("record_count", [16, 64])
 def test_legacy_snapshot_indexes_run_ids_before_migrating_usage_logs(
     record_count: int,
 ):

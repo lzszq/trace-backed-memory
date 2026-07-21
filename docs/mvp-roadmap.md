@@ -949,3 +949,18 @@ Track:
   public signature, dependency, model, snapshot field, JSON Schema,
   active-lessons YAML, packaged resource, PostgreSQL DDL, snapshot version 2,
   or PostgreSQL schema version 1.
+
+## Phase 54: Referenced live memory-ID validation (implemented)
+
+- Validate live usage-log memory existence by checking only its distinct
+  referenced IDs against the three authoritative Store dictionaries.
+- Keep average O(r) live validation, where `r` is the number of referenced
+  IDs, without copying the complete memory catalog.
+- Continue passing one reused `known_memory_ids` set through snapshot
+  reconstruction so its existing average O(n) behavior and object reuse stay
+  intact.
+- Add no new derived index; preserve relationship validation, deduplication,
+  sorted unknown-ID errors, and exact validation order.
+- Change no public signature, dependency, model, snapshot field, JSON Schema,
+  active-lessons YAML, packaged resource, PostgreSQL DDL, snapshot version 2,
+  or PostgreSQL schema version 1.

@@ -1485,15 +1485,27 @@ class TraceBackedMemoryStore:
         *,
         known_memory_ids: set[str] | None = None,
     ) -> None:
+        referenced_ids = set(log.candidate_memory_ids).union(
+            log.used_memory_ids,
+            log.blocked_memory_ids,
+        )
         if known_memory_ids is None:
-            known_memory_ids = set(self._failure_cases).union(
-                self._lessons,
-                self._project_policies,
+            unknown_ids = sorted(
+                memory_id
+                for memory_id in referenced_ids
+                if memory_id not in self._failure_cases
+                and memory_id not in self._lessons
+                and memory_id not in self._project_policies
             )
-        referenced_ids = set(log.candidate_memory_ids).union(log.used_memory_ids, log.blocked_memory_ids)
-        unknown_ids = sorted(referenced_ids.difference(known_memory_ids))
+        else:
+            unknown_ids = sorted(
+                referenced_ids.difference(known_memory_ids)
+            )
         if unknown_ids:
-            raise ValueError(f"usage log references unknown memory IDs: {', '.join(unknown_ids)}")
+            raise ValueError(
+                "usage log references unknown memory IDs: "
+                + ", ".join(unknown_ids)
+            )
 
     def _validate_usage_log_trace(
         self,

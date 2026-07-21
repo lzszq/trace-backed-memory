@@ -44,6 +44,28 @@ jobs:
           .package-smoke/bin/python -c "from trace_backed_memory import TraceBackedMemoryStore; TraceBackedMemoryStore().save_json('dist/empty.snapshot.json')"
           .package-smoke/bin/tbm snapshot validate dist/empty.snapshot.json
           .package-smoke/bin/python -m trace_backed_memory snapshot stats dist/empty.snapshot.json
+          .package-smoke/bin/python - <<'PY'
+          import json
+          from pathlib import Path
+
+          context = {
+              "mode": "regression",
+              "repo": "repo_package_smoke",
+              "commit_sha": "commit_package_smoke",
+              "model": "model-new",
+          }
+          change_set = {
+              "field_changes": [{
+                  "field_name": "model",
+                  "old_value": "model-old",
+                  "new_value": "model-new",
+              }]
+          }
+          Path("dist/pr-context.json").write_text(json.dumps(context), encoding="utf-8")
+          Path("dist/pr-change-set.json").write_text(json.dumps(change_set), encoding="utf-8")
+          PY
+          .package-smoke/bin/tbm pr-report dist/empty.snapshot.json dist/pr-context.json dist/pr-change-set.json --repo-path . > dist/pr-report.wheel.json
+          .package-smoke/bin/python -c "import json; from pathlib import Path; payload = json.loads(Path('dist/pr-report.wheel.json').read_text()); assert payload['commit_ancestry']['commit_relations'] == []; assert payload['report']['related_case_ids'] == []"
           DECISION_ID=$(.package-smoke/bin/python -c "from trace_backed_memory import MemoryContext, MemoryDecision, Trace, TraceBackedMemoryStore; store = TraceBackedMemoryStore(); trace = store.record_trace(Trace(trace_id='trace_package_smoke', run_id='run_package_smoke', commit_sha='commit_package_smoke', repo='repo_package_smoke')); log = store.log_decision(trace.run_id, MemoryContext(mode='repair', repo='repo_package_smoke', commit_sha=trace.commit_sha), [], MemoryDecision(use_memory=False, allowed_memory_ids=[], blocked_memory_ids=[], reason='no applicable memory', risk='none', recommended_injection='none')); store.save_json('dist/pending.snapshot.json'); print(log.decision_id)")
           .package-smoke/bin/tbm complete dist/pending.snapshot.json trace_package_smoke "$DECISION_ID" --eval-result pass --write
           .package-smoke/bin/python -c "from trace_backed_memory import TraceBackedMemoryStore; store = TraceBackedMemoryStore.load_json('dist/pending.snapshot.json'); assert store.memory_run_audits()[0].status == 'complete'"
@@ -72,3 +94,5 @@ jobs:
           cmp schemas/postgres.sql dist/postgres.sdist.sql
           .sdist-smoke/bin/python -m trace_backed_memory complete-batch --help
           .sdist-smoke/bin/python -m trace_backed_memory complete-batch dist/pending-batch.snapshot.json dist/measurements.json
+          .sdist-smoke/bin/python -m trace_backed_memory pr-report dist/empty.snapshot.json dist/pr-context.json dist/pr-change-set.json --repo-path . > dist/pr-report.sdist.json
+          .sdist-smoke/bin/python -c "import json; from pathlib import Path; payload = json.loads(Path('dist/pr-report.sdist.json').read_text()); assert payload['commit_ancestry']['commit_relations'] == []; assert payload['report']['related_case_ids'] == []"

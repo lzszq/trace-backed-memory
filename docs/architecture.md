@@ -835,6 +835,24 @@ source commit, and finally excludes explicitly false relations before building
 case IDs, suggestions, warnings, and provenance. Missing evidence therefore
 fails closed, while harmless extra valid evidence remains allowed.
 
+The read-only CLI adapter exposes `pr-report SNAPSHOT CONTEXT_JSON
+CHANGE_SET_JSON --repo-path REPO_PATH`. It strictly maps `CONTEXT_JSON` to a
+validated `MemoryContext` and the exact `field_changes` objects in
+`CHANGE_SET_JSON` to one immutable `PRChangeSet`. The adapter calls
+`pr_report_commit_anchors()`, releases the Store lock, calls
+`capture_commit_ancestry()` against the explicit repository, and then calls
+`pr_memory_report()` with that same change-set object and evidence. It emits a
+deterministic envelope containing `commit_ancestry` and `report` and never
+calls `save_json()`.
+
+Git capture disables lazy fetch and places an option terminator before revision
+arguments. Missing objects and other Git failures are state errors rather than
+silently unfiltered reports. The CLI does not expose broad `changed_fields`,
+accept supplied ancestry evidence, infer a repository, or compare with `HEAD`.
+Input documents retain the bounded CLI JSON contract. This adapter adds no
+record or schema: snapshot version 2, JSON Schemas, active-lessons YAML,
+packaged resource bytes, and PostgreSQL schema version 1 remain unchanged.
+
 Change sets and endpoint tags are ephemeral report-boundary values. They are
 not serialized or stored: snapshot version remains 2, JSON Schemas and
 active-lessons YAML remain unchanged, and PostgreSQL schema version remains 1.

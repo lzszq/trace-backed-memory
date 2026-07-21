@@ -572,6 +572,22 @@ field-name-only behavior, including legacy `model_family` warnings. Change
 sets and endpoint tags are ephemeral report inputs and outputs, not persisted
 records or schema extensions.
 
+For CI, use the read-only `pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON
+--repo-path REPO_PATH` command. `CONTEXT_JSON` must be an exact validated
+`MemoryContext` object, and `CHANGE_SET_JSON` must contain exact
+`field_changes` entries. The command must pass the same immutable
+`PRChangeSet` to `pr_report_commit_anchors()` and `pr_memory_report()`, with
+`capture_commit_ancestry()` against the explicitly named repository between
+those calls. Do not add `--write`, supplied ancestry, implicit Git fetching, or
+legacy broad changed fields to this command.
+
+Treat malformed documents and change sets as input errors. Treat missing Git
+objects and other ancestry capture failures as state errors; never continue
+with an unfiltered report. The canonical output must retain both
+`commit_ancestry` and `report`. The command persists nothing and leaves
+snapshot version 2, JSON Schemas, active-lessons YAML, packaged resource bytes,
+and PostgreSQL schema version 1 unchanged.
+
 When `memory_caused_failure` is true, persisted evidence must include a
 non-null `eval_result` of `fail` or `error` and at least one used memory ID.
 

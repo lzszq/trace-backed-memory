@@ -4,7 +4,7 @@ import argparse
 import json
 import math
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from pathlib import Path
 from typing import Any, Sequence, TextIO
 
@@ -15,7 +15,14 @@ from ._ingestion import (
     CLI_JSON_MAX_NODES,
     read_bounded_utf8,
 )
-from .models import MemoryRunCompletion, MemoryRunResult
+from .capture import CommitAncestryCaptureError, capture_commit_ancestry
+from .models import (
+    MemoryContext,
+    MemoryRunCompletion,
+    MemoryRunResult,
+    PRChangeSet,
+)
+from .policy import validate_memory_context
 from .resources import (
     PackagedResource,
     PackagedResourceError,
@@ -27,6 +34,10 @@ from .store import TraceBackedMemoryStore
 
 
 _ERROR_MESSAGE_MAX_CHARS = 2048
+_MEMORY_CONTEXT_FIELDS = frozenset(
+    field.name for field in fields(MemoryContext)
+)
+_MEMORY_CONTEXT_REQUIRED_FIELDS = ("mode", "repo", "commit_sha")
 
 
 class CLIUsageError(ValueError):
@@ -63,7 +74,7 @@ def _parse_finite_float(value: str) -> float:
 def _build_parser() -> argparse.ArgumentParser:
     parser = _JSONArgumentParser(
         prog="tbm",
-        description="Operate trace-backed-memory snapshots and resources.",
+        description="Operate trace-backed-memory snapshots, reports, and resources.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -115,6 +126,29 @@ def _build_parser() -> argparse.ArgumentParser:
     ):
         subcommand = commands.add_parser(command, help=help_text)
         subcommand.add_argument("snapshot", type=Path)
+
+    pr_report = commands.add_parser(
+        "pr-report",
+        help="Generate an endpoint-aware, ancestry-filtered PR report.",
+    )
+    pr_report.add_argument("snapshot", type=Path)
+    pr_report.add_argument(
+        "context_json",
+        type=Path,
+        metavar="CONTEXT_JSON",
+    )
+    pr_report.add_argument(
+        "change_set_json",
+        type=Path,
+        metavar="CHANGE_SET_JSON",
+    )
+    pr_report.add_argument(
+        "--repo-path",
+        type=Path,
+        required=True,
+        metavar="REPO_PATH",
+        help="Git repository containing the current and source commits.",
+    )
 
     complete = commands.add_parser(
         "complete",
@@ -368,6 +402,88 @@ def _load_json_file(path: Path, description: str) -> Any:
     return payload
 
 
+def _load_pr_context(path: Path) -> MemoryContext:
+    payload = _load_json_file(path, "PR context")
+    if type(payload) is not dict:
+        raise CLIInputError("PR context JSON must be an object")
+
+    unknown_fields = sorted(set(payload) - _MEMORY_CONTEXT_FIELDS)
+    if unknown_fields:
+        raise CLIInputError(
+            f"PR context has unknown field: {unknown_fields[0]}"
+        )
+    for field_name in _MEMORY_CONTEXT_REQUIRED_FIELDS:
+        if field_name not in payload:
+            raise CLIInputError(
+                f"PR context missing required field: {field_name}"
+            )
+
+    context = MemoryContext(**payload)
+    try:
+        validate_memory_context(context)
+    except ValueError as error:
+        raise CLIInputError(str(error)) from error
+    return context
+
+
+def _load_pr_change_set(path: Path) -> PRChangeSet:
+    payload = _load_json_file(path, "PR change set")
+    if type(payload) is not dict:
+        raise CLIInputError("PR change set JSON must be an object")
+
+    unknown_fields = sorted(set(payload) - {"field_changes"})
+    if unknown_fields:
+        raise CLIInputError(
+            f"PR change set has unknown field: {unknown_fields[0]}"
+        )
+    if "field_changes" not in payload:
+        raise CLIInputError(
+            "PR change set missing required field: field_changes"
+        )
+    field_changes = payload["field_changes"]
+    if type(field_changes) is not list or not field_changes:
+        raise CLIInputError("field_changes must be a non-empty array")
+    if len(field_changes) > CLI_JSON_MAX_ITEMS:
+        raise CLIInputError(
+            "field_changes contains more than "
+            f"{CLI_JSON_MAX_ITEMS} items"
+        )
+
+    required_fields = ("field_name", "old_value", "new_value")
+    changes: list[tuple[str, str | None, str | None]] = []
+    for index, item in enumerate(field_changes, start=1):
+        if type(item) is not dict:
+            raise CLIInputError(f"change {index} must be an object")
+        unknown_item_fields = sorted(set(item) - set(required_fields))
+        if unknown_item_fields:
+            raise CLIInputError(
+                f"change {index} has unknown field: {unknown_item_fields[0]}"
+            )
+        for field_name in required_fields:
+            if field_name not in item:
+                raise CLIInputError(
+                    f"change {index} missing required field: {field_name}"
+                )
+
+        field_name = item["field_name"]
+        if type(field_name) is not str:
+            raise CLIInputError(
+                f"change {index} field_name must be a string"
+            )
+        old_value = item["old_value"]
+        new_value = item["new_value"]
+        for value_name, value in (
+            ("old_value", old_value),
+            ("new_value", new_value),
+        ):
+            if value is not None and type(value) is not str:
+                raise CLIInputError(
+                    f"change {index} {value_name} must be a string or null"
+                )
+        changes.append((field_name, old_value, new_value))
+    return PRChangeSet(tuple(changes))
+
+
 def _load_tool_outputs(path: Path) -> list[dict[str, object]]:
     payload = _load_json_file(path, "tool outputs")
 
@@ -593,6 +709,31 @@ def _execute(
             for remediation in store.memory_run_remediations()
         ]
 
+    if args.command == "pr-report":
+        context = _load_pr_context(args.context_json)
+        change_set = _load_pr_change_set(args.change_set_json)
+        try:
+            anchors = store.pr_report_commit_anchors(
+                context,
+                change_set=change_set,
+            )
+        except ValueError as error:
+            raise CLIInputError(str(error)) from error
+        commit_ancestry = capture_commit_ancestry(
+            context.commit_sha,
+            anchors,
+            repo_path=str(args.repo_path),
+        )
+        report = store.pr_memory_report(
+            context,
+            change_set=change_set,
+            commit_ancestry=commit_ancestry,
+        )
+        return {
+            "commit_ancestry": asdict(commit_ancestry),
+            "report": asdict(report),
+        }
+
     if args.command == "complete":
         completion = store.complete_memory_run(
             trace_id=args.trace_id,
@@ -661,6 +802,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload = _execute(args, store)
     except CLIInputError as error:
         return _emit_error("input", error, 2)
+    except CommitAncestryCaptureError as error:
+        return _emit_error("state", error, 3)
     except ValueError as error:
         return _emit_error("state", error, 3)
     except Exception as error:

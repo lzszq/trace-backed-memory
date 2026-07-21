@@ -58,7 +58,14 @@ def capture_commit_ancestry(
     run = runner or _run_ancestry_command
     relations: list[tuple[str, bool]] = []
     for anchor in sorted(set(anchors)):
-        args = ["git", "merge-base", "--is-ancestor", anchor, current_commit_sha]
+        args = [
+            "git",
+            "merge-base",
+            "--is-ancestor",
+            "--",
+            anchor,
+            current_commit_sha,
+        ]
         return_code = _capture_ancestry_result(
             run, args, repo_path, anchor=anchor, current=current_commit_sha
         )

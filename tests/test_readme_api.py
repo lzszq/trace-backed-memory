@@ -748,6 +748,7 @@ def test_readme_publishes_snapshot_operations_cli_contract():
         "tbm audit SNAPSHOT",
         "tbm metrics SNAPSHOT",
         "tbm remediation SNAPSHOT",
+        "tbm pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON --repo-path REPO_PATH",
         "tbm complete SNAPSHOT TRACE_ID DECISION_ID",
         "tbm complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]",
         "tbm recover-ready SNAPSHOT [--write]",
@@ -918,6 +919,36 @@ def test_readme_publishes_bounded_local_document_ingestion_contract():
         "`max_bytes`",
         "`None`",
         "trusted offline migrations",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]:
+        assert contract.lower() in normalized.lower()
+
+
+def test_readme_publishes_pr_report_cli_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for contract in [
+        "tbm pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON --repo-path REPO_PATH",
+        "`mode`, `repo`, and `commit_sha`",
+        "`field_changes`",
+        "`field_name`",
+        "`old_value`",
+        "`new_value`",
+        "`pr_report_commit_anchors()`",
+        "`capture_commit_ancestry()`",
+        "`pr_memory_report()`",
+        "same immutable `PRChangeSet`",
+        "`commit_ancestry`",
+        "`report`",
+        "read-only",
+        "exit code 2",
+        "exit code 3",
+        "`GIT_NO_LAZY_FETCH=1`",
+        "option terminator",
         "snapshot version 2",
         "PostgreSQL schema version 1",
     ]:

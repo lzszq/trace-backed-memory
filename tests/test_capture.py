@@ -72,8 +72,27 @@ def test_capture_commit_ancestry_sorts_deduplicates_and_records_false():
         commit_relations=(("ancestor", True), ("unrelated", False)),
     )
     assert calls == [
-        ("git", "merge-base", "--is-ancestor", "ancestor", "current"),
-        ("git", "merge-base", "--is-ancestor", "unrelated", "current"),
+        ("git", "merge-base", "--is-ancestor", "--", "ancestor", "current"),
+        ("git", "merge-base", "--is-ancestor", "--", "unrelated", "current"),
+    ]
+
+
+def test_capture_commit_ancestry_places_option_like_revisions_after_terminator():
+    calls: list[tuple[str, ...]] = []
+
+    def runner(args: list[str], _cwd: str | None = None) -> int:
+        calls.append(tuple(args))
+        return 1
+
+    evidence = capture_commit_ancestry(
+        "--octopus",
+        ["--all"],
+        runner=runner,
+    )
+
+    assert evidence.commit_relations == (("--all", False),)
+    assert calls == [
+        ("git", "merge-base", "--is-ancestor", "--", "--all", "--octopus")
     ]
 
 
@@ -137,7 +156,7 @@ def test_capture_commit_ancestry_wraps_command_failures_with_context():
             "current", ["anchor"], repo_path="C:/work/repo", runner=runner
         )
 
-    assert "git merge-base --is-ancestor anchor current" in str(captured.value)
+    assert "git merge-base --is-ancestor -- anchor current" in str(captured.value)
     assert "C:/work/repo" in str(captured.value)
     assert "fatal: bad object anchor" in str(captured.value)
     assert captured.value.__cause__ is failure

@@ -185,6 +185,7 @@ tbm snapshot stats SNAPSHOT
 tbm audit SNAPSHOT
 tbm metrics SNAPSHOT
 tbm remediation SNAPSHOT
+tbm pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON --repo-path REPO_PATH
 tbm complete SNAPSHOT TRACE_ID DECISION_ID --eval-result {pass,fail,error} [--memory-caused-failure true|false] [--output-hash VALUE] [--tool-outputs-file PATH] [--latency-ms INTEGER] [--cost-usd NUMBER] [--error VALUE] [--trace-uri VALUE] [--write]
 tbm complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]
 tbm recover-ready SNAPSHOT [--write]
@@ -220,10 +221,29 @@ returns completions in manifest order. A duplicate decision, unknown decision,
 shared-Trace disagreement, or later invalid item rejects the batch
 all-or-nothing. Like every mutation command, it is a dry-run until `--write`.
 
+`pr-report` is a read-only CI adapter for the endpoint-aware workflow. Its
+strict `CONTEXT_JSON` object requires `mode`, `repo`, and `commit_sha`, accepts
+only the remaining `MemoryContext` fields, and rejects unknown keys.
+`CHANGE_SET_JSON` uses an exact `field_changes` array whose objects contain
+only `field_name`, `old_value`, and `new_value`; endpoint values may be strings
+or JSON `null`. The Store still validates supported unique fields, endpoint
+bounds, old/new differences, and equality between each new value and the
+post-change context.
+
+The command calls `pr_report_commit_anchors()`, captures Git evidence in the
+explicit `--repo-path`, and calls `pr_memory_report()` with the same immutable
+`PRChangeSet`. It never accepts legacy broad `changed_fields`, caller-authored
+ancestry, or `--write`. Git capture uses `GIT_NO_LAZY_FETCH=1` and an option
+terminator before revisions; exit 0 records an ancestor, exit 1 records an
+unrelated commit, and other Git failures stop the report. Success emits
+`commit_ancestry` and `report` in one deterministic JSON object. Document and
+change-set failures use exit code 2; Git capture and report-state failures use
+exit code 3.
+
 Failures emit one structured JSON error to stderr without a traceback. Exit
 codes are `0` for success or a no-op, `1` for an unexpected internal failure,
-`2` for usage/path/encoding/JSON/snapshot input, `3` for a rejected completion
-or recovery state, linkage, attribution, or evidence value, and `4` for a
+`2` for usage/path/encoding/JSON/snapshot input, `3` for a rejected completion,
+recovery, PR report, Git ancestry, linkage, attribution, or evidence state, and `4` for a
 snapshot write failure. Help remains normal human-readable argparse output.
 Error text is capped at 2,048 characters, and successful JSON is serialized
 before persistence. If a downstream pipe closes stdout after `--write`
@@ -231,9 +251,9 @@ commits, the already-persisted operation remains a success rather than
 inviting an unsafe retry.
 
 This interface accepts neither stdin nor remote URLs, PostgreSQL connections,
-or alternate output paths. It adds no persisted CLI state: snapshot version 2,
-active-lessons YAML, JSON Schemas, and PostgreSQL schema version 1 remain
-unchanged.
+or alternate output paths. It adds no persisted CLI or report state: snapshot
+version 2, active-lessons YAML, JSON Schemas, and PostgreSQL schema version 1
+remain unchanged.
 
 ## PostgreSQL Repository
 

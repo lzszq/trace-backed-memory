@@ -8,6 +8,8 @@ import pytest
 
 import trace_backed_memory.cli as cli
 from trace_backed_memory import (
+    CommitAncestryCaptureError,
+    CommitAncestryEvidence,
     FailureCase,
     Lesson,
     MemoryContext,
@@ -178,6 +180,83 @@ def _run(capsys, *args: str) -> tuple[int, object | None, object | None]:
 def _write_measurements(path: Path, measurements: object) -> Path:
     path.write_text(json.dumps(measurements), encoding="utf-8")
     return path
+
+
+def _pr_report_snapshot(tmp_path: Path) -> Path:
+    store = TraceBackedMemoryStore()
+    for endpoint in ("old", "new"):
+        trace = store.record_trace(
+            Trace(
+                trace_id=f"trace_cli_pr_{endpoint}",
+                run_id=f"run_cli_pr_{endpoint}",
+                commit_sha=f"source-{endpoint}",
+                repo="repo_cli",
+                tenant="tenant_cli",
+                model=f"model-{endpoint}",
+                eval_result="fail",
+                tool_calls=[{"name": "search_docs"}],
+                trace_uri=f"trace://cli-pr-{endpoint}",
+            )
+        )
+        store.add_failure_case(
+            FailureCase(
+                case_id=f"case_cli_{endpoint}",
+                source_trace_id=trace.trace_id,
+                commit_sha=trace.commit_sha,
+                failure_type="invalid_tool_argument",
+                symptom="search_docs rejected the request",
+                fix="validate search_docs arguments",
+                fix_commit_sha=f"fix-{endpoint}",
+                regression_passed=True,
+                status="verified",
+            )
+        )
+    path = tmp_path / "pr-report.snapshot.json"
+    store.save_json(path)
+    return path
+
+
+def _pr_report_documents(
+    tmp_path: Path,
+    *,
+    context: object | None = None,
+    change_set: object | None = None,
+) -> tuple[Path, Path]:
+    context_payload = (
+        {
+            "mode": "regression",
+            "repo": "repo_cli",
+            "tenant": "tenant_cli",
+            "commit_sha": "current-pr-head",
+            "tool": "search_docs",
+            "model": "model-new",
+            "failure_type": "invalid_tool_argument",
+        }
+        if context is None
+        else context
+    )
+    change_set_payload = (
+        {
+            "field_changes": [
+                {
+                    "field_name": "model",
+                    "old_value": "model-old",
+                    "new_value": "model-new",
+                }
+            ]
+        }
+        if change_set is None
+        else change_set
+    )
+    context_path = _write_measurements(
+        tmp_path / "pr-context.json",
+        context_payload,
+    )
+    change_set_path = _write_measurements(
+        tmp_path / "pr-change-set.json",
+        change_set_payload,
+    )
+    return context_path, change_set_path
 
 
 def test_cli_resource_commands_list_read_and_export(tmp_path, capsys):
@@ -1880,3 +1959,565 @@ def test_cli_complete_rejects_tool_output_item_budget_without_writing(
     assert error["error"]["kind"] == "input"
     assert "tool outputs JSON contains more than 1 items" in error["error"]["message"]
     assert path.read_bytes() == original
+
+
+def test_cli_pr_report_captures_ancestry_and_reuses_change_set(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    snapshot_path = _pr_report_snapshot(tmp_path)
+    context_path, change_set_path = _pr_report_documents(tmp_path)
+    original_snapshot = snapshot_path.read_bytes()
+    repo_path = tmp_path / "repo"
+    seen_change_sets = []
+    original_anchor_method = TraceBackedMemoryStore.pr_report_commit_anchors
+    original_report_method = TraceBackedMemoryStore.pr_memory_report
+
+    def tracked_anchors(self, context, *, change_set=None):
+        seen_change_sets.append(change_set)
+        return original_anchor_method(self, context, change_set=change_set)
+
+    def tracked_report(
+        self,
+        context,
+        *,
+        changed_fields=None,
+        change_set=None,
+        commit_ancestry=None,
+    ):
+        seen_change_sets.append(change_set)
+        return original_report_method(
+            self,
+            context,
+            changed_fields=changed_fields,
+            change_set=change_set,
+            commit_ancestry=commit_ancestry,
+        )
+
+    def capture(current_commit_sha, anchors, repo_path=None):
+        assert current_commit_sha == "current-pr-head"
+        assert anchors == ("source-new", "source-old")
+        assert repo_path == str(tmp_path / "repo")
+        return CommitAncestryEvidence(
+            current_commit_sha=current_commit_sha,
+            commit_relations=(
+                ("source-new", False),
+                ("source-old", True),
+            ),
+        )
+
+    monkeypatch.setattr(
+        TraceBackedMemoryStore,
+        "pr_report_commit_anchors",
+        tracked_anchors,
+    )
+    monkeypatch.setattr(
+        TraceBackedMemoryStore,
+        "pr_memory_report",
+        tracked_report,
+    )
+    monkeypatch.setattr(cli, "capture_commit_ancestry", capture)
+
+    code, payload, error = _run(
+        capsys,
+        "pr-report",
+        str(snapshot_path),
+        str(context_path),
+        str(change_set_path),
+        "--repo-path",
+        str(repo_path),
+    )
+
+    assert code == 0
+    assert error is None
+    assert len(seen_change_sets) == 2
+    assert seen_change_sets[0] is seen_change_sets[1]
+    assert payload == {
+        "commit_ancestry": {
+            "commit_relations": [
+                ["source-new", False],
+                ["source-old", True],
+            ],
+            "current_commit_sha": "current-pr-head",
+        },
+        "report": {
+            "related_case_ids": ["case_cli_old"],
+            "related_case_provenance": [
+                {
+                    "case_id": "case_cli_old",
+                    "commit_sha": "source-old",
+                    "failure_type": "invalid_tool_argument",
+                    "fix_commit_sha": "fix-old",
+                    "matched_change_endpoint": "old",
+                    "source_trace_id": "trace_cli_pr_old",
+                    "trace_uri": "trace://cli-pr-old",
+                }
+            ],
+            "suggested_regression_tests": [
+                "Run invalid_tool_argument regression for tool "
+                "search_docs before merging."
+            ],
+            "warnings": [
+                "model change touches known failure case "
+                "case_cli_old for search_docs."
+            ],
+        },
+    }
+    assert snapshot_path.read_bytes() == original_snapshot
+
+
+@pytest.mark.parametrize(
+    ("target", "document", "message_fragment"),
+    [
+        ("context", [], "PR context JSON must be an object"),
+        (
+            "context",
+            {
+                "mode": "regression",
+                "repo": "repo_cli",
+                "commit_sha": "current-pr-head",
+                "unknown": "value",
+            },
+            "PR context has unknown field: unknown",
+        ),
+        (
+            "context",
+            {"mode": "regression", "repo": "repo_cli"},
+            "PR context missing required field: commit_sha",
+        ),
+        (
+            "context",
+            {
+                "mode": "regression",
+                "repo": "repo_cli",
+                "commit_sha": "current-pr-head",
+                "model": 1,
+            },
+            "context model must be a non-empty string",
+        ),
+        ("change_set", [], "PR change set JSON must be an object"),
+        (
+            "change_set",
+            {},
+            "PR change set missing required field: field_changes",
+        ),
+        (
+            "change_set",
+            {"field_changes": []},
+            "field_changes must be a non-empty array",
+        ),
+        (
+            "change_set",
+            {
+                "field_changes": [
+                    {"field_name": "model", "old_value": "model-old"}
+                ]
+            },
+            "change 1 missing required field: new_value",
+        ),
+        (
+            "change_set",
+            {
+                "field_changes": [
+                    {
+                        "field_name": "model",
+                        "old_value": "model-old",
+                        "new_value": "model-new",
+                        "unknown": "value",
+                    }
+                ]
+            },
+            "change 1 has unknown field: unknown",
+        ),
+        (
+            "change_set",
+            {
+                "field_changes": [
+                    {
+                        "field_name": "model",
+                        "old_value": 1,
+                        "new_value": "model-new",
+                    }
+                ]
+            },
+            "change 1 old_value must be a string or null",
+        ),
+    ],
+)
+def test_cli_pr_report_rejects_malformed_documents_as_input(
+    tmp_path,
+    capsys,
+    monkeypatch,
+    target,
+    document,
+    message_fragment,
+):
+    snapshot_path = _pr_report_snapshot(tmp_path)
+    if target == "context":
+        context_path, change_set_path = _pr_report_documents(
+            tmp_path,
+            context=document,
+        )
+    else:
+        context_path, change_set_path = _pr_report_documents(
+            tmp_path,
+            change_set=document,
+        )
+    monkeypatch.setattr(
+        cli,
+        "capture_commit_ancestry",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Git capture must not run for invalid input")
+        ),
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "pr-report",
+        str(snapshot_path),
+        str(context_path),
+        str(change_set_path),
+        "--repo-path",
+        str(tmp_path),
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert message_fragment in error["error"]["message"]
+
+
+def test_cli_pr_report_accepts_null_change_endpoint(tmp_path, capsys):
+    snapshot_path = tmp_path / "empty-null-endpoint.snapshot.json"
+    TraceBackedMemoryStore().save_json(snapshot_path)
+    context_path, change_set_path = _pr_report_documents(
+        tmp_path,
+        context={
+            "mode": "regression",
+            "repo": "repo_cli",
+            "commit_sha": "current-pr-head",
+            "model": None,
+        },
+        change_set={
+            "field_changes": [
+                {
+                    "field_name": "model",
+                    "old_value": "model-old",
+                    "new_value": None,
+                }
+            ]
+        },
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "pr-report",
+        str(snapshot_path),
+        str(context_path),
+        str(change_set_path),
+        "--repo-path",
+        str(tmp_path / "unused-for-empty-anchors"),
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["commit_ancestry"] == {
+        "commit_relations": [],
+        "current_commit_sha": "current-pr-head",
+    }
+    assert payload["report"]["related_case_ids"] == []
+
+
+@pytest.mark.parametrize(
+    ("change_set", "message_fragment"),
+    [
+        (
+            {
+                "field_changes": [
+                    {
+                        "field_name": "model_family",
+                        "old_value": "old",
+                        "new_value": "new",
+                    }
+                ]
+            },
+            "unsupported change_set fields: model_family",
+        ),
+        (
+            {
+                "field_changes": [
+                    {
+                        "field_name": "model",
+                        "old_value": "model-old",
+                        "new_value": "model-new",
+                    },
+                    {
+                        "field_name": "model",
+                        "old_value": "other-old",
+                        "new_value": "model-new",
+                    },
+                ]
+            },
+            "duplicate change_set fields: model",
+        ),
+        (
+            {
+                "field_changes": [
+                    {
+                        "field_name": "model",
+                        "old_value": "model-old",
+                        "new_value": "other-new",
+                    }
+                ]
+            },
+            "change_set model new value must match context",
+        ),
+    ],
+)
+def test_cli_pr_report_maps_change_set_domain_errors_to_input(
+    tmp_path,
+    capsys,
+    monkeypatch,
+    change_set,
+    message_fragment,
+):
+    snapshot_path = _pr_report_snapshot(tmp_path)
+    context_path, change_set_path = _pr_report_documents(
+        tmp_path,
+        change_set=change_set,
+    )
+    monkeypatch.setattr(
+        cli,
+        "capture_commit_ancestry",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Git capture must not run for invalid change sets")
+        ),
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "pr-report",
+        str(snapshot_path),
+        str(context_path),
+        str(change_set_path),
+        "--repo-path",
+        str(tmp_path),
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert message_fragment in error["error"]["message"]
+
+
+def test_cli_pr_report_enforces_document_and_item_budgets(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    snapshot_path = _pr_report_snapshot(tmp_path)
+    context_path, change_set_path = _pr_report_documents(tmp_path)
+    monkeypatch.setattr(
+        cli,
+        "CLI_JSON_FILE_MAX_BYTES",
+        len(context_path.read_bytes()) - 1,
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "pr-report",
+        str(snapshot_path),
+        str(context_path),
+        str(change_set_path),
+        "--repo-path",
+        str(tmp_path),
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "PR context file exceeds maximum size" in error["error"]["message"]
+
+    monkeypatch.setattr(cli, "CLI_JSON_FILE_MAX_BYTES", 8 * 1024 * 1024)
+    monkeypatch.setattr(cli, "CLI_JSON_MAX_ITEMS", 1)
+    context_path, change_set_path = _pr_report_documents(
+        tmp_path,
+        change_set={
+            "field_changes": [
+                {
+                    "field_name": "model",
+                    "old_value": "model-old",
+                    "new_value": "model-new",
+                },
+                {
+                    "field_name": "eval_suite",
+                    "old_value": "eval-old",
+                    "new_value": None,
+                },
+            ]
+        },
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "pr-report",
+        str(snapshot_path),
+        str(context_path),
+        str(change_set_path),
+        "--repo-path",
+        str(tmp_path),
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "field_changes contains more than 1 items" in error["error"]["message"]
+
+
+def test_cli_pr_report_maps_git_capture_failure_to_state_without_writing(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    snapshot_path = _pr_report_snapshot(tmp_path)
+    context_path, change_set_path = _pr_report_documents(tmp_path)
+    original = snapshot_path.read_bytes()
+
+    def reject_capture(*_args, **_kwargs):
+        raise CommitAncestryCaptureError("missing PR commit object")
+
+    monkeypatch.setattr(cli, "capture_commit_ancestry", reject_capture)
+
+    code, payload, error = _run(
+        capsys,
+        "pr-report",
+        str(snapshot_path),
+        str(context_path),
+        str(change_set_path),
+        "--repo-path",
+        str(tmp_path),
+    )
+
+    assert code == 3
+    assert payload is None
+    assert error["error"] == {
+        "kind": "state",
+        "message": "missing PR commit object",
+        "type": "CommitAncestryCaptureError",
+    }
+    assert snapshot_path.read_bytes() == original
+
+
+def test_cli_pr_report_maps_report_rejection_to_state_without_writing(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    snapshot_path = _pr_report_snapshot(tmp_path)
+    context_path, change_set_path = _pr_report_documents(tmp_path)
+    original = snapshot_path.read_bytes()
+
+    def capture(current_commit_sha, anchors, repo_path=None):
+        return CommitAncestryEvidence(
+            current_commit_sha,
+            tuple((anchor, True) for anchor in anchors),
+        )
+
+    def reject_report(_store, _context, **_kwargs):
+        raise ValueError("injected PR report state failure")
+
+    monkeypatch.setattr(cli, "capture_commit_ancestry", capture)
+    monkeypatch.setattr(
+        TraceBackedMemoryStore,
+        "pr_memory_report",
+        reject_report,
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "pr-report",
+        str(snapshot_path),
+        str(context_path),
+        str(change_set_path),
+        "--repo-path",
+        str(tmp_path),
+    )
+
+    assert code == 3
+    assert payload is None
+    assert error["error"] == {
+        "kind": "state",
+        "message": "injected PR report state failure",
+        "type": "ValueError",
+    }
+    assert snapshot_path.read_bytes() == original
+
+
+def test_cli_pr_report_requires_explicit_repo_path(tmp_path, capsys):
+    snapshot_path = _pr_report_snapshot(tmp_path)
+    context_path, change_set_path = _pr_report_documents(tmp_path)
+
+    code, payload, error = _run(
+        capsys,
+        "pr-report",
+        str(snapshot_path),
+        str(context_path),
+        str(change_set_path),
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "--repo-path" in error["error"]["message"]
+
+
+def test_module_entry_point_emits_read_only_pr_report(tmp_path):
+    snapshot_path = tmp_path / "empty-pr-report.snapshot.json"
+    TraceBackedMemoryStore().save_json(snapshot_path)
+    original = snapshot_path.read_bytes()
+    context_path, change_set_path = _pr_report_documents(tmp_path)
+    root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    existing_pythonpath = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        item
+        for item in (str(root / "src"), existing_pythonpath)
+        if item
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "trace_backed_memory",
+            "pr-report",
+            str(snapshot_path),
+            str(context_path),
+            str(change_set_path),
+            "--repo-path",
+            str(tmp_path / "not-needed-for-empty-anchors"),
+        ],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    assert result.stdout.count("\n") == 1
+    assert json.loads(result.stdout) == {
+        "commit_ancestry": {
+            "commit_relations": [],
+            "current_commit_sha": "current-pr-head",
+        },
+        "report": {
+            "related_case_ids": [],
+            "related_case_provenance": [],
+            "suggested_regression_tests": [],
+            "warnings": [],
+        },
+    }
+    assert snapshot_path.read_bytes() == original

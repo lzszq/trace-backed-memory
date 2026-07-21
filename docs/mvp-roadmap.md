@@ -556,3 +556,22 @@ Track:
 - Persist no ingestion limit metadata. Preserve snapshot version 2, JSON
   Schemas, active-lessons YAML, packaged resource bytes,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 33: PR report CLI (implemented)
+
+- Add the read-only `pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON
+  --repo-path REPO_PATH` command for CI pipelines.
+- Parse strict bounded context and `field_changes` documents into a validated
+  `MemoryContext` and immutable value-aware `PRChangeSet`; reject unknown,
+  missing, malformed, duplicate, unsupported, or context-mismatched values.
+- Reuse the same change set with `pr_report_commit_anchors()` and
+  `pr_memory_report()`, with `capture_commit_ancestry()` outside the Store lock
+  against the explicit repository.
+- Emit deterministic `commit_ancestry` and `report` output. Keep document
+  failures at exit 2 and Git capture or report-state failures at exit 3.
+- Disable lazy Git fetching and place an option terminator before revision
+  arguments so revision text cannot become a command option.
+- Add no `--write`, legacy changed-fields mode, supplied ancestry input, record,
+  or Schema. Preserve snapshot version 2, JSON Schemas, active-lessons YAML,
+  packaged resource bytes, `schemas/postgres.sql`, and PostgreSQL schema
+  version 1.

@@ -62,11 +62,11 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 运行闭环 | 两阶段 prepare/finalize、单项/批量原子完成、延迟 outcome sealing |
 | 运行编排 | `run_memory_execution()` 同步串联 decision callback、execution callback 与原子完成；`MemoryRunMeasurement` 无需调用方复制 decision ID |
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
-| 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、audit/metrics/remediation、单项与清单式批量 measured completion、dry-run 恢复与显式 `--write` 原子替换 |
+| 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、audit/metrics/remediation、只读 PR report、单项与清单式批量 measured completion、dry-run 恢复与显式 `--write` 原子替换 |
 | 分发资源 | wheel/sdist/editable 内置 18 份 byte-identical Schema、taxonomy 与示例；支持发现、读取、校验元数据和原子导出 |
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类；bounded local document ingestion 对本地 JSON/YAML 先限额再校验，并以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
-| PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配 |
+| PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配，以及可直接接入流水线的 `pr-report` JSON 输出 |
 | 持久化 | 同目录临时文件、落盘同步和原子替换的 JSON snapshot / active lesson YAML；lesson 多段文本保真；可选同步 PostgreSQL Repository |
 
 ## 5. 关键产品流程
@@ -128,6 +128,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - YAML adapter 用于导入/导出 active lessons；新导出使用 literal block，并保留空行、首尾换行与行内空格。
 - 安装后提供 `tbm` console script；`python -m trace_backed_memory` 提供等价入口。
 - CLI 通过现有 snapshot validation、audit、metrics、remediation、completion 和 recovery API 工作，不复制领域规则；`complete` 不推断 outcome、关联 ID、归因或证据，`complete-batch` 由 Store 从 decision 推导 Trace 并整批提交。
+- 只读 `pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON --repo-path REPO_PATH` 将严格 JSON 转为 `MemoryContext` / `PRChangeSet`，依次复用 `pr_report_commit_anchors()`、`capture_commit_ancestry()` 和 `pr_memory_report()`；不接受 `--write` 或调用方伪造的 ancestry。
 - `tbm resource list/read/export` 和 Python resource interface 在不依赖 checkout 路径的情况下提供严格 allowlist 的规范资源；包通过 `py.typed` 声明类型信息。
 - `run_memory_execution()` 提供无第三方依赖的同步 harness 编排；`MemoryRunExecutionError` 保留各阶段的 request/decision 恢复上下文与原始异常，但不自动猜测执行 outcome。
 
@@ -140,7 +141,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-32，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；这些运行时控制不持久化，snapshot version 2 与 PostgreSQL schema version 1 保持不变。测试包括：
+当前版本已完成路线图 Phase 0-33，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出。这些运行时控制不持久化，snapshot version 2 与 PostgreSQL schema version 1 保持不变。测试包括：
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry；

@@ -799,3 +799,22 @@ Track:
 - Preserve the public API, dependencies, snapshot version 2, every JSON Schema,
   active-lessons YAML, all 18 packaged resources, PostgreSQL DDL, and
   PostgreSQL schema version 1.
+
+## Phase 45: Non-negative trace latency (implemented)
+
+- Define `latency_ms` as `None` or a non-negative integer across Trace
+  recording, snapshot reconstruction, execution, and single/batch completion;
+  retain zero as the inclusive boundary.
+- Keep the Store authoritative for the range rule so scalar and manifest CLI
+  negatives remain structured `state` errors with exit code 3 and cannot reach
+  `--write`; malformed input remains exit code 2.
+- Add `minimum: 0` to both Trace Schema copies and the named
+  `traces_latency_ms_non_negative` CHECK to both fresh-install PostgreSQL DDL
+  copies; verify null, zero, and negative behavior on a real database.
+- Preserve existing huge-integer errors by applying the sign check after the
+  JSON serialization bound, and leave the finite `cost_usd` contract unchanged.
+- Document that existing schema-version-1 databases are not migrated in place;
+  direct-SQL operators own an equivalent constraint migration.
+- Preserve public APIs, dependencies, snapshot version 2, active-lessons YAML,
+  all 18 packaged resource names/count, and PostgreSQL schema version 1. The
+  Trace Schema and PostgreSQL DDL bytes intentionally change.

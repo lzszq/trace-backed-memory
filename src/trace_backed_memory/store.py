@@ -2152,6 +2152,8 @@ def _validate_trace(trace: Trace) -> None:
         raise ValueError("latency_ms must be an integer or None")
     if trace.latency_ms is not None:
         _validate_json_integer(trace.latency_ms, "latency_ms")
+        if trace.latency_ms < 0:
+            raise ValueError("latency_ms must be non-negative")
     if trace.cost_usd is not None:
         if not is_finite_number(trace.cost_usd):
             raise ValueError("cost_usd must be a finite number or None")

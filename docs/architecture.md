@@ -94,6 +94,15 @@ The candidate Trace is validated, copied, and validated again before
 replacement. Exact replay is idempotent and the returned Trace is a defensive
 copy.
 
+Trace latency has one domain invariant across persistence modes:
+`latency_ms` is `None` or a non-negative integer, including zero. The shared
+Trace validator checks it after exact-integer and JSON-serialization bounds,
+so record, snapshot reconstruction, callback execution, and single or batch
+completion cannot diverge. Candidate staging keeps a negative value from
+partially updating a Trace or usage outcome. CLI completion delegates this
+domain check to the Store and reports a structured `state` error with exit code
+3; syntax and type failures remain input errors.
+
 ## Layer 2: Failure Case Store
 
 Failure cases are structured postmortems derived from failed traces.
@@ -835,6 +844,17 @@ directly; installed-package users export the same bytes with `tbm resource
 export schemas/postgres.sql postgres.sql`. It locks the one schema metadata row
 and requires schema version 1. This schema is not an in-place migration
 mechanism.
+
+The fresh-install Trace table uses the named
+`traces_latency_ms_non_negative` CHECK, matching `minimum: 0` in the canonical
+and packaged Trace JSON Schema. Existing schema-version-1 databases do not gain
+the CHECK from a package upgrade; direct-SQL operators own that migration,
+while Store construction and repository `load()` reject negative latency.
+`sync()` accepts only a validated Store and therefore never writes a negative
+value, but its additive semantics do not inspect unrelated database-only rows.
+The two canonical/package resource pairs change bytes, but the packaged
+allowlist remains 18 names. Snapshot version 2 and PostgreSQL schema version 1
+remain unchanged because neither stored shape changes.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:

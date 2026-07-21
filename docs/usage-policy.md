@@ -572,6 +572,22 @@ PostgreSQL schema version 1 remain unchanged.
 field remain immutable. Exact replay is idempotent; conflicting, reverse, and
 partial post-completion rewrites are rejected atomically.
 
+Require `latency_ms` to be `None` or a non-negative integer; zero is valid.
+Apply this through the Store's shared Trace validation for direct recording,
+snapshot loading, execution, and every completion path. Do not duplicate the
+range rule in CLI manifest or argparse code: a parsed negative measurement is
+a Store-owned `state` error with exit code 3, while malformed types remain
+`input` errors with exit code 2. Rejection must precede any Trace or usage-log
+commit. Do not change the existing finite-number contract for `cost_usd`.
+
+Keep canonical and packaged `trace.schema.json` at `minimum: 0`, and keep the
+named `traces_latency_ms_non_negative` CHECK in both fresh-install PostgreSQL
+DDL copies. This is not an in-place migration for existing schema-version-1
+databases; operators allowing direct SQL must add the equivalent constraint
+under their own migration policy. The changed Schema/DDL bytes remain two of
+the same 18 packaged resource names. Snapshot version 2, active-lessons YAML,
+and PostgreSQL schema version 1 remain current.
+
 Trace completion never seals a usage decision automatically, and decision
 outcome sealing never changes a Trace. Use the same evaluator result for both
 when using these low-level transitions for separately owned lifecycles or

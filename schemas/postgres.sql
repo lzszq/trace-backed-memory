@@ -44,7 +44,8 @@ CREATE TABLE traces (
     AND NOT jsonb_path_exists(tool_outputs, '$[*] ? (@.type() != "object")')
   ),
   error TEXT,
-  latency_ms INTEGER,
+  latency_ms INTEGER CONSTRAINT traces_latency_ms_non_negative
+    CHECK (latency_ms >= 0),
   cost_usd NUMERIC CHECK (
     cost_usd NOT IN ('NaN'::numeric, 'Infinity'::numeric, '-Infinity'::numeric)
   ),

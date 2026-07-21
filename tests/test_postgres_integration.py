@@ -307,6 +307,35 @@ def test_postgres_cluster_meets_documented_version_floor(
     assert server_version >= 120000
 
 
+def test_postgres_trace_latency_accepts_null_and_zero_but_rejects_negative(
+    postgres_cluster: PostgresCluster,
+):
+    cluster = postgres_cluster
+    cluster.load_schema()
+
+    assert_sql_succeeds(
+        cluster,
+        """
+        INSERT INTO traces(trace_id, run_id, commit_sha, latency_ms)
+        VALUES
+          ('trace_latency_null', 'run_latency_null', 'commit_latency', NULL),
+          ('trace_latency_zero', 'run_latency_zero', 'commit_latency', 0);
+        """,
+    )
+    assert_sql_fails(
+        cluster,
+        """
+        INSERT INTO traces(trace_id, run_id, commit_sha, latency_ms)
+        VALUES ('trace_latency_negative', 'run_latency_negative', 'commit_latency', -1)
+        """,
+        "traces_latency_ms_non_negative",
+    )
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT count(*) FROM traces WHERE latency_ms IS NULL OR latency_ms = 0",
+    ) == "2"
+
+
 def test_postgres_schema_install_is_atomic_and_public(
     postgres_cluster: PostgresCluster,
 ):

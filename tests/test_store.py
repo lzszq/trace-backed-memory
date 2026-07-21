@@ -2119,6 +2119,7 @@ def test_complete_trace_requires_measured_result_without_mutation(
         ("tool_outputs", None),
         ("tool_outputs", [1]),
         ("latency_ms", True),
+        ("latency_ms", -1),
         ("cost_usd", float("inf")),
         ("error", 7),
         ("trace_uri", ""),
@@ -2782,6 +2783,17 @@ def test_complete_memory_runs_validates_inputs_without_partial_mutation():
                     decision_id=second.decision_id,
                     eval_result="pass",
                     tool_outputs=({1: "invalid key"},),  # type: ignore[dict-item]
+                ),
+            )
+        )
+    with pytest.raises(ValueError, match="latency_ms must be non-negative"):
+        store.complete_memory_runs(
+            (
+                valid,
+                tbm.MemoryRunResult(
+                    decision_id=second.decision_id,
+                    eval_result="pass",
+                    latency_ms=-1,
                 ),
             )
         )
@@ -4208,6 +4220,43 @@ def test_runtime_trace_validation_matches_schema_types(
 
     with pytest.raises(ValueError, match=field_name):
         TraceBackedMemoryStore().record_trace(Trace(**values))  # type: ignore[arg-type]
+
+
+def test_runtime_trace_and_snapshot_require_non_negative_latency():
+    store = TraceBackedMemoryStore()
+    recorded_unknown = store.record_trace(
+        Trace(
+            trace_id="trace_unknown_latency",
+            run_id="run_unknown_latency",
+            commit_sha="abc",
+            latency_ms=None,
+        )
+    )
+    recorded = store.record_trace(
+        Trace(
+            trace_id="trace_zero_latency",
+            run_id="run_zero_latency",
+            commit_sha="abc",
+            latency_ms=0,
+        )
+    )
+    assert recorded_unknown.latency_ms is None
+    assert recorded.latency_ms == 0
+
+    with pytest.raises(ValueError, match="latency_ms must be non-negative"):
+        store.record_trace(
+            Trace(
+                trace_id="trace_negative_latency",
+                run_id="run_negative_latency",
+                commit_sha="abc",
+                latency_ms=-1,
+            )
+        )
+
+    snapshot = fully_populated_snapshot()
+    _snapshot_record(snapshot, "traces")["latency_ms"] = -1
+    with pytest.raises(ValueError, match="latency_ms must be non-negative"):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
 
 
 @pytest.mark.parametrize("cost_usd", [float("nan"), float("inf"), float("-inf")])

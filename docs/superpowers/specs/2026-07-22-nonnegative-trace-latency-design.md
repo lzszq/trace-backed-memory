@@ -50,9 +50,11 @@ to encode and decode the same column without a second range implementation.
 
 The project has no in-place migration mechanism. The DDL constraint applies to
 new installations; an existing schema-version-1 database is not altered by a
-package upgrade. Library-owned snapshot loading and synchronization still
-enforce the Store rule. Operators that allow direct SQL into an existing
-database must apply an equivalent constraint under their own migration policy.
+package upgrade. Library-owned snapshot and repository loading reject negative
+rows; synchronization accepts only validated Store input and therefore never
+writes a negative value. Additive sync does not inspect unrelated database-only
+rows. Operators that allow direct SQL into an existing database must apply an
+equivalent constraint under their own migration policy.
 
 ## Compatibility
 
@@ -76,4 +78,3 @@ installed copies. The packaged resource allowlist, names, and count remain 18.
   require the named CHECK while accepting zero and null.
 - Documentation contract tests publish the rule, error boundary, fresh-install
   scope, changed resource bytes, unchanged versions, and Phase 45 maturity.
-

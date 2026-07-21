@@ -2455,6 +2455,12 @@ def test_cli_complete_reports_domain_rejections_without_writing(tmp_path, capsys
             ("--eval-result", "pass", "--output-hash", ""),
             "output_hash",
         ),
+        (
+            first_trace.trace_id,
+            first_decision_id,
+            ("--eval-result", "pass", "--latency-ms", "-1"),
+            "latency_ms must be non-negative",
+        ),
     )
     for trace_id, decision_id, extra_args, message_fragment in cases:
         code, payload, error = _run(
@@ -2776,6 +2782,16 @@ def test_cli_complete_batch_rejects_wrong_field_types_without_writing(
                 }
             ],
             "requires eval_result fail or error",
+        ),
+        (
+            [
+                {
+                    "decision_id": "{decision_id}",
+                    "eval_result": "pass",
+                    "latency_ms": -1,
+                }
+            ],
+            "latency_ms must be non-negative",
         ),
     ],
 )

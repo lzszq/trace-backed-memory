@@ -478,6 +478,33 @@ def test_completion_error_exposes_decision_and_keeps_both_records_pending():
     assert completion.usage_log.eval_result == "pass"
 
 
+def test_negative_latency_completion_error_keeps_execution_pending():
+    store, current, _lesson, context = _execution_store()
+
+    with pytest.raises(tbm.MemoryRunExecutionError) as raised:
+        tbm.run_memory_execution(
+            store,
+            context=context,
+            trace_id=current.trace_id,
+            task="reject impossible latency evidence",
+            decide=lambda _request: _decline_json(),
+            execute=lambda _gated: tbm.MemoryRunMeasurement(
+                eval_result="pass",
+                latency_ms=-1,
+            ),
+        )
+
+    error = raised.value
+    assert error.phase == "completion"
+    assert error.trace_id == current.trace_id
+    assert error.decision_id == error.gated_result.decision_id
+    assert isinstance(error.__cause__, ValueError)
+    assert str(error.__cause__) == "latency_ms must be non-negative"
+    assert store.traces[current.trace_id].eval_result == "unknown"
+    assert store.usage_logs[0].eval_result is None
+    assert store.memory_run_audits()[0].status == "pending"
+
+
 @pytest.mark.parametrize(
     ("phase", "raised_error"),
     [("decision", KeyboardInterrupt()), ("execution", SystemExit(9))],

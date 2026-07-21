@@ -39,7 +39,7 @@
       "enum": ["pass", "fail", "error", "unknown"],
       "default": "unknown"
     },
-    "latency_ms": {"type": ["integer", "null"]},
+    "latency_ms": {"type": ["integer", "null"], "minimum": 0},
     "cost_usd": {"type": ["number", "null"]},
     "error": {"type": ["string", "null"], "minLength": 1},
     "trace_uri": {"type": ["string", "null"], "minLength": 1, "maxLength": 512},

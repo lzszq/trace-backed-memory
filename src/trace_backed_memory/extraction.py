@@ -15,6 +15,12 @@ from .models import FailureCase, Trace
 from .resources import read_packaged_resource
 
 FailureTaxonomy = dict[str, str]
+_REQUIRED_TOOL_ARGUMENT_MARKERS = (
+    "required argument",
+    "required parameter",
+    "required field",
+    "required property",
+)
 
 
 def load_failure_taxonomy(
@@ -45,11 +51,17 @@ def load_failure_taxonomy(
 def classify_failure_type(trace: Trace, *, taxonomy: Mapping[str, str] | None = None) -> str:
     text = _trace_text(trace)
     lower_text = text.lower()
-    lower_tool_error_text = _tool_error_text(trace).lower()
+    lower_tool_error_texts = tuple(
+        error_text.lower() for error_text in _tool_error_texts(trace)
+    )
 
     if "without retrieving" in lower_text or "required context" in lower_text:
         return _taxonomy_checked("missing_required_context", taxonomy)
-    if "invalid argument" in lower_text or "required" in lower_tool_error_text:
+    if "invalid argument" in lower_text or any(
+        marker in lower_tool_error_text
+        for lower_tool_error_text in lower_tool_error_texts
+        for marker in _REQUIRED_TOOL_ARGUMENT_MARKERS
+    ):
         return _taxonomy_checked("invalid_tool_argument", taxonomy)
     if (
         "stale" in lower_text
@@ -106,20 +118,18 @@ def _trace_text(trace: Trace) -> str:
     return " ".join(parts)
 
 
-def _tool_error_text(trace: Trace) -> str:
-    parts: list[str] = []
+def _tool_error_texts(trace: Trace) -> Iterator[str]:
     for record in _tool_records(trace):
         value = record.get("error")
         if value is not None:
-            parts.append(str(value))
-    return " ".join(parts)
+            yield str(value)
 
 
 def _symptom(trace: Trace, failure_type: str) -> str:
     tool_names = [
         str(record["name"])
         for record in trace.tool_calls
-        if record.get("name")
+        if record.get("name") and record.get("error")
     ]
     if not tool_names:
         tool_names = [

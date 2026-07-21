@@ -41,6 +41,69 @@ def test_classifies_invalid_tool_argument_from_tool_output_error():
     assert classify_failure_type(trace) == "invalid_tool_argument"
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        "Missing required argument: query",
+        "Required parameter 'query' was not supplied",
+        "Required field: query",
+        "'query' is a required property",
+    ],
+)
+@pytest.mark.parametrize("record_field", ["tool_calls", "tool_outputs"])
+def test_classifies_only_explicit_required_tool_argument_markers(
+    error: str, record_field: str
+):
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="error",
+        **{record_field: [{"name": "search_docs", "error": error}]},
+    )
+
+    assert classify_failure_type(trace) == "invalid_tool_argument"
+
+
+@pytest.mark.parametrize(
+    ("eval_result", "error", "expected"),
+    [
+        ("fail", "Required permission denied", "evaluator_mismatch"),
+        ("error", "Authentication is required", "unknown"),
+    ],
+)
+@pytest.mark.parametrize("record_field", ["tool_calls", "tool_outputs"])
+def test_required_non_argument_tool_errors_use_existing_fallbacks(
+    eval_result: str, error: str, expected: str, record_field: str
+):
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result=eval_result,
+        **{record_field: [{"name": "secure_lookup", "error": error}]},
+    )
+
+    assert classify_failure_type(trace) == expected
+
+
+def test_required_argument_marker_does_not_span_separate_tool_errors():
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="error",
+        tool_calls=[
+            {"name": "search_docs", "error": "Additional approval is required"}
+        ],
+        tool_outputs=[
+            {"name": "audit_log", "error": "Argument logging failed"}
+        ],
+    )
+
+    assert classify_failure_type(trace) == "unknown"
+
+
 def test_non_error_tool_output_content_does_not_influence_classification():
     trace = Trace(
         trace_id="trace_001",
@@ -99,12 +162,17 @@ def test_trace_error_precedence_is_preserved_for_tool_output_errors():
         tool_outputs=[
             {
                 "name": "search_docs",
-                "error": "Invalid argument: query is required",
+                "error": "Required field: query",
             }
         ],
     )
 
     assert classify_failure_type(trace) == "missing_required_context"
+    case = draft_failure_case_from_trace(trace, case_id="case_001")
+    assert case.symptom == (
+        "missing_required_context: tool call failed for search_docs"
+    )
+    assert case.root_cause == "Required context is missing before answering."
 
 
 def test_classifier_covers_stale_context_with_repository_taxonomy():
@@ -203,6 +271,78 @@ def test_drafts_failure_case_from_tool_output_evidence():
     assert case.failure_type == "invalid_tool_argument"
     assert case.symptom == "invalid_tool_argument: tool call failed for search_docs"
     assert case.root_cause == "Invalid argument: query is required"
+
+
+def test_successful_named_tool_call_does_not_replace_trace_error_symptom():
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="error",
+        error="Model provider timed out.",
+        tool_calls=[
+            {
+                "name": "search_docs",
+                "arguments": {"query": "billing policy"},
+            }
+        ],
+    )
+
+    case = draft_failure_case_from_trace(trace, case_id="case_001")
+
+    assert case.failure_type == "unknown"
+    assert case.symptom == "unknown: Model provider timed out."
+    assert case.root_cause == "Model provider timed out."
+
+
+def test_successful_named_tool_call_without_error_uses_trace_fallback_symptom():
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="fail",
+        tool_calls=[
+            {
+                "name": "search_docs",
+                "arguments": {"query": "billing policy"},
+            }
+        ],
+    )
+
+    case = draft_failure_case_from_trace(trace, case_id="case_001")
+
+    assert case.failure_type == "evaluator_mismatch"
+    assert case.symptom == "evaluator_mismatch: trace trace_001 failed"
+    assert case.root_cause is None
+
+
+def test_failed_tool_output_names_symptom_after_successful_named_call():
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="error",
+        tool_calls=[
+            {
+                "name": "search_docs",
+                "arguments": {"query": "billing policy"},
+            }
+        ],
+        tool_outputs=[
+            {
+                "name": "write_report",
+                "error": "Required field: destination",
+            }
+        ],
+    )
+
+    case = draft_failure_case_from_trace(trace, case_id="case_001")
+
+    assert case.failure_type == "invalid_tool_argument"
+    assert case.symptom == (
+        "invalid_tool_argument: tool call failed for write_report"
+    )
+    assert case.root_cause == "Required field: destination"
 
 
 def test_tool_call_evidence_precedes_tool_output_evidence_in_drafts():

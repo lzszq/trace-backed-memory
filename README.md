@@ -127,6 +127,13 @@ label its symptom, but a successful output name, arbitrary output fields, and
 nested result text are never searched for keywords. Ordinary tool content
 therefore cannot create a false classification or tool-failure symptom.
 
+A tool-call name may label a tool-failure symptom only when that same call has
+truthy top-level `error` evidence; a successful named call is not blamed for a
+later Trace or output failure. The generic word `required` is not an argument
+error signal by itself. In addition to explicit `invalid argument` text, only
+the conservative `required argument`, `required parameter`, `required field`,
+and `required property` tool-error markers select `invalid_tool_argument`.
+
 The dependency-free failure-taxonomy and active-lessons YAML adapters reject
 duplicate supported fields instead of silently applying last-key-wins
 replacement. Duplicate lesson record or scope keys fail while the complete

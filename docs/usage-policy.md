@@ -134,6 +134,12 @@ or quoted content that does not describe the current run. Trace errors retain
 precedence over tool calls, and tool-call errors retain precedence over
 tool-output errors when selecting a root cause. An output `name` may label a
 tool-failure symptom only when that output has a non-empty top-level `error`.
+A tool-call name follows the same rule: without truthy top-level `error`
+evidence it must not label a later Trace or output failure. Treat explicit
+`invalid argument` text and the narrow `required argument`, `required
+parameter`, `required field`, or `required property` tool-error markers as
+argument failures. Do not classify permission or authentication text from the
+bare word `required`.
 
 Caller-owned failure-taxonomy and active-lessons YAML must use the repository's
 constrained shapes. Duplicate taxonomy descriptions, lesson record fields, or

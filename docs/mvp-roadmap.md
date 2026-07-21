@@ -890,3 +890,16 @@ Track:
   own cleanup of out-of-contract whitespace-only rows.
 - Preserve public signatures, dependencies, PostgreSQL DDL, and PostgreSQL
   schema version 1.
+
+## Phase 50: Conservative failure extraction accuracy (implemented)
+
+- Require truthy top-level `error` evidence on a tool call before its name can
+  label a tool-failure symptom; otherwise fall through to an errored output,
+  `Trace.error`, or the trace-ID fallback.
+- Keep explicit `invalid argument` evidence, but replace the bare `required`
+  shortcut with `required argument`, `required parameter`, `required field`,
+  and `required property` tool-error markers.
+- Preserve missing-context precedence, every later taxonomy fallback, stored
+  evidence order, symptom wording, and root-cause priority.
+- Change no public signature, dependency, model, snapshot field, JSON Schema,
+  active-lessons YAML, packaged resource, PostgreSQL DDL, or schema version 1.

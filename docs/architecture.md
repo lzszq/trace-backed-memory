@@ -138,6 +138,12 @@ output's `name` may label its symptom, but successful output names, arbitrary
 output fields, and nested payload content are not searched. Successful tool
 data therefore cannot match a classifier keyword or produce a false
 tool-failure symptom.
+A tool-call name labels a symptom only when that call carries truthy top-level
+`error` evidence. Explicit `invalid argument` text remains authoritative, but
+the word `required` selects `invalid_tool_argument` only in the conservative
+`required argument`, `required parameter`, `required field`, or
+`required property` markers. Permission and authentication requirements retain
+the existing evaluator/unknown fallback instead of becoming argument failures.
 `review_failure_case()` keeps ambiguous or heuristic drafts in `draft` status
 while recording reviewer, root cause, notes, and timestamp. Only draft cases can
 become verified, and a case still needs fix and regression evidence before that

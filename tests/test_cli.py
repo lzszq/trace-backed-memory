@@ -4129,6 +4129,51 @@ def test_cli_pr_report_rejects_malformed_documents_as_input(
     assert message_fragment in error["error"]["message"]
 
 
+def test_cli_pr_report_rejects_duplicate_context_key_before_git(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    snapshot_path = _pr_report_snapshot(tmp_path)
+    context_path, change_set_path = _pr_report_documents(tmp_path)
+    context_path.write_text(
+        """
+        {
+          "mode": "regression",
+          "mode": "production",
+          "repo": "repo_cli",
+          "commit_sha": "current-pr-head"
+        }
+        """,
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        cli,
+        "capture_commit_ancestry",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Git capture must not run for duplicate JSON keys")
+        ),
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "pr-report",
+        str(snapshot_path),
+        str(context_path),
+        str(change_set_path),
+        "--repo-path",
+        str(tmp_path),
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert (
+        "PR context JSON contains duplicate object key: mode"
+        in error["error"]["message"]
+    )
+
+
 def test_cli_pr_report_accepts_null_change_endpoint(tmp_path, capsys):
     snapshot_path = tmp_path / "empty-null-endpoint.snapshot.json"
     TraceBackedMemoryStore().save_json(snapshot_path)

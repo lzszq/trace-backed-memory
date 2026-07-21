@@ -14,6 +14,7 @@ from ._ingestion import (
     CLI_JSON_MAX_ITEMS,
     CLI_JSON_MAX_NODES,
     read_bounded_utf8,
+    unique_json_object_pairs,
 )
 from .capture import CommitAncestryCaptureError, capture_commit_ancestry
 from .models import (
@@ -449,14 +450,10 @@ def _load_json_file(path: Path, description: str) -> Any:
         )
 
     def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        result: dict[str, Any] = {}
-        for key, value in pairs:
-            if key in result:
-                raise CLIInputError(
-                    f"{description} JSON contains duplicate object key: {key}"
-                )
-            result[key] = value
-        return result
+        try:
+            return unique_json_object_pairs(pairs, description=description)
+        except ValueError as error:
+            raise CLIInputError(str(error)) from error
 
     try:
         payload: Any = json.loads(

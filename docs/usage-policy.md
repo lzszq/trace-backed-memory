@@ -123,6 +123,13 @@ semantic failures leave existing Store state unchanged. These checks add no
 persisted evidence and leave snapshot version 2, JSON Schemas, active-lessons
 YAML, and PostgreSQL schema version 1 unchanged.
 
+Apply the same rule to caller-owned JSON. `TraceBackedMemoryStore.load_json()`,
+`parse_memory_context()`, `parse_memory_decision()`, and CLI JSON file parsing
+must reject duplicate object keys at every nesting level before conversion to
+a mapping; never rely on last-key-wins for identity, provenance, scope, safety,
+or Gate fields. Valid JSON and Mapping inputs remain compatible, and the rule
+changes no snapshot version 2 or PostgreSQL schema version 1.
+
 Persist local snapshots and active lessons only through `save_json()` and
 `save_lessons_yaml()`. Both write canonical LF text to a sibling temporary
 file, flush it, call `os.fsync()`, and publish atomically. Replacement uses

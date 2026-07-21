@@ -69,6 +69,8 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配，以及可直接接入流水线的 `pr-report` JSON 输出 |
 | 持久化 | 同目录临时文件、落盘同步和原子替换的 JSON snapshot / active lesson YAML；lesson 多段文本保真；可选同步 PostgreSQL Repository；五表锁后 `count(*)` count preflight 在记录物化前限制数据库加载规模 |
 
+所有 caller-owned JSON 都在转换为普通 mapping 前执行对象键唯一性检查：`TraceBackedMemoryStore.load_json()`、`parse_memory_context()`、`parse_memory_decision()` 和 CLI JSON 文件解析会在任意嵌套层拒绝 duplicate object keys，不采用 last-key-wins。有效 JSON、直接 Mapping 输入、snapshot version 2 与 PostgreSQL schema version 1 保持兼容。
+
 ## 5. 关键产品流程
 
 ### 5.1 安全运行时记忆
@@ -147,7 +149,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-42，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，在记录物化前拒绝超限数据库；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`。该 guard 不限制单个 JSONB/text 值的字节数。Phase 42 仅扩展 PostgreSQL runtime 的并发插入恢复；snapshot version 2、active-lessons YAML、18 份 packaged resource 路径/数量与 PostgreSQL schema version 1 保持不变。
+当前版本已完成路线图 Phase 0-43，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，在记录物化前拒绝超限数据库；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。该 guard 不限制单个 JSONB/text 值的字节数。Phase 43 仅统一严格 JSON object-key 解析；snapshot version 2、active-lessons YAML、18 份 packaged resource 路径/数量与 PostgreSQL schema version 1 保持不变。
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry，包括 1,000 项输入边界、重复项计数、有界 generator 消费与 overflow 零子进程；
@@ -158,6 +160,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - wheel/sdist 资源清单、逐字节 parity、隔离安装、默认 taxonomy、`py.typed` 与 PostgreSQL Schema 导出；
 - callback memory-run execution 的顺序、measurement evidence、异常恢复上下文、Store 错误透传与原子失败；
 - LLM decision ID 列表 50/51 精确边界、direct-call 防绕过与 JSON Schema `maxItems` parity；
+- snapshot、MemoryContext、MemoryDecision 与 CLI JSON 的 top-level/nested duplicate object key 拒绝和 no last-key-wins 契约；
 - 真实临时 PostgreSQL 集群上的 DDL、事务、并发锁和同步；
 - PostgreSQL 五表一致 load snapshot、外部 writer exclusion，以及 failure-case/lesson/project-policy 行锁后的冲突重验证；
 - PostgreSQL 锁后 count preflight 的精确边界、异常计数结果、物化前拒绝、sanitized error wrapping 与既有一致性并发路径；

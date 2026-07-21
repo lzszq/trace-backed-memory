@@ -1440,6 +1440,26 @@ def test_parse_memory_decision_accepts_json_string():
     assert decision.risk == "low"
 
 
+def test_parse_memory_decision_rejects_duplicate_json_object_keys():
+    payload = """
+    {
+      "use_memory": false,
+      "use_memory": true,
+      "allowed_memory_ids": ["lesson_001"],
+      "blocked_memory_ids": [],
+      "reason": "directly relevant",
+      "risk": "low",
+      "recommended_injection": "short_summary"
+    }
+    """
+
+    with pytest.raises(
+        ValueError,
+        match="memory decision JSON contains duplicate object key: use_memory",
+    ):
+        parse_memory_decision(payload)
+
+
 def test_parse_memory_decision_rejects_invalid_enums():
     try:
         parse_memory_decision(
@@ -1737,6 +1757,23 @@ def test_parse_memory_context_accepts_json_string_and_known_fields():
         tool="search_docs",
         tool_schema_version="search_docs_v2",
     )
+
+
+def test_parse_memory_context_rejects_duplicate_json_object_keys():
+    payload = """
+    {
+      "mode": "repair",
+      "mode": "production",
+      "repo": "agent-harness",
+      "commit_sha": "abc123"
+    }
+    """
+
+    with pytest.raises(
+        ValueError,
+        match="memory context JSON contains duplicate object key: mode",
+    ):
+        parse_memory_context(payload)
 
 
 def test_parse_memory_context_rejects_invalid_mode():

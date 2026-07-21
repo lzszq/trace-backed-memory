@@ -136,6 +136,13 @@ duplicate ID or later semantic failure cannot partially import earlier records.
 This hardening changes no valid YAML shape, snapshot version 2, JSON Schema, or
 PostgreSQL schema version 1.
 
+Caller-owned JSON uses the same no-ambiguity rule. At every nesting level,
+`TraceBackedMemoryStore.load_json()`, `parse_memory_context()`,
+`parse_memory_decision()`, and every CLI JSON file parser reject duplicate
+object keys instead of silently applying last-key-wins. Canonical JSON written
+by the package is unaffected. This adds no field and changes no snapshot
+version 2, JSON Schema, packaged resource, or PostgreSQL schema version 1.
+
 `save_json()` and `save_lessons_yaml()` publish through a sibling temporary
 file: they write canonical LF text, flush it, call `os.fsync()`, and then
 publish atomically. Existing Python calls retain `os.replace()` behavior;

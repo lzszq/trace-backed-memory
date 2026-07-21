@@ -5,6 +5,7 @@ import math
 from collections.abc import Mapping
 from typing import Any
 
+from ._ingestion import unique_json_object_pairs
 from .models import MemoryContext, MemoryDecision, MemoryItem
 
 CONTEXT_MODES = {"debug", "repair", "regression", "planning", "eval", "production"}
@@ -735,7 +736,13 @@ def _validated_string_mapping(value: Any, field_name: str) -> dict[str, str]:
 def _json_object(payload: str | Mapping[str, Any], label: str) -> dict[str, Any]:
     if isinstance(payload, str):
         try:
-            data = json.loads(payload)
+            data = json.loads(
+                payload,
+                object_pairs_hook=lambda pairs: unique_json_object_pairs(
+                    pairs,
+                    description=label,
+                ),
+            )
         except json.JSONDecodeError as exc:
             raise ValueError(f"invalid {label} JSON: {exc.msg}") from exc
     else:

@@ -765,3 +765,20 @@ Track:
 - Preserve the public API, snapshot version 2, every JSON Schema,
   active-lessons YAML, all 18 packaged resource paths and bytes, PostgreSQL DDL
   and schema version 1, models, and dependencies.
+
+## Phase 43: Strict JSON object key uniqueness (implemented)
+
+- Add one shared ordered-pairs parser that rejects a duplicate object key on
+  its second occurrence with a document-specific error.
+- Use it for `TraceBackedMemoryStore.load_json()`, `parse_memory_context()`, and
+  `parse_memory_decision()` so top-level and nested objects cannot apply
+  last-key-wins before semantic validation.
+- Reuse the same primitive behind CLI JSON file parsing while preserving its
+  structured `CLIInputError`, exit code 2, count, node, depth, and byte limits.
+- Keep direct Mapping inputs and canonical package-written JSON compatible;
+  JSON object keys and values are not normalized or reinterpreted.
+- Cover duplicate snapshot envelopes, nested records, runtime contexts, LLM
+  decisions, and existing CLI manifests with deterministic regression tests.
+- Preserve the public API, dependencies, snapshot version 2, every JSON Schema,
+  active-lessons YAML, all 18 packaged resources, PostgreSQL DDL, and
+  PostgreSQL schema version 1.

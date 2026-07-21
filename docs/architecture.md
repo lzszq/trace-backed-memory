@@ -302,6 +302,14 @@ Trace linkage. One `complete_memory_runs()` call derives every Trace ID, stages
 the batch all-or-nothing, and returns completions in manifest order. The
 manifest is an ephemeral command input rather than a new persisted schema.
 
+JSON object-name uniqueness is enforced before ordinary dictionaries exist.
+The shared ordered-pairs parser is used by
+`TraceBackedMemoryStore.load_json()`, `parse_memory_context()`, and
+`parse_memory_decision()`, while CLI file parsing preserves its structured
+input-error boundary. Every nesting level rejects duplicate object keys rather
+than applying last-key-wins. Valid mappings and canonical package output are
+unchanged, as are snapshot version 2 and PostgreSQL schema version 1.
+
 `lessons export SNAPSHOT DESTINATION [--overwrite]` delegates active-only
 selection and canonical YAML serialization to `save_lessons_yaml()`. The CLI
 passes `overwrite=False` unless replacement is explicit and rejects a

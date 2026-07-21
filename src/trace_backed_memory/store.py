@@ -24,6 +24,7 @@ from ._ingestion import (
     SNAPSHOT_MAX_RECORDS_PER_COLLECTION,
     SNAPSHOT_MAX_TOTAL_RECORDS,
     read_bounded_utf8,
+    unique_json_object_pairs,
     validate_non_negative_limit,
     validate_snapshot_record_count,
     validate_snapshot_total_record_count,
@@ -278,7 +279,14 @@ class TraceBackedMemoryStore:
             description="memory store snapshot",
         )
         try:
-            data = json.loads(source, parse_constant=_reject_json_constant)
+            data = json.loads(
+                source,
+                parse_constant=_reject_json_constant,
+                object_pairs_hook=lambda pairs: unique_json_object_pairs(
+                    pairs,
+                    description="memory store snapshot",
+                ),
+            )
         except RecursionError as exc:
             raise ValueError("invalid memory store snapshot JSON nesting") from exc
         if not isinstance(data, Mapping):

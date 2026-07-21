@@ -5001,6 +5001,63 @@ def test_load_json_rejects_non_standard_numeric_constants(tmp_path, constant: st
         TraceBackedMemoryStore.load_json(snapshot_path)
 
 
+@pytest.mark.parametrize(
+    ("contents", "duplicate_key"),
+    [
+        (
+            """
+            {
+              "snapshot_version": 1,
+              "snapshot_version": 2,
+              "traces": [],
+              "failure_cases": [],
+              "lessons": [],
+              "project_policies": [],
+              "usage_logs": []
+            }
+            """,
+            "snapshot_version",
+        ),
+        (
+            """
+            {
+              "snapshot_version": 2,
+              "traces": [
+                {
+                  "trace_id": "trace_first",
+                  "trace_id": "trace_second",
+                  "run_id": "run_duplicate",
+                  "commit_sha": "abc"
+                }
+              ],
+              "failure_cases": [],
+              "lessons": [],
+              "project_policies": [],
+              "usage_logs": []
+            }
+            """,
+            "trace_id",
+        ),
+    ],
+)
+def test_load_json_rejects_duplicate_object_keys(
+    tmp_path,
+    contents: str,
+    duplicate_key: str,
+):
+    snapshot_path = tmp_path / "duplicate-keys.json"
+    snapshot_path.write_text(contents, encoding="utf-8")
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "memory store snapshot JSON contains duplicate object key: "
+            f"{duplicate_key}"
+        ),
+    ):
+        TraceBackedMemoryStore.load_json(snapshot_path)
+
+
 def test_snapshot_rejects_string_boolean_safety_fields():
     snapshot = valid_snapshot_dict()
     snapshot["lessons"][0]["sensitive"] = "false"

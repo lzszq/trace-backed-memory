@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 
 SNAPSHOT_FILE_MAX_BYTES = 64 * 1024 * 1024
@@ -14,6 +15,21 @@ CLI_JSON_FILE_MAX_BYTES = 8 * 1024 * 1024
 CLI_JSON_MAX_ITEMS = 10_000
 CLI_JSON_MAX_NODES = 100_000
 CLI_JSON_MAX_DEPTH = 100
+
+
+def unique_json_object_pairs(
+    pairs: list[tuple[str, Any]],
+    *,
+    description: str,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(
+                f"{description} JSON contains duplicate object key: {key}"
+            )
+        result[key] = value
+    return result
 
 
 def read_bounded_utf8(

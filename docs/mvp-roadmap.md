@@ -818,3 +818,17 @@ Track:
 - Preserve public APIs, dependencies, snapshot version 2, active-lessons YAML,
   all 18 packaged resource names/count, and PostgreSQL schema version 1. The
   Trace Schema and PostgreSQL DDL bytes intentionally change.
+
+## Phase 46: Public project-policy obsolescence export (implemented)
+
+- Export the existing `obsolete_project_policy()` lifecycle helper from the
+  package root and include it in `__all__`, matching the documented
+  failure-case and lesson helpers.
+- Keep the root export identical to the lifecycle function rather than adding a
+  wrapper or second transition implementation.
+- Extend the executable README API example and tests across import, behavior,
+  input immutability, source-package identity, and isolated-wheel installation.
+- Preserve Store/CLI lifecycle orchestration and every existing function
+  signature. This additive export does not change models, dependencies,
+  snapshot version 2, JSON Schemas, active-lessons YAML, any of the 18 packaged
+  resource paths or bytes, PostgreSQL DDL, or PostgreSQL schema version 1.

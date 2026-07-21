@@ -311,6 +311,11 @@ evidence is optional. `--tool-outputs-file` reads strict UTF-8 JSON that must be
 an array of objects, and absent evidence flags are not forwarded so the Store
 retains its omission semantics.
 
+The package root exports all three low-level obsolescence functions. In
+particular, `trace_backed_memory.obsolete_project_policy` is the lifecycle
+module function itself, not a wrapper. These pure replacements do not provide
+the Store's lookup, cascade, replay, or atomic batch guarantees.
+
 Before any snapshot-backed dispatch, `recover-batch` checks its submitted
 argument cardinality. More than 10,000 decision IDs or 10,000 attribution
 options is a structured `CLIInputError` with exit code 2. Accepted values then

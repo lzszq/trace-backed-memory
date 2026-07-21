@@ -28,6 +28,7 @@ from trace_backed_memory import (
     memory_item_from_project_policy,
     obsolete_failure_case,
     obsolete_lesson,
+    obsolete_project_policy,
     packaged_resources,
     parse_memory_context,
     review_failure_case,
@@ -735,6 +736,8 @@ def test_readme_additional_public_helpers_still_work():
     assert memory_item_from_project_policy(policy).source_policy_id == "project_policy_001"
     assert obsolete_failure_case(verified).status == "obsolete"
     assert obsolete_lesson(lesson).status == "obsolete"
+    assert obsolete_project_policy(policy).status == "obsolete"
+    assert policy.status == "active"
     request = MemoryObsolescenceRequest("lesson", lesson.lesson_id)
     assert request.memory_kind == "lesson"
     assert request.memory_id == lesson.lesson_id

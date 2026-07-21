@@ -14,6 +14,7 @@ from .lifecycle import (
     memory_item_from_lesson,
     obsolete_failure_case,
     obsolete_lesson,
+    obsolete_project_policy,
     review_failure_case,
     verify_failure_case,
 )
@@ -155,6 +156,7 @@ __all__ = [
     "memory_item_from_project_policy",
     "obsolete_failure_case",
     "obsolete_lesson",
+    "obsolete_project_policy",
     "packaged_resources",
     "parse_memory_context",
     "parse_memory_decision",

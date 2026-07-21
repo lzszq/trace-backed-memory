@@ -486,6 +486,24 @@ def test_project_policy_can_become_policy_memory_item():
     assert memory.sensitive is True
 
 
+def test_project_policy_obsolescence_helper_is_public():
+    from trace_backed_memory import lifecycle
+
+    policy = tbm.ProjectPolicy(
+        policy_id="project_policy_public_obsolescence",
+        policy_text="Planner responses must include a tool-call rationale.",
+        scope={"prompt_family": "planner"},
+    )
+
+    helper = getattr(tbm, "obsolete_project_policy", None)
+
+    assert helper is lifecycle.obsolete_project_policy
+    assert "obsolete_project_policy" in tbm.__all__
+    obsolete = helper(policy)
+    assert obsolete.status == "obsolete"
+    assert policy.status == "active"
+
+
 def test_verified_failure_case_can_become_runtime_memory_item_with_trace_scope():
     trace = Trace(
         trace_id="trace_001",

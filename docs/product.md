@@ -138,6 +138,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - `tbm lessons export SNAPSHOT DESTINATION [--overwrite]` 复用 `save_lessons_yaml()` 的 canonical active-only serializer，默认以原子 no-replace 发布并拒绝 snapshot 文件别名；`tbm lessons import SNAPSHOT SOURCE_YAML [--write]` 复用 `load_lessons_yaml()` 的 8 MiB/10,000 条受限、all-or-nothing 全量暂存与来源校验，默认不改源文件。
 - `tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]` 只输出 ID、前后状态与 case→lesson 级联清单，默认作为 dry-run 预览；转换复用 Store 的 forward-only、幂等和原子级联规则，不回显敏感 memory/Trace 内容，不提供非原子批量循环或 reactivation。
 - `tbm obsolete-batch SNAPSHOT REQUESTS_JSON [--write]` 将受限 strict JSON 转为公开的 `MemoryObsolescenceRequest` tuple，并只调用一次 `obsolete_memories()`；Store 从同一入口状态暂存 failure-case、lesson、project-policy 与完整 cascade，全部校验后一次提交，显式结果保持 request order，重叠 lesson 通过 `affected_count` 去重，默认 dry-run。
+- 根包公开 `obsolete_failure_case()`、`obsolete_lesson()` 与 `obsolete_project_policy()` 三个低层纯转换函数；需要 lookup、cascade、replay 或原子批处理时仍使用 Store API。
 - 只读 `pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON --repo-path REPO_PATH` 将严格 JSON 转为 `MemoryContext` / `PRChangeSet`，依次复用 `pr_report_commit_anchors()`、`capture_commit_ancestry()` 和 `pr_memory_report()`；不接受 `--write` 或调用方伪造的 ancestry。
 - `tbm resource list/read/export` 和 Python resource interface 在不依赖 checkout 路径的情况下提供严格 allowlist 的规范资源；包通过 `py.typed` 声明类型信息。
 - `run_memory_execution()` 提供无第三方依赖的同步 harness 编排；`MemoryRunExecutionError` 保留各阶段的 request/decision 恢复上下文与原始异常，但不自动猜测执行 outcome。
@@ -153,7 +154,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-45，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，在记录物化前拒绝超限数据库；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。该 guard 不限制单个 JSONB/text 值的字节数。Phase 45 将 `latency_ms` 统一为 None 或 non-negative integer，并同步 Trace Schema 与 fresh-install PostgreSQL CHECK；snapshot version 2、active-lessons YAML、18 份 packaged resource 路径/数量与 PostgreSQL schema version 1 保持不变，Trace Schema 与 PostgreSQL DDL 的 canonical/package 字节有意更新。
+当前版本已完成路线图 Phase 0-46，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，在记录物化前拒绝超限数据库；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。该 guard 不限制单个 JSONB/text 值的字节数。Phase 45 将 `latency_ms` 统一为 None 或 non-negative integer，并同步 Trace Schema 与 fresh-install PostgreSQL CHECK；Phase 46 补齐既有 `obsolete_project_policy()` 的根包公开导出，避免已安装用户按文档导入时失败。snapshot version 2、active-lessons YAML、18 份 packaged resource 路径/数量与 PostgreSQL schema version 1 保持不变，Phase 46 不改变任何资源字节。
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry，包括 1,000 项输入边界、重复项计数、有界 generator 消费与 overflow 零子进程；
@@ -164,6 +165,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - wheel/sdist 资源清单、逐字节 parity、隔离安装、默认 taxonomy、`py.typed` 与 PostgreSQL Schema 导出；
 - callback memory-run execution 的顺序、measurement evidence、异常恢复上下文、Store 错误透传与原子失败；
 - `latency_ms` 的 None/zero/non-negative 边界、负值跨 API/CLI/snapshot 拒绝、Trace Schema `minimum: 0` 与真实 PostgreSQL CHECK；
+- 三个低层 obsolescence helper 的根包导出、`__all__`、函数对象身份、输入不可变性与隔离 wheel 导入；
 - LLM decision ID 列表 50/51 精确边界、direct-call 防绕过与 JSON Schema `maxItems` parity；
 - snapshot、MemoryContext、MemoryDecision 与 CLI JSON 的 top-level/nested duplicate object key 拒绝和 no last-key-wins 契约；
 - `recover-batch` 两类 10,000 项精确边界、去重前计数、snapshot 读取前拒绝、structured input exit code 2 与无写入保证；

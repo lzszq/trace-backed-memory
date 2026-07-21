@@ -263,6 +263,11 @@ explicit `--write`; it cannot reactivate records or attach actor/reason
 metadata. The single-item command never synthesizes a batch loop. Multi-record
 obsolescence uses the Store-level all-or-nothing command described below.
 
+All three low-level record transition helpers are exported directly from the
+`trace_backed_memory` package root. They return replaced records without
+mutating their inputs; callers that need lookup, cascade, replay, or atomic
+multi-record behavior should use the Store methods instead.
+
 `obsolete-batch` provides that Store-owned atomic boundary. `REQUESTS_JSON` is
 strict UTF-8 JSON containing a non-empty array of exact objects with only
 `memory_kind` and `memory_id`. Kinds use the canonical `failure_case`, `lesson`,
@@ -1270,6 +1275,7 @@ from trace_backed_memory import (
     memory_item_from_project_policy,
     obsolete_failure_case,
     obsolete_lesson,
+    obsolete_project_policy,
     packaged_resources,
     parse_memory_context,
     parse_memory_decision,
@@ -1465,16 +1471,16 @@ manual_case = draft_failure_case(
 )
 lesson_memory = memory_item_from_lesson(lesson)
 case_memory = memory_item_from_failure_case(verified, trace)
-policy_memory = memory_item_from_project_policy(
-    ProjectPolicy(
-        policy_id="project_policy_001",
-        policy_text="Planner responses must include a tool-call rationale.",
-        scope={"prompt_family": "planner"},
-    )
+policy = ProjectPolicy(
+    policy_id="project_policy_001",
+    policy_text="Planner responses must include a tool-call rationale.",
+    scope={"prompt_family": "planner"},
 )
+policy_memory = memory_item_from_project_policy(policy)
 gate_prompt = build_llm_gate_prompt(context, [lesson_memory], task="repair failed tool call")
 old_case = obsolete_failure_case(verified)
 old_lesson = obsolete_lesson(lesson)
+old_policy = obsolete_project_policy(policy)
 ```
 
 Implemented pieces:

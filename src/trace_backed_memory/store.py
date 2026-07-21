@@ -47,6 +47,7 @@ from .models import (
     MemoryDecision,
     MemoryGateRequest,
     MemoryItem,
+    MemoryObsolescenceRequest,
     MeasuredEvalResult,
     MemoryMetrics,
     MemoryOutcomeMetrics,
@@ -96,6 +97,7 @@ MEMORY_TYPES = {"procedural", "semantic", "episodic", "policy"}
 MODES = {"debug", "repair", "regression", "planning", "eval", "production"}
 DECISION_RISKS = {"none", "low", "medium", "high"}
 RECOMMENDED_INJECTIONS = {"none", "short_summary", "full_case_summary", "pointer_only"}
+MEMORY_KINDS = {"failure_case", "lesson", "project_policy"}
 PR_CHANGE_SET_FIELDS = (
     "prompt_version",
     "prompt_family",
@@ -898,6 +900,106 @@ class TraceBackedMemoryStore:
         )
         self._project_policies[policy_id] = obsolete
         return deepcopy(obsolete)
+
+    @_synchronized
+    def obsolete_memories(
+        self,
+        requests: tuple[MemoryObsolescenceRequest, ...],
+    ) -> tuple[FailureCase | Lesson | ProjectPolicy, ...]:
+        """Atomically obsolete explicit memories and all required dependents."""
+        validated = _validated_memory_obsolescence_requests(requests)
+
+        requested_case_ids: set[str] = set()
+        requested_lesson_ids: set[str] = set()
+        requested_policy_ids: set[str] = set()
+        for request in validated:
+            if request.memory_kind == "failure_case":
+                _stored_record(
+                    self._failure_cases,
+                    request.memory_id,
+                    "failure case",
+                )
+                requested_case_ids.add(request.memory_id)
+            elif request.memory_kind == "lesson":
+                _stored_record(self._lessons, request.memory_id, "lesson")
+                requested_lesson_ids.add(request.memory_id)
+            else:
+                _stored_record(
+                    self._project_policies,
+                    request.memory_id,
+                    "project policy",
+                )
+                requested_policy_ids.add(request.memory_id)
+
+        cascading_case_ids = {
+            case_id
+            for case_id in requested_case_ids
+            if self._failure_cases[case_id].status != "obsolete"
+        }
+        obsolete_cases = {
+            case_id: (
+                current
+                if current.status == "obsolete"
+                else transition_failure_case_to_obsolete(current)
+            )
+            for case_id, current in self._failure_cases.items()
+            if case_id in requested_case_ids
+        }
+        obsolete_lessons = {
+            lesson_id: (
+                current
+                if current.status == "obsolete"
+                else transition_lesson_to_obsolete(current)
+            )
+            for lesson_id, current in self._lessons.items()
+            if lesson_id in requested_lesson_ids
+            or (
+                current.source_case_id in cascading_case_ids
+                and current.status == "active"
+            )
+        }
+        obsolete_policies = {
+            policy_id: (
+                current
+                if current.status == "obsolete"
+                else transition_project_policy_to_obsolete(current)
+            )
+            for policy_id, current in self._project_policies.items()
+            if policy_id in requested_policy_ids
+        }
+
+        for case in obsolete_cases.values():
+            _validate_failure_case(case)
+        for lesson in obsolete_lessons.values():
+            _validate_lesson_record(lesson)
+            validate_lesson_contract(
+                lesson_text=lesson.lesson_text,
+                scope=lesson.scope,
+                confidence=lesson.confidence,
+            )
+        for policy in obsolete_policies.values():
+            _validate_project_policy(policy)
+            validate_lesson_contract(
+                lesson_text=policy.policy_text,
+                scope=policy.scope,
+                confidence=policy.confidence,
+            )
+
+        self._failure_cases.update(obsolete_cases)
+        self._lessons.update(obsolete_lessons)
+        self._project_policies.update(obsolete_policies)
+        result_collections: dict[
+            str,
+            Mapping[str, FailureCase | Lesson | ProjectPolicy],
+        ] = {
+            "failure_case": obsolete_cases,
+            "lesson": obsolete_lessons,
+            "project_policy": obsolete_policies,
+        }
+        return tuple(
+            deepcopy(result_collections[request.memory_kind][request.memory_id])
+            for request in validated
+        )
 
     @_synchronized
     def candidate_memories(
@@ -1736,6 +1838,45 @@ def _stored_record(records: Mapping[str, Any], record_id: str, record_label: str
     if record is None:
         raise ValueError(f"unknown {record_label} ID: {record_id}")
     return record
+
+
+def _validated_memory_obsolescence_requests(
+    requests: Any,
+) -> tuple[MemoryObsolescenceRequest, ...]:
+    if type(requests) is not tuple or not requests:
+        raise ValueError(
+            "memory batch obsolescence requires a non-empty "
+            "MemoryObsolescenceRequest tuple"
+        )
+
+    memory_ids: list[str] = []
+    for request in requests:
+        _require_exact_record(
+            request,
+            MemoryObsolescenceRequest,
+            "memory obsolescence request",
+        )
+        if (
+            type(request.memory_kind) is not str
+            or request.memory_kind not in MEMORY_KINDS
+        ):
+            raise ValueError(
+                "memory_kind must be one of failure_case, lesson, "
+                "or project_policy"
+            )
+        _validate_required_string(
+            request.memory_id,
+            "memory_id",
+            "memory obsolescence requests require",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        memory_ids.append(request.memory_id)
+
+    if len(set(memory_ids)) != len(memory_ids):
+        raise ValueError(
+            "memory batch obsolescence requires unique memory_ids"
+        )
+    return requests
 
 
 def _context_values(context: MemoryContext) -> dict[str, str | None]:

@@ -19,6 +19,7 @@ from .capture import CommitAncestryCaptureError, capture_commit_ancestry
 from .models import (
     Lesson,
     MemoryContext,
+    MemoryObsolescenceRequest,
     MemoryRunCompletion,
     MemoryRunResult,
     PRChangeSet,
@@ -175,6 +176,22 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     obsolete.add_argument("memory_id", metavar="MEMORY_ID")
     obsolete.add_argument(
+        "--write",
+        action="store_true",
+        help="Atomically replace the snapshot after successful obsolescence.",
+    )
+
+    obsolete_batch = commands.add_parser(
+        "obsolete-batch",
+        help="Atomically make a manifest of memories obsolete.",
+    )
+    obsolete_batch.add_argument("snapshot", type=Path)
+    obsolete_batch.add_argument(
+        "requests_json",
+        type=Path,
+        metavar="REQUESTS_JSON",
+    )
+    obsolete_batch.add_argument(
         "--write",
         action="store_true",
         help="Atomically replace the snapshot after successful obsolescence.",
@@ -497,6 +514,60 @@ def _load_lessons_yaml(
         raise CLIInputError(str(error)) from error
 
 
+def _load_obsolescence_requests(
+    path: Path,
+) -> tuple[MemoryObsolescenceRequest, ...]:
+    payload = _load_json_file(path, "obsolescence requests")
+    if type(payload) is not list or not payload:
+        raise CLIInputError(
+            "obsolescence requests JSON must be a non-empty array"
+        )
+    if len(payload) > CLI_JSON_MAX_ITEMS:
+        raise CLIInputError(
+            "obsolescence requests contains more than "
+            f"{CLI_JSON_MAX_ITEMS} items"
+        )
+
+    required_fields = ("memory_kind", "memory_id")
+    allowed_kinds = {"failure_case", "lesson", "project_policy"}
+    requests: list[MemoryObsolescenceRequest] = []
+    for index, item in enumerate(payload, start=1):
+        if type(item) is not dict:
+            raise CLIInputError(f"request {index} must be an object")
+        unknown_fields = sorted(set(item) - set(required_fields))
+        if unknown_fields:
+            raise CLIInputError(
+                f"request {index} has unknown field: {unknown_fields[0]}"
+            )
+        for field_name in required_fields:
+            if field_name not in item:
+                raise CLIInputError(
+                    f"request {index} missing required field: {field_name}"
+                )
+
+        memory_kind = item["memory_kind"]
+        memory_id = item["memory_id"]
+        if type(memory_kind) is not str:
+            raise CLIInputError(
+                f"request {index} memory_kind must be a string"
+            )
+        if memory_kind not in allowed_kinds:
+            raise CLIInputError(
+                f"request {index} has unsupported memory_kind: {memory_kind}"
+            )
+        if type(memory_id) is not str:
+            raise CLIInputError(
+                f"request {index} memory_id must be a string"
+            )
+        requests.append(
+            MemoryObsolescenceRequest(
+                memory_kind=memory_kind,
+                memory_id=memory_id,
+            )
+        )
+    return tuple(requests)
+
+
 def _load_pr_change_set(path: Path) -> PRChangeSet:
     payload = _load_json_file(path, "PR change set")
     if type(payload) is not dict:
@@ -737,6 +808,79 @@ def _obsolescence_payload(
     }
 
 
+def _batch_obsolescence_payload(
+    args: argparse.Namespace,
+    store: TraceBackedMemoryStore,
+) -> dict[str, object]:
+    requests = _load_obsolescence_requests(args.requests_json)
+    collections = {
+        "failure_case": store.failure_cases,
+        "lesson": store.lessons,
+        "project_policy": store.project_policies,
+    }
+    before_records = tuple(
+        collections[request.memory_kind].get(request.memory_id)
+        for request in requests
+    )
+    cascading_case_ids = {
+        request.memory_id
+        for request, before in zip(requests, before_records)
+        if request.memory_kind == "failure_case"
+        and before is not None
+        and before.status != "obsolete"
+    }
+    entry_active_dependents = {
+        lesson_id
+        for lesson_id, lesson in collections["lesson"].items()
+        if lesson.source_case_id in cascading_case_ids
+        and lesson.status == "active"
+    }
+
+    obsolete_records = store.obsolete_memories(requests)
+    if any(before is None for before in before_records):
+        raise RuntimeError("Store batch obsolescence returned an unknown record")
+
+    results: list[dict[str, object]] = []
+    changed_ids: set[str] = set()
+    for request, before, obsolete in zip(
+        requests,
+        before_records,
+        obsolete_records,
+    ):
+        if before is None:
+            raise RuntimeError(
+                "Store batch obsolescence returned an unknown record"
+            )
+        changed = before.status != obsolete.status
+        if changed:
+            changed_ids.add(request.memory_id)
+        results.append(
+            {
+                "changed": changed,
+                "memory_id": request.memory_id,
+                "memory_kind": request.memory_kind,
+                "previous_status": before.status,
+                "status": obsolete.status,
+            }
+        )
+
+    after_lessons = store.lessons
+    cascaded_lesson_ids = sorted(
+        lesson_id
+        for lesson_id in entry_active_dependents
+        if after_lessons[lesson_id].status == "obsolete"
+    )
+    return {
+        "affected_count": len(changed_ids | set(cascaded_lesson_ids)),
+        "cascaded_count": len(cascaded_lesson_ids),
+        "cascaded_lesson_ids": cascaded_lesson_ids,
+        "changed_count": len(changed_ids),
+        "requested_count": len(requests),
+        "results": results,
+        "written": args.write,
+    }
+
+
 def _packaged_resource(name: str) -> PackagedResource:
     read_packaged_resource(name)
     for resource in packaged_resources():
@@ -860,6 +1004,9 @@ def _execute(
 
     if args.command == "obsolete":
         return _obsolescence_payload(args, store)
+
+    if args.command == "obsolete-batch":
+        return _batch_obsolescence_payload(args, store)
 
     if args.command == "pr-report":
         context = _load_pr_context(args.context_json)

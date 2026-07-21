@@ -132,6 +132,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - CLI 通过现有 snapshot validation、audit、metrics、remediation、completion 和 recovery API 工作，不复制领域规则；`complete` 不推断 outcome、关联 ID、归因或证据，`complete-batch` 由 Store 从 decision 推导 Trace 并整批提交。
 - `tbm lessons export SNAPSHOT DESTINATION [--overwrite]` 复用 `save_lessons_yaml()` 的 canonical active-only serializer，默认以原子 no-replace 发布并拒绝 snapshot 文件别名；`tbm lessons import SNAPSHOT SOURCE_YAML [--write]` 复用 `load_lessons_yaml()` 的 8 MiB/10,000 条受限、all-or-nothing 全量暂存与来源校验，默认不改源文件。
 - `tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]` 只输出 ID、前后状态与 case→lesson 级联清单，默认作为 dry-run 预览；转换复用 Store 的 forward-only、幂等和原子级联规则，不回显敏感 memory/Trace 内容，不提供非原子批量循环或 reactivation。
+- `tbm obsolete-batch SNAPSHOT REQUESTS_JSON [--write]` 将受限 strict JSON 转为公开的 `MemoryObsolescenceRequest` tuple，并只调用一次 `obsolete_memories()`；Store 从同一入口状态暂存 failure-case、lesson、project-policy 与完整 cascade，全部校验后一次提交，显式结果保持 request order，重叠 lesson 通过 `affected_count` 去重，默认 dry-run。
 - 只读 `pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON --repo-path REPO_PATH` 将严格 JSON 转为 `MemoryContext` / `PRChangeSet`，依次复用 `pr_report_commit_anchors()`、`capture_commit_ancestry()` 和 `pr_memory_report()`；不接受 `--write` 或调用方伪造的 ancestry。
 - `tbm resource list/read/export` 和 Python resource interface 在不依赖 checkout 路径的情况下提供严格 allowlist 的规范资源；包通过 `py.typed` 声明类型信息。
 - `run_memory_execution()` 提供无第三方依赖的同步 harness 编排；`MemoryRunExecutionError` 保留各阶段的 request/decision 恢复上下文与原始异常，但不自动猜测执行 outcome。
@@ -145,13 +146,13 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-35，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；obsolescence CLI 以非敏感 dry-run 预览复用 forward-only case/lesson/policy 状态与 case→lesson 原子级联。这些运行时控制不持久化，snapshot version 2 与 PostgreSQL schema version 1 保持不变。测试包括：
+当前版本已完成路线图 Phase 0-36，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交。这些运行时控制不持久化，snapshot version 2 与 PostgreSQL schema version 1 保持不变。测试包括：
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry；
 - snapshot/YAML 原子写入、失败清理、多段文本 round trip 与恶意 JSON 边界；
 - tool-output-only 失败提取、错误证据优先级，以及 taxonomy/lesson/scope duplicate 或语义错误 YAML 的 all-or-nothing 导入；
-- CLI structured JSON/exit-code contract、deterministic ordering、active-only lesson export/import、no-replace 与路径别名保护、failure case/lesson/project policy obsolescence 预览、case→lesson cascade、幂等与非敏感输出、单项/批量 fresh measured completion、严格清单和 file-backed tool evidence、dry-run isolation、原子写入、batch all-or-nothing 与 module/console-script smoke；
+- CLI structured JSON/exit-code contract、deterministic ordering、active-only lesson export/import、no-replace 与路径别名保护、failure-case/lesson/project-policy 单项与原子 batch obsolescence、case→lesson cascade、重叠去重、幂等与非敏感输出、单项/批量 fresh measured completion、严格清单和 file-backed tool evidence、dry-run isolation、原子写入、batch all-or-nothing 与 module/console-script smoke；
 - wheel/sdist 资源清单、逐字节 parity、隔离安装、默认 taxonomy、`py.typed` 与 PostgreSQL Schema 导出；
 - callback memory-run execution 的顺序、measurement evidence、异常恢复上下文、Store 错误透传与原子失败；
 - 真实临时 PostgreSQL 集群上的 DDL、事务、并发锁和同步；

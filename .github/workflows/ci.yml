@@ -58,6 +58,8 @@ jobs:
           store.save_json("dist/lessons-source.snapshot.json")
           store.save_json("dist/obsolete-wheel.snapshot.json")
           store.save_json("dist/obsolete-sdist.snapshot.json")
+          store.save_json("dist/obsolete-batch-wheel.snapshot.json")
+          store.save_json("dist/obsolete-batch-sdist.snapshot.json")
           PY
           .package-smoke/bin/tbm lessons export dist/lessons-source.snapshot.json dist/lessons.wheel.yaml > dist/lessons-export.wheel.json
           .package-smoke/bin/tbm lessons import dist/lessons-target-wheel.snapshot.json dist/lessons.wheel.yaml --write > dist/lessons-import.wheel.json
@@ -83,7 +85,11 @@ jobs:
           }
           Path("dist/pr-context.json").write_text(json.dumps(context), encoding="utf-8")
           Path("dist/pr-change-set.json").write_text(json.dumps(change_set), encoding="utf-8")
+          Path("dist/obsolete-batch-wheel.json").write_text(json.dumps([{"memory_kind": "failure_case", "memory_id": "case_lessons_smoke"}, {"memory_kind": "project_policy", "memory_id": "policy_package_smoke"}]), encoding="utf-8")
+          Path("dist/obsolete-batch-sdist.json").write_text(json.dumps([{"memory_kind": "failure_case", "memory_id": "case_lessons_smoke"}, {"memory_kind": "lesson", "memory_id": "lesson_package_smoke"}]), encoding="utf-8")
           PY
+          .package-smoke/bin/tbm obsolete-batch dist/obsolete-batch-wheel.snapshot.json dist/obsolete-batch-wheel.json --write > dist/obsolete-batch.wheel.json
+          .package-smoke/bin/python -c "import json; from pathlib import Path; from trace_backed_memory import TraceBackedMemoryStore; payload = json.loads(Path('dist/obsolete-batch.wheel.json').read_text()); store = TraceBackedMemoryStore.load_json('dist/obsolete-batch-wheel.snapshot.json'); assert payload['affected_count'] == 3; assert payload['changed_count'] == 2; assert payload['cascaded_lesson_ids'] == ['lesson_package_smoke']; assert payload['written'] is True; assert store.failure_cases['case_lessons_smoke'].status == 'obsolete'; assert store.project_policies['policy_package_smoke'].status == 'obsolete'"
           .package-smoke/bin/tbm pr-report dist/empty.snapshot.json dist/pr-context.json dist/pr-change-set.json --repo-path . > dist/pr-report.wheel.json
           .package-smoke/bin/python -c "import json; from pathlib import Path; payload = json.loads(Path('dist/pr-report.wheel.json').read_text()); assert payload['commit_ancestry']['commit_relations'] == []; assert payload['report']['related_case_ids'] == []"
           DECISION_ID=$(.package-smoke/bin/python -c "from trace_backed_memory import MemoryContext, MemoryDecision, Trace, TraceBackedMemoryStore; store = TraceBackedMemoryStore(); trace = store.record_trace(Trace(trace_id='trace_package_smoke', run_id='run_package_smoke', commit_sha='commit_package_smoke', repo='repo_package_smoke')); log = store.log_decision(trace.run_id, MemoryContext(mode='repair', repo='repo_package_smoke', commit_sha=trace.commit_sha), [], MemoryDecision(use_memory=False, allowed_memory_ids=[], blocked_memory_ids=[], reason='no applicable memory', risk='none', recommended_injection='none')); store.save_json('dist/pending.snapshot.json'); print(log.decision_id)")
@@ -113,13 +119,47 @@ jobs:
           .sdist-smoke/bin/python -c "from importlib.resources import files; from trace_backed_memory import load_failure_taxonomy, packaged_resources; assert len(packaged_resources()) == 18; assert 'invalid_tool_argument' in load_failure_taxonomy(); assert files('trace_backed_memory').joinpath('py.typed').is_file()"
           .sdist-smoke/bin/tbm resource export schemas/postgres.sql dist/postgres.sdist.sql
           cmp schemas/postgres.sql dist/postgres.sdist.sql
+          .sdist-smoke/bin/python - <<'PY'
+          import json
+          from pathlib import Path
+          from trace_backed_memory import FailureCase, Lesson, MemoryContext, MemoryDecision, ProjectPolicy, Trace, TraceBackedMemoryStore
+
+          root = Path("dist/sdist-fixtures")
+          root.mkdir()
+          TraceBackedMemoryStore().save_json(root / "empty.snapshot.json")
+
+          store = TraceBackedMemoryStore()
+          trace = store.record_trace(Trace(trace_id="trace_sdist_smoke", run_id="run_sdist_smoke", commit_sha="commit_sdist_smoke", repo="repo_sdist_smoke", eval_result="fail"))
+          case = store.add_failure_case(FailureCase(case_id="case_sdist_smoke", source_trace_id=trace.trace_id, commit_sha=trace.commit_sha, failure_type="executor_failure", symptom="executor timed out", fix="bound executor runtime", fix_commit_sha="fix_sdist_smoke", regression_passed=True, status="verified"))
+          store.save_json(root / "lessons-target.snapshot.json")
+          store.add_lesson(Lesson(lesson_id="lesson_sdist_smoke", source_case_id=case.case_id, lesson_text="Bound executor runtime before retrying.", memory_type="procedural", scope={"repo": trace.repo}))
+          store.add_lesson(Lesson(lesson_id="lesson_sdist_obsolete", source_case_id=case.case_id, lesson_text="Retry immediately.", memory_type="procedural", scope={"repo": trace.repo}, status="obsolete"))
+          store.add_project_policy(ProjectPolicy(policy_id="policy_sdist_smoke", policy_text="Record executor timeout evidence.", scope={"repo": trace.repo}))
+          store.save_json(root / "lessons-source.snapshot.json")
+          store.save_json(root / "obsolete.snapshot.json")
+          store.save_json(root / "obsolete-batch.snapshot.json")
+          (root / "obsolete-batch.json").write_text(json.dumps([{"memory_kind": "failure_case", "memory_id": case.case_id}, {"memory_kind": "lesson", "memory_id": "lesson_sdist_smoke"}]), encoding="utf-8")
+          (root / "pr-context.json").write_text(json.dumps({"mode": "regression", "repo": "repo_sdist_smoke", "commit_sha": "commit_sdist_smoke"}), encoding="utf-8")
+          (root / "pr-change-set.json").write_text(json.dumps({"field_changes": [{"field_name": "model", "old_value": "model-old", "new_value": None}]}), encoding="utf-8")
+
+          pending = TraceBackedMemoryStore()
+          measurements = []
+          for index, eval_result in enumerate(("pass", "error"), start=1):
+              pending_trace = pending.record_trace(Trace(trace_id=f"trace_sdist_batch_{index}", run_id=f"run_sdist_batch_{index}", commit_sha="commit_sdist_smoke", repo="repo_sdist_smoke"))
+              log = pending.log_decision(pending_trace.run_id, MemoryContext(mode="repair", repo=pending_trace.repo, commit_sha=pending_trace.commit_sha), [], MemoryDecision(use_memory=False, allowed_memory_ids=[], blocked_memory_ids=[], reason="no applicable memory", risk="none", recommended_injection="none"))
+              measurements.append({"decision_id": log.decision_id, "eval_result": eval_result})
+          pending.save_json(root / "pending-batch.snapshot.json")
+          (root / "measurements.json").write_text(json.dumps(measurements), encoding="utf-8")
+          PY
           .sdist-smoke/bin/python -m trace_backed_memory complete-batch --help
-          .sdist-smoke/bin/python -m trace_backed_memory complete-batch dist/pending-batch-sdist.snapshot.json dist/measurements.json --write > dist/complete-batch.sdist.json
-          .sdist-smoke/bin/python -c "import json; from pathlib import Path; from trace_backed_memory import TraceBackedMemoryStore; payload = json.loads(Path('dist/complete-batch.sdist.json').read_text()); store = TraceBackedMemoryStore.load_json('dist/pending-batch-sdist.snapshot.json'); assert len(payload['completions']) == 2; assert len(payload['decision_ids']) == 2; assert payload['written'] is True; assert [item.status for item in store.memory_run_audits()] == ['complete', 'complete']"
-          .sdist-smoke/bin/python -m trace_backed_memory pr-report dist/empty.snapshot.json dist/pr-context.json dist/pr-change-set.json --repo-path . > dist/pr-report.sdist.json
-          .sdist-smoke/bin/python -c "import json; from pathlib import Path; payload = json.loads(Path('dist/pr-report.sdist.json').read_text()); assert payload['commit_ancestry']['commit_relations'] == []; assert payload['report']['related_case_ids'] == []"
-          .sdist-smoke/bin/python -m trace_backed_memory lessons export dist/lessons-source.snapshot.json dist/lessons.sdist.yaml > dist/lessons-export.sdist.json
-          .sdist-smoke/bin/python -m trace_backed_memory lessons import dist/lessons-target-sdist.snapshot.json dist/lessons.sdist.yaml --write > dist/lessons-import.sdist.json
-          .sdist-smoke/bin/python -c "import json; from pathlib import Path; from trace_backed_memory import TraceBackedMemoryStore; exported = json.loads(Path('dist/lessons-export.sdist.json').read_text()); imported = json.loads(Path('dist/lessons-import.sdist.json').read_text()); assert exported['exported_count'] == 1; assert imported['imported_lesson_ids'] == ['lesson_package_smoke']; assert imported['written'] is True; assert b'lesson_package_obsolete' not in Path('dist/lessons.sdist.yaml').read_bytes(); assert list(TraceBackedMemoryStore.load_json('dist/lessons-target-sdist.snapshot.json').lessons) == ['lesson_package_smoke']"
-          .sdist-smoke/bin/python -m trace_backed_memory obsolete dist/obsolete-sdist.snapshot.json project-policy policy_package_smoke --write > dist/obsolete.sdist.json
-          .sdist-smoke/bin/python -c "import json; from pathlib import Path; from trace_backed_memory import TraceBackedMemoryStore; payload = json.loads(Path('dist/obsolete.sdist.json').read_text()); store = TraceBackedMemoryStore.load_json('dist/obsolete-sdist.snapshot.json'); assert payload['memory_kind'] == 'project_policy'; assert payload['changed'] is True; assert payload['written'] is True; assert store.project_policies['policy_package_smoke'].status == 'obsolete'"
+          .sdist-smoke/bin/python -m trace_backed_memory complete-batch dist/sdist-fixtures/pending-batch.snapshot.json dist/sdist-fixtures/measurements.json --write > dist/sdist-fixtures/complete-batch.json
+          .sdist-smoke/bin/python -c "import json; from pathlib import Path; from trace_backed_memory import TraceBackedMemoryStore; root = Path('dist/sdist-fixtures'); payload = json.loads((root / 'complete-batch.json').read_text()); store = TraceBackedMemoryStore.load_json(root / 'pending-batch.snapshot.json'); assert len(payload['completions']) == 2; assert len(payload['decision_ids']) == 2; assert payload['written'] is True; assert [item.status for item in store.memory_run_audits()] == ['complete', 'complete']"
+          .sdist-smoke/bin/python -m trace_backed_memory pr-report dist/sdist-fixtures/empty.snapshot.json dist/sdist-fixtures/pr-context.json dist/sdist-fixtures/pr-change-set.json --repo-path . > dist/sdist-fixtures/pr-report.json
+          .sdist-smoke/bin/python -c "import json; from pathlib import Path; payload = json.loads(Path('dist/sdist-fixtures/pr-report.json').read_text()); assert payload['commit_ancestry']['commit_relations'] == []; assert payload['report']['related_case_ids'] == []"
+          .sdist-smoke/bin/python -m trace_backed_memory lessons export dist/sdist-fixtures/lessons-source.snapshot.json dist/sdist-fixtures/lessons.yaml > dist/sdist-fixtures/lessons-export.json
+          .sdist-smoke/bin/python -m trace_backed_memory lessons import dist/sdist-fixtures/lessons-target.snapshot.json dist/sdist-fixtures/lessons.yaml --write > dist/sdist-fixtures/lessons-import.json
+          .sdist-smoke/bin/python -c "import json; from pathlib import Path; from trace_backed_memory import TraceBackedMemoryStore; root = Path('dist/sdist-fixtures'); exported = json.loads((root / 'lessons-export.json').read_text()); imported = json.loads((root / 'lessons-import.json').read_text()); assert exported['exported_count'] == 1; assert imported['imported_lesson_ids'] == ['lesson_sdist_smoke']; assert imported['written'] is True; assert b'lesson_sdist_obsolete' not in (root / 'lessons.yaml').read_bytes(); assert list(TraceBackedMemoryStore.load_json(root / 'lessons-target.snapshot.json').lessons) == ['lesson_sdist_smoke']"
+          .sdist-smoke/bin/python -m trace_backed_memory obsolete dist/sdist-fixtures/obsolete.snapshot.json project-policy policy_sdist_smoke --write > dist/sdist-fixtures/obsolete.json
+          .sdist-smoke/bin/python -c "import json; from pathlib import Path; from trace_backed_memory import TraceBackedMemoryStore; root = Path('dist/sdist-fixtures'); payload = json.loads((root / 'obsolete.json').read_text()); store = TraceBackedMemoryStore.load_json(root / 'obsolete.snapshot.json'); assert payload['memory_kind'] == 'project_policy'; assert payload['changed'] is True; assert payload['written'] is True; assert store.project_policies['policy_sdist_smoke'].status == 'obsolete'"
+          .sdist-smoke/bin/python -m trace_backed_memory obsolete-batch dist/sdist-fixtures/obsolete-batch.snapshot.json dist/sdist-fixtures/obsolete-batch.json --write > dist/sdist-fixtures/obsolete-batch-output.json
+          .sdist-smoke/bin/python -c "import json; from pathlib import Path; from trace_backed_memory import TraceBackedMemoryStore; root = Path('dist/sdist-fixtures'); payload = json.loads((root / 'obsolete-batch-output.json').read_text()); store = TraceBackedMemoryStore.load_json(root / 'obsolete-batch.snapshot.json'); assert payload['affected_count'] == 2; assert payload['changed_count'] == 2; assert payload['cascaded_lesson_ids'] == ['lesson_sdist_smoke']; assert payload['written'] is True; assert store.failure_cases['case_sdist_smoke'].status == 'obsolete'; assert store.lessons['lesson_sdist_smoke'].status == 'obsolete'"

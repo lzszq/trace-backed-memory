@@ -8,6 +8,7 @@ from trace_backed_memory import (
     ProjectPolicy,
     MemoryContext,
     MemoryItem,
+    MemoryObsolescenceRequest,
     PostgresMemoryRepository,
     PRCaseProvenance,
     Trace,
@@ -734,6 +735,9 @@ def test_readme_additional_public_helpers_still_work():
     assert memory_item_from_project_policy(policy).source_policy_id == "project_policy_001"
     assert obsolete_failure_case(verified).status == "obsolete"
     assert obsolete_lesson(lesson).status == "obsolete"
+    request = MemoryObsolescenceRequest("lesson", lesson.lesson_id)
+    assert request.memory_kind == "lesson"
+    assert request.memory_id == lesson.lesson_id
     assert "Candidate memory" in prompt
 
 
@@ -748,6 +752,7 @@ def test_readme_publishes_snapshot_operations_cli_contract():
         "tbm lessons export SNAPSHOT DESTINATION [--overwrite]",
         "tbm lessons import SNAPSHOT SOURCE_YAML [--write]",
         "tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]",
+        "tbm obsolete-batch SNAPSHOT REQUESTS_JSON [--write]",
         "tbm audit SNAPSHOT",
         "tbm metrics SNAPSHOT",
         "tbm remediation SNAPSHOT",
@@ -810,7 +815,31 @@ def test_readme_publishes_memory_obsolescence_cli_contract():
         "successful no-op",
         "preview by default",
         "cannot reactivate",
-        "no CLI batch loop",
+        "single-item command",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]:
+        assert contract in normalized
+
+
+def test_readme_publishes_atomic_batch_obsolescence_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for contract in [
+        "tbm obsolete-batch SNAPSHOT REQUESTS_JSON [--write]",
+        "`MemoryObsolescenceRequest`",
+        "`obsolete_memories()`",
+        "strict UTF-8 JSON",
+        "non-empty array",
+        "10,000-item",
+        "request order",
+        "explicitly requested lesson",
+        "`affected_count`",
+        "all-or-nothing",
+        "dry-run",
         "snapshot version 2",
         "PostgreSQL schema version 1",
     ]:

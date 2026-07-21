@@ -9,6 +9,8 @@ from trace_backed_memory import (
     FailureCase,
     Lesson,
     MemoryContext,
+    MemoryKind,
+    MemoryObsolescenceRequest,
     MemoryUsageLog,
     ProjectPolicy,
     Trace,
@@ -53,7 +55,9 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`python -m trace_backed_memory`",
         "`run_memory_execution()`",
         "`MemoryRunMeasurement`",
-        "Phase 0-35",
+        "`MemoryObsolescenceRequest`",
+        "`obsolete_memories()`",
+        "Phase 0-36",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -85,6 +89,17 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "credentials.json",
     ]:
         assert ignored_secret_pattern in gitignore
+
+
+def test_public_batch_obsolescence_types_are_exact_and_canonical():
+    assert get_args(MemoryKind) == (
+        "failure_case",
+        "lesson",
+        "project_policy",
+    )
+    request = MemoryObsolescenceRequest("failure_case", "case_001")
+    assert request.memory_kind == "failure_case"
+    assert request.memory_id == "case_001"
 
 
 def test_postgres_schema_publishes_adapter_version():
@@ -2115,7 +2130,7 @@ def test_docs_publish_active_lessons_cli_and_compatibility():
     )
 
 
-def test_docs_publish_memory_obsolescence_cli_and_compatibility():
+def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
     documents = {
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/product.md": _doc("product.md"),
@@ -2125,6 +2140,9 @@ def test_docs_publish_memory_obsolescence_cli_and_compatibility():
     }
     required_contracts = [
         "obsolete",
+        "obsolete-batch",
+        "memoryobsolescencerequest",
+        "obsolete_memories()",
         "failure-case",
         "project-policy",
         "forward-only",
@@ -2140,9 +2158,13 @@ def test_docs_publish_memory_obsolescence_cli_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-35" in documents["docs/product.md"]
+    assert "Phase 0-36" in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    assert (
+        "Phase 36: Atomic batch memory obsolescence (implemented)"
         in documents["docs/mvp-roadmap.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
@@ -2151,16 +2173,23 @@ def test_docs_publish_memory_obsolescence_cli_and_compatibility():
         "const": 2,
     }
     assert "obsolescence_commands" not in snapshot_schema["properties"]
+    assert "memory_obsolescence_batches" not in snapshot_schema["properties"]
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
     assert "obsolescence_commands" not in postgres_schema
+    assert "memory_obsolescence_batches" not in postgres_schema
 
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
         encoding="utf-8"
     )
     assert ".package-smoke/bin/tbm obsolete" in workflow
+    assert ".package-smoke/bin/tbm obsolete-batch" in workflow
     assert (
         ".sdist-smoke/bin/python -m trace_backed_memory obsolete"
+        in workflow
+    )
+    assert (
+        ".sdist-smoke/bin/python -m trace_backed_memory obsolete-batch"
         in workflow
     )
 

@@ -1651,6 +1651,149 @@ def test_obsolete_case_cascade_round_trips_through_snapshot():
     assert loaded.lessons[lesson.lesson_id].status == "obsolete"
 
 
+def test_obsolete_memories_atomically_preserves_order_overlap_and_idempotence():
+    store, case, dependent_lessons, unrelated_lesson = store_with_cascade_lessons()
+    active_policy = store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_batch_active",
+            policy_text="Validate every search query.",
+            scope={"repo": "repo", "tool": "search_docs"},
+        )
+    )
+    obsolete_policy = store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_batch_obsolete",
+            policy_text="Retry every invalid query.",
+            scope={"repo": "repo", "tool": "search_docs"},
+            status="obsolete",
+        )
+    )
+    requests = (
+        tbm.MemoryObsolescenceRequest("project_policy", active_policy.policy_id),
+        tbm.MemoryObsolescenceRequest("failure_case", case.case_id),
+        tbm.MemoryObsolescenceRequest("lesson", dependent_lessons[0].lesson_id),
+        tbm.MemoryObsolescenceRequest("project_policy", obsolete_policy.policy_id),
+    )
+
+    results = store.obsolete_memories(requests)
+
+    assert [
+        result.policy_id
+        if isinstance(result, ProjectPolicy)
+        else result.case_id
+        if isinstance(result, FailureCase)
+        else result.lesson_id
+        for result in results
+    ] == [request.memory_id for request in requests]
+    assert [result.status for result in results] == [
+        "obsolete",
+        "obsolete",
+        "obsolete",
+        "obsolete",
+    ]
+    assert store.failure_cases[case.case_id].status == "obsolete"
+    assert [store.lessons[item.lesson_id].status for item in dependent_lessons] == [
+        "obsolete",
+        "obsolete",
+    ]
+    assert store.lessons[unrelated_lesson.lesson_id].status == "active"
+    expected_replay = deepcopy(results)
+    results[0].scope["tool"] = "mutated"
+    assert store.project_policies[active_policy.policy_id].scope["tool"] == "search_docs"
+
+    assert store.obsolete_memories(requests) == expected_replay
+
+
+def test_obsolete_memories_rejects_invalid_or_late_unknown_requests_atomically():
+    store, case, dependent_lessons, _unrelated_lesson = store_with_cascade_lessons()
+    valid = tbm.MemoryObsolescenceRequest(
+        "lesson",
+        dependent_lessons[0].lesson_id,
+    )
+    before = store.to_snapshot()
+
+    with pytest.raises(ValueError, match="non-empty MemoryObsolescenceRequest tuple"):
+        store.obsolete_memories([])  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="non-empty MemoryObsolescenceRequest tuple"):
+        store.obsolete_memories(())
+    with pytest.raises(ValueError, match="exactly a MemoryObsolescenceRequest"):
+        store.obsolete_memories((valid, {"memory_id": "lesson_missing"}))
+    with pytest.raises(ValueError, match="memory_kind must be one of"):
+        store.obsolete_memories(
+            (
+                tbm.MemoryObsolescenceRequest(
+                    "trace",  # type: ignore[arg-type]
+                    "trace_contract",
+                ),
+            )
+        )
+    with pytest.raises(ValueError, match="memory_kind must be one of"):
+        store.obsolete_memories(
+            (
+                tbm.MemoryObsolescenceRequest(
+                    [],  # type: ignore[arg-type]
+                    "lesson_001",
+                ),
+            )
+        )
+    with pytest.raises(ValueError, match="unique memory_ids"):
+        store.obsolete_memories((valid, valid))
+    with pytest.raises(ValueError, match="unknown lesson ID"):
+        store.obsolete_memories(
+            (
+                tbm.MemoryObsolescenceRequest("failure_case", case.case_id),
+                tbm.MemoryObsolescenceRequest("lesson", "lesson_missing"),
+            )
+        )
+    with pytest.raises(ValueError, match="unknown lesson ID"):
+        store.obsolete_memories(
+            (tbm.MemoryObsolescenceRequest("lesson", case.case_id),)
+        )
+    with pytest.raises(FrozenInstanceError):
+        valid.memory_id = "mutated"  # type: ignore[misc]
+
+    assert store.to_snapshot() == before
+
+
+def test_obsolete_memories_rolls_back_on_later_cascade_validation_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    store, case, dependent_lessons, _unrelated_lesson = store_with_cascade_lessons()
+    policy = store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_batch_atomic",
+            policy_text="Validate every search query.",
+            scope={"repo": "repo", "tool": "search_docs"},
+        )
+    )
+    before = store.to_snapshot()
+    original_validator = store_module._validate_lesson_record
+    validated_lesson_ids: list[str] = []
+
+    def fail_for_second_dependent(lesson: Lesson) -> None:
+        validated_lesson_ids.append(lesson.lesson_id)
+        if lesson.lesson_id == dependent_lessons[1].lesson_id:
+            raise ValueError("injected batch dependent validation failure")
+        original_validator(lesson)
+
+    monkeypatch.setattr(
+        store_module,
+        "_validate_lesson_record",
+        fail_for_second_dependent,
+    )
+
+    with pytest.raises(ValueError, match="batch dependent validation failure"):
+        store.obsolete_memories(
+            (
+                tbm.MemoryObsolescenceRequest("project_policy", policy.policy_id),
+                tbm.MemoryObsolescenceRequest("failure_case", case.case_id),
+            )
+        )
+
+    assert validated_lesson_ids == [lesson.lesson_id for lesson in dependent_lessons]
+    assert store.to_snapshot() == before
+
+
 def test_recorded_trace_is_isolated_from_caller_nested_mutation():
     calls = [{"name": "search_docs", "arguments": {"query": "before"}}]
     trace = Trace(

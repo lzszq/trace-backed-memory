@@ -6,6 +6,7 @@ from typing import Literal
 Mode = Literal["debug", "repair", "regression", "planning", "eval", "production"]
 Status = Literal["draft", "verified", "active", "obsolete"]
 MemoryType = Literal["procedural", "semantic", "episodic", "policy"]
+MemoryKind = Literal["failure_case", "lesson", "project_policy"]
 MeasuredEvalResult = Literal["pass", "fail", "error"]
 EvalResult = Literal["pass", "fail", "error", "unknown"]
 FailureCaseStatus = Literal["draft", "verified", "obsolete"]
@@ -125,6 +126,12 @@ class ProjectPolicy:
     eval_leaking: bool = False
     status: LessonStatus = "active"
     created_at: str | None = None
+
+
+@dataclass(frozen=True)
+class MemoryObsolescenceRequest:
+    memory_kind: MemoryKind
+    memory_id: str
 
 
 @dataclass(frozen=True)

@@ -617,8 +617,31 @@ Track:
   atomic snapshot replacement. Serialize before persistence and treat stdout
   closure after a committed write as success.
 - Do not add reactivation, actor/reason fields, PostgreSQL access, or a CLI
-  batch loop; multi-record obsolescence requires a future Store-level
-  all-or-nothing API.
+  batch loop within this single-record phase. Phase 36 below closes the
+  multi-record gap with one Store-level all-or-nothing API.
 - Persist no command or cascade manifest. Preserve snapshot version 2, JSON
   Schemas, active-lessons YAML, all 18 packaged resource bytes,
   `schemas/postgres.sql`, public exports, and PostgreSQL schema version 1.
+
+## Phase 36: Atomic batch memory obsolescence (implemented)
+
+- Add public `MemoryKind` and frozen `MemoryObsolescenceRequest` records plus
+  `obsolete_memories()` for an exact non-empty tuple with unique memory IDs.
+- Resolve explicit `failure_case`, `lesson`, and `project_policy` targets from
+  one entry state. Stage every requested record and the full active
+  failure-case cascade, validate all candidates, then publish all-or-nothing.
+- Preserve request order in returned deep copies. Permit an explicitly
+  requested lesson to overlap a requested case's cascade without order
+  dependence or double counting.
+- Add `obsolete-batch SNAPSHOT REQUESTS_JSON [--write]` with strict UTF-8 JSON,
+  a non-empty exact-object array, and the fixed 8 MiB, 10,000-item, node, and
+  depth limits. Call the Store batch method exactly once.
+- Emit only manifest-ordered status results, sorted cascade IDs,
+  `changed_count`, union-based `affected_count`, and `written`. Never expose
+  memory text, scope, Trace data, tool evidence, actor, or reason fields.
+- Keep dry-run as the default and use same-snapshot atomic publication only
+  after the whole batch and output serialization succeed. Preserve forward-only
+  idempotence and committed stdout-failure retry safety.
+- Persist no request or batch record. Preserve snapshot version 2, every JSON
+  Schema, active-lessons YAML, all 18 packaged resource bytes,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

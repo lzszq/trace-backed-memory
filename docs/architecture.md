@@ -286,7 +286,9 @@ The mutation surface delegates `complete` to `complete_memory_run()`,
 `recover_memory_run()`, `recover-batch` to `recover_memory_runs()`, and
 `recover-ready` to `recover_ready_memory_runs()`. `obsolete` selects exactly one
 of `obsolete_failure_case()`, `obsolete_lesson()`, or
-`obsolete_project_policy()` through an explicit kind. `complete` supplies a
+`obsolete_project_policy()` through an explicit kind. `obsolete-batch` parses
+public `MemoryObsolescenceRequest` records and delegates exactly once to
+`obsolete_memories()`. `complete` supplies a
 fresh measured result through required `--eval-result` and exact linked IDs;
 it does not infer an outcome, linkage, attribution, or evidence. Scalar
 evidence is optional. `--tool-outputs-file` reads strict UTF-8 JSON that must be
@@ -320,15 +322,34 @@ the cascade predicate or lifecycle state machine. Lesson and policy operations
 have empty cascade fields. Same-state replay is a deterministic no-op, and no
 CLI path reactivates an obsolete record.
 
+`obsolete-batch SNAPSHOT REQUESTS_JSON [--write]` accepts a strict UTF-8 JSON
+non-empty array under the shared 8 MiB, 10,000-item, node, and depth limits.
+Every exact object supplies canonical `failure_case`, `lesson`, or
+`project_policy` plus one `memory_id`. The parser owns document shape only. The
+Store requires an exact non-empty request tuple, validates unique IDs and exact
+kinds, resolves every target against the matching collection, and stages the
+complete forward-only transition.
+
+`obsolete_memories()` builds requested cases, lessons, and policies plus every
+active lesson in a requested failure-case cascade from the same entry state. It
+validates all staged records before updating any collection and returns deep
+copies of explicit results in request order. Explicitly requesting a cascaded
+lesson is valid and order-independent. The CLI reports the sorted full cascade,
+explicit `changed_count`, and union-based `affected_count` without exposing
+record content. A duplicate, wrong-kind, unknown, or later invalid request is
+all-or-nothing and leaves the Store unchanged.
+
 Every mutation first changes only the loaded in-memory store and is a dry-run
 unless `--write` is explicit. This includes lesson import; lesson export is an
 explicit destination publication rather than a Store mutation. After a
 complete successful operation, `--write` calls `save_json()` on the input path,
 reusing its same-directory temporary file and atomic replacement. Completion,
 batch validation, recovery, and lesson import remain all-or-nothing in the
-store. Single-record obsolescence and its case-to-lesson cascade share the same
-rule. The CLI does not stage, parse YAML, or classify records independently,
-and it does not synthesize a non-atomic obsolescence batch.
+store. Single-record obsolescence and atomic batch obsolescence, including every
+case-to-lesson cascade, share the same rule. The CLI does not stage lifecycle
+records, parse YAML, or classify records independently, and it never synthesizes
+a batch by looping over single-record transitions. Snapshot version 2 and
+PostgreSQL schema version 1 remain unchanged because the manifest is ephemeral.
 
 Successful commands emit one deterministic JSON value plus a newline. Failures
 emit one structured JSON object to stderr without a traceback. Exit codes are

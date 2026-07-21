@@ -144,10 +144,21 @@ failure-case cascade to every active derived lesson. Preview the exact sorted
 cascade by default and require `--write` for same-snapshot publication. Do not
 reactivate obsolete memory, claim an actor/reason audit field that the record
 does not store, echo memory text or execution evidence, or implement a batch
-through repeated single-record calls. A future batch needs one Store-level
-all-or-nothing transition.
+through repeated single-record calls. Keep this as the single-item command.
 
-Treat every `obsolete`, `complete`, `complete-batch`, `recover`,
+Use `obsolete-batch SNAPSHOT REQUESTS_JSON [--write]` for multi-record
+deactivation. Require strict UTF-8 JSON with a non-empty array of exact
+`memory_kind`/`memory_id` objects, canonical `failure_case`, `lesson`, and
+`project_policy` kinds, and the fixed 8 MiB and 10,000-item limits. Convert the
+document to one exact tuple of `MemoryObsolescenceRequest` records and call
+`obsolete_memories()` exactly once. The Store must resolve, stage, validate, and
+publish explicit records and failure-case cascades all-or-nothing. Preserve
+request order for explicit results and sort cascade IDs. An explicitly requested
+lesson may overlap the same batch's cascade; union-based `affected_count` must
+not double count it. Do not skip invalid items, reactivate memory, expose record
+content, or persist the manifest.
+
+Treat every `obsolete`, `obsolete-batch`, `complete`, `complete-batch`, `recover`,
 `recover-batch`, and `recover-ready` command as a dry-run unless `--write` is
 explicit. A dry-run may mutate the reconstructed store in memory but must leave
 the source bytes unchanged. A write is permitted only after the whole operation

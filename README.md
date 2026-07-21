@@ -188,6 +188,7 @@ tbm snapshot stats SNAPSHOT
 tbm lessons export SNAPSHOT DESTINATION [--overwrite]
 tbm lessons import SNAPSHOT SOURCE_YAML [--write]
 tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]
+tbm obsolete-batch SNAPSHOT REQUESTS_JSON [--write]
 tbm audit SNAPSHOT
 tbm metrics SNAPSHOT
 tbm remediation SNAPSHOT
@@ -235,8 +236,33 @@ record's previous/current status, `changed`, and the sorted
 evidence. Repeating an already-obsolete record is a successful no-op. The
 command is a preview by default and changes the same snapshot only with
 explicit `--write`; it cannot reactivate records or attach actor/reason
-metadata. There is no CLI batch loop because multi-record obsolescence would
-require a Store-level all-or-nothing API.
+metadata. The single-item command never synthesizes a batch loop. Multi-record
+obsolescence uses the Store-level all-or-nothing command described below.
+
+`obsolete-batch` provides that Store-owned atomic boundary. `REQUESTS_JSON` is
+strict UTF-8 JSON containing a non-empty array of exact objects with only
+`memory_kind` and `memory_id`. Kinds use the canonical `failure_case`, `lesson`,
+and `project_policy` values. The bounded parser retains the 8 MiB, 10,000-item,
+100,000-node, and depth-100 limits before constructing a tuple of public
+`MemoryObsolescenceRequest` records and calling `obsolete_memories()` exactly
+once. Unknown fields, duplicate JSON keys, unsupported kinds, and wrong types
+are input errors; duplicate or unknown memory IDs reject the whole Store
+transition.
+
+The Store resolves every request from the entry state, stages all explicit
+records and every active lesson cascaded by a requested failure case, validates
+all candidates, and only then updates its collections. Results preserve request
+order. An explicitly requested lesson may also belong to a requested case's
+cascade; it remains one explicit result and is counted once in
+`affected_count`. `cascaded_lesson_ids` is the sorted complete cascade, while
+`changed_count` counts explicit records whose status changed. Already-obsolete
+records are successful no-ops and the complete batch remains forward-only.
+
+Like the single command, `obsolete-batch` is a dry-run until `--write`
+atomically replaces the source snapshot. Its output contains only IDs, kinds,
+status changes, counts, and `written`; it never emits memory text, scope, Trace
+data, tool evidence, actor, or reason fields. The request manifest is not
+persisted.
 
 `complete` submits a fresh measured result for the exact linked Trace and
 decision. It requires `--eval-result`; failure attribution defaults to false
@@ -280,7 +306,8 @@ exit code 3.
 Failures emit one structured JSON error to stderr without a traceback. Exit
 codes are `0` for success or a no-op, `1` for an unexpected internal failure,
 `2` for usage/path/encoding/JSON/YAML/snapshot input, `3` for a rejected
-completion, recovery, obsolescence, PR report, Git ancestry, linkage,
+completion, recovery, single or batch obsolescence, PR report, Git ancestry,
+linkage,
 attribution, or evidence state, and `4` for a lesson destination or snapshot
 write failure.
 Help remains normal human-readable argparse output. Error text is capped at

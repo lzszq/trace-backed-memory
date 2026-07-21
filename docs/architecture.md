@@ -851,11 +851,29 @@ obsoleting a failure case cascades its active lessons to obsolete. Other parent
 updates that would leave an active lesson without a verified,
 regression-backed source case are rejected.
 
-`load()` opens a transaction, locks schema metadata `FOR SHARE`, reads the
-persisted collections, normalizes their database representation into the
-canonical snapshot shape, and reconstructs the store through its normal
-validation path. It therefore rejects database data that cannot form a valid
-store rather than returning partial or unvalidated records.
+`load()` opens a transaction, locks schema metadata `FOR SHARE`, and then takes
+ordered `SHARE` locks on traces, failure cases, lessons, project policies, and
+usage decisions before the first collection read. Concurrent readers remain
+allowed, while external writers wait until the load transaction ends. The five
+queries therefore observe one stable committed table state even at the default
+`READ COMMITTED` isolation level and inside the repository's nested savepoint.
+The loader normalizes that database representation into the canonical snapshot
+shape and reconstructs the store through its normal validation path. It rejects
+database data that cannot form a valid store rather than returning partial or
+unvalidated records.
+
+The repository uses the schema owner or an equivalent write-capable role. On
+PostgreSQL 12, explicit `SHARE` table locks require table-level `UPDATE`,
+`DELETE`, or `TRUNCATE` privilege. A successful lock acquired inside a nested
+repository savepoint belongs to the caller's outer transaction until its final
+commit or rollback, so long-lived outer transactions intentionally extend the
+external-writer wait boundary.
+
+Failure-case, lesson, and project-policy ID selectors use the same `FOR UPDATE`
+rule as Trace and usage-decision selectors. If an external row writer is
+already active, synchronization waits and then reruns canonical validation on
+the committed current row. A newly changed protected field conflicts before a
+lifecycle update, and every post-select update must affect exactly one row.
 
 `PostgresMemoryRepository(connection)` borrows a caller-provided connection;
 `close()` and context-manager exit do not close that borrowed connection.

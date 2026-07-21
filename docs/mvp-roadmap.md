@@ -685,3 +685,26 @@ Track:
 - Persist no command or result wrapper. Preserve snapshot version 2, every JSON
   Schema, active-lessons YAML, all 18 packaged resource bytes,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 39: PostgreSQL consistent snapshots and lifecycle row locks (implemented)
+
+- Acquire ordered `SHARE` locks on traces, failure cases, lessons, project
+  policies, and usage decisions before `load()` reads its first collection.
+  Preserve concurrent readers while making external writers wait until the
+  coherent load transaction ends.
+- Preserve borrowed connections and caller-owned transactions: repository
+  operations still use nested savepoints and never change the caller's
+  connection-level isolation configuration. Document that successful locks
+  remain held until the caller's outer commit or rollback and that PostgreSQL
+  12 requires a schema owner or table-level write privileges for `SHARE` locks.
+- Select every existing sync target `FOR UPDATE`, adding the missing
+  failure-case, lesson, and project-policy row locks before canonical conflict
+  validation.
+- Require exactly one affected row from post-select lifecycle updates, and keep
+  schema, conflict, driver, rollback, and sanitized-error behavior unchanged.
+- Add real-cluster regressions for five-table load locks, direct external writer
+  exclusion, and protected-field changes committed while each lifecycle sync is
+  waiting on a row lock.
+- Preserve the public API, snapshot version 2, every JSON Schema,
+  active-lessons YAML, all 18 packaged resource bytes,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

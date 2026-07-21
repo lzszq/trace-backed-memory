@@ -28,10 +28,22 @@ provenance and existing execution evidence. A usage decision may separately
 advance only from `NULL` or `unknown` to a measured outcome pair; every other
 usage field remains immutable. All other protected Trace fields also remain
 immutable. Loading normalizes persisted values and
-reconstructs the regular validated store. A repository created from a caller
+reconstructs the regular validated store. Before reading collections, load
+holds ordered `SHARE` locks on all five persistence tables: concurrent readers
+remain allowed and external writers wait, so one Store cannot be assembled from
+different committed table states. Sync locks every existing target row
+`FOR UPDATE` before canonical comparison, including failure cases, lessons, and
+project policies; a newly committed protected-field difference is a conflict,
+not a stale successful lifecycle write. A repository created from a caller
 connection borrows it; `connect()` owns and closes the connection. Schema
 migration, connection pooling, and async access are outside this repository's
 current policy and implementation.
+
+Use the schema owner or a write-capable repository role. PostgreSQL 12 requires
+table-level `UPDATE`, `DELETE`, or `TRUNCATE` privilege for the explicit
+`SHARE` locks used by load. Inside a caller-owned transaction, successful table
+and row locks survive the repository savepoint and remain held until the outer
+commit or rollback.
 
 When the supplied connection already has an active caller transaction, each
 repository operation uses a nested savepoint and does not commit or roll back

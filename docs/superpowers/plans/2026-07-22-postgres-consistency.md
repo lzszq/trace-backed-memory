@@ -24,6 +24,7 @@ all existing lifecycle-row validation operate on a locked current row.
 - No snapshot, model, JSON Schema, SQL schema, or packaged-resource changes.
 - Snapshot version remains 2 and PostgreSQL schema version remains 1.
 - Borrowed/owned connection and nested-savepoint ownership remain unchanged.
+- PostgreSQL 12 load roles must own the persistence tables or have table-level
+  `UPDATE`, `DELETE`, or `TRUNCATE` privilege required by `SHARE` locks.
 - External writers may wait while `load()` holds its short-lived coherent
   snapshot boundary; concurrent readers remain allowed.
-

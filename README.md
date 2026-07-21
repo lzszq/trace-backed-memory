@@ -383,9 +383,24 @@ outer transaction, the repository transaction commits normally.
 and never deletes database records. It preserves supported forward lifecycle
 updates, including completing a pending Trace and sealing a previously
 unevaluated decision outcome, compares records in canonical form, and rejects
-immutable ID conflicts. Any conflict rolls back the whole synchronization.
+immutable ID conflicts. Every existing target row is selected `FOR UPDATE`, so
+a concurrent external writer completes before canonical validation and cannot
+slip a protected-field change between validation and a lifecycle write. Any
+conflict rolls back the whole synchronization.
 `repository.load()` returns a normalized, validated
-`TraceBackedMemoryStore`, not a snapshot object.
+`TraceBackedMemoryStore`, not a snapshot object. Before its five ordered
+collection reads, it takes `SHARE` locks on all five persistence tables. Other
+readers remain concurrent, while external inserts, updates, and deletes wait
+until the load transaction ends; one load therefore cannot combine table rows
+from different committed database states, including inside a caller-owned
+transaction.
+
+Use the schema owner or the same write-capable role intended for `sync()`.
+PostgreSQL 12 requires table-level `UPDATE`, `DELETE`, or `TRUNCATE` privilege
+to acquire these `SHARE` locks. When `load()` or `sync()` runs inside a caller
+transaction, successful table and row locks remain held until that outer
+transaction commits or rolls back; keep caller transactions short when writers
+must remain responsive.
 
 ## Callback-based Memory Run Execution
 

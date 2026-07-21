@@ -50,6 +50,15 @@ WHERE singleton
 FOR UPDATE
 """
 
+_LOCK_SNAPSHOT_TABLES_FOR_SHARE = """
+LOCK TABLE public.traces,
+           public.failure_cases,
+           public.lessons,
+           public.project_policies,
+           public.memory_usage_decisions
+IN SHARE MODE
+"""
+
 _SELECT_TRACES = """
 SELECT trace_id, run_id, commit_sha, repo, tenant, branch, dirty,
        prompt_version, prompt_family, tool_schema_version, model, eval_suite,
@@ -106,6 +115,7 @@ SELECT case_id, source_trace_id, commit_sha, failure_type, symptom, root_cause,
        reviewed_at, status, created_at
 FROM public.failure_cases
 WHERE case_id = %s
+FOR UPDATE
 """
 
 _SELECT_LESSON_BY_ID = """
@@ -113,6 +123,7 @@ SELECT lesson_id, source_case_id, lesson_text, memory_type, scope_json,
        confidence, sensitive, eval_leaking, status, created_at
 FROM public.lessons
 WHERE lesson_id = %s
+FOR UPDATE
 """
 
 _SELECT_PROJECT_POLICY_BY_ID = """
@@ -120,6 +131,7 @@ SELECT policy_id, policy_text, scope_json, confidence, sensitive, eval_leaking,
        status, created_at
 FROM public.project_policies
 WHERE policy_id = %s
+FOR UPDATE
 """
 
 _SELECT_USAGE_LOG_BY_ID = """
@@ -742,6 +754,10 @@ def _sync_failure_case_row(
             record_id,
         ),
     )
+    if cursor.rowcount != 1:
+        raise PostgresConflictError(
+            f"PostgreSQL conflict for failure_cases row {record_id}"
+        )
     return "updated"
 
 
@@ -835,6 +851,10 @@ def _sync_status_row(
         return "unchanged"
 
     cursor.execute(update_sql, (canonical_incoming["status"], record_id))
+    if cursor.rowcount != 1:
+        raise PostgresConflictError(
+            f"PostgreSQL conflict for {table} row {record_id}"
+        )
     return "updated"
 
 
@@ -900,6 +920,9 @@ class PostgresMemoryRepository:
             raise PostgresSchemaError(
                 f"PostgreSQL schema version mismatch: expected 1, found {version}"
             )
+
+    def _lock_snapshot_tables(self, cursor: object) -> None:
+        cursor.execute(_LOCK_SNAPSHOT_TABLES_FOR_SHARE)
 
     def _load_traces(self, cursor: object) -> list[dict[str, object]]:
         cursor.execute(_SELECT_TRACES)
@@ -1038,6 +1061,7 @@ class PostgresMemoryRepository:
             with self._connection.transaction():
                 with self._connection.cursor(row_factory=dict_row) as cursor:
                     self._lock_schema(cursor, write=False)
+                    self._lock_snapshot_tables(cursor)
                     snapshot = {
                         "snapshot_version": 2,
                         "traces": self._load_traces(cursor),

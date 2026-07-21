@@ -37,6 +37,11 @@ The same rule applies inside a caller-owned transaction. The repository still
 uses a nested savepoint; PostgreSQL retains successful locks until the outer
 transaction commits or rolls back, so the caller continues to own publication.
 
+The repository uses the schema owner or an equivalent write-capable role.
+PostgreSQL 12 requires table-level `UPDATE`, `DELETE`, or `TRUNCATE` privilege
+for these explicit `SHARE` locks. A role intended only for plain `SELECT`
+cannot provide this consistency boundary.
+
 ## Sync Row Contract
 
 All existing-record selectors used by `sync()` lock their target row
@@ -80,4 +85,3 @@ Real-cluster regression tests verify that:
   is rolled back;
 - existing savepoint, rollback, schema-lock, lifecycle, and round-trip tests
   continue to pass.
-

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 import re
 import subprocess
 import sys
+import time
 from dataclasses import is_dataclass, replace
 from decimal import Decimal
 from pathlib import Path
@@ -271,6 +274,23 @@ def _assert_sync_conflict_preserves_state(
         assert repository.load().to_snapshot() == expected
 
 
+def _wait_for_backend_lock(connection, backend_pid, future) -> None:
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        if future.done():
+            future.result()
+            pytest.fail("PostgreSQL contender finished before waiting on a lock")
+        wait_state = connection.execute(
+            "SELECT wait_event_type FROM pg_catalog.pg_stat_activity "
+            "WHERE pid = %s",
+            (backend_pid,),
+        ).fetchone()
+        if wait_state == ("Lock",):
+            return
+        time.sleep(0.05)
+    pytest.fail("PostgreSQL contender did not wait on a lock")
+
+
 def test_repository_sync_updates_failure_case_lifecycle_and_cascades_lessons(
     postgres_cluster,
 ):
@@ -382,6 +402,29 @@ def test_runtime_sql_has_no_unqualified_now_calls():
     )
 
     assert re.search(r"(?<![.\w])now\s*\(", runtime_sql, re.IGNORECASE) is None
+
+
+def test_runtime_sql_declares_snapshot_and_lifecycle_locks():
+    from trace_backed_memory import postgres
+
+    for select_sql in (
+        postgres._SELECT_FAILURE_CASE_BY_ID,
+        postgres._SELECT_LESSON_BY_ID,
+        postgres._SELECT_PROJECT_POLICY_BY_ID,
+    ):
+        assert re.search(r"\bFOR\s+UPDATE\b", select_sql, re.IGNORECASE)
+
+    table_lock_sql = " ".join(postgres._LOCK_SNAPSHOT_TABLES_FOR_SHARE.split())
+    expected_tables = (
+        "public.traces",
+        "public.failure_cases",
+        "public.lessons",
+        "public.project_policies",
+        "public.memory_usage_decisions",
+    )
+    positions = [table_lock_sql.index(table) for table in expected_tables]
+    assert positions == sorted(positions)
+    assert table_lock_sql.endswith("IN SHARE MODE")
 
 
 def test_repository_lifecycle_timestamps_resist_hostile_search_path(
@@ -1616,6 +1659,167 @@ def test_schema_share_and_update_locks_serialize_in_both_directions(
         assert result.to_snapshot()["traces"] == []
     else:
         assert result.traces.inserted == 0
+
+
+def test_repository_load_holds_one_coherent_table_snapshot(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    table_names = (
+        "traces",
+        "failure_cases",
+        "lessons",
+        "project_policies",
+        "memory_usage_decisions",
+    )
+    with (
+        psycopg.connect(**postgres_cluster.connection_kwargs()) as holder,
+        psycopg.connect(**postgres_cluster.connection_kwargs()) as contender,
+    ):
+        repository = PostgresMemoryRepository(holder)
+        contender.execute("SET lock_timeout = '100ms'")
+        contender.commit()
+
+        with holder.transaction():
+            assert repository.load().to_snapshot()["traces"] == []
+            held_locks = holder.execute(
+                "SELECT relation.relname "
+                "FROM pg_catalog.pg_locks AS locks "
+                "JOIN pg_catalog.pg_class AS relation "
+                "ON relation.oid = locks.relation "
+                "JOIN pg_catalog.pg_namespace AS namespace "
+                "ON namespace.oid = relation.relnamespace "
+                "WHERE locks.pid = pg_backend_pid() "
+                "AND locks.mode = 'ShareLock' "
+                "AND namespace.nspname = 'public' "
+                "AND relation.relname = ANY(%s) "
+                "ORDER BY relation.relname",
+                (list(table_names),),
+            ).fetchall()
+            assert held_locks == [(name,) for name in sorted(table_names)]
+
+            with pytest.raises(psycopg.errors.LockNotAvailable):
+                with contender.transaction():
+                    contender.execute(
+                        "INSERT INTO public.traces "
+                        "(trace_id, run_id, commit_sha) VALUES (%s, %s, %s)",
+                        (
+                            "trace_external_writer",
+                            "run_external_writer",
+                            "commit_external_writer",
+                        ),
+                    )
+
+        with contender.transaction():
+            contender.execute(
+                "INSERT INTO public.traces "
+                "(trace_id, run_id, commit_sha) VALUES (%s, %s, %s)",
+                (
+                    "trace_external_writer",
+                    "run_external_writer",
+                    "commit_external_writer",
+                ),
+            )
+
+        assert repository.load().traces["trace_external_writer"].run_id == (
+            "run_external_writer"
+        )
+
+
+@pytest.mark.parametrize(
+    "table",
+    ["failure_cases", "lessons", "project_policies"],
+)
+def test_repository_sync_revalidates_lifecycle_rows_after_external_writer(
+    postgres_cluster,
+    table,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import TraceBackedMemoryStore
+    from trace_backed_memory.postgres import (
+        PostgresConflictError,
+        PostgresMemoryRepository,
+    )
+
+    postgres_cluster.load_schema()
+    baseline = _complete_store()
+    incoming = _complete_store()
+    if table == "failure_cases":
+        incoming_snapshot = incoming.to_snapshot()
+        incoming_snapshot["failure_cases"][0]["review_notes"] = (
+            "incoming concurrent review"
+        )
+        incoming = TraceBackedMemoryStore.from_snapshot(incoming_snapshot)
+        record_id = "case_sync"
+        external_sql = (
+            "UPDATE public.failure_cases "
+            "SET created_at = created_at + INTERVAL '1 second' "
+            "WHERE case_id = %s"
+        )
+    elif table == "lessons":
+        incoming.obsolete_lesson("lesson_sync")
+        record_id = "lesson_sync"
+        external_sql = (
+            "UPDATE public.lessons SET lesson_text = "
+            "'Externally changed lesson.' WHERE lesson_id = %s"
+        )
+    else:
+        incoming.obsolete_project_policy("policy_sync")
+        record_id = "policy_sync"
+        external_sql = (
+            "UPDATE public.project_policies SET policy_text = "
+            "'Externally changed policy.' WHERE policy_id = %s"
+        )
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as setup:
+        PostgresMemoryRepository(setup).sync(baseline)
+
+    backend_pids: Queue[int] = Queue()
+
+    def sync_in_worker():
+        with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+            backend_pids.put(connection.info.backend_pid)
+            return PostgresMemoryRepository(connection).sync(incoming)
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as external:
+        external.execute(external_sql, (record_id,))
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(sync_in_worker)
+            backend_pid = backend_pids.get(timeout=10.0)
+            _wait_for_backend_lock(external, backend_pid, future)
+            external.commit()
+
+            with pytest.raises(
+                PostgresConflictError,
+                match=f"{table}.*{record_id}",
+            ):
+                future.result(timeout=10.0)
+
+        if table == "failure_cases":
+            persisted = external.execute(
+                "SELECT created_at = %s::timestamptz, review_notes "
+                "FROM public.failure_cases WHERE case_id = %s",
+                ("2025-01-01T21:36:08Z", record_id),
+            ).fetchone()
+            assert persisted == (
+                True,
+                "verified against the regression suite",
+            )
+        elif table == "lessons":
+            persisted = external.execute(
+                "SELECT lesson_text, status FROM public.lessons "
+                "WHERE lesson_id = %s",
+                (record_id,),
+            ).fetchone()
+            assert persisted == ("Externally changed lesson.", "active")
+        else:
+            persisted = external.execute(
+                "SELECT policy_text, status FROM public.project_policies "
+                "WHERE policy_id = %s",
+                (record_id,),
+            ).fetchone()
+            assert persisted == ("Externally changed policy.", "active")
 
 
 def test_repository_sync_preserves_database_only_trace_case_chains(postgres_cluster):

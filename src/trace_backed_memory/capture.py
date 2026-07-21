@@ -10,6 +10,7 @@ from .policy import METADATA_VALUE_MAX_CHARS
 
 CommandRunner = Callable[[list[str], str | None], str]
 AncestryRunner = Callable[[list[str], str | None], int]
+COMMIT_ANCESTRY_MAX_ANCHORS = 1_000
 
 
 class TraceMetadataCaptureError(RuntimeError):
@@ -51,9 +52,15 @@ def capture_commit_ancestry(
         anchor_commit_shas, Iterable
     ):
         raise ValueError("anchor_commit_shas must be an iterable of commit strings")
-    anchors = list(anchor_commit_shas)
-    for anchor in anchors:
+    anchors: list[str] = []
+    for anchor in anchor_commit_shas:
+        if len(anchors) >= COMMIT_ANCESTRY_MAX_ANCHORS:
+            raise ValueError(
+                "anchor_commit_shas accepts at most "
+                f"{COMMIT_ANCESTRY_MAX_ANCHORS} commit strings"
+            )
         _validate_commit_string(anchor, "anchor commit")
+        anchors.append(anchor)
 
     run = runner or _run_ancestry_command
     relations: list[tuple[str, bool]] = []

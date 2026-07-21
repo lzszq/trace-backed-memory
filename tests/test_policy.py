@@ -38,12 +38,106 @@ def _budget_memory(
 
 
 def test_budget_constants_are_exported_with_published_values():
+    assert tbm.COMMIT_ANCESTRY_MAX_ANCHORS == 1_000
     assert tbm.MEMORY_ID_MAX_CHARS == 128
     assert tbm.METADATA_VALUE_MAX_CHARS == 512
     assert tbm.LLM_GATE_MAX_CANDIDATES == 50
     assert tbm.LLM_GATE_PROMPT_MAX_CHARS == 32_000
     assert tbm.INJECTION_MAX_MEMORIES == 20
     assert tbm.INJECTION_SNIPPET_MAX_CHARS == 12_000
+
+
+def test_memory_decision_id_lists_accept_exact_candidate_budget():
+    allowed_ids = [f"allowed_{index:03d}" for index in range(50)]
+    blocked_ids = [f"blocked_{index:03d}" for index in range(50)]
+
+    decision = parse_memory_decision(
+        {
+            "use_memory": True,
+            "allowed_memory_ids": allowed_ids,
+            "blocked_memory_ids": blocked_ids,
+            "reason": "bounded response",
+            "risk": "low",
+            "recommended_injection": "pointer_only",
+        }
+    )
+
+    assert decision.allowed_memory_ids == allowed_ids
+    assert decision.blocked_memory_ids == blocked_ids
+
+
+@pytest.mark.parametrize("field_name", ["allowed_memory_ids", "blocked_memory_ids"])
+def test_memory_decision_parser_rejects_id_limit_plus_one(field_name: str):
+    payload = {
+        "use_memory": field_name == "allowed_memory_ids",
+        "allowed_memory_ids": [],
+        "blocked_memory_ids": [],
+        "reason": "oversized response",
+        "risk": "low",
+        "recommended_injection": (
+            "pointer_only" if field_name == "allowed_memory_ids" else "none"
+        ),
+    }
+    payload[field_name] = [f"memory_{index:03d}" for index in range(51)]
+
+    with pytest.raises(
+        ValueError,
+        match=f"^{field_name} accepts at most 50 memory IDs$",
+    ):
+        parse_memory_decision(payload)
+
+
+@pytest.mark.parametrize("field_name", ["allowed_memory_ids", "blocked_memory_ids"])
+def test_direct_llm_gate_decision_rejects_id_limit_plus_one(field_name: str):
+    decision = MemoryDecision(
+        use_memory=field_name == "allowed_memory_ids",
+        allowed_memory_ids=(
+            [f"memory_{index:03d}" for index in range(51)]
+            if field_name == "allowed_memory_ids"
+            else []
+        ),
+        blocked_memory_ids=(
+            [f"memory_{index:03d}" for index in range(51)]
+            if field_name == "blocked_memory_ids"
+            else []
+        ),
+        reason="oversized response",
+        risk="low",
+        recommended_injection=(
+            "pointer_only" if field_name == "allowed_memory_ids" else "none"
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=f"^{field_name} accepts at most 50 memory IDs$",
+    ):
+        apply_llm_gate_decision([], {}, decision)
+
+
+def test_internal_system_blocks_are_not_truncated_by_decision_input_limit():
+    system_blocked = {
+        f"blocked_{index:03d}": "deterministic System Gate block"
+        for index in range(51)
+    }
+    decision = MemoryDecision(
+        use_memory=False,
+        allowed_memory_ids=[],
+        blocked_memory_ids=[],
+        reason="no approved memory",
+        risk="none",
+        recommended_injection="none",
+    )
+
+    allowed, final_decision = apply_llm_gate_decision(
+        [],
+        system_blocked,
+        decision,
+    )
+
+    assert allowed == []
+    assert final_decision.blocked_memory_ids == list(system_blocked)
+    assert build_injection_snippet([], decision=final_decision) == ""
 
 
 @pytest.mark.parametrize(

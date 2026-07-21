@@ -480,6 +480,10 @@ retrieves candidates, applies System Gate, and creates the bounded LLM gate
 prompt. After the LLM returns a decision payload, `finalize_memory()` rechecks
 state, renders the allowed snippet, and records one trace-linked audit event.
 The linked current Trace must already exist with `eval_result="unknown"`.
+Each LLM response list, `allowed_memory_ids` and `blocked_memory_ids`, accepts
+at most 50 memory IDs. The bound is checked before per-ID and duplicate work by
+both `parse_memory_decision()` and direct `apply_llm_gate_decision()` calls.
+The canonical decision JSON Schema publishes the same `maxItems` contract.
 
 ```python
 request = store.prepare_memory(
@@ -1044,6 +1048,11 @@ provide evidence, it must contain a relation for every discovered anchor;
 missing relations fail closed rather than leaving history unfiltered. Omitting
 `commit_ancestry` preserves the pre-ancestry retrieval behavior.
 
+`COMMIT_ANCESTRY_MAX_ANCHORS` limits one capture call to 1,000 submitted
+anchors. Input entries count before deduplication; overflow is detected while
+boundedly consuming an iterable and before any Git command starts. Narrow the
+candidate/report scope before capture when a larger history is discovered.
+
 Evidence is request-time input only: it is neither stored in snapshots nor
 persisted to PostgreSQL, and it does not replace either gate. PR callers use
 `pr_report_commit_anchors(context)`, capture against the same context commit,
@@ -1429,7 +1438,7 @@ Implemented pieces:
   `MemoryRunRemediation`, `MemoryRunMetrics`, `MemoryMetrics`, and
   `MemoryOutcomeMetrics`.
 - Git metadata capture for repo name, commit SHA, branch, and dirty state, with command failure errors wrapped for harness diagnostics.
-- Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors.
+- Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors, with a 1,000-input `COMMIT_ANCESTRY_MAX_ANCHORS` process-work budget before deduplication.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
 - Store-level checks that validate both the incoming and copied trace, preserve copy isolation, reject concurrent copy mutation, and reject empty identity fields, unsupported eval results, or malformed nested JSON trace collections, including non-string object keys, non-finite numbers, reference cycles, and excessive nesting.
 - Atomic deferred Trace completion for measured output identity, tool outputs, latency, cost, error, and trace URI evidence, with immutable provenance and input fields, exact replay, copy isolation, and PostgreSQL forward synchronization.
@@ -1465,7 +1474,7 @@ Implemented pieces:
 - Store-level checks that reject failure cases with empty identity fields, invalid status, missing verified evidence, missing source trace, or source commit mismatch.
 - Project policy helper that turns manually maintained prompt/tool/eval policy into sourced `MemoryItem` policy memory.
 - Deterministic System Gate with strict source, tenant-aware scope, status, memory-type, confidence, sensitivity, eval-leak, and mode checks.
-- Gate boundary helpers that validate runtime context JSON and direct-call container/record types before use, require non-empty string tasks and string-or-`None` queries, JSON-quote and cap dynamic gate prompt fields, validate LLM decision JSON with non-empty unique IDs and consistent `use_memory` / `recommended_injection` fields, reject contradictory System Gate allowed/blocked inputs, require the final `MemoryDecision` before rendering non-empty runtime snippets, honor `none`/`pointer_only`/`short_summary` injection modes, and prevent the LLM decision from overriding System Gate.
+- Gate boundary helpers that validate runtime context JSON and direct-call container/record types before use, require non-empty string tasks and string-or-`None` queries, JSON-quote and cap dynamic gate prompt fields, validate LLM decision JSON with non-empty unique IDs, at most 50 `allowed_memory_ids` and 50 `blocked_memory_ids`, and consistent `use_memory` / `recommended_injection` fields, reject contradictory System Gate allowed/blocked inputs, require the final `MemoryDecision` before rendering non-empty runtime snippets, honor `none`/`pointer_only`/`short_summary` injection modes, and prevent the LLM decision from overriding System Gate.
 - In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, optional opt-in Git ancestry filtering before keyword or semantic ranking, debug/repair visibility for verified regression-backed failure cases, optional keyword filtering including short domain tokens, optional bounded caller-provided semantic scores ranked score-descending with memory-ID-ascending ties, and usage decision logs; retrieval cannot bypass System Gate or LLM Gate.
 - Usage-log validation and persisted contract that require trace ID, serialized context, candidate status snapshots, and System Gate block reasons; reject empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
 - Dependency-free strict JSON snapshot save/load for trace, failure case, lesson, project policy, and usage-log records; non-object snapshots, non-finite floats, over-limit integers, and non-standard JSON numeric constants are rejected while JSON-serializable integer costs remain valid.

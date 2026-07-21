@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import trace_backed_memory as tbm
 import trace_backed_memory.capture as capture_module
 from trace_backed_memory import (
     CommitAncestryCaptureError,
@@ -103,6 +104,59 @@ def test_capture_commit_ancestry_accepts_empty_anchors_without_running_git():
     assert capture_commit_ancestry("current", [], runner=runner) == (
         CommitAncestryEvidence(current_commit_sha="current", commit_relations=())
     )
+
+
+def test_capture_commit_ancestry_accepts_exact_anchor_budget():
+    calls: list[tuple[str, ...]] = []
+    anchors = [
+        f"anchor_{index:04d}"
+        for index in range(tbm.COMMIT_ANCESTRY_MAX_ANCHORS)
+    ]
+
+    def runner(args: list[str], _cwd: str | None = None) -> int:
+        calls.append(tuple(args))
+        return 0
+
+    evidence = capture_commit_ancestry(
+        "current",
+        anchors,
+        runner=runner,
+    )
+
+    assert len(evidence.commit_relations) == tbm.COMMIT_ANCESTRY_MAX_ANCHORS
+    assert evidence.commit_relations[0] == ("anchor_0000", True)
+    assert evidence.commit_relations[-1] == ("anchor_0999", True)
+    assert len(calls) == tbm.COMMIT_ANCESTRY_MAX_ANCHORS
+    assert calls[0] == (
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "--",
+        "anchor_0000",
+        "current",
+    )
+    assert calls[-1][-2:] == ("anchor_0999", "current")
+
+
+def test_capture_commit_ancestry_bounds_duplicate_generator_before_git():
+    pulls = 0
+
+    def anchors():
+        nonlocal pulls
+        for _index in range(tbm.COMMIT_ANCESTRY_MAX_ANCHORS + 2):
+            pulls += 1
+            yield "anchor"
+
+    def runner(_args: list[str], _cwd: str | None = None) -> int:
+        raise AssertionError("Git must not run for oversized anchors")
+
+    with pytest.raises(
+        ValueError,
+        match="^anchor_commit_shas accepts at most 1000 commit strings$",
+    ):
+        capture_commit_ancestry("current", anchors(), runner=runner)
+
+    assert pulls == tbm.COMMIT_ANCESTRY_MAX_ANCHORS + 1
 
 
 def test_commit_ancestry_evidence_is_frozen():

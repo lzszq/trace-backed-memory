@@ -398,6 +398,11 @@ rejected before runtime injection is built. Decisions must also keep
 using memory requires at least one allowed ID and a non-`none` injection mode,
 while declining memory requires an empty allowed list and `recommended_injection`
 set to `none`.
+Both `allowed_memory_ids` and `blocked_memory_ids` accept at most 50 entries,
+matching `LLM_GATE_MAX_CANDIDATES`. Parser and direct low-level gate boundaries
+check the list length before per-ID validation, duplicate sets, or copies. The
+decision JSON Schema publishes the same `maxItems: 50` rule; internally derived
+System Gate block records retain their existing audit behavior.
 Task text, context summaries, and candidate memory text in the gate prompt are
 JSON-quoted and capped so long or instruction-like dynamic inputs stay data,
 not prompt structure.
@@ -969,6 +974,12 @@ obtain the complete metadata-scoped runtime anchor set with
 the store lock. Capture evaluates `git merge-base --is-ancestor anchor
 current`: exit 0 is `True`, exit 1 is `False`, and any other command failure
 raises an error that stops the workflow.
+
+Ancestry collection is also bounded before process work.
+`COMMIT_ANCESTRY_MAX_ANCHORS` is 1,000 submitted entries per capture call,
+counted before deduplication. The validator consumes at most 1,001 iterable
+values and starts no Git command on overflow; accepted values retain sorted,
+unique evidence output.
 
 Runtime anchor meaning is exact: lesson memory uses its source failure case's
 `fix_commit_sha`; failure-case memory uses its source `commit_sha`; project

@@ -340,6 +340,11 @@ The decision must keep `use_memory`, `allowed_memory_ids`, and
 `recommended_injection` consistent: memory use requires at least one allowed ID
 and a non-`none` injection mode; declining memory requires no allowed IDs and
 `recommended_injection: "none"`.
+Each decision list accepts at most 50 IDs, the same fixed budget as
+`LLM_GATE_MAX_CANDIDATES`. `parse_memory_decision()` and direct
+`apply_llm_gate_decision()` calls reject the 51st ID before entry validation,
+deduplication, or set construction. `memory_decision.schema.json` encodes this
+as `maxItems: 50` for both arrays.
 System Gate still remains authoritative: parsed LLM decisions can only narrow
 the system-approved memory set, not reopen blocked memory. If the LLM output
 lists the same memory ID as both allowed and blocked, blocked wins and the
@@ -587,6 +592,11 @@ anchor against the exact `context.commit_sha` with
 `CommitAncestryEvidence` object to `candidate_memories()`,
 `prepare_memory()`, or `pr_memory_report()`.
 
+One capture accepts at most `COMMIT_ANCESTRY_MAX_ANCHORS` (1,000) submitted
+entries. Count entries before deduplication and reject overflow before any Git
+runner is called; duplicate-heavy or lazy iterables do not bypass the budget.
+Callers must narrow an oversized candidate/report scope before capture.
+
 An exit status of 0 from `git merge-base --is-ancestor` means the anchor is an
 ancestor; exit status 1 means it is not and the anchored history is excluded.
 Any command error must stop the workflow. Incomplete evidence is rejected:
@@ -736,9 +746,11 @@ The runtime fails closed at these fixed boundaries:
 - `MEMORY_ID_MAX_CHARS`: 128 characters for memory and provenance IDs.
 - `METADATA_VALUE_MAX_CHARS`: 512 characters for context and scope values.
 - `LLM_GATE_MAX_CANDIDATES`: 50 candidates per gate request.
+- `allowed_memory_ids` / `blocked_memory_ids`: 50 IDs per LLM decision list.
 - `LLM_GATE_PROMPT_MAX_CHARS`: 32,000 characters in the final gate prompt.
 - `INJECTION_MAX_MEMORIES`: 20 memories per injection.
 - `INJECTION_SNIPPET_MAX_CHARS`: 12,000 characters in the final snippet.
+- `COMMIT_ANCESTRY_MAX_ANCHORS`: 1,000 input anchors per capture call.
 
 Recommended:
 

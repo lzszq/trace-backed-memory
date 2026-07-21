@@ -57,7 +57,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`MemoryRunMeasurement`",
         "`MemoryObsolescenceRequest`",
         "`obsolete_memories()`",
-        "Phase 0-40",
+        "Phase 0-41",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -486,6 +486,7 @@ def test_memory_decision_schema_requires_non_empty_unique_memory_ids():
         memory_ids = properties[field_name]
         assert isinstance(memory_ids, dict)
         assert memory_ids.get("type") == "array"
+        assert memory_ids.get("maxItems") == 50
         assert memory_ids.get("uniqueItems") is True
 
         items = memory_ids.get("items")
@@ -523,6 +524,7 @@ def test_schemas_and_docs_publish_aggregate_and_field_budgets():
         "MEMORY_ID_MAX_CHARS": "128",
         "METADATA_VALUE_MAX_CHARS": "512",
         "LLM_GATE_MAX_CANDIDATES": "50",
+        "COMMIT_ANCESTRY_MAX_ANCHORS": "1,000",
         "LLM_GATE_PROMPT_MAX_CHARS": "32,000",
         "INJECTION_MAX_MEMORIES": "20",
         "INJECTION_SNIPPET_MAX_CHARS": "12,000",
@@ -2158,7 +2160,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-40" in documents["docs/product.md"]
+    assert "Phase 0-41" in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2204,7 +2206,7 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
         encoding="utf-8"
     )
 
-    assert "Phase 0-40" in product
+    assert "Phase 0-41" in product
     assert (
         "Phase 37: Required PostgreSQL and Windows CI coverage (implemented)"
         in roadmap
@@ -2259,7 +2261,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-40" in product
+    assert "Phase 0-41" in product
     assert "decision-only `outcome` CLI" in product
     assert (
         "Phase 38: Deferred decision outcome CLI (implemented)"
@@ -2318,7 +2320,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
         assert "outer" in normalized
         assert "commit or rollback" in normalized
 
-    assert "Phase 0-40" in documents["docs/product.md"]
+    assert "Phase 0-41" in documents["docs/product.md"]
     assert (
         "Phase 39: PostgreSQL consistent snapshots and lifecycle row locks "
         "(implemented)"
@@ -2362,7 +2364,7 @@ def test_docs_publish_postgres_bounded_load_before_materialization():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-40" in documents["docs/product.md"]
+    assert "Phase 0-41" in documents["docs/product.md"]
     assert (
         "Phase 40: PostgreSQL bounded load materialization (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2385,6 +2387,64 @@ def test_docs_publish_postgres_bounded_load_before_materialization():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
     assert "snapshot_record_counts" not in postgres_schema
+
+
+def test_docs_publish_runtime_cardinality_limits_and_schema_change():
+    from trace_backed_memory import (
+        COMMIT_ANCESTRY_MAX_ANCHORS,
+        packaged_resources,
+    )
+
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in (
+            "allowed_memory_ids",
+            "blocked_memory_ids",
+            "50",
+            "commit_ancestry_max_anchors",
+            "1,000",
+            "snapshot version 2",
+            "postgresql schema version 1",
+        ):
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert "Phase 0-41" in documents["docs/product.md"]
+    assert (
+        "Phase 41: Runtime collection cardinality limits (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    assert COMMIT_ANCESTRY_MAX_ANCHORS == 1_000
+
+    decision_schema = _json_schema("memory_decision.schema.json")
+    for field_name in ("allowed_memory_ids", "blocked_memory_ids"):
+        assert decision_schema["properties"][field_name]["maxItems"] == 50
+    canonical_schema = (ROOT / "schemas" / "memory_decision.schema.json").read_bytes()
+    packaged_schema = (
+        ROOT
+        / "src"
+        / "trace_backed_memory"
+        / "_resources"
+        / "schemas"
+        / "memory_decision.schema.json"
+    ).read_bytes()
+    assert packaged_schema == canonical_schema
+    assert len(packaged_resources()) == 18
+
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert "commit_ancestry_max_anchors" not in postgres_schema
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

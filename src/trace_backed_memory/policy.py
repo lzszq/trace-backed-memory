@@ -342,7 +342,10 @@ def apply_llm_gate_decision(
     validated_blocked = _validated_string_mapping(
         system_blocked, "system_blocked"
     )
-    allowed_memory_ids, blocked_memory_ids = _validated_decision_fields(decision)
+    allowed_memory_ids, blocked_memory_ids = _validated_decision_fields(
+        decision,
+        max_memory_ids=LLM_GATE_MAX_CANDIDATES,
+    )
     allowed_by_id = {memory.memory_id: memory for memory in validated_allowed}
     system_overlap = sorted(set(allowed_by_id).intersection(validated_blocked))
     if system_overlap:
@@ -429,8 +432,16 @@ def parse_memory_decision(payload: str | Mapping[str, Any]) -> MemoryDecision:
     if not isinstance(use_memory, bool):
         raise ValueError("use_memory must be a boolean")
 
-    allowed_memory_ids = _string_list(data["allowed_memory_ids"], "allowed_memory_ids")
-    blocked_memory_ids = _string_list(data["blocked_memory_ids"], "blocked_memory_ids")
+    allowed_memory_ids = _string_list(
+        data["allowed_memory_ids"],
+        "allowed_memory_ids",
+        max_items=LLM_GATE_MAX_CANDIDATES,
+    )
+    blocked_memory_ids = _string_list(
+        data["blocked_memory_ids"],
+        "blocked_memory_ids",
+        max_items=LLM_GATE_MAX_CANDIDATES,
+    )
 
     reason = data["reason"]
     if not isinstance(reason, str):
@@ -591,16 +602,22 @@ def _snippet_guardrail_error(memory: MemoryItem) -> str | None:
 
 def _validated_decision_fields(
     decision: MemoryDecision,
+    *,
+    max_memory_ids: int | None = None,
 ) -> tuple[list[str], list[str]]:
     if not isinstance(decision, MemoryDecision):
         raise ValueError("decision must be a MemoryDecision")
     if type(decision.use_memory) is not bool:
         raise ValueError("use_memory must be a boolean")
     allowed_memory_ids = _string_list(
-        decision.allowed_memory_ids, "allowed_memory_ids"
+        decision.allowed_memory_ids,
+        "allowed_memory_ids",
+        max_items=max_memory_ids,
     )
     blocked_memory_ids = _string_list(
-        decision.blocked_memory_ids, "blocked_memory_ids"
+        decision.blocked_memory_ids,
+        "blocked_memory_ids",
+        max_items=max_memory_ids,
     )
     if not isinstance(decision.reason, str):
         raise ValueError("reason must be a string")
@@ -647,7 +664,16 @@ def _json_scalar(value: str) -> str:
     return json.dumps(value)
 
 
-def _string_list(value: Any, field_name: str) -> list[str]:
+def _string_list(
+    value: Any,
+    field_name: str,
+    *,
+    max_items: int | None = None,
+) -> list[str]:
+    if isinstance(value, list) and max_items is not None and len(value) > max_items:
+        raise ValueError(
+            f"{field_name} accepts at most {max_items} memory IDs"
+        )
     if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
         raise ValueError(f"{field_name} must be a list of non-empty strings")
     if any(len(item) > MEMORY_ID_MAX_CHARS for item in value):

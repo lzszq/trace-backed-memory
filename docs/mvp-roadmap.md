@@ -726,3 +726,21 @@ Track:
 - Preserve the public API, snapshot version 2, every JSON Schema,
   active-lessons YAML, all 18 packaged resource bytes,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 41: Runtime collection cardinality limits (implemented)
+
+- Limit each caller-supplied LLM decision `allowed_memory_ids` and
+  `blocked_memory_ids` list to the existing 50-candidate gate budget before
+  per-ID validation, duplicate detection, set construction, or copying.
+- Apply the decision limit to both JSON/mapping parsing and direct
+  `apply_llm_gate_decision()` calls, without discarding internally derived
+  System Gate block audit records.
+- Publish `maxItems: 50` in the canonical and packaged memory-decision JSON
+  Schema copies.
+- Export `COMMIT_ANCESTRY_MAX_ANCHORS` at 1,000 submitted values and replace
+  eager iterable materialization with bounded, per-item validation.
+- Count duplicate anchors before deduplication, consume at most 1,001 values,
+  and start no Git command when an ancestry call overflows.
+- Preserve snapshot version 2, active-lessons YAML, all 18 packaged resource
+  paths, PostgreSQL DDL/schema version 1, models, and dependencies. Only the
+  memory-decision Schema resource bytes intentionally change.

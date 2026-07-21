@@ -1,4 +1,5 @@
 from .capture import (
+    COMMIT_ANCESTRY_MAX_ANCHORS,
     CommitAncestryCaptureError,
     TraceMetadataCaptureError,
     capture_commit_ancestry,
@@ -87,6 +88,7 @@ from .execution import (
 )
 
 __all__ = [
+    "COMMIT_ANCESTRY_MAX_ANCHORS",
     "FailureCase",
     "CommitAncestryCaptureError",
     "CommitAncestryEvidence",

@@ -656,6 +656,9 @@ Track:
 - Add a dedicated `ubuntu-latest` PostgreSQL job that installs and preflights
   `initdb`, `pg_ctl`, `psql`, and `psycopg`, then runs the integration and
   repository modules together against the private session cluster.
+- Keep the POSIX cluster's Unix socket in its pytest-owned data directory rather
+  than a distribution runtime path; continue using explicit TCP loopback and
+  omit that option on Windows.
 - Add a `windows-latest` Python 3.13 job that runs the complete pytest suite,
   while retaining the Ubuntu Python 3.11-3.13 matrix and package job.
 - Keep the switch entirely under `tests/` and CI. Preserve application runtime,

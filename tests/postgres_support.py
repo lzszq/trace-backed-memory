@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -21,6 +22,7 @@ _TEST_DATABASE_RE = re.compile(r"tbm_test_[0-9a-f]{32}\Z")
 _POSTGRES_CLEANUP_CALLBACK_ATTR = "_postgres_cleanup_callback"
 _POSTGRES_START_ATTEMPTS = 3
 _POSTGRES_STOP_ATTEMPTS = 2
+_HAS_UNIX_DOMAIN_SOCKETS = os.name != "nt"
 _ADDRESS_IN_USE_MARKERS = (
     "address already in use",
     "only one usage of each socket address",
@@ -359,6 +361,13 @@ def _free_port() -> int:
         return int(listener.getsockname()[1])
 
 
+def _postgres_start_options(data: Path, port: str) -> str:
+    options = f"-F -p {port} -h 127.0.0.1"
+    if _HAS_UNIX_DOMAIN_SOCKETS:
+        options += " -k " + shlex.quote(str(data))
+    return options
+
+
 def _start_postgres_server(
     *,
     pg_ctl: str,
@@ -376,7 +385,7 @@ def _start_postgres_server(
                 "-D",
                 str(data),
                 "-o",
-                f"-F -p {attempt_env['PGPORT']} -h 127.0.0.1",
+                _postgres_start_options(data, attempt_env["PGPORT"]),
                 "-l",
                 str(log),
                 "-w",

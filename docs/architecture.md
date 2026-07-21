@@ -777,6 +777,9 @@ conditions into failures. A dedicated Ubuntu job installs and preflights
 repository modules together, while a separate Windows job runs the complete
 suite. This switch belongs only to test infrastructure and changes no runtime
 configuration, package dependency, or persistence contract.
+The POSIX fixture also directs the private server's Unix socket into its
+pytest-owned data directory, avoiding distribution-owned runtime paths while
+clients continue to use TCP loopback. Windows omits that POSIX-only option.
 
 Portable JSON Schema files document trace, failure case, lesson, project policy,
 usage log, and full snapshot shapes; cross-record provenance checks still live

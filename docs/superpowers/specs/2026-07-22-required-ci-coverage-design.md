@@ -59,6 +59,11 @@ The new `postgres` job:
 6. sets `TBM_REQUIRE_POSTGRES=1`; and
 7. runs the PostgreSQL integration and repository test files together.
 
+On POSIX, the private server must set its Unix socket directory to its
+pytest-owned data directory instead of inheriting a distribution default such
+as `/var/run/postgresql`. Clients still use explicit TCP loopback. Windows
+keeps the existing no-socket startup options.
+
 The new `windows` job runs the complete pytest suite on `windows-latest` with
 Python 3.13. PostgreSQL remains optional in that job because the dedicated
 Ubuntu job is the authoritative required database runtime; if the Windows
@@ -81,4 +86,3 @@ Completion requires focused PostgreSQL-infrastructure tests, the full local
 suite, YAML parsing, `compileall`, `git diff --check`, and a successful remote
 run containing Ubuntu 3.11/3.12/3.13, Windows, required PostgreSQL, and package
 jobs.
-

@@ -817,6 +817,28 @@ def test_postgres_start_retries_address_in_use_and_retains_successful_port(
     assert started_env["PGPORT"] == "41002"
 
 
+@pytest.mark.parametrize("has_unix_sockets", [False, True])
+def test_postgres_start_options_use_only_a_private_unix_socket_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    has_unix_sockets: bool,
+):
+    data = tmp_path / "data directory"
+    monkeypatch.setattr(
+        postgres_support,
+        "_HAS_UNIX_DOMAIN_SOCKETS",
+        has_unix_sockets,
+    )
+
+    options = postgres_support._postgres_start_options(data, "41003")
+
+    assert options.startswith("-F -p 41003 -h 127.0.0.1")
+    assert (" -k " in options) is has_unix_sockets
+    assert "/var/run/postgresql" not in options
+    if has_unix_sockets:
+        assert str(data) in options
+
+
 def test_postgres_start_bounds_address_in_use_retries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

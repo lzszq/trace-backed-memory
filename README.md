@@ -347,6 +347,14 @@ psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f postgres.sql
 The adapter requires the schema metadata row at `schema_version` 1. The SQL
 file is a fresh-install schema, not a migration for an existing database.
 
+PostgreSQL remains optional for local test runs: the database-backed tests skip
+when `initdb`, `pg_ctl`, or `psql` is unavailable. CI sets
+`TBM_REQUIRE_POSTGRES=1` in a dedicated `ubuntu-latest` job, installs and
+preflights those server tools plus `psycopg`, and then runs both PostgreSQL test
+modules against a real private cluster. A separate `windows-latest` job runs the
+complete Python suite so platform-specific path, process, and atomic-file
+behavior cannot remain Ubuntu-only.
+
 ```python
 from trace_backed_memory import PostgresMemoryRepository
 

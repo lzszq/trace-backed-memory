@@ -768,6 +768,16 @@ uses controllable advisory-lock latches across real sessions to verify both
 lifecycle lock orderings without timing sleeps. It also verifies failed-install
 rollback, non-owner helper shadowing, non-default caller search paths, and
 independent client/server/directory cleanup.
+
+The test runtime remains optional for local development: missing PostgreSQL
+executables or an `initdb` user restriction skips the database-backed tests.
+The CI-only `TBM_REQUIRE_POSTGRES=1` switch converts those two environmental
+conditions into failures. A dedicated Ubuntu job installs and preflights
+`initdb`, `pg_ctl`, `psql`, and `psycopg` before running the integration and
+repository modules together, while a separate Windows job runs the complete
+suite. This switch belongs only to test infrastructure and changes no runtime
+configuration, package dependency, or persistence contract.
+
 Portable JSON Schema files document trace, failure case, lesson, project policy,
 usage log, and full snapshot shapes; cross-record provenance checks still live
 in the store because they require current store state.

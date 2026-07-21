@@ -27,6 +27,90 @@ from tests.postgres_support import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize("value", [None, "", "0", "true"])
+def test_unavailable_postgres_runtime_skips_unless_explicitly_required(
+    monkeypatch: pytest.MonkeyPatch,
+    value: str | None,
+):
+    if value is None:
+        monkeypatch.delenv("TBM_REQUIRE_POSTGRES", raising=False)
+    else:
+        monkeypatch.setenv("TBM_REQUIRE_POSTGRES", value)
+
+    with pytest.raises(
+        pytest.skip.Exception,
+        match="PostgreSQL executables unavailable: initdb",
+    ):
+        postgres_support._unavailable_postgres_runtime(
+            "PostgreSQL executables unavailable: initdb"
+        )
+
+
+def test_unavailable_postgres_runtime_fails_in_required_mode(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("TBM_REQUIRE_POSTGRES", "1")
+
+    with pytest.raises(
+        pytest.fail.Exception,
+        match="initdb cannot legally run as the current user",
+    ):
+        postgres_support._unavailable_postgres_runtime(
+            "initdb cannot legally run as the current user"
+        )
+
+
+def test_postgres_server_missing_executables_obeys_required_mode(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("TBM_REQUIRE_POSTGRES", "1")
+    monkeypatch.setattr(postgres_support.shutil, "which", lambda _name: None)
+    fixture = postgres_support._postgres_server.__wrapped__(None)
+
+    with pytest.raises(
+        pytest.fail.Exception,
+        match="PostgreSQL executables unavailable: initdb, pg_ctl, psql",
+    ):
+        next(fixture)
+
+
+def test_postgres_server_illegal_user_obeys_required_mode_and_cleans_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    root = tmp_path / "postgres-server"
+
+    class TmpPathFactory:
+        def mktemp(self, _name: str) -> Path:
+            root.mkdir()
+            return root
+
+        def getbasetemp(self) -> Path:
+            return tmp_path
+
+    monkeypatch.setenv("TBM_REQUIRE_POSTGRES", "1")
+    monkeypatch.setattr(postgres_support.shutil, "which", lambda name: name)
+    monkeypatch.setattr(
+        postgres_support.subprocess,
+        "run",
+        lambda args, **_kwargs: subprocess.CompletedProcess(
+            args,
+            1,
+            "",
+            "initdb cannot be run as root",
+        ),
+    )
+    fixture = postgres_support._postgres_server.__wrapped__(TmpPathFactory())
+
+    with pytest.raises(
+        pytest.fail.Exception,
+        match="initdb cannot legally run as the current user",
+    ):
+        next(fixture)
+
+    assert root.exists() is False
+
+
 def test_test_database_names_are_unique_safe_identifiers():
     names = {_new_test_database_name() for _ in range(100)}
     assert len(names) == 100

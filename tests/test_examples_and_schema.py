@@ -57,7 +57,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`MemoryRunMeasurement`",
         "`MemoryObsolescenceRequest`",
         "`obsolete_memories()`",
-        "Phase 0-36",
+        "Phase 0-37",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -2158,7 +2158,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-36" in documents["docs/product.md"]
+    assert "Phase 0-37" in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2192,6 +2192,44 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         ".sdist-smoke/bin/python -m trace_backed_memory obsolete-batch"
         in workflow
     )
+
+
+def test_docs_publish_required_postgres_and_windows_ci_coverage():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    product = _doc("product.md")
+    architecture = _doc("architecture.md")
+    usage_policy = _doc("usage-policy.md")
+    roadmap = _doc("mvp-roadmap.md")
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Phase 0-37" in product
+    assert (
+        "Phase 37: Required PostgreSQL and Windows CI coverage (implemented)"
+        in roadmap
+    )
+    for document in (readme, architecture, usage_policy, roadmap):
+        assert "TBM_REQUIRE_POSTGRES" in document
+        assert "Windows" in document or "windows-latest" in document
+        assert "initdb" in document
+        assert "pg_ctl" in document
+        assert "psql" in document
+
+    for contract in (
+        "windows:",
+        "runs-on: windows-latest",
+        "postgres:",
+        'TBM_REQUIRE_POSTGRES: "1"',
+        "sudo apt-get install --yes postgresql postgresql-client",
+        "initdb --version",
+        "pg_ctl --version",
+        "psql --version",
+        'python -c "import psycopg; print(psycopg.__version__)"',
+        "tests/test_postgres_integration.py",
+        "tests/test_postgres_repository.py",
+    ):
+        assert contract in workflow
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

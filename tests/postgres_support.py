@@ -29,6 +29,12 @@ _ADDRESS_IN_USE_MARKERS = (
 )
 
 
+def _unavailable_postgres_runtime(reason: str) -> None:
+    if os.environ.get("TBM_REQUIRE_POSTGRES") == "1":
+        pytest.fail(reason)
+    pytest.skip(reason)
+
+
 @dataclass(frozen=True)
 class AdvisoryLatch:
     key: int
@@ -577,7 +583,9 @@ def _postgres_server(
     }
     missing = sorted(name for name, path in executables.items() if path is None)
     if missing:
-        pytest.skip("PostgreSQL executables unavailable: " + ", ".join(missing))
+        _unavailable_postgres_runtime(
+            "PostgreSQL executables unavailable: " + ", ".join(missing)
+        )
 
     root = tmp_path_factory.mktemp("postgres-server")
     data = root / "data"
@@ -615,7 +623,9 @@ def _postgres_server(
         if init.returncode != 0:
             error = f"{init.stdout}\n{init.stderr}".lower()
             if "cannot be run as root" in error or "must not be run as root" in error:
-                pytest.skip("initdb cannot legally run as the current user")
+                _unavailable_postgres_runtime(
+                    "initdb cannot legally run as the current user"
+                )
             pytest.fail(f"initdb failed:\n{init.stdout}\n{init.stderr}")
 
         try:

@@ -645,3 +645,20 @@ Track:
 - Persist no request or batch record. Preserve snapshot version 2, every JSON
   Schema, active-lessons YAML, all 18 packaged resource bytes,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 37: Required PostgreSQL and Windows CI coverage (implemented)
+
+- Preserve the PostgreSQL fixture's optional local behavior, but route missing
+  server executables and an illegal `initdb` user through one test-runtime
+  boundary.
+- Add CI-only `TBM_REQUIRE_POSTGRES=1`; under that exact value, environmental
+  PostgreSQL skips become test failures with the original diagnostic.
+- Add a dedicated `ubuntu-latest` PostgreSQL job that installs and preflights
+  `initdb`, `pg_ctl`, `psql`, and `psycopg`, then runs the integration and
+  repository modules together against the private session cluster.
+- Add a `windows-latest` Python 3.13 job that runs the complete pytest suite,
+  while retaining the Ubuntu Python 3.11-3.13 matrix and package job.
+- Keep the switch entirely under `tests/` and CI. Preserve application runtime,
+  package dependencies, snapshot version 2, every JSON Schema, active-lessons
+  YAML, all 18 packaged resource bytes, `schemas/postgres.sql`, and PostgreSQL
+  schema version 1.

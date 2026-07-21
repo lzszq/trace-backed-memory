@@ -146,7 +146,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-36，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交。这些运行时控制不持久化，snapshot version 2 与 PostgreSQL schema version 1 保持不变。测试包括：
+当前版本已完成路线图 Phase 0-37，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交。这些运行时控制不持久化，snapshot version 2 与 PostgreSQL schema version 1 保持不变。测试包括：
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry；
@@ -156,6 +156,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - wheel/sdist 资源清单、逐字节 parity、隔离安装、默认 taxonomy、`py.typed` 与 PostgreSQL Schema 导出；
 - callback memory-run execution 的顺序、measurement evidence、异常恢复上下文、Store 错误透传与原子失败；
 - 真实临时 PostgreSQL 集群上的 DDL、事务、并发锁和同步；
+- CI 通过 `TBM_REQUIRE_POSTGRES=1` 强制执行 PostgreSQL 集成与 Repository 测试，并在独立 `windows-latest` job 运行完整回归；本地缺少数据库工具时仍保持可选 skip；
 - README 工作流与产品文档契约。
 
 当前定位仍是 Alpha：API 已系统化，但尚未承诺长期向后兼容或在线 schema migration。

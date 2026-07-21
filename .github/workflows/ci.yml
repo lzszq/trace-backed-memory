@@ -20,6 +20,47 @@ jobs:
       - run: python -m pip install -e ".[dev]"
       - run: python -m pytest
 
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest
+
+  postgres:
+    runs-on: ubuntu-latest
+    env:
+      TBM_REQUIRE_POSTGRES: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install PostgreSQL server tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql postgresql-client
+          POSTGRES_BIN="$(find /usr/lib/postgresql -mindepth 2 -maxdepth 2 -type d -name bin | sort -V | tail -n 1)"
+          test -n "$POSTGRES_BIN"
+          echo "$POSTGRES_BIN" >> "$GITHUB_PATH"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Verify required PostgreSQL runtime
+        run: |
+          initdb --version
+          pg_ctl --version
+          psql --version
+          python -c "import psycopg; print(psycopg.__version__)"
+      - name: Run required PostgreSQL tests
+        run: >-
+          python -m pytest
+          tests/test_postgres_integration.py
+          tests/test_postgres_repository.py
+
   package:
     runs-on: ubuntu-latest
     steps:

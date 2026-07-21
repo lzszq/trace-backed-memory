@@ -38,6 +38,18 @@ repository operation uses a nested savepoint and does not commit or roll back
 the outer transaction; the caller owns the final commit or rollback. Without an
 outer transaction, the repository transaction commits normally.
 
+## PostgreSQL Test Runtime Policy
+
+PostgreSQL server tools remain optional for ordinary local pytest runs. When
+`initdb`, `pg_ctl`, or `psql` is missing, or when `initdb` cannot legally run as
+the current user, the database-backed suite skips with a diagnostic. CI must
+set `TBM_REQUIRE_POSTGRES=1` in its dedicated PostgreSQL job so either condition
+is a failure, preflight the three executables and `psycopg`, and run the
+integration and repository test modules against the private session cluster.
+The complete suite also runs on Windows independently of that required Ubuntu
+database job. This test-only switch must not be read by package runtime code or
+persisted in snapshots, YAML, packaged resources, or PostgreSQL.
+
 ## Packaged Resource Policy
 
 Use `packaged_resources()`, `read_packaged_resource()`, or

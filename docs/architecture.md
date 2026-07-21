@@ -296,6 +296,17 @@ advance the counter. The derived index is rebuilt by validated snapshot import,
 never serialized, and does not replace canonical output sorting, snapshot
 version 2, or PostgreSQL schema version 1.
 
+The live Store also owns a private derived index from each `run_id` to its
+ordered `trace_id` values. `record_trace()` is the only insertion boundary and
+commits the copied Trace and index entry together under the existing `RLock`;
+an index failure rolls the Trace insertion back. A lookup classifies missing,
+unique, and ambiguous run IDs in average O(1) without scanning `_traces`.
+Duplicate run IDs remain valid and ambiguous, while the index stores IDs so
+Trace completion resolves the current replacement record. Snapshot loading
+rebuilds this nonserialized state through `record_trace()`. Canonical output,
+legacy migration, snapshot version 2, and PostgreSQL schema version 1 remain
+unchanged.
+
 The `recover-batch` argv surface separately caps submitted values at 10,000
 decision IDs and 10,000 attribution options. A preload cardinality check runs
 immediately after argparse and before snapshot loading, tuple/set/dictionary

@@ -209,6 +209,15 @@ nonnumeric IDs remain indexed without advancing it. Failed writes consume no
 ID. The derived index is not serialized, canonical snapshot sorting remains in
 place, and snapshot version 2 and PostgreSQL schema version 1 do not change.
 
+Live run-to-Trace resolution uses a second private derived index from
+`run_id` to an ordered list of `trace_id` values. Unique and ambiguous run IDs
+are detected in average O(1) without scanning Trace history; duplicate run IDs
+remain valid records but still fail closed when a decision needs one Trace.
+`record_trace()` updates the Trace table and index atomically under the Store
+lock, and validated snapshot reconstruction rebuilds the index. It is not
+serialized, and snapshot version 2 and PostgreSQL schema version 1 do not
+change.
+
 ## Snapshot Operations CLI
 
 Installing the package exposes the dependency-free `tbm` console script. The

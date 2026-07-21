@@ -149,6 +149,7 @@ class TraceBackedMemoryStore:
     def __init__(self) -> None:
         self._lock = RLock()
         self._traces: dict[str, Trace] = {}
+        self._trace_ids_by_run_id: dict[str, list[str]] = {}
         self._failure_cases: dict[str, FailureCase] = {}
         self._lessons: dict[str, Lesson] = {}
         self._project_policies: dict[str, ProjectPolicy] = {}
@@ -385,7 +386,22 @@ class TraceBackedMemoryStore:
         _validate_trace(stored_trace)
         if stored_trace.trace_id in self._traces:
             raise ValueError(f"duplicate trace_id: {stored_trace.trace_id}")
+        trace_ids = self._trace_ids_by_run_id.get(stored_trace.run_id)
         self._traces[stored_trace.trace_id] = stored_trace
+        try:
+            if trace_ids is None:
+                self._trace_ids_by_run_id[stored_trace.run_id] = [
+                    stored_trace.trace_id
+                ]
+            else:
+                trace_ids.append(stored_trace.trace_id)
+        except BaseException:
+            self._traces.pop(stored_trace.trace_id, None)
+            if trace_ids is None:
+                self._trace_ids_by_run_id.pop(stored_trace.run_id, None)
+            elif trace_ids and trace_ids[-1] == stored_trace.trace_id:
+                trace_ids.pop()
+            raise
         return deepcopy(stored_trace)
 
     @_synchronized
@@ -1389,12 +1405,12 @@ class TraceBackedMemoryStore:
             "trace lookup requires",
             max_chars=MEMORY_ID_MAX_CHARS,
         )
-        matches = [trace for trace in self._traces.values() if trace.run_id == run_id]
-        if not matches:
+        trace_ids = self._trace_ids_by_run_id.get(run_id)
+        if not trace_ids:
             raise ValueError(f"unknown run_id: {run_id}")
-        if len(matches) > 1:
+        if len(trace_ids) > 1:
             raise ValueError(f"run_id does not resolve to one trace: {run_id}")
-        return matches[0]
+        return self._traces[trace_ids[0]]
 
     def _memory_items(self, memory_ids: tuple[str, ...] | list[str]) -> list[MemoryItem]:
         items: list[MemoryItem] = []

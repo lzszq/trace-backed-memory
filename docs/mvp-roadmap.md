@@ -934,3 +934,18 @@ Track:
   sorting, and do not serialize the derived index.
 - Change no public signature, dependency, model, snapshot field, JSON Schema,
   active-lessons YAML, packaged resource, PostgreSQL DDL, or schema version 1.
+
+## Phase 53: Indexed run-to-Trace lookup (implemented)
+
+- Maintain a private derived `run_id`-to-ordered-`trace_id` index through the
+  sole `record_trace()` insertion boundary.
+- Commit the copied Trace and index entry under the existing Store `RLock`,
+  and roll the Trace insertion back if index publication fails.
+- Resolve missing, unique, and ambiguous run IDs in average O(1) without
+  scanning Trace history; preserve duplicate run IDs as valid but ambiguous.
+- Store Trace IDs so completion replacements remain current, and rebuild the
+  nonserialized index through validated snapshot reconstruction.
+- Keep legacy migration and canonical snapshot ordering unchanged. Change no
+  public signature, dependency, model, snapshot field, JSON Schema,
+  active-lessons YAML, packaged resource, PostgreSQL DDL, snapshot version 2,
+  or PostgreSQL schema version 1.

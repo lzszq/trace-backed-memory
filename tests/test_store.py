@@ -10206,6 +10206,322 @@ def test_log_decision_avoids_duplicate_decision_ids_after_sparse_snapshot_import
     assert len({entry.decision_id for entry in store.usage_logs}) == len(store.usage_logs)
 
 
+@pytest.mark.parametrize("record_count", [16, 64])
+def test_run_lookup_does_not_iterate_trace_history(record_count: int):
+    class TraceHistory(dict[str, Trace]):
+        values_calls = 0
+
+        def values(self):
+            type(self).values_calls += 1
+            return super().values()
+
+    store = TraceBackedMemoryStore()
+    traces = [
+        store.record_trace(
+            Trace(
+                trace_id=f"trace_run_index_{index:06d}",
+                run_id=f"run_index_{index:06d}",
+                commit_sha=f"commit_{index:06d}",
+                repo="repo",
+            )
+        )
+        for index in range(record_count)
+    ]
+    target = traces[-1]
+    store._traces = TraceHistory(store._traces)
+    TraceHistory.values_calls = 0
+
+    log = store.log_decision(
+        target.run_id,
+        MemoryContext(
+            mode="repair",
+            repo="repo",
+            commit_sha=target.commit_sha,
+        ),
+        [],
+        MemoryDecision(
+            use_memory=False,
+            allowed_memory_ids=[],
+            blocked_memory_ids=[],
+            reason="no applicable memory",
+            risk="none",
+            recommended_injection="none",
+        ),
+    )
+
+    assert log.trace_id == target.trace_id
+    assert TraceHistory.values_calls == 0
+
+
+def test_run_lookup_preserves_unknown_and_ambiguous_errors():
+    store = TraceBackedMemoryStore()
+    for suffix in ("a", "b"):
+        store.record_trace(
+            Trace(
+                trace_id=f"trace_ambiguous_{suffix}",
+                run_id="run_ambiguous",
+                commit_sha="commit_ambiguous",
+                repo="repo",
+            )
+        )
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="commit_ambiguous",
+    )
+    decision = MemoryDecision(
+        use_memory=False,
+        allowed_memory_ids=[],
+        blocked_memory_ids=[],
+        reason="no applicable memory",
+        risk="none",
+        recommended_injection="none",
+    )
+
+    with pytest.raises(ValueError, match="^unknown run_id: run_missing$"):
+        store.log_decision("run_missing", context, [], decision)
+    with pytest.raises(
+        ValueError,
+        match="^run_id does not resolve to one trace: run_ambiguous$",
+    ):
+        store.log_decision("run_ambiguous", context, [], decision)
+
+
+def test_duplicate_trace_id_does_not_pollute_another_run_lookup():
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id="trace_duplicate_index",
+            run_id="run_original",
+            commit_sha="commit_original",
+            repo="repo",
+        )
+    )
+
+    with pytest.raises(ValueError, match="duplicate trace_id"):
+        store.record_trace(
+            Trace(
+                trace_id="trace_duplicate_index",
+                run_id="run_new",
+                commit_sha="commit_new",
+                repo="repo",
+            )
+        )
+
+    new_trace = store.record_trace(
+        Trace(
+            trace_id="trace_new_index",
+            run_id="run_new",
+            commit_sha="commit_new",
+            repo="repo",
+        )
+    )
+
+    assert store._trace_for_run_id("run_new") == new_trace
+
+
+def test_snapshot_rebuilds_unique_and_ambiguous_run_lookup_index():
+    class TraceHistory(dict[str, Trace]):
+        def values(self):
+            raise AssertionError("run lookup must not scan restored traces")
+
+    seed = TraceBackedMemoryStore()
+    unique = seed.record_trace(
+        Trace(
+            trace_id="trace_restored_unique",
+            run_id="run_restored_unique",
+            commit_sha="commit_restored_unique",
+            repo="repo",
+        )
+    )
+    for suffix in ("a", "b"):
+        seed.record_trace(
+            Trace(
+                trace_id=f"trace_restored_ambiguous_{suffix}",
+                run_id="run_restored_ambiguous",
+                commit_sha="commit_restored_ambiguous",
+                repo="repo",
+            )
+        )
+
+    restored = TraceBackedMemoryStore.from_snapshot(seed.to_snapshot())
+    restored._traces = TraceHistory(restored._traces)
+
+    assert restored._trace_for_run_id(unique.run_id) == unique
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^run_id does not resolve to one trace: "
+            "run_restored_ambiguous$"
+        ),
+    ):
+        restored._trace_for_run_id("run_restored_ambiguous")
+
+
+def test_run_index_failure_rolls_back_trace_insertion():
+    class RejectingRunIndex(dict[str, list[str]]):
+        def __setitem__(self, key: str, value: list[str]) -> None:
+            if key == "run_failed_run_index":
+                raise RuntimeError("injected run-index failure")
+            super().__setitem__(key, value)
+
+    store = TraceBackedMemoryStore()
+    existing = store.record_trace(
+        Trace(
+            trace_id="trace_existing_run_index",
+            run_id="run_existing_run_index",
+            commit_sha="commit_existing_run_index",
+        )
+    )
+    store._trace_ids_by_run_id = RejectingRunIndex(
+        deepcopy(store._trace_ids_by_run_id)
+    )
+    before_traces = dict(store.traces)
+    before_index = deepcopy(store._trace_ids_by_run_id)
+
+    with pytest.raises(RuntimeError, match="injected run-index failure"):
+        store.record_trace(
+            Trace(
+                trace_id="trace_failed_run_index",
+                run_id="run_failed_run_index",
+                commit_sha="commit_failed_run_index",
+            )
+        )
+
+    assert dict(store.traces) == before_traces == {existing.trace_id: existing}
+    assert store._trace_ids_by_run_id == before_index
+
+
+def test_trace_completion_keeps_run_index_on_the_current_record():
+    store = TraceBackedMemoryStore()
+    pending = store.record_trace(
+        pending_execution_trace(
+            trace_id="trace_completed_run_index",
+            run_id="run_completed_run_index",
+        )
+    )
+
+    completed = store.complete_trace(pending.trace_id, eval_result="pass")
+
+    assert store._trace_for_run_id(pending.run_id) == completed
+
+
+def test_concurrent_trace_recording_and_run_lookup_remain_consistent():
+    store = TraceBackedMemoryStore()
+    worker_count = 16
+    barrier = threading.Barrier(worker_count)
+    result_lock = threading.Lock()
+    linked_ids: list[tuple[str, str]] = []
+    errors: list[BaseException] = []
+
+    def record_and_log(index: int) -> None:
+        try:
+            barrier.wait(timeout=5)
+            trace = store.record_trace(
+                Trace(
+                    trace_id=f"trace_concurrent_index_{index:06d}",
+                    run_id=f"run_concurrent_index_{index:06d}",
+                    commit_sha=f"commit_concurrent_index_{index:06d}",
+                    repo="repo",
+                )
+            )
+            log = store.log_decision(
+                trace.run_id,
+                MemoryContext(
+                    mode="repair",
+                    repo="repo",
+                    commit_sha=trace.commit_sha,
+                ),
+                [],
+                MemoryDecision(
+                    use_memory=False,
+                    allowed_memory_ids=[],
+                    blocked_memory_ids=[],
+                    reason="no applicable memory",
+                    risk="none",
+                    recommended_injection="none",
+                ),
+            )
+            with result_lock:
+                linked_ids.append((trace.trace_id, log.trace_id))
+        except BaseException as exc:
+            with result_lock:
+                errors.append(exc)
+
+    threads = [
+        threading.Thread(target=record_and_log, args=(index,))
+        for index in range(worker_count)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert errors == []
+    assert len(linked_ids) == worker_count
+    assert all(trace_id == log_trace_id for trace_id, log_trace_id in linked_ids)
+
+
+def test_concurrent_duplicate_run_recording_preserves_ambiguity():
+    store = TraceBackedMemoryStore()
+    worker_count = 2
+    barrier = threading.Barrier(worker_count)
+    errors: list[BaseException] = []
+    result_lock = threading.Lock()
+
+    def record_same_run(index: int) -> None:
+        try:
+            barrier.wait(timeout=5)
+            store.record_trace(
+                Trace(
+                    trace_id=f"trace_concurrent_ambiguous_{index}",
+                    run_id="run_concurrent_ambiguous",
+                    commit_sha="commit_concurrent_ambiguous",
+                    repo="repo",
+                )
+            )
+        except BaseException as exc:
+            with result_lock:
+                errors.append(exc)
+
+    threads = [
+        threading.Thread(target=record_same_run, args=(index,))
+        for index in range(worker_count)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert errors == []
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^run_id does not resolve to one trace: "
+            "run_concurrent_ambiguous$"
+        ),
+    ):
+        store.log_decision(
+            "run_concurrent_ambiguous",
+            MemoryContext(
+                mode="repair",
+                repo="repo",
+                commit_sha="commit_concurrent_ambiguous",
+            ),
+            [],
+            MemoryDecision(
+                use_memory=False,
+                allowed_memory_ids=[],
+                blocked_memory_ids=[],
+                reason="no applicable memory",
+                risk="none",
+                recommended_injection="none",
+            ),
+        )
+
+
 def test_store_json_snapshot_round_trips_failure_case_review_metadata(tmp_path):
     store = TraceBackedMemoryStore()
     trace = store.record_trace(Trace(trace_id="trace_001", run_id="run_001", commit_sha="abc123", eval_result="fail"))

@@ -57,7 +57,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`MemoryRunMeasurement`",
         "`MemoryObsolescenceRequest`",
         "`obsolete_memories()`",
-        "Phase 0-52",
+        "Phase 0-53",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -1984,7 +1984,7 @@ def test_docs_publish_conservative_failure_extraction_accuracy():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 50: Conservative failure extraction accuracy (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2022,7 +2022,7 @@ def test_docs_publish_linear_snapshot_usage_log_validation():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 51: Linear snapshot usage-log validation (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2060,9 +2060,48 @@ def test_docs_publish_indexed_usage_log_operations():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 52: Indexed usage-log operations (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert len(packaged_resources()) == 18
+
+
+def test_docs_publish_indexed_run_to_trace_lookup():
+    from trace_backed_memory import packaged_resources
+
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    required_contracts = (
+        "average o(1)",
+        "`run_id`",
+        "`trace_id`",
+        "derived index",
+        "ambiguous",
+        "snapshot version 2",
+        "postgresql schema version 1",
+    )
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert "Phase 0-53" in documents["docs/product.md"]
+    assert (
+        "Phase 53: Indexed run-to-Trace lookup (implemented)"
         in documents["docs/mvp-roadmap.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
@@ -2367,7 +2406,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2413,7 +2452,7 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
         encoding="utf-8"
     )
 
-    assert "Phase 0-52" in product
+    assert "Phase 0-53" in product
     assert (
         "Phase 37: Required PostgreSQL and Windows CI coverage (implemented)"
         in roadmap
@@ -2468,7 +2507,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in product
+    assert "Phase 0-53" in product
     assert "decision-only `outcome` CLI" in product
     assert (
         "Phase 38: Deferred decision outcome CLI (implemented)"
@@ -2527,7 +2566,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
         assert "outer" in normalized
         assert "commit or rollback" in normalized
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 39: PostgreSQL consistent snapshots and lifecycle row locks "
         "(implemented)"
@@ -2571,7 +2610,7 @@ def test_docs_publish_postgres_bounded_load_before_materialization():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 40: PostgreSQL bounded load materialization (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2622,7 +2661,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 41: Runtime collection cardinality limits (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2681,7 +2720,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 42: PostgreSQL concurrent insert revalidation (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2742,7 +2781,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 43: Strict JSON object key uniqueness (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2804,7 +2843,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
     ):
         assert contract in published_contract
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 44: Bounded recover-batch arguments (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2862,7 +2901,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
     ):
         assert contract in published_contract
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 45: Non-negative trace latency (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2936,7 +2975,7 @@ def test_docs_publish_public_project_policy_obsolescence_export():
     assert "package root" in documents["README.md"]
     assert "package root" in documents["docs/architecture.md"]
     assert "根包" in documents["docs/product.md"]
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 46: Public project-policy obsolescence export (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2974,7 +3013,7 @@ def test_docs_publish_postgres_compatible_trace_latency_range():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 47: PostgreSQL-compatible trace latency range (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -3052,7 +3091,7 @@ def test_docs_publish_postgres_bounded_load_payloads():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 48: PostgreSQL bounded load payloads (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -3109,7 +3148,7 @@ def test_docs_publish_portable_nonblank_persisted_strings():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-52" in documents["docs/product.md"]
+    assert "Phase 0-53" in documents["docs/product.md"]
     assert (
         "Phase 49: Portable nonblank persisted strings (implemented)"
         in documents["docs/mvp-roadmap.md"]

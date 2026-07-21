@@ -204,6 +204,15 @@ O(1), with max numeric suffix semantics for imported IDs and no ID consumed by
 a failed write. Never serialize the derived index or bypass canonical sorting,
 snapshot version 2, or PostgreSQL schema version 1.
 
+Maintain the live `run_id`-to-ordered-`trace_id` derived index only through
+`record_trace()`. Commit its entry with the copied Trace under the Store lock
+and roll the Trace insertion back if index publication fails. Resolve missing,
+unique, and ambiguous run IDs in average O(1); never select one record from a
+duplicate run. Store IDs rather than Trace objects so completion replacements
+remain current. Rebuild this nonserialized index during validated snapshot
+loading without changing legacy migration, canonical output, snapshot version
+2, or PostgreSQL schema version 1.
+
 Also cap `recover-batch` at 10,000 decision IDs and 10,000 attribution options.
 Count submitted values before duplicate detection and reject overflow as input
 before snapshot loading, Store construction, recovery, or publication. Do not

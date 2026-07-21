@@ -57,7 +57,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`MemoryRunMeasurement`",
         "`MemoryObsolescenceRequest`",
         "`obsolete_memories()`",
-        "Phase 0-37",
+        "Phase 0-38",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -2158,7 +2158,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-37" in documents["docs/product.md"]
+    assert "Phase 0-38" in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2204,7 +2204,7 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
         encoding="utf-8"
     )
 
-    assert "Phase 0-37" in product
+    assert "Phase 0-38" in product
     assert (
         "Phase 37: Required PostgreSQL and Windows CI coverage (implemented)"
         in roadmap
@@ -2230,6 +2230,60 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
         "tests/test_postgres_repository.py",
     ):
         assert contract in workflow
+
+
+def test_docs_publish_deferred_outcome_cli_and_compatibility():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    product = _doc("product.md")
+    required_contracts = [
+        "outcome",
+        "record_decision_outcome()",
+        "decision_id",
+        "pass",
+        "fail",
+        "error",
+        "memory_caused_failure",
+        "dry-run",
+        "changed",
+        "written",
+        "snapshot version 2",
+        "postgresql schema version 1",
+    ]
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert "Phase 0-38" in product
+    assert "decision-only `outcome` CLI" in product
+    assert (
+        "Phase 38: Deferred decision outcome CLI (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "outcome_commands" not in snapshot_schema["properties"]
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert "outcome_commands" not in postgres_schema
+
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    assert ".package-smoke/bin/tbm outcome" in workflow
+    assert (
+        ".sdist-smoke/bin/python -m trace_backed_memory outcome"
+        in workflow
+    )
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

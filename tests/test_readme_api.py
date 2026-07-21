@@ -757,6 +757,7 @@ def test_readme_publishes_snapshot_operations_cli_contract():
         "tbm metrics SNAPSHOT",
         "tbm remediation SNAPSHOT",
         "tbm pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON --repo-path REPO_PATH",
+        "tbm outcome SNAPSHOT DECISION_ID --eval-result {pass,fail,error}",
         "tbm complete SNAPSHOT TRACE_ID DECISION_ID",
         "tbm complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]",
         "tbm recover-ready SNAPSHOT [--write]",
@@ -772,6 +773,28 @@ def test_readme_publishes_snapshot_operations_cli_contract():
     assert "structured JSON" in normalized
     assert "2,048 characters" in normalized
     assert "snapshot version 2" in normalized
+
+
+def test_readme_publishes_deferred_outcome_cli_contract():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+        encoding="utf-8"
+    )
+    normalized = " ".join(readme.split())
+
+    for contract in [
+        "tbm outcome SNAPSHOT DECISION_ID --eval-result {pass,fail,error}",
+        "--memory-caused-failure true|false",
+        "`record_decision_outcome()`",
+        "never completes the linked Trace",
+        "dry-run",
+        "`changed=true`",
+        "`changed=false`",
+        "previous/current outcome pair",
+        "candidate/used/blocked memory IDs",
+        "snapshot version 2",
+        "PostgreSQL schema version 1",
+    ]:
+        assert contract in normalized
 
 
 def test_readme_publishes_active_lessons_cli_contract():

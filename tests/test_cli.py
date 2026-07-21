@@ -1848,6 +1848,305 @@ def test_cli_reports_usage_file_and_snapshot_errors_as_json(tmp_path, capsys):
     assert "snapshot_version" in error["error"]["message"]
 
 
+def test_cli_outcome_is_a_private_dry_run_and_calls_store_once(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    original = path.read_bytes()
+    calls: list[tuple[str, str, bool]] = []
+    record_outcome = TraceBackedMemoryStore.record_decision_outcome
+
+    def count_call(
+        store,
+        called_decision_id,
+        eval_result,
+        *,
+        memory_caused_failure=False,
+    ):
+        calls.append(
+            (called_decision_id, eval_result, memory_caused_failure)
+        )
+        return record_outcome(
+            store,
+            called_decision_id,
+            eval_result,
+            memory_caused_failure=memory_caused_failure,
+        )
+
+    monkeypatch.setattr(
+        TraceBackedMemoryStore,
+        "record_decision_outcome",
+        count_call,
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "outcome",
+        str(path),
+        decision_id,
+        "--eval-result",
+        "pass",
+    )
+
+    assert code == 0
+    assert error is None
+    assert calls == [(decision_id, "pass", False)]
+    assert payload == {
+        "changed": True,
+        "decision_id": decision_id,
+        "eval_result": "pass",
+        "memory_caused_failure": False,
+        "previous_eval_result": None,
+        "previous_memory_caused_failure": False,
+        "written": False,
+    }
+    assert path.read_bytes() == original
+    restored = TraceBackedMemoryStore.load_json(path)
+    assert restored.usage_logs[0].eval_result is None
+    assert restored.traces[restored.usage_logs[0].trace_id].eval_result == "unknown"
+
+
+def test_cli_outcome_writes_failure_attribution_and_replays_exactly(
+    tmp_path,
+    capsys,
+):
+    store = TraceBackedMemoryStore()
+    trace, decision_id = _pending_memory_use_run(store, "outcome_write")
+    path = tmp_path / "outcome-write.snapshot.json"
+    store.save_json(path)
+    command = (
+        "outcome",
+        str(path),
+        decision_id,
+        "--eval-result",
+        "error",
+        "--memory-caused-failure",
+        "true",
+        "--write",
+    )
+
+    code, payload, error = _run(capsys, *command)
+
+    assert code == 0
+    assert error is None
+    assert payload == {
+        "changed": True,
+        "decision_id": decision_id,
+        "eval_result": "error",
+        "memory_caused_failure": True,
+        "previous_eval_result": None,
+        "previous_memory_caused_failure": False,
+        "written": True,
+    }
+    restored = TraceBackedMemoryStore.load_json(path)
+    assert restored.usage_logs[0].eval_result == "error"
+    assert restored.usage_logs[0].memory_caused_failure is True
+    assert restored.traces[trace.trace_id].eval_result == "unknown"
+    written = path.read_bytes()
+
+    replay_code, replay_payload, replay_error = _run(capsys, *command)
+
+    assert replay_code == 0
+    assert replay_error is None
+    assert replay_payload == {
+        **payload,
+        "changed": False,
+        "previous_eval_result": "error",
+        "previous_memory_caused_failure": True,
+    }
+    assert path.read_bytes() == written
+
+
+def test_cli_outcome_rejects_invalid_unknown_and_conflicting_state(
+    tmp_path,
+    capsys,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    original = path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "outcome",
+        str(path),
+        decision_id,
+        "--eval-result",
+        "unknown",
+        "--write",
+    )
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert path.read_bytes() == original
+
+    for rejected_id in ("decision_missing", "", "x" * 129):
+        code, payload, error = _run(
+            capsys,
+            "outcome",
+            str(path),
+            rejected_id,
+            "--eval-result",
+            "pass",
+            "--write",
+        )
+        assert code == 3
+        assert payload is None
+        assert error["error"]["kind"] == "state"
+        assert path.read_bytes() == original
+
+    code, payload, error = _run(
+        capsys,
+        "outcome",
+        str(path),
+        decision_id,
+        "--eval-result",
+        "pass",
+        "--memory-caused-failure",
+        "true",
+        "--write",
+    )
+    assert code == 3
+    assert payload is None
+    assert "requires eval_result fail or error" in error["error"]["message"]
+    assert path.read_bytes() == original
+
+    sealed_path, sealed_ids = _snapshot_with_states(
+        tmp_path / "sealed",
+        "decision_only_pass",
+    )
+    sealed_original = sealed_path.read_bytes()
+    code, payload, error = _run(
+        capsys,
+        "outcome",
+        str(sealed_path),
+        sealed_ids["decision_only_pass"],
+        "--eval-result",
+        "error",
+        "--write",
+    )
+    assert code == 3
+    assert payload is None
+    assert "already sealed" in error["error"]["message"]
+    assert sealed_path.read_bytes() == sealed_original
+
+    attributed_store = TraceBackedMemoryStore()
+    _trace, attributed_id = _pending_memory_use_run(
+        attributed_store,
+        "attribution_conflict",
+    )
+    attributed_store.record_decision_outcome(
+        attributed_id,
+        "error",
+        memory_caused_failure=True,
+    )
+    attributed_path = tmp_path / "attributed.snapshot.json"
+    attributed_store.save_json(attributed_path)
+    attributed_original = attributed_path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "outcome",
+        str(attributed_path),
+        attributed_id,
+        "--eval-result",
+        "error",
+        "--memory-caused-failure",
+        "false",
+        "--write",
+    )
+    assert code == 3
+    assert payload is None
+    assert "already sealed" in error["error"]["message"]
+    assert attributed_path.read_bytes() == attributed_original
+
+
+def test_cli_outcome_rejects_wrong_memory_attribution_without_writing(
+    tmp_path,
+    capsys,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "outcome",
+        str(path),
+        decision_ids["pending"],
+        "--eval-result",
+        "error",
+        "--memory-caused-failure",
+        "true",
+        "--write",
+    )
+
+    assert code == 3
+    assert payload is None
+    assert "requires failed or errored memory use" in error["error"]["message"]
+    assert path.read_bytes() == original
+
+
+def test_cli_outcome_transition_serialization_and_write_failures_are_atomic(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    original = path.read_bytes()
+    command = (
+        "outcome",
+        str(path),
+        decision_id,
+        "--eval-result",
+        "pass",
+        "--write",
+    )
+
+    def reject_transition(_store, _decision_id, _eval_result, **_kwargs):
+        raise ValueError("injected outcome rejection")
+
+    monkeypatch.setattr(
+        TraceBackedMemoryStore,
+        "record_decision_outcome",
+        reject_transition,
+    )
+    code, payload, error = _run(capsys, *command)
+    assert code == 3
+    assert payload is None
+    assert error["error"]["kind"] == "state"
+    assert path.read_bytes() == original
+
+    monkeypatch.undo()
+    real_json_text = cli._json_text
+
+    def reject_result(value):
+        if type(value) is dict and "previous_eval_result" in value:
+            raise TypeError("injected outcome serialization failure")
+        return real_json_text(value)
+
+    monkeypatch.setattr(cli, "_json_text", reject_result)
+    code, payload, error = _run(capsys, *command)
+    assert code == 1
+    assert payload is None
+    assert error["error"]["kind"] == "internal"
+    assert path.read_bytes() == original
+
+    monkeypatch.undo()
+
+    def reject_write(_store, _path):
+        raise OSError("injected outcome write failure")
+
+    monkeypatch.setattr(TraceBackedMemoryStore, "save_json", reject_write)
+    code, payload, error = _run(capsys, *command)
+    assert code == 4
+    assert payload is None
+    assert error["error"]["kind"] == "write"
+    assert path.read_bytes() == original
+
+
 def test_cli_complete_is_dry_run_by_default(tmp_path, capsys):
     path, decision_ids = _snapshot_with_states(tmp_path, "pending")
     decision_id = decision_ids["pending"]
@@ -2984,6 +3283,52 @@ def test_module_entry_point_emits_one_json_value(tmp_path):
     }
 
 
+def test_module_entry_point_seals_outcome_as_dry_run(tmp_path):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    original = path.read_bytes()
+    root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    existing_pythonpath = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        item
+        for item in (str(root / "src"), existing_pythonpath)
+        if item
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "trace_backed_memory",
+            "outcome",
+            str(path),
+            decision_id,
+            "--eval-result",
+            "pass",
+        ],
+        cwd=root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    assert result.stdout.count("\n") == 1
+    assert json.loads(result.stdout) == {
+        "changed": True,
+        "decision_id": decision_id,
+        "eval_result": "pass",
+        "memory_caused_failure": False,
+        "previous_eval_result": None,
+        "previous_memory_caused_failure": False,
+        "written": False,
+    }
+    assert path.read_bytes() == original
+
+
 def test_module_entry_point_completes_batch_as_dry_run(tmp_path):
     store = TraceBackedMemoryStore()
     _first_trace, first_decision_id = _pending_run(store, "module_batch_first")
@@ -3078,6 +3423,77 @@ def test_cli_broken_stdout_after_write_does_not_report_false_failure(
     assert TraceBackedMemoryStore.load_json(path).memory_run_audits()[0].status == (
         "complete"
     )
+
+
+def test_cli_outcome_broken_stdout_after_write_remains_successful(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    decision_id = decision_ids["pending"]
+    original = path.read_bytes()
+
+    class BrokenStream:
+        def write(self, _value):
+            raise BrokenPipeError("injected closed outcome stdout")
+
+    monkeypatch.setattr(cli.sys, "stdout", BrokenStream())
+
+    code = cli.main(
+        [
+            "outcome",
+            str(path),
+            decision_id,
+            "--eval-result",
+            "pass",
+            "--write",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert captured.err == ""
+    assert path.read_bytes() != original
+    restored = TraceBackedMemoryStore.load_json(path)
+    assert restored.usage_logs[0].eval_result == "pass"
+    assert restored.traces[restored.usage_logs[0].trace_id].eval_result == "unknown"
+
+
+def test_cli_outcome_broken_stdout_dry_run_is_internal_and_does_not_write(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+
+    class BrokenStream:
+        def write(self, _value):
+            raise BrokenPipeError("injected closed outcome stdout")
+
+    monkeypatch.setattr(cli.sys, "stdout", BrokenStream())
+
+    code = cli.main(
+        [
+            "outcome",
+            str(path),
+            decision_ids["pending"],
+            "--eval-result",
+            "pass",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 1
+    assert json.loads(captured.err) == {
+        "error": {
+            "kind": "internal",
+            "message": "injected closed outcome stdout",
+            "type": "BrokenPipeError",
+        }
+    }
+    assert path.read_bytes() == original
 
 
 def test_cli_complete_batch_broken_stdout_after_write_remains_successful(

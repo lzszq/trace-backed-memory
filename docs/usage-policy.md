@@ -376,6 +376,18 @@ snippet, then call `complete_memory_run()` with the returned `trace_id` and
 atomically. The frozen `MemoryRunCompletion` return value exposes defensive
 copies of both records.
 
+For intentionally separate audit lifecycles, use `tbm outcome SNAPSHOT
+DECISION_ID --eval-result {pass,fail,error}
+[--memory-caused-failure true|false] [--write]`. It delegates once to
+`record_decision_outcome()` and does not modify the linked Trace. The default is
+a complete validation dry-run; `--write` publishes the same snapshot only after
+the transition and non-sensitive result serialization succeed. Exact replay of
+the pair is a successful no-op, while conflicting result or attribution is a
+state error. Output must contain only previous/current outcome fields, the
+decision ID, `changed`, and `written`, never runtime context, reason, memory ID
+lists, Trace data, or tool evidence. No command record is persisted; snapshot
+version 2 and PostgreSQL schema version 1 remain unchanged.
+
 Both records may be pending, either one may already contain the matching result
 for partial recovery, or both may match for exact replay. A result, attribution,
 Trace evidence, or linkage conflict leaves both records unchanged. Use this

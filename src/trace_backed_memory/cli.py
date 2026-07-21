@@ -220,6 +220,29 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Git repository containing the current and source commits.",
     )
 
+    outcome = commands.add_parser(
+        "outcome",
+        help="Seal one decision with a measured result.",
+    )
+    outcome.add_argument("snapshot", type=Path)
+    outcome.add_argument("decision_id")
+    outcome.add_argument(
+        "--eval-result",
+        choices=("pass", "fail", "error"),
+        required=True,
+    )
+    outcome.add_argument(
+        "--memory-caused-failure",
+        type=_parse_boolean,
+        default=False,
+        metavar="true|false",
+    )
+    outcome.add_argument(
+        "--write",
+        action="store_true",
+        help="Atomically replace the snapshot after sealing the outcome.",
+    )
+
     complete = commands.add_parser(
         "complete",
         help="Complete one memory run with a measured result.",
@@ -767,6 +790,42 @@ def _completion_payload(
     }
 
 
+def _outcome_payload(
+    args: argparse.Namespace,
+    store: TraceBackedMemoryStore,
+) -> dict[str, object]:
+    previous = next(
+        (
+            log
+            for log in store.usage_logs
+            if log.decision_id == args.decision_id
+        ),
+        None,
+    )
+    sealed = store.record_decision_outcome(
+        args.decision_id,
+        args.eval_result,
+        memory_caused_failure=args.memory_caused_failure,
+    )
+    if previous is None or sealed.decision_id != args.decision_id:
+        raise RuntimeError(
+            "Store decision outcome returned an inconsistent decision"
+        )
+    changed = (
+        previous.eval_result,
+        previous.memory_caused_failure,
+    ) != (sealed.eval_result, sealed.memory_caused_failure)
+    return {
+        "changed": changed,
+        "decision_id": args.decision_id,
+        "eval_result": sealed.eval_result,
+        "memory_caused_failure": sealed.memory_caused_failure,
+        "previous_eval_result": previous.eval_result,
+        "previous_memory_caused_failure": previous.memory_caused_failure,
+        "written": args.write,
+    }
+
+
 def _obsolescence_payload(
     args: argparse.Namespace,
     store: TraceBackedMemoryStore,
@@ -1032,6 +1091,9 @@ def _execute(
             "commit_ancestry": asdict(commit_ancestry),
             "report": asdict(report),
         }
+
+    if args.command == "outcome":
+        return _outcome_payload(args, store)
 
     if args.command == "complete":
         completion = store.complete_memory_run(

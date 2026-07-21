@@ -193,6 +193,7 @@ tbm audit SNAPSHOT
 tbm metrics SNAPSHOT
 tbm remediation SNAPSHOT
 tbm pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON --repo-path REPO_PATH
+tbm outcome SNAPSHOT DECISION_ID --eval-result {pass,fail,error} [--memory-caused-failure true|false] [--write]
 tbm complete SNAPSHOT TRACE_ID DECISION_ID --eval-result {pass,fail,error} [--memory-caused-failure true|false] [--output-hash VALUE] [--tool-outputs-file PATH] [--latency-ms INTEGER] [--cost-usd NUMBER] [--error VALUE] [--trace-uri VALUE] [--write]
 tbm complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]
 tbm recover-ready SNAPSHOT [--write]
@@ -207,6 +208,12 @@ decision IDs, and a `written` flag. They are dry-run by default: the input
 bytes change only when `--write` is explicit and the complete operation
 succeeds. A write reuses the store's same-directory temporary file and atomic
 replacement behavior.
+
+`outcome` is the decision-only adapter for deferred evaluation. It calls
+`record_decision_outcome()` once and never completes the linked Trace. Its
+result contains only the decision ID, previous/current measured pair,
+`changed`, and `written`; it never emits the rest of the usage log, runtime
+context, memory IDs, Trace fields, or tool evidence.
 
 `lessons export` writes the Store's active lessons only, in Store order, using
 the canonical constrained YAML serializer. It reports `exported_count`,
@@ -777,6 +784,18 @@ An unevaluated decision can be sealed once. Exact replay of the same pair is
 idempotent; a different result, a different failure attribution, a downgrade
 to unevaluated, or an invalid wrong-memory claim is rejected without changing
 the log. Metrics immediately move the decision out of the unevaluated bucket.
+
+The installed command mirrors this low-level transition:
+
+```text
+tbm outcome SNAPSHOT DECISION_ID --eval-result {pass,fail,error} [--memory-caused-failure true|false] [--write]
+```
+
+It is a dry-run unless `--write` is explicit. A first seal reports
+`changed=true`; exact replay reports `changed=false`. The deterministic output
+contains only the previous/current outcome pair, decision ID, and publication
+flags. It deliberately excludes context, reason, risk, candidate/used/blocked
+memory IDs, System Gate evidence, the linked Trace, and tool output.
 
 JSON snapshots already persist the outcome pair. PostgreSQL synchronization
 allows only the same forward pair update while keeping every other usage-log

@@ -675,6 +675,16 @@ evaluated denominator immediately. Callers can therefore finalize before task
 execution, seal by the returned decision ID after evaluation, and only then
 read completed metrics or persist the completed audit.
 
+The `outcome SNAPSHOT DECISION_ID --eval-result ... [--write]` CLI is a thin
+decision-only adapter over `record_decision_outcome()`. It captures the prior
+pair for a status summary, delegates the transition exactly once, and never
+completes the linked Trace. Its output is restricted to the decision ID,
+previous/current result and attribution, `changed`, and `written`; usage-log
+context, memory ID collections, Trace fields, and tool evidence remain private.
+Serialization precedes optional same-path atomic publication. The command adds
+no persisted wrapper, so snapshot version 2, JSON Schemas, active-lessons YAML,
+and PostgreSQL schema version 1 remain unchanged.
+
 `memory_outcome_metrics()` returns a memory-ID-sorted tuple for every stored
 failure case, lesson, and project policy, including IDs with no observations.
 `candidate_count`, `used_count`, and `blocked_count` summarize each final audit

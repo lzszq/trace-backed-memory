@@ -665,3 +665,23 @@ Track:
   package dependencies, snapshot version 2, every JSON Schema, active-lessons
   YAML, all 18 packaged resource bytes, `schemas/postgres.sql`, and PostgreSQL
   schema version 1.
+
+## Phase 38: Deferred decision outcome CLI (implemented)
+
+- Add `outcome SNAPSHOT DECISION_ID --eval-result {pass,fail,error}
+  [--memory-caused-failure true|false] [--write]` to both installed entry
+  points.
+- Capture the prior outcome pair and delegate exactly once to
+  `record_decision_outcome()`; never complete or modify the linked Trace.
+- Keep the command a full validation dry-run by default. Serialize the complete
+  result before explicit same-path atomic publication, and retain committed
+  stdout-failure retry safety.
+- Emit only the decision ID, previous/current result and attribution,
+  `changed`, and `written`. Never expose context, reason, risk, memory ID lists,
+  Trace data, tool evidence, or the complete usage log.
+- Preserve one-way sealing, exact-pair idempotence, attribution invariants, and
+  Store-owned state errors. Add independent wheel console-script and sdist
+  module-entry smoke.
+- Persist no command or result wrapper. Preserve snapshot version 2, every JSON
+  Schema, active-lessons YAML, all 18 packaged resource bytes,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

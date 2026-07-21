@@ -25,6 +25,8 @@ from ._ingestion import (
     SNAPSHOT_MAX_TOTAL_RECORDS,
     read_bounded_utf8,
     validate_non_negative_limit,
+    validate_snapshot_record_count,
+    validate_snapshot_total_record_count,
 )
 from .lifecycle import (
     memory_item_from_failure_case,
@@ -2025,20 +2027,16 @@ def _validate_snapshot_collection_limits(
         value = data[key]
         if not isinstance(value, list):
             raise ValueError(f"snapshot field {key!r} must be a list")
-        record_count = len(value)
-        if (
-            per_collection_limit is not None
-            and record_count > per_collection_limit
-        ):
-            raise ValueError(
-                f"snapshot field {key!r} contains {record_count} records; "
-                f"maximum is {per_collection_limit}"
-            )
-        total_records += record_count
-    if total_limit is not None and total_records > total_limit:
-        raise ValueError(
-            f"snapshot contains {total_records} records; maximum is {total_limit}"
+        record_count = validate_snapshot_record_count(
+            key,
+            len(value),
+            max_records_per_collection=per_collection_limit,
         )
+        total_records += record_count
+    validate_snapshot_total_record_count(
+        total_records,
+        max_total_records=total_limit,
+    )
 
 
 def _snapshot_record_instance(

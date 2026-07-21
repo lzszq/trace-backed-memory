@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -7,7 +8,13 @@ from decimal import Decimal
 import math
 from typing import Any, Literal
 
-from .store import TraceBackedMemoryStore
+from ._ingestion import (
+    SNAPSHOT_MAX_RECORDS_PER_COLLECTION,
+    SNAPSHOT_MAX_TOTAL_RECORDS,
+    validate_snapshot_record_count,
+    validate_snapshot_total_record_count,
+)
+from .store import SNAPSHOT_COLLECTION_NAMES, TraceBackedMemoryStore
 
 
 POSTGRES_SCHEMA_VERSION = 1
@@ -57,6 +64,14 @@ LOCK TABLE public.traces,
            public.project_policies,
            public.memory_usage_decisions
 IN SHARE MODE
+"""
+
+_COUNT_SNAPSHOT_RECORDS = """
+SELECT (SELECT pg_catalog.count(*) FROM public.traces) AS traces,
+       (SELECT pg_catalog.count(*) FROM public.failure_cases) AS failure_cases,
+       (SELECT pg_catalog.count(*) FROM public.lessons) AS lessons,
+       (SELECT pg_catalog.count(*) FROM public.project_policies) AS project_policies,
+       (SELECT pg_catalog.count(*) FROM public.memory_usage_decisions) AS usage_logs
 """
 
 _SELECT_TRACES = """
@@ -272,6 +287,27 @@ class PostgresSyncResult:
     lessons: PostgresSyncCounts
     project_policies: PostgresSyncCounts
     usage_logs: PostgresSyncCounts
+
+
+def _validate_snapshot_record_counts(counts: Mapping[str, object]) -> None:
+    if not isinstance(counts, Mapping):
+        raise ValueError("PostgreSQL snapshot counts must be a mapping")
+    total_records = 0
+    for collection_name in SNAPSHOT_COLLECTION_NAMES:
+        if collection_name not in counts:
+            raise ValueError(
+                "PostgreSQL snapshot counts are missing field "
+                f"{collection_name!r}"
+            )
+        total_records += validate_snapshot_record_count(
+            collection_name,
+            counts[collection_name],
+            max_records_per_collection=SNAPSHOT_MAX_RECORDS_PER_COLLECTION,
+        )
+    validate_snapshot_total_record_count(
+        total_records,
+        max_total_records=SNAPSHOT_MAX_TOTAL_RECORDS,
+    )
 
 
 def _load_psycopg() -> tuple[Any, Any, Any]:
@@ -924,6 +960,16 @@ class PostgresMemoryRepository:
     def _lock_snapshot_tables(self, cursor: object) -> None:
         cursor.execute(_LOCK_SNAPSHOT_TABLES_FOR_SHARE)
 
+    def _snapshot_record_counts(self, cursor: object) -> dict[str, object]:
+        cursor.execute(_COUNT_SNAPSHOT_RECORDS)
+        rows = cursor.fetchall()
+        if len(rows) != 1 or not isinstance(rows[0], Mapping):
+            raise ValueError(
+                "PostgreSQL snapshot count query must return exactly one "
+                "mapping row"
+            )
+        return dict(rows[0])
+
     def _load_traces(self, cursor: object) -> list[dict[str, object]]:
         cursor.execute(_SELECT_TRACES)
         return [_decode_trace(row) for row in cursor.fetchall()]
@@ -1062,6 +1108,9 @@ class PostgresMemoryRepository:
                 with self._connection.cursor(row_factory=dict_row) as cursor:
                     self._lock_schema(cursor, write=False)
                     self._lock_snapshot_tables(cursor)
+                    _validate_snapshot_record_counts(
+                        self._snapshot_record_counts(cursor)
+                    )
                     snapshot = {
                         "snapshot_version": 2,
                         "traces": self._load_traces(cursor),

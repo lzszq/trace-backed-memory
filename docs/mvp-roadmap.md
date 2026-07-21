@@ -708,3 +708,21 @@ Track:
 - Preserve the public API, snapshot version 2, every JSON Schema,
   active-lessons YAML, all 18 packaged resource bytes,
   `schemas/postgres.sql`, and PostgreSQL schema version 1.
+
+## Phase 40: PostgreSQL bounded load materialization (implemented)
+
+- After schema validation and the ordered five-table `SHARE` locks, run one
+  scalar five-table `count(*)` count preflight before the first collection
+  selector or decoder.
+- Enforce the existing snapshot defaults of 100,000 records per collection and
+  250,000 records in total, preserving the exact Store limit error messages.
+- Require exactly one mapping result with non-negative integer counts for all
+  five snapshot collections, and retain sanitized PostgreSQL error wrapping.
+- Keep the table locks through count validation and bounded reads so external
+  writers cannot invalidate the accepted counts before materialization.
+- Reuse centralized private count validators and repeat normal Store validation
+  after loading as defense in depth. Leave oversized individual JSONB or text
+  values as a separate hardening concern.
+- Preserve the public API, snapshot version 2, every JSON Schema,
+  active-lessons YAML, all 18 packaged resource bytes,
+  `schemas/postgres.sql`, and PostgreSQL schema version 1.

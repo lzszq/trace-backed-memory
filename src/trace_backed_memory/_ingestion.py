@@ -57,6 +57,49 @@ def validate_non_negative_limit(value: int | None, name: str) -> int | None:
     return value
 
 
+def validate_snapshot_record_count(
+    collection_name: str,
+    record_count: object,
+    *,
+    max_records_per_collection: int | None,
+) -> int:
+    limit = validate_non_negative_limit(
+        max_records_per_collection,
+        "max_records_per_collection",
+    )
+    if type(record_count) is not int or record_count < 0:
+        raise ValueError(
+            f"snapshot field {collection_name!r} record count must be a "
+            "non-negative integer"
+        )
+    if limit is not None and record_count > limit:
+        raise ValueError(
+            f"snapshot field {collection_name!r} contains {record_count} records; "
+            f"maximum is {limit}"
+        )
+    return record_count
+
+
+def validate_snapshot_total_record_count(
+    total_records: object,
+    *,
+    max_total_records: int | None,
+) -> int:
+    limit = validate_non_negative_limit(
+        max_total_records,
+        "max_total_records",
+    )
+    if type(total_records) is not int or total_records < 0:
+        raise ValueError(
+            "snapshot total record count must be a non-negative integer"
+        )
+    if limit is not None and total_records > limit:
+        raise ValueError(
+            f"snapshot contains {total_records} records; maximum is {limit}"
+        )
+    return total_records
+
+
 def _validate_positive_limit(value: int | None, name: str) -> int | None:
     if value is not None and (type(value) is not int or value <= 0):
         raise ValueError(f"{name} must be a positive integer or None")

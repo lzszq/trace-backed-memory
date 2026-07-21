@@ -57,7 +57,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`MemoryRunMeasurement`",
         "`MemoryObsolescenceRequest`",
         "`obsolete_memories()`",
-        "Phase 0-39",
+        "Phase 0-40",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -2158,7 +2158,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-39" in documents["docs/product.md"]
+    assert "Phase 0-40" in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2204,7 +2204,7 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
         encoding="utf-8"
     )
 
-    assert "Phase 0-39" in product
+    assert "Phase 0-40" in product
     assert (
         "Phase 37: Required PostgreSQL and Windows CI coverage (implemented)"
         in roadmap
@@ -2259,7 +2259,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-39" in product
+    assert "Phase 0-40" in product
     assert "decision-only `outcome` CLI" in product
     assert (
         "Phase 38: Deferred decision outcome CLI (implemented)"
@@ -2318,7 +2318,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
         assert "outer" in normalized
         assert "commit or rollback" in normalized
 
-    assert "Phase 0-39" in documents["docs/product.md"]
+    assert "Phase 0-40" in documents["docs/product.md"]
     assert (
         "Phase 39: PostgreSQL consistent snapshots and lifecycle row locks "
         "(implemented)"
@@ -2340,6 +2340,51 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
     assert "snapshot_locks" not in postgres_schema
+
+
+def test_docs_publish_postgres_bounded_load_before_materialization():
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in (
+            "count(*)",
+            "count preflight",
+            "100,000",
+            "250,000",
+            "snapshot version 2",
+            "postgresql schema version 1",
+        ):
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert "Phase 0-40" in documents["docs/product.md"]
+    assert (
+        "Phase 40: PostgreSQL bounded load materialization (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+
+    runtime = (
+        ROOT / "src" / "trace_backed_memory" / "postgres.py"
+    ).read_text(encoding="utf-8")
+    load_runtime = runtime[runtime.index("    def load(self)") :]
+    assert "_COUNT_SNAPSHOT_RECORDS" in runtime
+    assert load_runtime.index("_snapshot_record_counts") < load_runtime.index(
+        "_load_traces"
+    )
+
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert "snapshot_record_counts" not in postgres_schema
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

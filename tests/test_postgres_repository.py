@@ -291,6 +291,18 @@ def _wait_for_backend_lock(connection, backend_pid, future) -> None:
     pytest.fail("PostgreSQL contender did not wait on a lock")
 
 
+def _postgres_snapshot_counts(**overrides: int) -> dict[str, int]:
+    counts = {
+        "traces": 0,
+        "failure_cases": 0,
+        "lessons": 0,
+        "project_policies": 0,
+        "usage_logs": 0,
+    }
+    counts.update(overrides)
+    return counts
+
+
 def test_repository_sync_updates_failure_case_lifecycle_and_cascades_lessons(
     postgres_cluster,
 ):
@@ -425,6 +437,157 @@ def test_runtime_sql_declares_snapshot_and_lifecycle_locks():
     positions = [table_lock_sql.index(table) for table in expected_tables]
     assert positions == sorted(positions)
     assert table_lock_sql.endswith("IN SHARE MODE")
+
+
+@pytest.mark.parametrize(
+    ("counts", "message"),
+    [
+        (
+            _postgres_snapshot_counts(traces=100_001),
+            "snapshot field 'traces' contains 100001 records; maximum is 100000",
+        ),
+        (
+            _postgres_snapshot_counts(
+                traces=50_001,
+                failure_cases=50_000,
+                lessons=50_000,
+                project_policies=50_000,
+                usage_logs=50_000,
+            ),
+            "snapshot contains 250001 records; maximum is 250000",
+        ),
+    ],
+)
+def test_postgres_snapshot_count_preflight_rejects_exact_overflow(
+    counts,
+    message,
+):
+    from trace_backed_memory import postgres
+
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        postgres._validate_snapshot_record_counts(counts)
+
+
+def test_postgres_snapshot_count_preflight_accepts_exact_boundaries():
+    from trace_backed_memory import postgres
+
+    postgres._validate_snapshot_record_counts(
+        _postgres_snapshot_counts(
+            traces=100_000,
+            failure_cases=100_000,
+            lessons=50_000,
+        )
+    )
+
+
+@pytest.mark.parametrize("invalid_count", [None, True, -1, 1.5, "1"])
+def test_postgres_snapshot_count_preflight_rejects_malformed_counts(
+    invalid_count,
+):
+    from trace_backed_memory import postgres
+
+    counts = _postgres_snapshot_counts()
+    counts["traces"] = invalid_count
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^snapshot field 'traces' record count must be a non-negative "
+            "integer$"
+        ),
+    ):
+        postgres._validate_snapshot_record_counts(counts)
+
+
+def test_postgres_snapshot_count_query_returns_one_named_row():
+    from trace_backed_memory import postgres
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    expected = _postgres_snapshot_counts(traces=3, lessons=2, usage_logs=1)
+
+    class CountCursor:
+        def __init__(self):
+            self.executions = []
+
+        def execute(self, query):
+            self.executions.append(query)
+
+        def fetchall(self):
+            return [dict(expected)]
+
+    cursor = CountCursor()
+    repository = PostgresMemoryRepository(object())
+
+    assert repository._snapshot_record_counts(cursor) == expected
+    assert cursor.executions == [postgres._COUNT_SNAPSHOT_RECORDS]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [],
+        [{}, {}],
+        [(0, 0, 0, 0, 0)],
+    ],
+)
+def test_postgres_snapshot_count_query_rejects_malformed_rows(rows):
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    class CountCursor:
+        def execute(self, _query):
+            pass
+
+        def fetchall(self):
+            return rows
+
+    repository = PostgresMemoryRepository(object())
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^PostgreSQL snapshot count query must return exactly one "
+            "mapping row$"
+        ),
+    ):
+        repository._snapshot_record_counts(CountCursor())
+
+
+def test_postgres_snapshot_count_preflight_rejects_missing_field():
+    from trace_backed_memory import postgres
+
+    counts = _postgres_snapshot_counts()
+    del counts["usage_logs"]
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^PostgreSQL snapshot counts are missing field "
+            "'usage_logs'$"
+        ),
+    ):
+        postgres._validate_snapshot_record_counts(counts)
+
+
+def test_postgres_snapshot_count_query_reports_all_real_collections(
+    postgres_cluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from psycopg.rows import dict_row
+
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(_complete_store(extra_trace=True))
+
+        with connection.cursor(row_factory=dict_row) as cursor:
+            counts = repository._snapshot_record_counts(cursor)
+
+    assert counts == _postgres_snapshot_counts(
+        traces=2,
+        failure_cases=1,
+        lessons=1,
+        project_policies=1,
+        usage_logs=1,
+    )
 
 
 def test_repository_lifecycle_timestamps_resist_hostile_search_path(
@@ -1725,6 +1888,71 @@ def test_repository_load_holds_one_coherent_table_snapshot(postgres_cluster):
         assert repository.load().traces["trace_external_writer"].run_id == (
             "run_external_writer"
         )
+
+
+@pytest.mark.parametrize(
+    ("counts", "message"),
+    [
+        (
+            _postgres_snapshot_counts(traces=100_001),
+            "snapshot field 'traces' contains 100001 records; maximum is 100000",
+        ),
+        (
+            _postgres_snapshot_counts(
+                traces=50_001,
+                failure_cases=50_000,
+                lessons=50_000,
+                project_policies=50_000,
+                usage_logs=50_000,
+            ),
+            "snapshot contains 250001 records; maximum is 250000",
+        ),
+    ],
+)
+def test_repository_load_rejects_count_overflow_before_record_fetch(
+    postgres_cluster,
+    monkeypatch,
+    counts,
+    message,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresPersistenceError,
+    )
+
+    postgres_cluster.load_schema()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        monkeypatch.setattr(
+            repository,
+            "_snapshot_record_counts",
+            lambda _cursor: dict(counts),
+        )
+
+        def fail_if_records_are_queried(_cursor):
+            pytest.fail("record loader ran after an oversized count preflight")
+
+        for loader_name in (
+            "_load_traces",
+            "_load_failure_cases",
+            "_load_lessons",
+            "_load_project_policies",
+            "_load_usage_logs",
+        ):
+            monkeypatch.setattr(
+                repository,
+                loader_name,
+                fail_if_records_are_queried,
+            )
+
+        with pytest.raises(PostgresPersistenceError) as error:
+            repository.load()
+
+        assert str(error.value) == "failed to load memory store from PostgreSQL"
+        assert type(error.value.__cause__) is ValueError
+        assert str(error.value.__cause__) == message
+        assert connection.execute("SELECT 1").fetchone() == (1,)
 
 
 @pytest.mark.parametrize(

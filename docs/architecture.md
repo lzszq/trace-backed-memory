@@ -857,10 +857,20 @@ usage decisions before the first collection read. Concurrent readers remain
 allowed, while external writers wait until the load transaction ends. The five
 queries therefore observe one stable committed table state even at the default
 `READ COMMITTED` isolation level and inside the repository's nested savepoint.
+After the locks, one scalar five-table `count(*)` count preflight enforces the
+snapshot defaults of 100,000 records per collection and 250,000 records in
+total. An oversized database is rejected before any collection row is fetched
+or decoded; the stable table locks prevent counts from changing before the
+bounded reads complete. The Store repeats the record-count validation as
+defense in depth.
 The loader normalizes that database representation into the canonical snapshot
 shape and reconstructs the store through its normal validation path. It rejects
 database data that cannot form a valid store rather than returning partial or
 unvalidated records.
+
+The count preflight changes no public API, snapshot version 2, JSON Schema,
+active-lessons YAML, packaged resource, or PostgreSQL schema version 1. It
+does not bound the byte size of one database JSONB or text value.
 
 The repository uses the schema owner or an equivalent write-capable role. On
 PostgreSQL 12, explicit `SHARE` table locks require table-level `UPDATE`,

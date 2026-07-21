@@ -31,13 +31,21 @@ immutable. Loading normalizes persisted values and
 reconstructs the regular validated store. Before reading collections, load
 holds ordered `SHARE` locks on all five persistence tables: concurrent readers
 remain allowed and external writers wait, so one Store cannot be assembled from
-different committed table states. Sync locks every existing target row
+different committed table states. While those locks are held, a five-table
+`count(*)` count preflight rejects more than 100,000 records in any collection
+or more than 250,000 records overall before any collection row is fetched or
+decoded. Store reconstruction repeats the same count validation after the
+bounded reads. Sync locks every existing target row
 `FOR UPDATE` before canonical comparison, including failure cases, lessons, and
 project policies; a newly committed protected-field difference is a conflict,
 not a stale successful lifecycle write. A repository created from a caller
 connection borrows it; `connect()` owns and closes the connection. Schema
 migration, connection pooling, and async access are outside this repository's
 current policy and implementation.
+
+The count preflight is a runtime guard only. It changes no public API, snapshot
+version 2, JSON Schema, active-lessons YAML, packaged resource, or PostgreSQL
+schema version 1, and it does not cap the byte size of one JSONB or text value.
 
 Use the schema owner or a write-capable repository role. PostgreSQL 12 requires
 table-level `UPDATE`, `DELETE`, or `TRUNCATE` privilege for the explicit

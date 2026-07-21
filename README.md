@@ -395,6 +395,13 @@ until the load transaction ends; one load therefore cannot combine table rows
 from different committed database states, including inside a caller-owned
 transaction.
 
+After those locks and before any record query, load runs one five-table
+`count(*)` count preflight. It rejects more than 100,000 records in any one
+collection or more than 250,000 records in total before a record row is fetched
+or decoded. The regular Store snapshot validator repeats the same checks after
+the bounded reads. This changes no public API, snapshot version 2, JSON Schema,
+active-lessons YAML, packaged resource, or PostgreSQL schema version 1.
+
 Use the schema owner or the same write-capable role intended for `sync()`.
 PostgreSQL 12 requires table-level `UPDATE`, `DELETE`, or `TRUNCATE` privilege
 to acquire these `SHARE` locks. When `load()` or `sync()` runs inside a caller

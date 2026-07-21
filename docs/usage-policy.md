@@ -188,6 +188,14 @@ defaults. Fail before Store mutation and do not persist the limits: snapshot
 version 2, JSON Schemas, active-lessons YAML, packaged resource bytes, and
 PostgreSQL schema version 1 remain unchanged.
 
+Keep snapshot usage-log validation average O(n) in records and nested ID/tool
+evidence. Reuse load-local indexes for `decision_id`, known memory IDs, legacy
+`run_id` resolution, and per-trace tool names, plus per-log sets for
+candidate/used/blocked relationships. Do not persist those indexes or use
+unordered iteration for diagnostics. Preserve validation precedence, exact
+errors, input processing order, snapshot version 2, and PostgreSQL schema
+version 1.
+
 Also cap `recover-batch` at 10,000 decision IDs and 10,000 attribution options.
 Count submitted values before duplicate detection and reject overflow as input
 before snapshot loading, Store construction, recovery, or publication. Do not

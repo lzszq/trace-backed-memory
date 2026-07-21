@@ -234,19 +234,42 @@ class TraceBackedMemoryStore:
                     ProjectPolicy, policy_data, "project policy"
                 )
             )
-        for log_data in _snapshot_records(data, "usage_logs"):
+        usage_log_records = _snapshot_records(data, "usage_logs")
+        known_memory_ids = set(store._failure_cases).union(
+            store._lessons,
+            store._project_policies,
+        )
+        legacy_traces_by_run_id: dict[str, list[Trace]] = {}
+        if not is_v2:
+            for trace in store._traces.values():
+                legacy_traces_by_run_id.setdefault(trace.run_id, []).append(
+                    trace
+                )
+        seen_decision_ids: set[str] = set()
+        trace_tool_names_by_id: dict[str, set[str]] = {}
+        for log_data in usage_log_records:
             if is_v2:
                 _validate_v2_usage_log_record(log_data)
             else:
-                log_data = store._migrate_legacy_usage_log(log_data)
+                log_data = store._migrate_legacy_usage_log(
+                    log_data,
+                    traces_by_run_id=legacy_traces_by_run_id,
+                )
             log = _snapshot_record_instance(
                 MemoryUsageLog, log_data, "usage log"
             )
             _validate_usage_log(log)
-            store._validate_usage_log_memory_ids(log)
-            store._validate_usage_log_trace(log)
-            if any(existing.decision_id == log.decision_id for existing in store._usage_logs):
+            store._validate_usage_log_memory_ids(
+                log,
+                known_memory_ids=known_memory_ids,
+            )
+            store._validate_usage_log_trace(
+                log,
+                trace_tool_names_by_id=trace_tool_names_by_id,
+            )
+            if log.decision_id in seen_decision_ids:
                 raise ValueError(f"duplicate usage log decision_id: {log.decision_id}")
+            seen_decision_ids.add(log.decision_id)
             store._usage_logs.append(deepcopy(log))
         return store
 
@@ -1435,16 +1458,28 @@ class TraceBackedMemoryStore:
             raise ValueError(f"duplicate usage log decision_id: {log.decision_id}")
         return log
 
-    def _validate_usage_log_memory_ids(self, log: MemoryUsageLog) -> None:
-        known_memory_ids = set(self._failure_cases).union(
-            self._lessons, self._project_policies
-        )
+    def _validate_usage_log_memory_ids(
+        self,
+        log: MemoryUsageLog,
+        *,
+        known_memory_ids: set[str] | None = None,
+    ) -> None:
+        if known_memory_ids is None:
+            known_memory_ids = set(self._failure_cases).union(
+                self._lessons,
+                self._project_policies,
+            )
         referenced_ids = set(log.candidate_memory_ids).union(log.used_memory_ids, log.blocked_memory_ids)
         unknown_ids = sorted(referenced_ids.difference(known_memory_ids))
         if unknown_ids:
             raise ValueError(f"usage log references unknown memory IDs: {', '.join(unknown_ids)}")
 
-    def _validate_usage_log_trace(self, log: MemoryUsageLog) -> None:
+    def _validate_usage_log_trace(
+        self,
+        log: MemoryUsageLog,
+        *,
+        trace_tool_names_by_id: dict[str, set[str]] | None = None,
+    ) -> None:
         if not isinstance(log.trace_id, str) or not log.trace_id.strip():
             raise ValueError("usage log records require trace_id")
         trace = self._traces.get(log.trace_id)
@@ -1484,13 +1519,19 @@ class TraceBackedMemoryStore:
                 raise ValueError(
                     f"usage log context {field_name} does not match trace: {log.trace_id}"
                 )
-        if (
-            "tool" in log.context
-            and log.context["tool"] not in _trace_change_set_tool_names(trace)
-        ):
-            raise ValueError(
-                f"usage log context tool does not match trace: {log.trace_id}"
-            )
+        if "tool" in log.context:
+            if trace_tool_names_by_id is None:
+                trace_tool_names = _trace_change_set_tool_names(trace)
+            else:
+                if trace.trace_id not in trace_tool_names_by_id:
+                    trace_tool_names_by_id[
+                        trace.trace_id
+                    ] = _trace_change_set_tool_names(trace)
+                trace_tool_names = trace_tool_names_by_id[trace.trace_id]
+            if log.context["tool"] not in trace_tool_names:
+                raise ValueError(
+                    f"usage log context tool does not match trace: {log.trace_id}"
+                )
         if "input_hash" in log.context:
             if "eval_suite" not in log.context:
                 raise ValueError(
@@ -1501,7 +1542,12 @@ class TraceBackedMemoryStore:
                     f"usage log context input_hash does not match trace: {log.trace_id}"
                 )
 
-    def _migrate_legacy_usage_log(self, log_data: dict[str, Any]) -> dict[str, Any]:
+    def _migrate_legacy_usage_log(
+        self,
+        log_data: dict[str, Any],
+        *,
+        traces_by_run_id: Mapping[str, list[Trace]],
+    ) -> dict[str, Any]:
         legacy_log = _snapshot_record_instance(
             MemoryUsageLog, log_data, "usage log"
         )
@@ -1516,7 +1562,21 @@ class TraceBackedMemoryStore:
             if trace is None:
                 raise ValueError(f"unknown trace_id: {supplied_trace_id}")
         else:
-            trace = self._trace_for_run_id(legacy_log.run_id)
+            _validate_required_string(
+                legacy_log.run_id,
+                "run_id",
+                "trace lookup requires",
+                max_chars=MEMORY_ID_MAX_CHARS,
+            )
+            matching_traces = traces_by_run_id.get(legacy_log.run_id, [])
+            if not matching_traces:
+                raise ValueError(f"unknown run_id: {legacy_log.run_id}")
+            if len(matching_traces) > 1:
+                raise ValueError(
+                    "run_id does not resolve to one trace: "
+                    f"{legacy_log.run_id}"
+                )
+            trace = matching_traces[0]
         if legacy_log.run_id != trace.run_id:
             raise ValueError(
                 f"usage log run_id does not match trace: {trace.trace_id}"
@@ -2306,12 +2366,15 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
         raise ValueError(
             "usage log context must not persist memory source identity"
         )
+    candidate_memory_id_set = set(log.candidate_memory_ids)
     _validate_status_mapping(
-        log.candidate_memory_statuses, log.candidate_memory_ids
+        log.candidate_memory_statuses,
+        log.candidate_memory_ids,
+        candidate_memory_id_set=candidate_memory_id_set,
     )
     _validate_string_mapping(log.system_blocked_reasons, "system_blocked_reasons")
     unknown_blocked_reasons = sorted(
-        set(log.system_blocked_reasons).difference(log.candidate_memory_ids)
+        set(log.system_blocked_reasons).difference(candidate_memory_id_set)
     )
     if unknown_blocked_reasons:
         raise ValueError(
@@ -2325,17 +2388,24 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
     if log.memory_caused_failure and (not log.used_memory_ids or log.eval_result not in {"fail", "error"}):
         raise ValueError("usage log memory_caused_failure requires failed or errored memory use")
     missing_used_ids = [
-        memory_id for memory_id in log.used_memory_ids if memory_id not in log.candidate_memory_ids
+        memory_id
+        for memory_id in log.used_memory_ids
+        if memory_id not in candidate_memory_id_set
     ]
     if missing_used_ids:
         raise ValueError(f"used memory ids must be present in candidates: {', '.join(missing_used_ids)}")
     missing_blocked_ids = [
-        memory_id for memory_id in log.blocked_memory_ids if memory_id not in log.candidate_memory_ids
+        memory_id
+        for memory_id in log.blocked_memory_ids
+        if memory_id not in candidate_memory_id_set
     ]
     if missing_blocked_ids:
         raise ValueError(f"blocked memory ids must be present in candidates: {', '.join(missing_blocked_ids)}")
+    blocked_memory_id_set = set(log.blocked_memory_ids)
     used_and_blocked = [
-        memory_id for memory_id in log.used_memory_ids if memory_id in log.blocked_memory_ids
+        memory_id
+        for memory_id in log.used_memory_ids
+        if memory_id in blocked_memory_id_set
     ]
     if used_and_blocked:
         raise ValueError(f"memory ids cannot be both used and blocked: {', '.join(used_and_blocked)}")
@@ -2913,7 +2983,12 @@ def _validate_string_mapping(value: Any, field_name: str) -> None:
         )
 
 
-def _validate_status_mapping(value: Any, candidate_memory_ids: list[str]) -> None:
+def _validate_status_mapping(
+    value: Any,
+    candidate_memory_ids: list[str],
+    *,
+    candidate_memory_id_set: set[str] | None = None,
+) -> None:
     if not isinstance(value, dict) or any(
         not isinstance(memory_id, str)
         or not memory_id.strip()
@@ -2927,9 +3002,14 @@ def _validate_status_mapping(value: Any, candidate_memory_ids: list[str]) -> Non
             f"usage log candidate_memory_statuses keys must be at most "
             f"{MEMORY_ID_MAX_CHARS} characters"
         )
-    if set(value) != set(candidate_memory_ids):
-        missing_statuses = sorted(set(candidate_memory_ids).difference(value))
-        extra_statuses = sorted(set(value).difference(candidate_memory_ids))
+    if candidate_memory_id_set is None:
+        candidate_memory_id_set = set(candidate_memory_ids)
+    status_memory_ids = set(value)
+    if status_memory_ids != candidate_memory_id_set:
+        missing_statuses = sorted(candidate_memory_id_set.difference(value))
+        extra_statuses = sorted(
+            status_memory_ids.difference(candidate_memory_id_set)
+        )
         raise ValueError(
             "usage log candidate_memory_statuses must match candidates"
             + (f"; missing: {', '.join(missing_statuses)}" if missing_statuses else "")

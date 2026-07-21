@@ -193,6 +193,14 @@ safe defaults. Rejected imports remain all-or-nothing. No limit metadata is
 persisted: snapshot version 2, JSON Schemas, active-lessons YAML, packaged
 resource bytes, and PostgreSQL schema version 1 remain unchanged.
 
+Snapshot usage-log reconstruction keeps its validation work average O(n) in
+records and nested ID/tool evidence. `from_snapshot()` uses load-local indexes
+for seen `decision_id` values, known memory IDs, legacy `run_id` resolution,
+and per-trace tool names. Per-log candidate/used/blocked relationships use set
+membership while reported IDs retain stored order. The indexes are discarded
+after loading; validation precedence, error messages, snapshot version 2, and
+PostgreSQL schema version 1 do not change.
+
 ## Snapshot Operations CLI
 
 Installing the package exposes the dependency-free `tbm` console script. The

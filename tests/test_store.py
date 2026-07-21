@@ -4203,6 +4203,24 @@ def _snapshot_record(
     return record
 
 
+def _usage_log_record_without_memories(
+    template: dict[str, object], *, decision_id: str
+) -> dict[str, object]:
+    record = deepcopy(template)
+    record.update(
+        {
+            "decision_id": decision_id,
+            "candidate_memory_ids": [],
+            "used_memory_ids": [],
+            "blocked_memory_ids": [],
+            "recommended_injection": "none",
+            "candidate_memory_statuses": {},
+            "system_blocked_reasons": {},
+        }
+    )
+    return record
+
+
 def _replace_usage_memory_id(
     snapshot: dict[str, object], old_id: str, new_id: str
 ) -> None:
@@ -9572,6 +9590,208 @@ def test_store_json_snapshot_rejects_duplicate_usage_log_decision_ids(tmp_path):
         assert "decision_id" in str(exc)
     else:
         raise AssertionError("loaded usage logs must reject duplicate decision_id values")
+
+
+@pytest.mark.parametrize("record_count", [16, 64])
+def test_snapshot_duplicate_detection_does_not_scan_prior_decision_ids(
+    record_count: int,
+):
+    class ComparisonCountingDecisionId(str):
+        comparisons = 0
+
+        def __eq__(self, other: object) -> bool:
+            type(self).comparisons += 1
+            return str.__eq__(self, other)
+
+        __hash__ = str.__hash__
+
+    snapshot = v2_snapshot_with_usage_log()
+    template = _snapshot_record(snapshot, "usage_logs")
+    snapshot["usage_logs"] = [
+        {
+            **deepcopy(template),
+            "decision_id": ComparisonCountingDecisionId(
+                f"decision_{index:06d}"
+            ),
+        }
+        for index in range(record_count)
+    ]
+
+    restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+
+    assert len(restored.usage_logs) == record_count
+    assert ComparisonCountingDecisionId.comparisons < record_count
+
+
+def test_snapshot_reuses_known_memory_ids_across_usage_logs():
+    known_memory_indexes: list[set[str] | None] = []
+
+    class KnownMemoryInspectingStore(TraceBackedMemoryStore):
+        def _validate_usage_log_memory_ids(
+            self,
+            log: MemoryUsageLog,
+            *,
+            known_memory_ids: set[str] | None = None,
+        ) -> None:
+            known_memory_indexes.append(known_memory_ids)
+            if known_memory_ids is None:
+                return super()._validate_usage_log_memory_ids(log)
+            return super()._validate_usage_log_memory_ids(
+                log,
+                known_memory_ids=known_memory_ids,
+            )
+
+    snapshot = v2_snapshot_with_usage_log()
+    template = _snapshot_record(snapshot, "usage_logs")
+    record_count = 64
+    snapshot["usage_logs"] = [
+        {
+            **deepcopy(template),
+            "decision_id": f"decision_{index:06d}",
+        }
+        for index in range(record_count)
+    ]
+
+    restored = KnownMemoryInspectingStore.from_snapshot(snapshot)
+
+    assert len(restored.usage_logs) == record_count
+    assert len(known_memory_indexes) == record_count
+    assert known_memory_indexes[0] is not None
+    assert all(
+        known_memory_ids is known_memory_indexes[0]
+        for known_memory_ids in known_memory_indexes
+    )
+
+
+@pytest.mark.parametrize("record_count", [16, 64])
+def test_legacy_snapshot_indexes_run_ids_before_migrating_usage_logs(
+    record_count: int,
+):
+    class ComparisonCountingRunId(str):
+        comparisons = 0
+
+        def __eq__(self, other: object) -> bool:
+            type(self).comparisons += 1
+            return str.__eq__(self, other)
+
+        __hash__ = str.__hash__
+
+    snapshot = v2_snapshot_with_usage_log()
+    snapshot.pop("snapshot_version")
+    trace_template = _snapshot_record(snapshot, "traces")
+    log_template = _snapshot_record(snapshot, "usage_logs")
+    run_ids = [
+        ComparisonCountingRunId(f"run_{index:06d}")
+        for index in range(record_count)
+    ]
+    snapshot["traces"] = [
+        {
+            **deepcopy(trace_template),
+            "trace_id": f"trace_{index:06d}",
+            "run_id": run_ids[index],
+        }
+        for index in range(record_count)
+    ]
+    snapshot["failure_cases"] = []
+    snapshot["lessons"] = []
+    snapshot["project_policies"] = []
+    usage_logs = []
+    for index in range(record_count):
+        record = _usage_log_record_without_memories(
+            log_template,
+            decision_id=f"decision_{index:06d}",
+        )
+        record["run_id"] = run_ids[index]
+        for field_name in (
+            "trace_id",
+            "context",
+            "candidate_memory_statuses",
+            "system_blocked_reasons",
+        ):
+            record.pop(field_name)
+        usage_logs.append(record)
+    snapshot["usage_logs"] = usage_logs
+    ComparisonCountingRunId.comparisons = 0
+
+    restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+
+    assert len(restored.usage_logs) == record_count
+    assert ComparisonCountingRunId.comparisons < record_count * 4
+
+
+def test_snapshot_reuses_trace_tool_names_across_usage_logs(monkeypatch):
+    snapshot = v2_snapshot_with_usage_log()
+    trace_record = _snapshot_record(snapshot, "traces")
+    trace_record["tool_calls"] = [{"name": "search_docs"}]
+    template = _snapshot_record(snapshot, "usage_logs")
+    record_count = 64
+    snapshot["usage_logs"] = []
+    for index in range(record_count):
+        record = _usage_log_record_without_memories(
+            template,
+            decision_id=f"decision_{index:06d}",
+        )
+        context = record["context"]
+        assert isinstance(context, dict)
+        context["tool"] = "search_docs"
+        snapshot["usage_logs"].append(record)
+
+    calls = 0
+    original = store_module._trace_change_set_tool_names
+
+    def counting_tool_names(trace: Trace) -> set[str]:
+        nonlocal calls
+        calls += 1
+        return original(trace)
+
+    monkeypatch.setattr(
+        store_module,
+        "_trace_change_set_tool_names",
+        counting_tool_names,
+    )
+
+    restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+
+    assert len(restored.usage_logs) == record_count
+    assert calls == 1
+
+
+@pytest.mark.parametrize("record_count", [16, 64])
+def test_usage_log_relationship_validation_uses_set_membership(
+    record_count: int,
+):
+    class ComparisonCountingMemoryId(str):
+        comparisons = 0
+
+        def __eq__(self, other: object) -> bool:
+            type(self).comparisons += 1
+            return str.__eq__(self, other)
+
+        __hash__ = str.__hash__
+
+    candidate_ids = [
+        ComparisonCountingMemoryId(f"memory_{index:06d}")
+        for index in range(record_count)
+    ]
+    log = MemoryUsageLog(
+        decision_id="decision_000001",
+        run_id="run_001",
+        mode="repair",
+        candidate_memory_ids=candidate_ids,
+        used_memory_ids=list(reversed(candidate_ids)),
+        blocked_memory_ids=[],
+        reason="use all candidates",
+        risk="low",
+        recommended_injection="short_summary",
+        candidate_memory_statuses={
+            memory_id: "active" for memory_id in candidate_ids
+        },
+    )
+    ComparisonCountingMemoryId.comparisons = 0
+
+    store_module._validate_usage_log(log)
+
+    assert ComparisonCountingMemoryId.comparisons < record_count * 4
 
 
 def test_log_decision_avoids_duplicate_decision_ids_after_sparse_snapshot_import():

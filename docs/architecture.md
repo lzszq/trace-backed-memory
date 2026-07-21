@@ -279,6 +279,14 @@ safe defaults. These are runtime ingestion controls, not stored configuration:
 snapshot version 2, JSON Schemas, active-lessons YAML, packaged resource bytes,
 and PostgreSQL schema version 1 remain unchanged.
 
+Usage-log reconstruction is average O(n) in snapshot records and nested
+ID/tool evidence. One `from_snapshot()` call owns temporary indexes for seen
+`decision_id` values, known memory IDs, legacy `run_id` resolution, and lazily
+cached tool names by trace. Candidate/used/blocked relationship checks reuse
+per-log sets without reordering diagnostics. These indexes are not Store state
+or serialized data, and the existing per-record validation and duplicate-error
+precedence remains intact.
+
 The `recover-batch` argv surface separately caps submitted values at 10,000
 decision IDs and 10,000 attribution options. A preload cardinality check runs
 immediately after argparse and before snapshot loading, tuple/set/dictionary

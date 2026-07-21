@@ -903,3 +903,19 @@ Track:
   evidence order, symptom wording, and root-cause priority.
 - Change no public signature, dependency, model, snapshot field, JSON Schema,
   active-lessons YAML, packaged resource, PostgreSQL DDL, or schema version 1.
+
+## Phase 51: Linear snapshot usage-log validation (implemented)
+
+- Replace the quadratic prior-log duplicate scan with a load-local
+  `decision_id` set while retaining complete per-log validation before the
+  duplicate error.
+- Reuse one known-memory set, one legacy `run_id` index, and lazy per-trace
+  tool-name sets during a load instead of rebuilding or rescanning them for
+  every usage log.
+- Use per-log candidate and blocked ID sets for candidate/used/blocked
+  relationship checks while retaining stored-order diagnostics and exact
+  errors.
+- Keep average O(n) validation in snapshot records and nested ID/tool evidence
+  without wall-clock test thresholds.
+- Change no public signature, dependency, model, snapshot field, JSON Schema,
+  active-lessons YAML, packaged resource, PostgreSQL DDL, or schema version 1.

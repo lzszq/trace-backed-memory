@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import subprocess
@@ -3161,6 +3162,108 @@ def test_cli_batch_recovery_preserves_order_and_is_all_or_nothing(
     assert payload is None
     assert error["error"]["kind"] == "state"
     assert mixed_path.read_bytes() == mixed_original
+
+
+def test_cli_batch_recovery_default_argument_cardinality_limit_is_inclusive():
+    decision_ids = [
+        f"decision_{index}"
+        for index in range(cli.CLI_RECOVER_BATCH_MAX_ITEMS)
+    ]
+    args = argparse.Namespace(
+        command="recover-batch",
+        decision_ids=decision_ids,
+        attribution=[
+            f"{decision_id}=true" for decision_id in decision_ids
+        ],
+    )
+
+    cli._validate_recover_batch_cardinality(args)
+
+
+def test_cli_batch_recovery_accepts_exact_configured_cardinality_limit(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "trace_only_fail")
+    decision_id = decision_ids["trace_only_fail"]
+    monkeypatch.setattr(cli, "CLI_RECOVER_BATCH_MAX_ITEMS", 1)
+
+    code, payload, error = _run(
+        capsys,
+        "recover-batch",
+        str(path),
+        decision_id,
+        "--attribution",
+        f"{decision_id}=false",
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["decision_ids"] == [decision_id]
+    assert payload["written"] is False
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (
+            ("decision_one", "decision_one"),
+            "recover-batch decision_ids contains more than 1 items",
+        ),
+        (
+            (
+                "decision_one",
+                "--attribution",
+                "decision_one=true",
+                "--attribution",
+                "decision_one=false",
+            ),
+            "recover-batch attributions contains more than 1 items",
+        ),
+    ],
+)
+def test_cli_batch_recovery_rejects_argument_cardinality_overflow_before_load(
+    tmp_path,
+    capsys,
+    monkeypatch,
+    arguments,
+    message,
+):
+    snapshot_path = tmp_path / "must-not-be-read.snapshot.json"
+    snapshot_path.write_bytes(b"sentinel snapshot bytes")
+    original = snapshot_path.read_bytes()
+    snapshot_loaded = False
+
+    def reject_snapshot_load(*_args, **_kwargs):
+        nonlocal snapshot_loaded
+        snapshot_loaded = True
+        raise AssertionError("recover-batch overflow must precede snapshot loading")
+
+    monkeypatch.setattr(cli, "CLI_RECOVER_BATCH_MAX_ITEMS", 1)
+    monkeypatch.setattr(
+        TraceBackedMemoryStore,
+        "load_json",
+        reject_snapshot_load,
+    )
+
+    code, payload, error = _run(
+        capsys,
+        "recover-batch",
+        str(snapshot_path),
+        *arguments,
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"] == {
+        "kind": "input",
+        "message": message,
+        "type": "CLIInputError",
+    }
+    assert snapshot_loaded is False
+    assert snapshot_path.read_bytes() == original
 
 
 def test_cli_batch_parses_attributions_strictly(tmp_path, capsys):

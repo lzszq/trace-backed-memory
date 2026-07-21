@@ -160,6 +160,11 @@ defaults. Fail before Store mutation and do not persist the limits: snapshot
 version 2, JSON Schemas, active-lessons YAML, packaged resource bytes, and
 PostgreSQL schema version 1 remain unchanged.
 
+Also cap `recover-batch` at 10,000 decision IDs and 10,000 attribution options.
+Count submitted values before duplicate detection and reject overflow as input
+before snapshot loading, Store construction, recovery, or publication. Do not
+offer a CLI opt-out or persist this argument budget.
+
 ## Snapshot Operations CLI
 
 Use `tbm` or the equivalent `python -m trace_backed_memory` entry point for
@@ -238,6 +243,12 @@ explicitly. Batch decision IDs must be unique, repeated attribution values must
 use exact `DECISION_ID=true|false` syntax, and an invalid item must reject the
 whole batch all-or-nothing. Operators must investigate conflicts rather than
 using the CLI to choose a historical side.
+
+For `recover-batch`, enforce the 10,000 decision IDs and 10,000 attribution
+limits before snapshot loading. Overflow is input exit code 2 and must not read,
+mutate, or replace the snapshot. At or below the limits, retain the existing
+Store-owned uniqueness, attribution, eligibility, ordering, and atomicity
+rules.
 
 Automation may consume the single deterministic JSON value written on
 success. Failures write one structured JSON error without a traceback. Exit

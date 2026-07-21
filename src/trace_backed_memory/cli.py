@@ -13,6 +13,7 @@ from ._ingestion import (
     CLI_JSON_MAX_DEPTH,
     CLI_JSON_MAX_ITEMS,
     CLI_JSON_MAX_NODES,
+    CLI_RECOVER_BATCH_MAX_ITEMS,
     read_bounded_utf8,
     unique_json_object_pairs,
 )
@@ -347,6 +348,21 @@ def _json_text(payload: object) -> str:
         separators=(",", ":"),
         sort_keys=True,
     ) + "\n"
+
+
+def _validate_recover_batch_cardinality(args: argparse.Namespace) -> None:
+    if args.command != "recover-batch":
+        return
+    if len(args.decision_ids) > CLI_RECOVER_BATCH_MAX_ITEMS:
+        raise CLIInputError(
+            "recover-batch decision_ids contains more than "
+            f"{CLI_RECOVER_BATCH_MAX_ITEMS} items"
+        )
+    if len(args.attribution) > CLI_RECOVER_BATCH_MAX_ITEMS:
+        raise CLIInputError(
+            "recover-batch attributions contains more than "
+            f"{CLI_RECOVER_BATCH_MAX_ITEMS} items"
+        )
 
 
 def _write_text(stream: TextIO, value: str) -> None:
@@ -1144,6 +1160,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = parser.parse_args(argv)
     except CLIUsageError as error:
+        return _emit_error("input", error, 2)
+
+    try:
+        _validate_recover_batch_cardinality(args)
+    except CLIInputError as error:
         return _emit_error("input", error, 2)
 
     if args.command == "resource":

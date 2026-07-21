@@ -119,7 +119,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - **不可逆历史**：身份、来源和已填充的执行证据不可重写；生命周期只允许前向变化。
 - **原子写入**：Trace/decision 的单项和批量完成先构建并验证全部候选，再一次提交。
 - **固定预算**：最多 50 个 gate candidates、20 个 injected memories、32,000 字符 gate prompt 和 12,000 字符 snippet。
-- **本地文档限额**：snapshot 为 64 MiB、每集合 100,000 条且总计 250,000 条；active lessons 与 CLI JSON 为 8 MiB；failure taxonomy 为 1 MiB。CLI JSON 另限 10,000 个顶层项目、100,000 个 JSON nodes 和 depth 100；Python API 可通过 `max_bytes` 等关键字参数显式传入 `None`，仅用于可信离线迁移。
+- **本地文档限额**：snapshot 为 64 MiB、每集合 100,000 条且总计 250,000 条；active lessons 与 CLI JSON 为 8 MiB；failure taxonomy 为 1 MiB。CLI JSON 另限 10,000 个顶层项目、100,000 个 JSON nodes 和 depth 100；`recover-batch` 另限 10,000 decision IDs 与 10,000 attribution options，并在 snapshot 读取前拒绝超限。Python API 可通过 `max_bytes` 等关键字参数显式传入 `None`，仅用于可信离线迁移；CLI 固定安全上限不提供 opt-out。
 - **防御性所有权**：store 使用锁与 defensive copies，调用方不能通过返回对象修改内部状态。
 
 ## 7. 部署与集成
@@ -132,6 +132,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - YAML adapter 用于导入/导出 active lessons；新导出使用 literal block，并保留空行、首尾换行与行内空格。
 - 安装后提供 `tbm` console script；`python -m trace_backed_memory` 提供等价入口。
 - CLI 通过现有 snapshot validation、audit、metrics、remediation、completion 和 recovery API 工作，不复制领域规则；`complete` 不推断 outcome、关联 ID、归因或证据，`complete-batch` 由 Store 从 decision 推导 Trace 并整批提交。
+- `tbm recover-batch` 在 argparse 后、before snapshot loading 执行基数预检；超过 10,000 decision IDs 或 10,000 attribution options 时返回 structured input exit code 2，不构造 recovery 集合、不读取或写回 snapshot。边界内输入继续复用 Store 的顺序、归因与 all-or-nothing 规则。
 - `tbm lessons export SNAPSHOT DESTINATION [--overwrite]` 复用 `save_lessons_yaml()` 的 canonical active-only serializer，默认以原子 no-replace 发布并拒绝 snapshot 文件别名；`tbm lessons import SNAPSHOT SOURCE_YAML [--write]` 复用 `load_lessons_yaml()` 的 8 MiB/10,000 条受限、all-or-nothing 全量暂存与来源校验，默认不改源文件。
 - `tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]` 只输出 ID、前后状态与 case→lesson 级联清单，默认作为 dry-run 预览；转换复用 Store 的 forward-only、幂等和原子级联规则，不回显敏感 memory/Trace 内容，不提供非原子批量循环或 reactivation。
 - `tbm obsolete-batch SNAPSHOT REQUESTS_JSON [--write]` 将受限 strict JSON 转为公开的 `MemoryObsolescenceRequest` tuple，并只调用一次 `obsolete_memories()`；Store 从同一入口状态暂存 failure-case、lesson、project-policy 与完整 cascade，全部校验后一次提交，显式结果保持 request order，重叠 lesson 通过 `affected_count` 去重，默认 dry-run。
@@ -149,7 +150,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-43，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，在记录物化前拒绝超限数据库；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。该 guard 不限制单个 JSONB/text 值的字节数。Phase 43 仅统一严格 JSON object-key 解析；snapshot version 2、active-lessons YAML、18 份 packaged resource 路径/数量与 PostgreSQL schema version 1 保持不变。
+当前版本已完成路线图 Phase 0-44，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，在记录物化前拒绝超限数据库；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。该 guard 不限制单个 JSONB/text 值的字节数。Phase 44 为 `recover-batch` 增加 10,000 decision IDs 与 10,000 attribution options 的预加载上限；snapshot version 2、active-lessons YAML、18 份 packaged resource 路径/数量与 PostgreSQL schema version 1 保持不变。
 
 - 纯 Python store、策略、生命周期和解析；
 - Git metadata 与 ancestry，包括 1,000 项输入边界、重复项计数、有界 generator 消费与 overflow 零子进程；
@@ -161,6 +162,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - callback memory-run execution 的顺序、measurement evidence、异常恢复上下文、Store 错误透传与原子失败；
 - LLM decision ID 列表 50/51 精确边界、direct-call 防绕过与 JSON Schema `maxItems` parity；
 - snapshot、MemoryContext、MemoryDecision 与 CLI JSON 的 top-level/nested duplicate object key 拒绝和 no last-key-wins 契约；
+- `recover-batch` 两类 10,000 项精确边界、去重前计数、snapshot 读取前拒绝、structured input exit code 2 与无写入保证；
 - 真实临时 PostgreSQL 集群上的 DDL、事务、并发锁和同步；
 - PostgreSQL 五表一致 load snapshot、外部 writer exclusion，以及 failure-case/lesson/project-policy 行锁后的冲突重验证；
 - PostgreSQL 锁后 count preflight 的精确边界、异常计数结果、物化前拒绝、sanitized error wrapping 与既有一致性并发路径；

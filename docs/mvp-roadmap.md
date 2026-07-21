@@ -782,3 +782,20 @@ Track:
 - Preserve the public API, dependencies, snapshot version 2, every JSON Schema,
   active-lessons YAML, all 18 packaged resources, PostgreSQL DDL, and
   PostgreSQL schema version 1.
+
+## Phase 44: Bounded recover-batch arguments (implemented)
+
+- Cap submitted `recover-batch` arguments at 10,000 decision IDs and 10,000
+  attribution options, counting values before duplicate detection.
+- Enforce both ceilings immediately after argparse and before snapshot loading,
+  tuple/set/dictionary construction, Store recovery, or publication.
+- Report overflow through the existing structured input error and exit code 2;
+  `--write` cannot read or replace the snapshot after a cardinality failure.
+- Preserve accepted-batch request ordering, unique decision IDs, exact
+  `DECISION_ID=true|false` parsing, dry-run defaults, and Store-owned
+  all-or-nothing recovery.
+- Cover the exact configured boundary and one-item overflow for both argument
+  lists, including proof that overflow never reaches snapshot loading.
+- Preserve the public API, dependencies, snapshot version 2, every JSON Schema,
+  active-lessons YAML, all 18 packaged resources, PostgreSQL DDL, and
+  PostgreSQL schema version 1.

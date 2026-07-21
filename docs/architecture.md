@@ -263,6 +263,13 @@ safe defaults. These are runtime ingestion controls, not stored configuration:
 snapshot version 2, JSON Schemas, active-lessons YAML, packaged resource bytes,
 and PostgreSQL schema version 1 remain unchanged.
 
+The `recover-batch` argv surface separately caps submitted values at 10,000
+decision IDs and 10,000 attribution options. A preload cardinality check runs
+immediately after argparse and before snapshot loading, tuple/set/dictionary
+construction, Store recovery, or publication. Counts precede deduplication, so
+repeated values still consume the fixed budget. This CLI-only limit has no
+opt-out and persists no configuration.
+
 ## Snapshot Operations CLI
 
 The dependency-free snapshot operations adapter is exposed as `tbm` and
@@ -294,6 +301,12 @@ it does not infer an outcome, linkage, attribution, or evidence. Scalar
 evidence is optional. `--tool-outputs-file` reads strict UTF-8 JSON that must be
 an array of objects, and absent evidence flags are not forwarded so the Store
 retains its omission semantics.
+
+Before any snapshot-backed dispatch, `recover-batch` checks its submitted
+argument cardinality. More than 10,000 decision IDs or 10,000 attribution
+options is a structured `CLIInputError` with exit code 2. Accepted values then
+follow the existing uniqueness, exact `DECISION_ID=true|false`, state, order,
+dry-run, and atomic-write path without a second recovery implementation.
 
 `complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]` reads a strict UTF-8 JSON
 non-empty array. Each allowlisted object becomes one `MemoryRunResult`; the

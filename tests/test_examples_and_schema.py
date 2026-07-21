@@ -57,7 +57,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "`MemoryRunMeasurement`",
         "`MemoryObsolescenceRequest`",
         "`obsolete_memories()`",
-        "Phase 0-43",
+        "Phase 0-44",
         "PostgreSQL 12+",
         "snapshot version 2",
         "PostgreSQL schema version",
@@ -2160,7 +2160,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-43" in documents["docs/product.md"]
+    assert "Phase 0-44" in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2206,7 +2206,7 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
         encoding="utf-8"
     )
 
-    assert "Phase 0-43" in product
+    assert "Phase 0-44" in product
     assert (
         "Phase 37: Required PostgreSQL and Windows CI coverage (implemented)"
         in roadmap
@@ -2261,7 +2261,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
         for contract in required_contracts:
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-43" in product
+    assert "Phase 0-44" in product
     assert "decision-only `outcome` CLI" in product
     assert (
         "Phase 38: Deferred decision outcome CLI (implemented)"
@@ -2320,7 +2320,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
         assert "outer" in normalized
         assert "commit or rollback" in normalized
 
-    assert "Phase 0-43" in documents["docs/product.md"]
+    assert "Phase 0-44" in documents["docs/product.md"]
     assert (
         "Phase 39: PostgreSQL consistent snapshots and lifecycle row locks "
         "(implemented)"
@@ -2364,7 +2364,7 @@ def test_docs_publish_postgres_bounded_load_before_materialization():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-43" in documents["docs/product.md"]
+    assert "Phase 0-44" in documents["docs/product.md"]
     assert (
         "Phase 40: PostgreSQL bounded load materialization (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2415,7 +2415,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-43" in documents["docs/product.md"]
+    assert "Phase 0-44" in documents["docs/product.md"]
     assert (
         "Phase 41: Runtime collection cardinality limits (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2474,7 +2474,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-43" in documents["docs/product.md"]
+    assert "Phase 0-44" in documents["docs/product.md"]
     assert (
         "Phase 42: PostgreSQL concurrent insert revalidation (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2535,7 +2535,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
-    assert "Phase 0-43" in documents["docs/product.md"]
+    assert "Phase 0-44" in documents["docs/product.md"]
     assert (
         "Phase 43: Strict JSON object key uniqueness (implemented)"
         in documents["docs/mvp-roadmap.md"]
@@ -2551,6 +2551,71 @@ def test_docs_publish_strict_json_object_key_uniqueness():
     for name in ("cli.py", "policy.py", "store.py"):
         assert "unique_json_object_pairs" in runtime_files[name]
         assert "object_pairs_hook" in runtime_files[name]
+
+    assert len(packaged_resources()) == 18
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "VALUES (true, 1)" in _postgres_schema()
+
+
+def test_docs_publish_recover_batch_argument_cardinality():
+    from trace_backed_memory import packaged_resources
+
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in (
+            "recover-batch",
+            "10,000",
+            "snapshot version 2",
+            "postgresql schema version 1",
+        ):
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    published_contract = " ".join(
+        documents[name]
+        for name in (
+            "README.md",
+            "docs/architecture.md",
+            "docs/usage-policy.md",
+            "docs/product.md",
+        )
+    ).lower()
+    for contract in (
+        "10,000 decision ids",
+        "10,000 attribution",
+        "before snapshot loading",
+    ):
+        assert contract in published_contract
+
+    assert "Phase 0-44" in documents["docs/product.md"]
+    assert (
+        "Phase 44: Bounded recover-batch arguments (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+
+    ingestion_source = (
+        ROOT / "src" / "trace_backed_memory" / "_ingestion.py"
+    ).read_text(encoding="utf-8")
+    assert "CLI_RECOVER_BATCH_MAX_ITEMS = 10_000" in ingestion_source
+
+    cli_source = (
+        ROOT / "src" / "trace_backed_memory" / "cli.py"
+    ).read_text(encoding="utf-8")
+    main_source = cli_source.split("def main(", maxsplit=1)[1]
+    assert "def _validate_recover_batch_cardinality(" in cli_source
+    assert main_source.index(
+        "_validate_recover_batch_cardinality(args)"
+    ) < main_source.index("TraceBackedMemoryStore.load_json(args.snapshot)")
 
     assert len(packaged_resources()) == 18
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")

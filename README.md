@@ -173,7 +173,9 @@ The safe defaults are:
 - active-lessons YAML: 8 MiB and 10,000 lessons;
 - failure-taxonomy YAML: 1 MiB and 1,000 failure types;
 - CLI measurement and tool-output JSON: 8 MiB, 10,000 top-level items,
-  100,000 JSON nodes, and depth 100.
+  100,000 JSON nodes, and depth 100;
+- `recover-batch` arguments: 10,000 decision IDs and 10,000 attribution
+  options.
 
 `TraceBackedMemoryStore.load_json()`, `from_snapshot()`,
 `load_lessons_yaml()`, and `load_failure_taxonomy()` expose keyword-only
@@ -208,13 +210,21 @@ tbm recover SNAPSHOT DECISION_ID [--memory-caused-failure true|false] [--write]
 tbm recover-batch SNAPSHOT DECISION_ID... [--attribution DECISION_ID=true|false]... [--write]
 ```
 
-Each command loads one local snapshot through the regular store validation
-path. Read commands emit one deterministic JSON value plus a newline.
+Each snapshot-backed command loads one local snapshot through the regular
+store validation path. Read commands emit one deterministic JSON value plus a
+newline.
 Completion and recovery commands return the serialized completions, ordered
 decision IDs, and a `written` flag. They are dry-run by default: the input
 bytes change only when `--write` is explicit and the complete operation
 succeeds. A write reuses the store's same-directory temporary file and atomic
 replacement behavior.
+
+`recover-batch` counts submitted values before duplicate detection. It accepts
+at most 10,000 decision IDs and 10,000 attribution options, and rejects either
+overflow as a structured input error before snapshot loading, Store
+construction, recovery, or `--write` publication. The CLI has no limit opt-out;
+accepted batches retain strict attribution parsing, request ordering, and the
+Store's all-or-nothing recovery rules.
 
 `outcome` is the decision-only adapter for deferred evaluation. It calls
 `record_decision_outcome()` once and never completes the linked Trace. Its

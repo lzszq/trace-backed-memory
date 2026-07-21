@@ -201,6 +201,14 @@ membership while reported IDs retain stored order. The indexes are discarded
 after loading; validation precedence, error messages, snapshot version 2, and
 PostgreSQL schema version 1 do not change.
 
+Normal usage-log writes and lookups use a private derived index from
+`decision_id` to stable list position. Decision allocation, duplicate checks,
+and single-ID lookup are average O(1); requested batches are average O(k).
+The next generated ID still follows the maximum numeric suffix, while imported
+nonnumeric IDs remain indexed without advancing it. Failed writes consume no
+ID. The derived index is not serialized, canonical snapshot sorting remains in
+place, and snapshot version 2 and PostgreSQL schema version 1 do not change.
+
 ## Snapshot Operations CLI
 
 Installing the package exposes the dependency-free `tbm` console script. The

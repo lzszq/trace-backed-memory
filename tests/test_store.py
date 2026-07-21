@@ -9794,6 +9794,335 @@ def test_usage_log_relationship_validation_uses_set_membership(
     assert ComparisonCountingMemoryId.comparisons < record_count * 4
 
 
+@pytest.mark.parametrize("record_count", [16, 64])
+def test_repeated_decision_logging_does_not_rescan_prior_ids(
+    monkeypatch,
+    record_count: int,
+):
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_indexed_writes",
+            run_id="run_indexed_writes",
+            commit_sha="commit_indexed_writes",
+            repo="repo",
+        )
+    )
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha=trace.commit_sha,
+    )
+    decision = MemoryDecision(
+        use_memory=False,
+        allowed_memory_ids=[],
+        blocked_memory_ids=[],
+        reason="no applicable memory",
+        risk="none",
+        recommended_injection="none",
+    )
+    decision_pattern_calls = 0
+    original_fullmatch = store_module.re.fullmatch
+
+    def counting_fullmatch(pattern, value, *args, **kwargs):
+        nonlocal decision_pattern_calls
+        if pattern == r"decision_(\d+)":
+            decision_pattern_calls += 1
+        return original_fullmatch(pattern, value, *args, **kwargs)
+
+    monkeypatch.setattr(store_module.re, "fullmatch", counting_fullmatch)
+
+    logs = [
+        store.log_decision(trace.run_id, context, [], decision)
+        for _ in range(record_count)
+    ]
+
+    assert [log.decision_id for log in logs] == [
+        f"decision_{index:06d}" for index in range(1, record_count + 1)
+    ]
+    assert decision_pattern_calls <= record_count
+
+
+def test_single_decision_lookup_does_not_scan_usage_log_history():
+    class ComparisonCountingDecisionId(str):
+        comparisons = 0
+
+        def __eq__(self, other: object) -> bool:
+            type(self).comparisons += 1
+            return str.__eq__(self, other)
+
+        __hash__ = str.__hash__
+
+    snapshot = v2_snapshot_with_usage_log()
+    template = _snapshot_record(snapshot, "usage_logs")
+    record_count = 64
+    snapshot["usage_logs"] = [
+        {
+            **deepcopy(template),
+            "decision_id": ComparisonCountingDecisionId(
+                f"decision_{index:06d}"
+            ),
+            "eval_result": None,
+            "memory_caused_failure": False,
+        }
+        for index in range(record_count)
+    ]
+    store = TraceBackedMemoryStore.from_snapshot(snapshot)
+    ComparisonCountingDecisionId.comparisons = 0
+
+    sealed = store.record_decision_outcome(
+        f"decision_{record_count - 1:06d}",
+        "pass",
+    )
+    replayed = store.record_decision_outcome(
+        f"decision_{record_count - 1:06d}",
+        "pass",
+    )
+
+    assert sealed.eval_result == "pass"
+    assert replayed == sealed
+    assert ComparisonCountingDecisionId.comparisons < 8
+
+
+def test_batch_decision_lookup_does_not_iterate_usage_log_history():
+    class IterationCountingLogs(list[MemoryUsageLog]):
+        iterated_items = 0
+
+        def __iter__(self):
+            for item in super().__iter__():
+                type(self).iterated_items += 1
+                yield item
+
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_batch_index",
+            run_id="run_batch_index",
+            commit_sha="commit_batch_index",
+            repo="repo",
+        )
+    )
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha=trace.commit_sha,
+    )
+    decision = MemoryDecision(
+        use_memory=False,
+        allowed_memory_ids=[],
+        blocked_memory_ids=[],
+        reason="no applicable memory",
+        risk="none",
+        recommended_injection="none",
+    )
+    logs = [
+        store.log_decision(trace.run_id, context, [], decision)
+        for _ in range(64)
+    ]
+    store._usage_logs = IterationCountingLogs(store._usage_logs)
+    IterationCountingLogs.iterated_items = 0
+
+    completions = store.complete_memory_runs(
+        (
+            tbm.MemoryRunResult(
+                decision_id=logs[-1].decision_id,
+                eval_result="pass",
+            ),
+        )
+    )
+
+    assert completions[0].usage_log.decision_id == logs[-1].decision_id
+    assert IterationCountingLogs.iterated_items < 4
+
+
+@pytest.mark.parametrize("operation", ["complete", "recover"])
+def test_usage_log_replacements_preserve_the_decision_index(operation: str):
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id=f"trace_index_{operation}",
+            run_id=f"run_index_{operation}",
+            commit_sha=f"commit_index_{operation}",
+            repo="repo",
+            eval_result="pass" if operation == "recover" else "unknown",
+        )
+    )
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha=trace.commit_sha,
+    )
+    log = store.log_decision(
+        trace.run_id,
+        context,
+        [],
+        MemoryDecision(
+            use_memory=False,
+            allowed_memory_ids=[],
+            blocked_memory_ids=[],
+            reason="no applicable memory",
+            risk="none",
+            recommended_injection="none",
+        ),
+    )
+
+    if operation == "complete":
+        completion = store.complete_memory_run(
+            trace_id=trace.trace_id,
+            decision_id=log.decision_id,
+            eval_result="pass",
+        )
+    else:
+        completion = store.recover_memory_run(log.decision_id)
+    replayed = store.record_decision_outcome(log.decision_id, "pass")
+
+    assert completion.usage_log.decision_id == log.decision_id
+    assert replayed.decision_id == log.decision_id
+    assert replayed.eval_result == "pass"
+
+
+def test_imported_nonnumeric_id_is_indexed_without_advancing_numeric_ids():
+    snapshot = v2_snapshot_with_usage_log()
+    template = _snapshot_record(snapshot, "usage_logs")
+    snapshot["usage_logs"] = [
+        {
+            **deepcopy(template),
+            "decision_id": decision_id,
+            "eval_result": None,
+            "memory_caused_failure": False,
+        }
+        for decision_id in ("external-decision", "decision_000007")
+    ]
+    store = TraceBackedMemoryStore.from_snapshot(snapshot)
+    trace_id = template["trace_id"]
+    assert isinstance(trace_id, str)
+    trace = store.traces[trace_id]
+    context_data = template["context"]
+    candidate_memory_ids = template["candidate_memory_ids"]
+    assert isinstance(context_data, dict)
+    assert isinstance(candidate_memory_ids, list)
+
+    external = store.record_decision_outcome("external-decision", "pass")
+    created = store.log_decision(
+        trace.run_id,
+        MemoryContext(**context_data),
+        candidate_memory_ids,
+        MemoryDecision(
+            use_memory=False,
+            allowed_memory_ids=[],
+            blocked_memory_ids=[],
+            reason="no applicable memory",
+            risk="none",
+            recommended_injection="none",
+        ),
+    )
+
+    assert external.eval_result == "pass"
+    assert created.decision_id == "decision_000008"
+
+
+def test_failed_decision_logging_does_not_consume_an_id(monkeypatch):
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_failed_write",
+            run_id="run_failed_write",
+            commit_sha="commit_failed_write",
+            repo="repo",
+        )
+    )
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha=trace.commit_sha,
+    )
+    decision = MemoryDecision(
+        use_memory=False,
+        allowed_memory_ids=[],
+        blocked_memory_ids=[],
+        reason="no applicable memory",
+        risk="none",
+        recommended_injection="none",
+    )
+    original = store._validate_usage_log_trace
+    attempts = 0
+
+    def fail_once(log: MemoryUsageLog, **kwargs) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ValueError("injected usage-log validation failure")
+        original(log, **kwargs)
+
+    monkeypatch.setattr(store, "_validate_usage_log_trace", fail_once)
+
+    with pytest.raises(ValueError, match="injected usage-log validation failure"):
+        store.log_decision(trace.run_id, context, [], decision)
+
+    created = store.log_decision(trace.run_id, context, [], decision)
+
+    assert created.decision_id == "decision_000001"
+    assert [log.decision_id for log in store.usage_logs] == [
+        "decision_000001"
+    ]
+
+
+def test_concurrent_decision_logging_allocates_unique_contiguous_ids():
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_concurrent_writes",
+            run_id="run_concurrent_writes",
+            commit_sha="commit_concurrent_writes",
+            repo="repo",
+        )
+    )
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha=trace.commit_sha,
+    )
+    decision = MemoryDecision(
+        use_memory=False,
+        allowed_memory_ids=[],
+        blocked_memory_ids=[],
+        reason="no applicable memory",
+        risk="none",
+        recommended_injection="none",
+    )
+    worker_count = 16
+    barrier = threading.Barrier(worker_count)
+    result_lock = threading.Lock()
+    decision_ids: list[str] = []
+    errors: list[BaseException] = []
+
+    def log_one_decision() -> None:
+        try:
+            barrier.wait(timeout=5)
+            log = store.log_decision(trace.run_id, context, [], decision)
+            with result_lock:
+                decision_ids.append(log.decision_id)
+        except BaseException as exc:
+            with result_lock:
+                errors.append(exc)
+
+    threads = [
+        threading.Thread(target=log_one_decision)
+        for _ in range(worker_count)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in threads)
+    assert errors == []
+    assert sorted(decision_ids) == [
+        f"decision_{index:06d}" for index in range(1, worker_count + 1)
+    ]
+    assert len(store.usage_logs) == worker_count
+
+
 def test_log_decision_avoids_duplicate_decision_ids_after_sparse_snapshot_import():
     seed = TraceBackedMemoryStore()
     trace = seed.record_trace(

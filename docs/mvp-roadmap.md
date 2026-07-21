@@ -919,3 +919,18 @@ Track:
   without wall-clock test thresholds.
 - Change no public signature, dependency, model, snapshot field, JSON Schema,
   active-lessons YAML, packaged resource, PostgreSQL DDL, or schema version 1.
+
+## Phase 52: Indexed usage-log operations (implemented)
+
+- Maintain a private derived `decision_id`-to-list-position index and next
+  numeric suffix across snapshot import, finalization, and direct logging.
+- Preserve max numeric suffix allocation for sparse imported IDs, index
+  nonnumeric IDs without advancing the counter, and consume no ID on failed
+  writes.
+- Resolve allocation, duplicate checks, and single-ID operations in average
+  O(1), and requested batch lookups in average O(k), under the existing Store
+  `RLock`.
+- Keep replacement IDs and list positions stable, retain canonical snapshot
+  sorting, and do not serialize the derived index.
+- Change no public signature, dependency, model, snapshot field, JSON Schema,
+  active-lessons YAML, packaged resource, PostgreSQL DDL, or schema version 1.

@@ -153,6 +153,8 @@ class TraceBackedMemoryStore:
         self._lessons: dict[str, Lesson] = {}
         self._project_policies: dict[str, ProjectPolicy] = {}
         self._usage_logs: list[MemoryUsageLog] = []
+        self._usage_log_indexes: dict[str, int] = {}
+        self._next_decision_number: int = 1
         self._pending_gate_requests: dict[str, MemoryGateRequest] = {}
         self._finalized_gate_request_ids: set[str] = set()
         self._store_token = object()
@@ -245,7 +247,6 @@ class TraceBackedMemoryStore:
                 legacy_traces_by_run_id.setdefault(trace.run_id, []).append(
                     trace
                 )
-        seen_decision_ids: set[str] = set()
         trace_tool_names_by_id: dict[str, set[str]] = {}
         for log_data in usage_log_records:
             if is_v2:
@@ -267,10 +268,7 @@ class TraceBackedMemoryStore:
                 log,
                 trace_tool_names_by_id=trace_tool_names_by_id,
             )
-            if log.decision_id in seen_decision_ids:
-                raise ValueError(f"duplicate usage log decision_id: {log.decision_id}")
-            seen_decision_ids.add(log.decision_id)
-            store._usage_logs.append(deepcopy(log))
+            store._append_usage_log(deepcopy(log))
         return store
 
     @_synchronized
@@ -508,12 +506,9 @@ class TraceBackedMemoryStore:
     ) -> tuple[MemoryRunCompletion, ...]:
         """Atomically complete a batch of newly measured memory runs."""
         validated_results = _validated_memory_run_results(results)
-        log_indexes = {
-            log.decision_id: index for index, log in enumerate(self._usage_logs)
-        }
         completion_rows: list[_MemoryRunCompletionRow] = []
         for result in validated_results:
-            log_index = log_indexes.get(result.decision_id)
+            log_index = self._usage_log_indexes.get(result.decision_id)
             if log_index is None:
                 raise ValueError(f"unknown decision_id: {result.decision_id}")
             current_log = self._usage_logs[log_index]
@@ -601,11 +596,8 @@ class TraceBackedMemoryStore:
         )
 
         recovery_rows: list[_MemoryRunCompletionRow] = []
-        log_indexes = {
-            log.decision_id: index for index, log in enumerate(self._usage_logs)
-        }
         for decision_id in validated_ids:
-            log_index = log_indexes.get(decision_id)
+            log_index = self._usage_log_indexes.get(decision_id)
             if log_index is None:
                 raise ValueError(f"unknown decision_id: {decision_id}")
             current_log = self._usage_logs[log_index]
@@ -1265,7 +1257,7 @@ class TraceBackedMemoryStore:
             memory_caused_failure=memory_caused_failure,
         )
 
-        self._usage_logs.append(log)
+        self._append_usage_log(log)
         self._pending_gate_requests.pop(request.request_id)
         self._finalized_gate_request_ids.add(request.request_id)
         return GatedMemoryResult(
@@ -1330,7 +1322,7 @@ class TraceBackedMemoryStore:
             eval_result=eval_result,
             memory_caused_failure=memory_caused_failure,
         )
-        self._usage_logs.append(log)
+        self._append_usage_log(log)
         return deepcopy(log)
 
     @_synchronized
@@ -1363,17 +1355,32 @@ class TraceBackedMemoryStore:
         return deepcopy(sealed)
 
     def _usage_log_index(self, decision_id: str) -> int:
-        log_index = next(
-            (
-                index
-                for index, log in enumerate(self._usage_logs)
-                if log.decision_id == decision_id
-            ),
-            None,
-        )
+        log_index = self._usage_log_indexes.get(decision_id)
         if log_index is None:
             raise ValueError(f"unknown decision_id: {decision_id}")
         return log_index
+
+    def _append_usage_log(self, log: MemoryUsageLog) -> None:
+        if log.decision_id in self._usage_log_indexes:
+            raise ValueError(
+                f"duplicate usage log decision_id: {log.decision_id}"
+            )
+        match = re.fullmatch(r"decision_(\d+)", log.decision_id)
+        next_decision_number = self._next_decision_number
+        if match is not None:
+            next_decision_number = max(
+                next_decision_number,
+                int(match.group(1)) + 1,
+            )
+
+        log_index = len(self._usage_logs)
+        self._usage_logs.append(log)
+        try:
+            self._usage_log_indexes[log.decision_id] = log_index
+        except BaseException:
+            self._usage_logs.pop()
+            raise
+        self._next_decision_number = next_decision_number
 
     def _trace_for_run_id(self, run_id: str) -> Trace:
         _validate_required_string(
@@ -1430,7 +1437,7 @@ class TraceBackedMemoryStore:
     ) -> MemoryUsageLog:
         candidate_memory_ids = [memory.memory_id for memory in candidates]
         log = MemoryUsageLog(
-            decision_id=_next_decision_id(self._usage_logs),
+            decision_id=f"decision_{self._next_decision_number:06d}",
             run_id=trace.run_id,
             mode=context.mode,
             candidate_memory_ids=candidate_memory_ids,
@@ -1454,8 +1461,6 @@ class TraceBackedMemoryStore:
         _validate_usage_log(log)
         self._validate_usage_log_memory_ids(log)
         self._validate_usage_log_trace(log)
-        if any(existing.decision_id == log.decision_id for existing in self._usage_logs):
-            raise ValueError(f"duplicate usage log decision_id: {log.decision_id}")
         return log
 
     def _validate_usage_log_memory_ids(
@@ -2158,15 +2163,6 @@ def _validate_v2_usage_log_record(log_data: dict[str, Any]) -> None:
         raise ValueError(
             "v2 usage log requires audit fields: " + ", ".join(missing_fields)
         )
-
-
-def _next_decision_id(logs: list[MemoryUsageLog]) -> str:
-    max_suffix = 0
-    for log in logs:
-        match = re.fullmatch(r"decision_(\d+)", log.decision_id)
-        if match is not None:
-            max_suffix = max(max_suffix, int(match.group(1)))
-    return f"decision_{max_suffix + 1:06d}"
 
 
 def _validate_trace(trace: Trace) -> None:

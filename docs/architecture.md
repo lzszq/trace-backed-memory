@@ -287,6 +287,15 @@ per-log sets without reordering diagnostics. These indexes are not Store state
 or serialized data, and the existing per-record validation and duplicate-error
 precedence remains intact.
 
+The live Store separately maintains a private derived `decision_id` index and
+next numeric suffix. The only three append paths share one helper, while
+outcome, completion, and recovery replace records at stable positions without
+changing IDs. Allocation, duplicate detection, and single lookup are average
+O(1), and a requested batch resolves in average O(k). Failed candidates do not
+advance the counter. The derived index is rebuilt by validated snapshot import,
+never serialized, and does not replace canonical output sorting, snapshot
+version 2, or PostgreSQL schema version 1.
+
 The `recover-batch` argv surface separately caps submitted values at 10,000
 decision IDs and 10,000 attribution options. A preload cardinality check runs
 immediately after argparse and before snapshot loading, tuple/set/dictionary

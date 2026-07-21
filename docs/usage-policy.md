@@ -196,6 +196,14 @@ unordered iteration for diagnostics. Preserve validation precedence, exact
 errors, input processing order, snapshot version 2, and PostgreSQL schema
 version 1.
 
+Maintain a private derived `decision_id` index for live usage-log operations.
+Route snapshot import, finalization, and direct logging through one append
+boundary; keep outcome/completion/recovery replacements on the same stable
+index. Allocation, duplicate checking, and single lookup must remain average
+O(1), with max numeric suffix semantics for imported IDs and no ID consumed by
+a failed write. Never serialize the derived index or bypass canonical sorting,
+snapshot version 2, or PostgreSQL schema version 1.
+
 Also cap `recover-batch` at 10,000 decision IDs and 10,000 attribution options.
 Count submitted values before duplicate detection and reject overflow as input
 before snapshot loading, Store construction, recovery, or publication. Do not

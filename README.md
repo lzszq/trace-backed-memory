@@ -234,6 +234,12 @@ empty cohort still returns `None` while a nonempty all-failure cohort returns
 `memory_outcome_metrics()`, memory-run metrics, and CLI call boundaries remain
 unchanged, as do snapshot version 2 and PostgreSQL schema version 1.
 
+`memory_run_metrics()` now uses one usage-log pass without sorting and O(1)
+accumulator space. A private single-record audit constructor keeps status and
+remediation classification shared with `memory_run_audits()`, while the public
+audit and remediation tuples retain decision-ID order. Reported values, lock
+boundaries, snapshot version 2, and PostgreSQL schema version 1 are unchanged.
+
 ## Snapshot Operations CLI
 
 Installing the package exposes the dependency-free `tbm` console script. The
@@ -814,6 +820,11 @@ The summary is derived and not persisted. Empty stores return zero for every
 field, and snapshot and PostgreSQL loads reconstruct the same value from the
 underlying records. Snapshot version 2, JSON Schemas, active-lessons YAML, and
 PostgreSQL schema version 1 remain unchanged.
+
+Aggregation uses one usage-log pass without sorting and O(1) accumulator
+space. `memory_run_audits()` and `memory_run_remediations()` still expose
+decision-ID order; only the unordered aggregate avoids their presentation
+sort and collection materialization.
 
 ### Safe memory-run recovery
 
@@ -1584,8 +1595,8 @@ Implemented pieces:
   and execution callbacks, Store-produced linkage, explicit measurement, and
   recoverable post-preparation error context.
 - Derived `memory_run_metrics()` health counts with five-state conservation,
-  automatic-versus-attributed recovery work, and no redundant persisted
-  aggregate.
+  automatic-versus-attributed recovery work, one unsorted usage-log pass, and
+  no redundant persisted aggregate.
 - Safe `recover_memory_run()` orchestration that derives correlated IDs/results, requires explicit failed-run attribution, and reuses atomic completion.
 - Atomic `recover_memory_runs()` orchestration that validates and stages a unique decision tuple before committing any shared-Trace recovery.
 - Dry-run measured completion through `tbm complete`, with explicit linked IDs

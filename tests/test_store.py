@@ -3522,6 +3522,47 @@ def test_memory_run_metrics_expose_recovery_attribution_work():
     assert recovered.attribution_required_count == 0
 
 
+@pytest.mark.parametrize("record_count", [16, 64])
+def test_memory_run_metrics_iterate_history_once_without_sorting(
+    monkeypatch,
+    record_count: int,
+):
+    class IterationCountingLogs(list[MemoryUsageLog]):
+        iterations = 0
+        iterated_items = 0
+
+        def __iter__(self):
+            type(self).iterations += 1
+            for log in super().__iter__():
+                type(self).iterated_items += 1
+                yield log
+
+    store, source_trace, _case, lesson = store_with_active_lesson()
+    for index in range(record_count):
+        add_pending_memory_run(
+            store,
+            source_trace,
+            lesson,
+            suffix=f"metrics_iteration_{index}",
+        )
+    store._usage_logs = IterationCountingLogs(store._usage_logs)
+    IterationCountingLogs.iterations = 0
+    IterationCountingLogs.iterated_items = 0
+
+    def reject_sort(*_args, **_kwargs):
+        raise AssertionError("memory_run_metrics must not sort usage logs")
+
+    with monkeypatch.context() as scoped_patch:
+        scoped_patch.setattr("builtins.sorted", reject_sort)
+        metrics = store.memory_run_metrics()
+
+    assert metrics.decision_count == record_count
+    assert metrics.pending_count == record_count
+    assert metrics.recoverable_count == 0
+    assert IterationCountingLogs.iterations == 1
+    assert IterationCountingLogs.iterated_items == record_count
+
+
 def test_recover_memory_run_completes_decision_only_and_preserves_attribution():
     store, current, result, _lesson = store_with_pending_memory_run()
     sealed = store.record_decision_outcome(

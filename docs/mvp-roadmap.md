@@ -979,3 +979,17 @@ Track:
 - Change no public signature, dependency, model, snapshot field, JSON Schema,
   active-lessons YAML, packaged resource, PostgreSQL DDL, snapshot version 2,
   or PostgreSQL schema version 1.
+
+## Phase 56: Single-pass memory-run metrics (implemented)
+
+- Aggregate `memory_run_metrics()` in one usage-log pass without sorting and
+  with O(1) accumulator space.
+- Reuse one private log-to-audit constructor so Trace lookup, status
+  classification, and remediation action semantics retain one source of truth.
+- Keep `memory_run_audits()` and remediations in decision-ID order while the
+  unordered metrics path avoids presentation sorting and tuple materialization.
+- Preserve all status and recovery conservation identities, point-in-time lock
+  scope, and derived-only persistence behavior.
+- Change no public signature, dependency, model, snapshot field, JSON Schema,
+  active-lessons YAML, packaged resource, PostgreSQL DDL, snapshot version 2,
+  or PostgreSQL schema version 1.

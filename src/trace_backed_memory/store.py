@@ -1720,27 +1720,28 @@ class TraceBackedMemoryStore:
             unevaluated_decision_count=unevaluated_decision_count,
         )
 
+    def _memory_run_audit(self, log: MemoryUsageLog) -> MemoryRunAudit:
+        trace_id = cast(str, log.trace_id)
+        trace = self._traces[trace_id]
+        return MemoryRunAudit(
+            decision_id=log.decision_id,
+            trace_id=trace_id,
+            run_id=log.run_id,
+            status=_memory_run_audit_status(
+                trace.eval_result,
+                log.eval_result,
+            ),
+            trace_eval_result=trace.eval_result,
+            decision_eval_result=log.eval_result,
+            memory_caused_failure=log.memory_caused_failure,
+        )
+
     @_synchronized
     def memory_run_audits(self) -> tuple[MemoryRunAudit, ...]:
         """Classify completion consistency for every trace-linked decision."""
         audits: list[MemoryRunAudit] = []
         for log in sorted(self._usage_logs, key=lambda item: item.decision_id):
-            trace_id = cast(str, log.trace_id)
-            trace = self._traces[trace_id]
-            audits.append(
-                MemoryRunAudit(
-                    decision_id=log.decision_id,
-                    trace_id=trace_id,
-                    run_id=log.run_id,
-                    status=_memory_run_audit_status(
-                        trace.eval_result,
-                        log.eval_result,
-                    ),
-                    trace_eval_result=trace.eval_result,
-                    decision_eval_result=log.eval_result,
-                    memory_caused_failure=log.memory_caused_failure,
-                )
-            )
+            audits.append(self._memory_run_audit(log))
         return tuple(audits)
 
     @_synchronized
@@ -1754,24 +1755,42 @@ class TraceBackedMemoryStore:
     @_synchronized
     def memory_run_metrics(self) -> MemoryRunMetrics:
         """Summarize completion consistency for every memory-run decision."""
-        audits = self.memory_run_audits()
-        status_counts = Counter(audit.status for audit in audits)
-        action_counts = Counter(
-            _memory_run_remediation(audit).action for audit in audits
-        )
-        trace_only_count = status_counts["trace_only"]
-        decision_only_count = status_counts["decision_only"]
-        auto_recoverable_count = action_counts["recover"]
-        attribution_required_count = action_counts[
-            "recover_with_attribution"
-        ]
+        decision_count = 0
+        pending_count = 0
+        trace_only_count = 0
+        decision_only_count = 0
+        complete_count = 0
+        conflict_count = 0
+        auto_recoverable_count = 0
+        attribution_required_count = 0
+
+        for log in self._usage_logs:
+            audit = self._memory_run_audit(log)
+            decision_count += 1
+            if audit.status == "pending":
+                pending_count += 1
+            elif audit.status == "trace_only":
+                trace_only_count += 1
+            elif audit.status == "decision_only":
+                decision_only_count += 1
+            elif audit.status == "complete":
+                complete_count += 1
+            else:
+                conflict_count += 1
+
+            action = _memory_run_remediation(audit).action
+            if action == "recover":
+                auto_recoverable_count += 1
+            elif action == "recover_with_attribution":
+                attribution_required_count += 1
+
         return MemoryRunMetrics(
-            decision_count=len(audits),
-            pending_count=status_counts["pending"],
+            decision_count=decision_count,
+            pending_count=pending_count,
             trace_only_count=trace_only_count,
             decision_only_count=decision_only_count,
-            complete_count=status_counts["complete"],
-            conflict_count=status_counts["conflict"],
+            complete_count=complete_count,
+            conflict_count=conflict_count,
             recoverable_count=(
                 auto_recoverable_count + attribution_required_count
             ),

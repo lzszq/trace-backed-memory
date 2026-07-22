@@ -678,6 +678,12 @@ and their sum equals `decision_count`; `recoverable_count` is the sum of the
 one-sided status counts and also the sum of automatic plus
 attribution-required recovery actions.
 
+The aggregate path uses one usage-log pass without sorting and O(1)
+accumulator space. A private single-log constructor shares Trace lookup and
+status classification with `memory_run_audits()`, while public audits and
+remediations retain decision-ID order. This removes aggregate-only tuple
+materialization without changing the store lock boundary.
+
 This health summary deliberately remains separate from the outcome-oriented
 `metrics()` and per-memory observations. It is derived and not persisted, so
 snapshot and PostgreSQL reconstruction use existing Trace and usage rows.

@@ -596,6 +596,11 @@ usage decision at a time and exposes `decision_count`, `pending_count`,
 and also equals `auto_recoverable_count + attribution_required_count`. Treat
 pending as awaiting measurement and conflict as manual-review work.
 
+The Store computes `memory_run_metrics()` in one usage-log pass without
+sorting and with O(1) accumulator space. Continue using
+`memory_run_audits()` when decision-ID order is required; the metrics method is
+an unordered point-in-time aggregate and does not replace the audit detail.
+
 These health metrics are derived and not persisted, and they do not replace
 outcome-oriented `metrics()`. Snapshot and PostgreSQL loads reconstruct them
 from existing records, leaving snapshot version 2, JSON Schemas, active-lessons

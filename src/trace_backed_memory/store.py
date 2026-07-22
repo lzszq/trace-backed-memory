@@ -135,6 +135,8 @@ MEMORY_SOURCE_IDENTITY_CONTEXT_FIELDS = frozenset(
 )
 SNAPSHOT_VERSION = 2
 TRACE_JSON_MAX_DEPTH = 100
+TRACE_JSON_MAX_NODES = 100_000
+TRACE_JSON_MAX_TEXT_BYTES = 8 * 1024 * 1024
 TRACE_LATENCY_MAX_MS = 2_147_483_647
 SNAPSHOT_COLLECTION_NAMES = (
     "traces",
@@ -2330,9 +2332,14 @@ def _validate_trace(trace: Trace) -> None:
                     "cost_usd must be a finite number or None; "
                     "integer exceeds JSON serialization limits"
                 ) from exc
-    _validate_json_object_list(trace.retrieved_context, "retrieved_context")
-    _validate_json_object_list(trace.tool_calls, "tool_calls")
-    _validate_json_object_list(trace.tool_outputs, "tool_outputs")
+    json_budget = _TraceJSONBudget()
+    _validate_json_object_list(
+        trace.retrieved_context,
+        "retrieved_context",
+        json_budget,
+    )
+    _validate_json_object_list(trace.tool_calls, "tool_calls", json_budget)
+    _validate_json_object_list(trace.tool_outputs, "tool_outputs", json_budget)
     _validate_optional_rfc3339(trace.created_at, "created_at", "trace")
 
 
@@ -2976,14 +2983,69 @@ def _reject_json_constant(value: str) -> Any:
     raise ValueError(f"invalid JSON constant: {value}")
 
 
-def _validate_json_object_list(value: Any, field_name: str) -> None:
-    if not isinstance(value, list) or any(type(item) is not dict for item in value):
+class _TraceJSONBudget:
+    __slots__ = ("node_count", "text_bytes")
+
+    def __init__(self) -> None:
+        self.node_count = 0
+        self.text_bytes = 0
+
+    def consume_node(self) -> None:
+        if self.node_count >= TRACE_JSON_MAX_NODES:
+            raise ValueError(
+                "trace JSON contains more than "
+                f"{TRACE_JSON_MAX_NODES} nodes"
+            )
+        self.node_count += 1
+
+    def ensure_child_capacity(self, child_count: int) -> None:
+        if child_count > TRACE_JSON_MAX_NODES - self.node_count:
+            raise ValueError(
+                "trace JSON contains more than "
+                f"{TRACE_JSON_MAX_NODES} nodes"
+            )
+
+    def consume_text(self, value: str, path: str) -> None:
+        remaining = TRACE_JSON_MAX_TEXT_BYTES - self.text_bytes
+        if len(value) > remaining:
+            raise ValueError(
+                "trace JSON text exceeds "
+                f"{TRACE_JSON_MAX_TEXT_BYTES} UTF-8 bytes at {path}"
+            )
+        try:
+            encoded_bytes = len(value.encode("utf-8"))
+        except UnicodeEncodeError as error:
+            raise ValueError(
+                f"trace {path} must be UTF-8 encodable"
+            ) from error
+        if encoded_bytes > remaining:
+            raise ValueError(
+                "trace JSON text exceeds "
+                f"{TRACE_JSON_MAX_TEXT_BYTES} UTF-8 bytes at {path}"
+            )
+        self.text_bytes += encoded_bytes
+
+
+def _validate_json_object_list(
+    value: Any,
+    field_name: str,
+    budget: _TraceJSONBudget,
+) -> None:
+    if not isinstance(value, list):
+        raise ValueError(f"trace {field_name} must be a list of JSON objects")
+    budget.consume_node()
+    budget.ensure_child_capacity(len(value))
+    if any(type(item) is not dict for item in value):
         raise ValueError(f"trace {field_name} must be a list of JSON objects")
     for index, item in enumerate(value):
-        _validate_json_value(item, f"{field_name}[{index}]")
+        _validate_json_value(item, f"{field_name}[{index}]", budget)
 
 
-def _validate_json_value(value: Any, root_path: str) -> None:
+def _validate_json_value(
+    value: Any,
+    root_path: str,
+    budget: _TraceJSONBudget,
+) -> None:
     stack: list[tuple[Any, str, int, bool]] = [(value, root_path, 0, False)]
     active_container_ids: set[int] = set()
 
@@ -2993,7 +3055,11 @@ def _validate_json_value(value: Any, root_path: str) -> None:
             active_container_ids.remove(id(current))
             continue
 
-        if current is None or type(current) in {bool, str}:
+        budget.consume_node()
+        if current is None or type(current) is bool:
+            continue
+        if type(current) is str:
+            budget.consume_text(current, path)
             continue
         if type(current) is int:
             _validate_json_integer(current, path)
@@ -3017,6 +3083,7 @@ def _validate_json_value(value: Any, root_path: str) -> None:
             raise ValueError(f"trace {path} contains a reference cycle")
         active_container_ids.add(container_id)
         stack.append((current, path, depth, True))
+        budget.ensure_child_capacity(len(current))
 
         if type(current) is list:
             for index in range(len(current) - 1, -1, -1):
@@ -3027,6 +3094,7 @@ def _validate_json_value(value: Any, root_path: str) -> None:
         for key, child in reversed(items):
             if not isinstance(key, str):
                 raise ValueError(f"trace {path} object keys must be strings")
+            budget.consume_text(key, f"{path} object key")
             child_path = (
                 f"{path}.{key}"
                 if key.isidentifier()

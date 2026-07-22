@@ -1105,3 +1105,16 @@ Track:
 - Keep the CLI private wrapper, 30-second default, write error/exit code 4,
   dry-run/read-only behavior, snapshot version 2, PostgreSQL schema version 1,
   and packaged resources unchanged.
+
+## Phase 65: Bounded runtime Trace JSON (implemented)
+
+- Share one fixed budget across `retrieved_context`, `tool_calls`, and
+  `tool_outputs` for every Trace candidate validation.
+- Accept at most 100,000 aggregate JSON nodes and 8 MiB of aggregate UTF-8
+  object-key/string text while preserving the existing depth-100 boundary.
+- Reject wide containers before traversal-stack or `dict.items()` expansion,
+  and reject lone surrogates before defensive copying or persistence.
+- Apply the same contract to direct record, completion, snapshot import, and
+  PostgreSQL load paths; keep failures atomic and boundary values valid.
+- Preserve public signatures, accepted serialized bytes, snapshot version 2,
+  PostgreSQL schema version 1, JSON Schemas, and all packaged resources.

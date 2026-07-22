@@ -194,6 +194,15 @@ defaults. Fail before Store mutation and do not persist the limits: snapshot
 version 2, JSON Schemas, active-lessons YAML, packaged resource bytes, and
 PostgreSQL schema version 1 remain unchanged.
 
+Treat `Trace.retrieved_context`, `Trace.tool_calls`, and `Trace.tool_outputs`
+as one live structured-JSON domain. Count the three outer lists and every
+nested semantic value against a fixed 100,000-node aggregate; count every
+object key and string value against a fixed 8 MiB aggregate of UTF-8 text.
+Retain depth 100. Reject a container whose immediate children cannot fit before
+expanding a traversal stack, and reject non-UTF-8 strings before copying.
+Apply this non-configurable guard to record, completion, snapshot import, and
+PostgreSQL load paths; boundary failure must leave Store state unchanged.
+
 Keep snapshot usage-log validation average O(n) in records and nested ID/tool
 evidence. Reuse load-local indexes for `decision_id`, known memory IDs, legacy
 `run_id` resolution, and per-trace tool names, plus per-log sets for
@@ -932,6 +941,10 @@ The runtime fails closed at these fixed boundaries:
 - `INJECTION_MAX_MEMORIES`: 20 memories per injection.
 - `INJECTION_SNIPPET_MAX_CHARS`: 12,000 characters in the final snippet.
 - `COMMIT_ANCESTRY_MAX_ANCHORS`: 1,000 input anchors per capture call.
+- `TRACE_JSON_MAX_NODES`: 100,000 aggregate nodes across the three Trace JSON
+  fields.
+- `TRACE_JSON_MAX_TEXT_BYTES`: 8 MiB of aggregate UTF-8 object-key and string
+  text across the three Trace JSON fields.
 
 Recommended:
 

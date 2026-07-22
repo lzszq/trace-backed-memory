@@ -83,6 +83,13 @@ objects so downstream extraction and reporting can safely inspect them.
 The store validates the caller-owned `Trace`, deep-copies it, validates the
 copy again, and only then inserts it. Expected concurrent copy mutation fails
 with `ValueError`, while unrelated copy programming errors remain visible.
+One `_TraceJSONBudget` is shared across `retrieved_context`, `tool_calls`, and
+`tool_outputs`: the three outer lists and all nested semantic values may total
+at most 100,000 nodes, while object keys and string values may total at most
+8 MiB of UTF-8 text and structured values retain depth 100. Container
+cardinality is checked against the remaining node budget before traversal-stack
+or `dict.items()` expansion, so wide input fails before the defensive copy
+amplifies it.
 
 A current execution may be registered before runtime with
 `eval_result="unknown"`. After execution, `complete_trace()` performs one
@@ -879,8 +886,11 @@ the trace/case/lesson graph.
 
 Trace context/tool JSON is validated recursively before storage. Only JSON
 semantic values with string object keys and finite numbers are accepted;
-cycles, excessive nesting, and values that cannot be serialized by the runtime
-fail with a path-specific `ValueError`.
+cycles, more than 100,000 aggregate nodes, more than 8 MiB of aggregate
+key/string UTF-8 text, excessive nesting, lone surrogates, and values that
+cannot be serialized by the runtime fail with `ValueError`. Existing semantic
+failures and UTF-8 failures retain a field path. The shared fixed budget is
+recreated for each candidate validation and is not persisted or configurable.
 
 The portable persisted-string boundary requires at least one non-whitespace
 character in identity, linkage, required failure text, lesson/policy scope,

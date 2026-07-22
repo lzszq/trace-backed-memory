@@ -3566,6 +3566,65 @@ def test_repository_load_rejects_invalid_domain_state(postgres_cluster, invalid_
     assert isinstance(error.value.__cause__, ValueError)
 
 
+@pytest.mark.parametrize(
+    ("limit_name", "limit", "tool_outputs", "message"),
+    [
+        (
+            "TRACE_JSON_MAX_NODES",
+            3,
+            [{}],
+            "trace JSON contains more than 3 nodes",
+        ),
+        (
+            "TRACE_JSON_MAX_TEXT_BYTES",
+            3,
+            [{"a": "bbb"}],
+            "trace JSON text exceeds 3 UTF-8 bytes at tool_outputs[0].a",
+        ),
+    ],
+    ids=["nodes", "text"],
+)
+def test_repository_load_enforces_trace_json_runtime_budgets(
+    postgres_cluster,
+    monkeypatch,
+    limit_name,
+    limit,
+    tool_outputs,
+    message,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from psycopg.types.json import Jsonb
+
+    import trace_backed_memory.store as store_module
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresPersistenceError,
+    )
+
+    postgres_cluster.load_schema()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        connection.execute(
+            "INSERT INTO public.traces ("
+            "trace_id, run_id, commit_sha, tool_outputs"
+            ") VALUES (%s, %s, %s, %s)",
+            (
+                f"trace_bounded_json_{limit_name}",
+                f"run_bounded_json_{limit_name}",
+                "commit_bounded_json",
+                Jsonb(tool_outputs),
+            ),
+        )
+        connection.commit()
+        monkeypatch.setattr(store_module, limit_name, limit)
+
+        with pytest.raises(PostgresPersistenceError) as error:
+            PostgresMemoryRepository(connection).load()
+
+        assert type(error.value.__cause__) is ValueError
+        assert str(error.value.__cause__) == message
+        assert connection.execute("SELECT 1").fetchone() == (1,)
+
+
 def test_postgres_adapter_types_are_publicly_exported():
     from trace_backed_memory import (
         PostgresAdapterError,

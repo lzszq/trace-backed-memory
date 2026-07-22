@@ -198,6 +198,22 @@ safe defaults. Rejected imports remain all-or-nothing. No limit metadata is
 persisted: snapshot version 2, JSON Schemas, active-lessons YAML, packaged
 resource bytes, and PostgreSQL schema version 1 remain unchanged.
 
+## Bounded Runtime Trace JSON
+
+The Store treats `Trace.retrieved_context`, `Trace.tool_calls`, and
+`Trace.tool_outputs` as one structured JSON budget. Together they may contain
+at most 100,000 JSON nodes and 8 MiB of UTF-8 text across object keys and string
+values, while each structured value retains the depth-100 limit. The validator
+checks container width before expanding its traversal stack and rejects
+non-UTF-8 strings before defensive copying or persistence.
+
+This fixed boundary applies to direct `record_trace()` calls, Trace completion,
+snapshot reconstruction, and PostgreSQL loads. It has no trusted-migration
+opt-out because these values become live Store state; input exactly at either
+boundary remains valid. Rejection is atomic and changes no snapshot field,
+JSON Schema, packaged resource, snapshot version 2, or PostgreSQL schema
+version 1.
+
 Snapshot usage-log reconstruction keeps its validation work average O(n) in
 records and nested ID/tool evidence. `from_snapshot()` uses load-local indexes
 for seen `decision_id` values, known memory IDs, legacy `run_id` resolution,
@@ -1682,6 +1698,9 @@ Implemented pieces:
 - In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, optional opt-in Git ancestry filtering before keyword or semantic ranking, debug/repair visibility for verified regression-backed failure cases, optional keyword filtering including short domain tokens, optional bounded caller-provided semantic scores ranked score-descending with memory-ID-ascending ties, and usage decision logs; retrieval cannot bypass System Gate or LLM Gate.
 - Usage-log validation and persisted contract that require trace ID, serialized context, candidate status snapshots, and System Gate block reasons; reject empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
 - Dependency-free strict JSON snapshot save/load for trace, failure case, lesson, project policy, and usage-log records; non-object snapshots, non-finite floats, over-limit integers, and non-standard JSON numeric constants are rejected while JSON-serializable integer costs remain valid.
+- Aggregate runtime validation for Trace structured JSON: 100,000 nodes,
+  8 MiB of object-key/string UTF-8 text, depth 100, early wide-container
+  rejection, and atomic failure before caller-owned values are copied.
 - Dependency-free active lesson YAML save/load for the repository's simple
   `memory/lessons.example.yaml` shape, preserving numeric-looking scope strings
   and rejecting duplicate or semantically invalid documents through

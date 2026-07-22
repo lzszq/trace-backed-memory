@@ -11710,6 +11710,151 @@ def test_trace_json_excessive_depth_is_a_value_error_not_recursion_error():
         )
 
 
+def test_trace_json_fixed_runtime_budgets_have_expected_defaults():
+    assert store_module.TRACE_JSON_MAX_NODES == 100_000
+    assert store_module.TRACE_JSON_MAX_TEXT_BYTES == 8 * 1024 * 1024
+
+
+def test_trace_json_node_budget_is_shared_across_all_structured_fields(
+    monkeypatch,
+):
+    trace = Trace(
+        trace_id="trace_exact_json_nodes",
+        run_id="run_exact_json_nodes",
+        commit_sha="abc",
+        retrieved_context=[{"value": None}],
+        tool_calls=[{"value": None}],
+    )
+    monkeypatch.setattr(store_module, "TRACE_JSON_MAX_NODES", 7)
+
+    stored = TraceBackedMemoryStore().record_trace(trace)
+
+    assert stored.retrieved_context == [{"value": None}]
+    assert stored.tool_calls == [{"value": None}]
+
+    monkeypatch.setattr(store_module, "TRACE_JSON_MAX_NODES", 6)
+    with pytest.raises(
+        ValueError,
+        match="trace JSON contains more than 6 nodes",
+    ):
+        TraceBackedMemoryStore().record_trace(
+            replace(
+                trace,
+                trace_id="trace_excess_json_nodes",
+                run_id="run_excess_json_nodes",
+            )
+        )
+
+
+def test_trace_json_text_budget_counts_keys_values_and_utf8_bytes(monkeypatch):
+    trace = Trace(
+        trace_id="trace_exact_json_text",
+        run_id="run_exact_json_text",
+        commit_sha="abc",
+        retrieved_context=[{"a": "b"}],
+        tool_calls=[{"é": "x"}],
+    )
+    monkeypatch.setattr(store_module, "TRACE_JSON_MAX_TEXT_BYTES", 5)
+
+    stored = TraceBackedMemoryStore().record_trace(trace)
+
+    assert stored.tool_calls == [{"é": "x"}]
+
+    monkeypatch.setattr(store_module, "TRACE_JSON_MAX_TEXT_BYTES", 4)
+    with pytest.raises(
+        ValueError,
+        match=r"trace JSON text exceeds 4 UTF-8 bytes at tool_calls\[0\]\.é",
+    ):
+        TraceBackedMemoryStore().record_trace(
+            replace(
+                trace,
+                trace_id="trace_excess_json_text",
+                run_id="run_excess_json_text",
+            )
+        )
+
+
+def test_trace_json_rejects_wide_containers_before_storage_copy(
+    monkeypatch,
+):
+    monkeypatch.setattr(store_module, "TRACE_JSON_MAX_NODES", 5)
+
+    def fail_if_copied(_trace):
+        raise AssertionError("oversized trace JSON must fail before deepcopy")
+
+    monkeypatch.setattr(store_module, "_copy_trace_for_storage", fail_if_copied)
+
+    with pytest.raises(
+        ValueError,
+        match="trace JSON contains more than 5 nodes",
+    ):
+        TraceBackedMemoryStore().record_trace(
+            Trace(
+                trace_id="trace_wide_json",
+                run_id="run_wide_json",
+                commit_sha="abc",
+                tool_outputs=[{"items": [None] * 100}],
+            )
+        )
+
+
+def test_trace_json_rejects_non_utf8_string_with_stable_path():
+    with pytest.raises(
+        ValueError,
+        match=r"trace tool_outputs\[0\]\.payload must be UTF-8 encodable",
+    ):
+        TraceBackedMemoryStore().record_trace(
+            Trace(
+                trace_id="trace_surrogate_json",
+                run_id="run_surrogate_json",
+                commit_sha="abc",
+                tool_outputs=[{"payload": "\ud800"}],
+            )
+        )
+
+
+def test_trace_completion_json_budget_failure_is_atomic(monkeypatch):
+    store = TraceBackedMemoryStore()
+    pending = store.record_trace(
+        Trace(
+            trace_id="trace_bounded_completion",
+            run_id="run_bounded_completion",
+            commit_sha="abc",
+            retrieved_context=[{"a": "b"}],
+        )
+    )
+    monkeypatch.setattr(store_module, "TRACE_JSON_MAX_TEXT_BYTES", 4)
+
+    with pytest.raises(ValueError, match="trace JSON text exceeds 4 UTF-8 bytes"):
+        store.complete_trace(
+            pending.trace_id,
+            eval_result="pass",
+            tool_outputs=[{"c": "de"}],
+        )
+
+    assert store.traces[pending.trace_id] == pending
+
+
+def test_snapshot_import_enforces_aggregate_trace_json_budget(monkeypatch):
+    store = TraceBackedMemoryStore()
+    store.record_trace(
+        Trace(
+            trace_id="trace_snapshot_json_budget",
+            run_id="run_snapshot_json_budget",
+            commit_sha="abc",
+        )
+    )
+    snapshot = store.to_snapshot()
+    snapshot["traces"][0]["tool_outputs"] = [{}]
+    monkeypatch.setattr(store_module, "TRACE_JSON_MAX_NODES", 3)
+
+    with pytest.raises(
+        ValueError,
+        match="trace JSON contains more than 3 nodes",
+    ):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
+
+
 def test_snapshot_import_rejects_nested_invalid_trace_json():
     store = TraceBackedMemoryStore()
     store.record_trace(

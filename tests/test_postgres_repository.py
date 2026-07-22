@@ -57,7 +57,7 @@ def _complete_store(
             repo="repo_sync",
             tenant="tenant_sync",
             branch="feature/sync",
-            dirty=True,
+            dirty=False,
             prompt_version="prompt_sync_v2",
             prompt_family="repair_agent",
             tool_schema_version="tools_sync_v3",
@@ -167,6 +167,7 @@ def _draft_case_store(*, suffix: str = "lifecycle"):
             commit_sha=f"commit_{suffix}",
             repo=f"repo_{suffix}",
             tenant=f"tenant_{suffix}",
+            eval_result="fail",
             created_at="2025-02-01T08:00:00Z",
         )
     )
@@ -3382,7 +3383,7 @@ def test_repository_loads_a_complete_normalized_snapshot(postgres_cluster):
                 "run_db",
                 "commit_db",
                 "repo_db",
-                True,
+                False,
                 "fail",
                 Jsonb([{"source": "database"}]),
                 Jsonb([{"name": "query"}]),
@@ -3411,18 +3412,22 @@ def test_repository_loads_a_complete_normalized_snapshot(postgres_cluster):
         )
         connection.execute(
             "INSERT INTO public.failure_cases ("
-            "case_id, source_trace_id, commit_sha, failure_type, symptom, fix, "
-            "fix_commit_sha, regression_passed, status, created_at"
-            ") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "case_id, source_trace_id, commit_sha, failure_type, symptom, "
+            "root_cause, fix, fix_commit_sha, regression_passed, reviewed_by, "
+            "reviewed_at, status, created_at"
+            ") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 "case_db",
                 "trace_db",
                 "commit_db",
                 "tool_error",
                 "query failed",
+                "query validation was skipped",
                 "fix query",
                 "fix_commit_db",
                 True,
+                "database-reviewer",
+                "2025-01-02T03:04:05+05:30",
                 "verified",
                 "2025-01-02T03:04:05+05:30",
             ),

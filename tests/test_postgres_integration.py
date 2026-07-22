@@ -280,14 +280,16 @@ def _seed_verified_case(cluster: PostgresCluster, suffix: str) -> None:
     assert_sql_succeeds(
         cluster,
         f"""
-        INSERT INTO traces(trace_id, run_id, commit_sha, repo)
-        VALUES ('trace_{suffix}', 'run_{suffix}', 'commit_{suffix}', 'repo');
+        INSERT INTO traces(trace_id, run_id, commit_sha, repo, eval_result)
+        VALUES ('trace_{suffix}', 'run_{suffix}', 'commit_{suffix}', 'repo', 'fail');
         INSERT INTO failure_cases(
           case_id, source_trace_id, commit_sha, failure_type, symptom,
-          fix, fix_commit_sha, regression_passed, status
+          root_cause, fix, fix_commit_sha, regression_passed, reviewed_by,
+          reviewed_at, status
         ) VALUES (
           'case_{suffix}', 'trace_{suffix}', 'commit_{suffix}', 'tool_error',
-          'symptom', 'fix', 'fix_commit_{suffix}', true, 'verified'
+          'symptom', 'root cause', 'fix', 'fix_commit_{suffix}', true,
+          'test-reviewer', '2026-07-22T00:00:00Z', 'verified'
         );
         """,
     )
@@ -1075,8 +1077,8 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         GRANT SELECT ON memory_ids TO memory_app;
         GRANT INSERT ON memory_usage_decisions TO memory_app;
         SET ROLE memory_app;
-        INSERT INTO traces(trace_id, run_id, commit_sha, repo)
-        VALUES ('trace_app', 'run_app', 'commit_app', 'repo');
+        INSERT INTO traces(trace_id, run_id, commit_sha, repo, eval_result)
+        VALUES ('trace_app', 'run_app', 'commit_app', 'repo', 'fail');
         INSERT INTO failure_cases(
           case_id, source_trace_id, commit_sha, failure_type, symptom
         ) VALUES ('case_app', 'trace_app', 'commit_app', 'tool_error', 'symptom');
@@ -1175,8 +1177,8 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
     assert_sql_succeeds(
         cluster,
         """
-        INSERT INTO traces(trace_id, run_id, commit_sha, repo)
-        VALUES ('trace_restore', 'run_restore', 'commit_restore', 'repo');
+        INSERT INTO traces(trace_id, run_id, commit_sha, repo, eval_result)
+        VALUES ('trace_restore', 'run_restore', 'commit_restore', 'repo', 'fail');
         INSERT INTO failure_cases(
           case_id, source_trace_id, commit_sha, failure_type, symptom, status
         ) VALUES (

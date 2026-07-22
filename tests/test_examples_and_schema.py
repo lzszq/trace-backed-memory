@@ -23,7 +23,7 @@ from trace_backed_memory.models import EvalResult, FailureCaseStatus, LessonStat
 
 ROOT = Path(__file__).resolve().parents[1]
 DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
-CURRENT_IMPLEMENTED_PHASE = "Phase 0-70"
+CURRENT_IMPLEMENTED_PHASE = "Phase 0-72"
 
 
 def _markdown_heading_levels(document: str) -> tuple[int, ...]:
@@ -609,6 +609,10 @@ def test_schemas_and_docs_publish_aggregate_and_field_budgets():
         "LLM_GATE_MAX_CANDIDATES": "50",
         "COMMIT_ANCESTRY_MAX_ANCHORS": "1,000",
         "LLM_GATE_PROMPT_MAX_CHARS": "32,000",
+        "LLM_GATE_RESPONSE_MAX_BYTES": "65,536",
+        "LLM_GATE_RESPONSE_MAX_NODES": "1,000",
+        "LLM_GATE_RESPONSE_MAX_DEPTH": "20",
+        "MEMORY_DECISION_REASON_MAX_CHARS": "2,000",
         "INJECTION_MAX_MEMORIES": "20",
         "INJECTION_SNIPPET_MAX_CHARS": "12,000",
     }
@@ -639,7 +643,7 @@ def test_stored_schemas_match_postgres_nonblank_string_contracts():
     ]:
         assert failure_properties[field_name]["pattern"] == r"\S"
     for field_name in ["root_cause", "reviewed_by", "review_notes"]:
-        assert "pattern" not in failure_properties[field_name]
+        assert failure_properties[field_name]["pattern"] == r"\S"
     verified_properties = failure_schema["allOf"][0]["then"]["properties"]
     assert verified_properties["fix"]["pattern"] == r"\S"
     assert verified_properties["fix_commit_sha"]["pattern"] == r"\S"
@@ -715,7 +719,21 @@ def test_decision_and_usage_schemas_require_nonblank_reasons():
 
     assert decision_reason["pattern"] == r"\S"
     assert usage_reason["pattern"] == r"\S"
+    assert decision_reason["maxLength"] == 2_000
+    assert usage_reason["maxLength"] == 2_000
     assert "CHECK (reason ~ '[^[:space:]]')" in _postgres_schema()
+    assert "CHECK (char_length(reason) <= 2000)" in _postgres_schema()
+
+
+def test_verified_failure_case_schema_requires_review_evidence():
+    schema = _json_schema("failure_case.schema.json")
+    verified = schema["allOf"][0]["then"]
+
+    assert {"root_cause", "reviewed_by", "reviewed_at"} <= set(
+        verified["required"]
+    )
+    for field_name in ("root_cause", "reviewed_by", "reviewed_at"):
+        assert verified["properties"][field_name]["type"] == "string"
 
 
 def test_memory_usage_log_schema_encodes_decision_consistency_rules():
@@ -911,12 +929,19 @@ def test_postgres_schema_enforces_verified_case_and_lesson_source_lifecycle():
     assert "fix IS NOT NULL" in failure_cases
     assert "fix_commit_sha IS NOT NULL" in failure_cases
     assert "regression_passed" in failure_cases
+    assert "root_cause IS NOT NULL" in failure_cases
+    assert "reviewed_by IS NOT NULL" in failure_cases
+    assert "reviewed_at IS NOT NULL" in failure_cases
+    assert "CREATE FUNCTION require_failure_case_source_trace()" in schema
+    assert "eval_result IN ('fail', 'error')" in schema
+    assert "CREATE TRIGGER failure_cases_require_failed_source_trace" in schema
     assert "CREATE FUNCTION require_verified_lesson_source_case()" in schema
     assert "CREATE TRIGGER lessons_require_verified_source_case" in schema
     assert "IF NEW.status = 'active'" in schema
     assert "BEFORE INSERT OR UPDATE OF source_case_id, status ON lessons" in schema
     assert "status = 'verified'" in schema
     assert "regression_passed" in schema
+    assert "NOT source_trace.dirty" in schema
     assert "CREATE FUNCTION enforce_failure_case_lesson_lifecycle()" in schema
     assert "CREATE TRIGGER failure_cases_enforce_lesson_lifecycle" in schema
     assert "BEFORE UPDATE OF status, regression_passed ON failure_cases" in schema
@@ -2079,7 +2104,7 @@ def test_docs_publish_conservative_failure_extraction_accuracy():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_linear_snapshot_usage_log_validation():
@@ -2117,7 +2142,7 @@ def test_docs_publish_linear_snapshot_usage_log_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_indexed_usage_log_operations():
@@ -2155,7 +2180,7 @@ def test_docs_publish_indexed_usage_log_operations():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_indexed_run_to_trace_lookup():
@@ -2194,7 +2219,7 @@ def test_docs_publish_indexed_run_to_trace_lookup():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_referenced_live_memory_id_validation():
@@ -2232,7 +2257,7 @@ def test_docs_publish_referenced_live_memory_id_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_single_pass_store_metrics():
@@ -2270,7 +2295,7 @@ def test_docs_publish_single_pass_store_metrics():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_single_pass_memory_run_metrics():
@@ -2310,7 +2335,7 @@ def test_docs_publish_single_pass_memory_run_metrics():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_serialized_snapshot_cli_writes():
@@ -2352,7 +2377,7 @@ def test_docs_publish_serialized_snapshot_cli_writes():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_active_only_lesson_imports():
@@ -2394,7 +2419,7 @@ def test_docs_publish_active_only_lesson_imports():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_bounded_pr_change_sets():
@@ -2434,7 +2459,7 @@ def test_docs_publish_bounded_pr_change_sets():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_linear_legacy_pr_warnings():
@@ -2475,7 +2500,7 @@ def test_docs_publish_linear_legacy_pr_warnings():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_bounded_git_capture():
@@ -2522,7 +2547,7 @@ def test_docs_publish_bounded_git_capture():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_durable_atomic_publish():
@@ -2561,7 +2586,7 @@ def test_docs_publish_durable_atomic_publish():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_bounded_semantic_top_k():
@@ -2600,7 +2625,7 @@ def test_docs_publish_bounded_semantic_top_k():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_public_snapshot_write_lock():
@@ -2641,7 +2666,7 @@ def test_docs_publish_public_snapshot_write_lock():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_bounded_runtime_trace_json():
@@ -2690,7 +2715,7 @@ def test_docs_publish_bounded_runtime_trace_json():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_postgres_loaded_row_payloads():
@@ -2743,7 +2768,7 @@ def test_docs_publish_postgres_loaded_row_payloads():
     postgres_schema = _postgres_schema()
     assert postgres_schema.count("updated_at TIMESTAMPTZ DEFAULT now()") == 3
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_snapshot_lock_sidecar_safety():
@@ -2795,7 +2820,7 @@ def test_docs_publish_snapshot_lock_sidecar_safety():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_git_metadata_output_validation():
@@ -2847,7 +2872,7 @@ def test_docs_publish_git_metadata_output_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_explicit_failure_text_classification():
@@ -2895,7 +2920,7 @@ def test_docs_publish_explicit_failure_text_classification():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_measured_completion_cli_and_compatibility():
@@ -3465,7 +3490,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
         / "memory_decision.schema.json"
     ).read_bytes()
     assert packaged_schema == canonical_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3532,7 +3557,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
         / "postgres.sql"
     ).read_bytes()
     assert packaged_postgres == canonical_postgres
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3582,7 +3607,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
         assert "unique_json_object_pairs" in runtime_files[name]
         assert "object_pairs_hook" in runtime_files[name]
 
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
         "type": "integer",
@@ -3647,7 +3672,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
         "_validate_recover_batch_cardinality(args)"
     ) < main_source.index("TraceBackedMemoryStore.load_json(args.snapshot)")
 
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
         "type": "integer",
@@ -3708,7 +3733,7 @@ def test_docs_publish_recover_attribution_final_delimiter():
         "const": 2,
     }
     assert "VALUES (true, 1)" in _postgres_schema()
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_non_negative_trace_latency_contract():
@@ -3786,7 +3811,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
     ).read_bytes()
     assert packaged_postgres == canonical_postgres
     assert b"traces_latency_ms_non_negative" in canonical_postgres
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3822,7 +3847,7 @@ def test_docs_publish_public_project_policy_obsolescence_export():
 
     assert tbm.obsolete_project_policy is lifecycle.obsolete_project_policy
     assert "obsolete_project_policy" in tbm.__all__
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3900,7 +3925,7 @@ def test_docs_publish_postgres_compatible_trace_latency_range():
     assert packaged_postgres == canonical_postgres
     assert b"latency_ms INTEGER" in canonical_postgres
     assert b"traces_latency_ms_non_negative" in canonical_postgres
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3965,7 +3990,7 @@ def test_docs_publish_postgres_bounded_load_payloads():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 1)" in postgres_schema
     assert "snapshot_payload_bytes" not in postgres_schema
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_docs_publish_portable_nonblank_persisted_strings():
@@ -4018,7 +4043,7 @@ def test_docs_publish_portable_nonblank_persisted_strings():
         "type": "integer",
         "const": 2,
     }
-    assert len(packaged_resources()) == 18
+    assert len(packaged_resources()) == 19
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():
@@ -4052,6 +4077,7 @@ def test_every_postgres_invariant_function_pins_pg_catalog_search_path():
         "reject_runtime_memory_truncate",
         "register_runtime_memory_id",
         "protect_runtime_memory_identity",
+        "require_failure_case_source_trace",
         "require_verified_lesson_source_case",
         "enforce_failure_case_status_transition",
         "enforce_active_obsolete_status_transition",

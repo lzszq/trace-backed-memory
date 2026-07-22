@@ -98,6 +98,9 @@ CREATE TABLE failure_cases (
   CHECK (btrim(commit_sha) <> ''),
   CHECK (btrim(failure_type) <> ''),
   CHECK (btrim(symptom) <> ''),
+  CHECK (root_cause IS NULL OR btrim(root_cause) <> ''),
+  CHECK (reviewed_by IS NULL OR btrim(reviewed_by) <> ''),
+  CHECK (review_notes IS NULL OR btrim(review_notes) <> ''),
   CHECK (fix IS NULL OR btrim(fix) <> ''),
   CHECK (fix_commit_sha IS NULL OR btrim(fix_commit_sha) <> ''),
   CHECK (
@@ -106,6 +109,9 @@ CREATE TABLE failure_cases (
       fix IS NOT NULL AND btrim(fix) <> ''
       AND fix_commit_sha IS NOT NULL AND btrim(fix_commit_sha) <> ''
       AND regression_passed
+      AND root_cause IS NOT NULL AND btrim(root_cause) <> ''
+      AND reviewed_by IS NOT NULL AND btrim(reviewed_by) <> ''
+      AND reviewed_at IS NOT NULL
     )
   ),
   FOREIGN KEY (source_trace_id, commit_sha) REFERENCES traces(trace_id, commit_sha),
@@ -253,15 +259,36 @@ CREATE FUNCTION require_verified_lesson_source_case() RETURNS trigger AS $$
 BEGIN
   IF NEW.status = 'active' THEN
     PERFORM 1
-    FROM public.failure_cases
-    WHERE case_id = NEW.source_case_id
-      AND status = 'verified'
-      AND regression_passed
+    FROM public.failure_cases AS source_case
+    JOIN public.traces AS source_trace
+      ON source_trace.trace_id = source_case.source_trace_id
+      AND source_trace.commit_sha = source_case.commit_sha
+    WHERE source_case.case_id = NEW.source_case_id
+      AND source_case.status = 'verified'
+      AND source_case.regression_passed
+      AND NOT source_trace.dirty
     FOR SHARE;
     IF NOT FOUND THEN
       RAISE EXCEPTION 'lesson source_case_id must reference a verified regression-backed failure case: %',
         NEW.source_case_id;
     END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
+
+CREATE FUNCTION require_failure_case_source_trace() RETURNS trigger AS $$
+BEGIN
+  PERFORM 1
+  FROM public.traces
+  WHERE trace_id = NEW.source_trace_id
+    AND commit_sha = NEW.commit_sha
+    AND eval_result IN ('fail', 'error')
+  FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'failure case requires a failed or errored source trace: %',
+      NEW.case_id;
   END IF;
   RETURN NEW;
 END;
@@ -319,6 +346,10 @@ SET search_path = pg_catalog;
 CREATE TRIGGER failure_cases_register_runtime_memory_id
 BEFORE INSERT ON failure_cases
 FOR EACH ROW EXECUTE FUNCTION register_runtime_memory_id();
+
+CREATE TRIGGER failure_cases_require_failed_source_trace
+BEFORE INSERT OR UPDATE OF source_trace_id, commit_sha ON failure_cases
+FOR EACH ROW EXECUTE FUNCTION require_failure_case_source_trace();
 
 CREATE TRIGGER failure_cases_protect_runtime_memory_identity
 BEFORE UPDATE OF case_id OR DELETE ON failure_cases
@@ -434,6 +465,7 @@ CREATE TABLE memory_usage_decisions (
   CHECK (btrim(run_id) <> ''),
   CHECK (btrim(trace_id) <> ''),
   CHECK (reason ~ '[^[:space:]]'),
+  CHECK (char_length(reason) <= 2000),
   CHECK (
     (jsonb_array_length(used_memory_ids) = 0 AND recommended_injection = 'none')
     OR (jsonb_array_length(used_memory_ids) > 0 AND recommended_injection != 'none')

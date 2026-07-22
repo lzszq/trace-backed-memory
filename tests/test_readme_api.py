@@ -104,11 +104,16 @@ def readme_store_fixture() -> tuple[
         )
     )
     case = verify_failure_case(
-        draft_failure_case(
-            trace,
-            case_id="case_safe_readme",
-            failure_type="invalid_tool_argument",
-            symptom="search_docs received an empty query",
+        review_failure_case(
+            draft_failure_case(
+                trace,
+                case_id="case_safe_readme",
+                failure_type="invalid_tool_argument",
+                symptom="search_docs received an empty query",
+            ),
+            reviewed_by="test-reviewer",
+            root_cause="the prompt omitted the query contract",
+            reviewed_at="2026-07-22T00:00:00Z",
         ),
         fix="require a non-empty query",
         fix_commit_sha="def456",
@@ -543,7 +548,7 @@ def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
         if args == ["git", "branch", "--show-current"]:
             return "main\n"
         if args == ["git", "status", "--porcelain"]:
-            return " M README.md\n"
+            return ""
         raise AssertionError(f"unexpected command: {args}")
 
     store = TraceBackedMemoryStore()
@@ -710,7 +715,12 @@ def test_readme_additional_public_helpers_still_work():
         symptom="planner called search_docs with null query",
     )
     verified = verify_failure_case(
-        draft,
+        review_failure_case(
+            draft,
+            reviewed_by="test-reviewer",
+            root_cause="the prompt omitted the query contract",
+            reviewed_at="2026-07-22T00:00:00Z",
+        ),
         fix="fixed prompt",
         fix_commit_sha="def456",
         regression_passed=True,
@@ -925,6 +935,7 @@ def test_readme_publishes_and_executes_packaged_resource_contract(tmp_path):
     for command in [
         "tbm resource list",
         "tbm resource read schemas/trace.schema.json",
+        "tbm resource export schemas/sqlite.sql sqlite.sql",
         "tbm resource export schemas/postgres.sql postgres.sql",
     ]:
         assert command in readme
@@ -941,7 +952,14 @@ def test_readme_publishes_and_executes_packaged_resource_contract(tmp_path):
         assert contract in normalized
 
     descriptions = packaged_resources()
-    assert len(descriptions) == 18
+    assert len(descriptions) == 19
+    sqlite_expected = read_packaged_resource("schemas/sqlite.sql")
+    sqlite_destination = tmp_path / "sqlite.sql"
+    assert export_packaged_resource(
+        "schemas/sqlite.sql",
+        sqlite_destination,
+    ) == sqlite_destination
+    assert sqlite_destination.read_bytes() == sqlite_expected
     expected = read_packaged_resource("schemas/postgres.sql")
     destination = tmp_path / "postgres.sql"
     assert export_packaged_resource(

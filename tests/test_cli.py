@@ -97,6 +97,9 @@ def _pending_memory_use_run(
             fix="bound executor runtime",
             fix_commit_sha="commit_cli_fix",
             regression_passed=True,
+            root_cause="executor runtime was unbounded",
+            reviewed_by="test-reviewer",
+            reviewed_at="2026-07-22T00:00:00Z",
             status="verified",
         )
     )
@@ -219,6 +222,9 @@ def _pr_report_snapshot(tmp_path: Path) -> Path:
                 fix="validate search_docs arguments",
                 fix_commit_sha=f"fix-{endpoint}",
                 regression_passed=True,
+                root_cause="search_docs arguments were not validated",
+                reviewed_by="test-reviewer",
+                reviewed_at="2026-07-22T00:00:00Z",
                 status="verified",
             )
         )
@@ -295,6 +301,9 @@ def _lesson_portability_store(
             fix="bound executor runtime",
             fix_commit_sha="commit_cli_lessons_fix",
             regression_passed=True,
+            root_cause="executor runtime was unbounded",
+            reviewed_by="test-reviewer",
+            reviewed_at="2026-07-22T00:00:00Z",
             status="verified",
         )
     )
@@ -359,6 +368,9 @@ def _obsolescence_store() -> tuple[
             fix="bound another executor",
             fix_commit_sha="commit_cli_obsolete_other_fix",
             regression_passed=True,
+            root_cause="the other executor runtime was unbounded",
+            reviewed_by="test-reviewer",
+            reviewed_at="2026-07-22T00:00:00Z",
             status="verified",
         )
     )
@@ -423,10 +435,11 @@ def test_cli_resource_commands_list_read_and_export(tmp_path, capsys):
 
     assert code == 0
     assert error is None
-    assert len(payload["resources"]) == 18
+    assert len(payload["resources"]) == 19
     names = [item["name"] for item in payload["resources"]]
     assert names == sorted(names)
     assert "schemas/postgres.sql" in names
+    assert "schemas/sqlite.sql" in names
 
     code, payload, error = _run(
         capsys,

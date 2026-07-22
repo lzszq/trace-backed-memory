@@ -28,11 +28,16 @@ def _execution_store(
     )
     case = store.add_failure_case(
         tbm.verify_failure_case(
-            tbm.draft_failure_case(
-                source,
-                case_id="case_execution",
-                failure_type="invalid_tool_argument",
-                symptom="search_docs received an empty query",
+            tbm.review_failure_case(
+                tbm.draft_failure_case(
+                    source,
+                    case_id="case_execution",
+                    failure_type="invalid_tool_argument",
+                    symptom="search_docs received an empty query",
+                ),
+                reviewed_by="test-reviewer",
+                root_cause="the prompt omitted the query contract",
+                reviewed_at="2026-07-22T00:00:00Z",
             ),
             fix="require a non-empty query",
             fix_commit_sha="commit_execution_fix",

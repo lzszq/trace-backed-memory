@@ -53,6 +53,7 @@ trace_backed_memory = [
     "_resources/schemas/memory_usage_log.schema.json",
     "_resources/schemas/postgres.sql",
     "_resources/schemas/project_policy.schema.json",
+    "_resources/schemas/sqlite.sql",
     "_resources/schemas/trace.schema.json",
 ]
 

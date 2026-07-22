@@ -73,6 +73,7 @@ from .models import (
 from .policy import (
     LLM_GATE_MAX_CANDIDATES,
     MEMORY_ID_MAX_CHARS,
+    MEMORY_DECISION_REASON_MAX_CHARS,
     METADATA_VALUE_MAX_CHARS,
     apply_llm_gate_decision,
     build_injection_snippet,
@@ -101,6 +102,7 @@ MEMORY_TYPES = {"procedural", "semantic", "episodic", "policy"}
 MODES = {"debug", "repair", "regression", "planning", "eval", "production"}
 DECISION_RISKS = {"none", "low", "medium", "high"}
 RECOMMENDED_INJECTIONS = {"none", "short_summary", "full_case_summary", "pointer_only"}
+LLM_GATE_CANDIDATE_LIMIT_REASON = "LLM gate candidate limit exceeded"
 MEMORY_KINDS = {"failure_case", "lesson", "project_policy"}
 PR_CHANGE_SET_FIELDS = (
     "prompt_version",
@@ -774,6 +776,11 @@ class TraceBackedMemoryStore:
         source_trace = self._traces.get(stored_case.source_trace_id)
         if source_trace is None:
             raise ValueError(f"missing source_trace_id: {stored_case.source_trace_id}")
+        if source_trace.eval_result not in {"fail", "error"}:
+            raise ValueError(
+                "failure case requires a failed or errored source trace: "
+                f"{stored_case.case_id}"
+            )
         if stored_case.commit_sha != source_trace.commit_sha:
             raise ValueError(
                 f"failure case commit_sha does not match source trace: {stored_case.case_id}"
@@ -903,6 +910,11 @@ class TraceBackedMemoryStore:
         source_trace = self._traces.get(source_case.source_trace_id)
         if source_trace is None:
             raise ValueError(f"missing source_trace_id: {source_case.source_trace_id}")
+        if stored_lesson.status == "active" and source_trace.dirty:
+            raise ValueError(
+                "active lesson requires a clean source trace: "
+                f"{stored_lesson.lesson_id}"
+            )
         for field_name in ("repo", "tenant"):
             source_value = getattr(source_trace, field_name)
             if source_value is not None and stored_lesson.scope.get(field_name) != source_value:
@@ -1221,7 +1233,7 @@ class TraceBackedMemoryStore:
             minimum_score=minimum_score,
             commit_ancestry=commit_ancestry,
         )
-        system_allowed, system_blocked = system_gate(context, candidates)
+        system_allowed, system_blocked = _bounded_system_gate(context, candidates)
         request = MemoryGateRequest(
             request_id=f"gate_request_{self._next_gate_request_number:06d}",
             context=context,
@@ -1282,7 +1294,9 @@ class TraceBackedMemoryStore:
         _validate_trace_context(trace, request.context)
 
         candidates = self._memory_items(request.candidate_memory_ids)
-        system_allowed, system_blocked = system_gate(request.context, candidates)
+        system_allowed, system_blocked = _bounded_system_gate(
+            request.context, candidates
+        )
         decision = parse_memory_decision(decision_payload)
         final_allowed, final_decision = apply_llm_gate_decision(
             system_allowed, system_blocked, decision
@@ -1467,7 +1481,11 @@ class TraceBackedMemoryStore:
     def _memory_item_from_lesson(self, lesson: Lesson) -> MemoryItem:
         source_case = self._failure_cases[lesson.source_case_id]
         source_trace = self._traces[source_case.source_trace_id]
-        return memory_item_from_lesson(lesson, source_trace=source_trace)
+        return memory_item_from_lesson(
+            lesson,
+            source_trace=source_trace,
+            source_case=source_case,
+        )
 
     def _new_usage_log(
         self,
@@ -2372,7 +2390,14 @@ def _validate_failure_case(case: FailureCase) -> None:
             getattr(case, field_name),
             field_name,
             "failure case",
-            nonblank=field_name in {"fix", "fix_commit_sha"},
+            nonblank=field_name
+            in {
+                "root_cause",
+                "fix",
+                "fix_commit_sha",
+                "reviewed_by",
+                "review_notes",
+            },
             max_chars=(
                 METADATA_VALUE_MAX_CHARS
                 if field_name in {"fix_commit_sha", "reviewed_by"}
@@ -2383,8 +2408,18 @@ def _validate_failure_case(case: FailureCase) -> None:
         raise ValueError("failure case status must be one of: draft, obsolete, verified")
     if type(case.regression_passed) is not bool:
         raise ValueError("regression_passed must be a boolean")
-    if case.status == "verified" and (not case.fix or not case.fix_commit_sha or not case.regression_passed):
-        raise ValueError("verified failure cases require fix, fix_commit_sha, and passing regression")
+    if case.status == "verified" and (
+        not case.fix
+        or not case.fix_commit_sha
+        or not case.regression_passed
+        or not case.root_cause
+        or not case.reviewed_by
+        or not case.reviewed_at
+    ):
+        raise ValueError(
+            "verified failure cases require completed review, fix, "
+            "fix_commit_sha, and passing regression"
+        )
     _validate_optional_rfc3339(case.reviewed_at, "reviewed_at", "failure case")
     _validate_optional_rfc3339(case.created_at, "created_at", "failure case")
 
@@ -2445,6 +2480,11 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
         raise ValueError("usage log reason must be a string")
     if not log.reason.strip():
         raise ValueError("usage log reason must be nonblank")
+    if len(log.reason) > MEMORY_DECISION_REASON_MAX_CHARS:
+        raise ValueError(
+            "usage log reason must be at most "
+            f"{MEMORY_DECISION_REASON_MAX_CHARS} characters"
+        )
     if not isinstance(log.risk, str) or log.risk not in DECISION_RISKS:
         raise ValueError("usage log risk must be one of: high, low, medium, none")
     if (
@@ -3473,7 +3513,32 @@ def _validated_semantic_scores(
 
 
 def _tokens(text: str) -> set[str]:
-    return {token for token in re.findall(r"[a-z0-9]+", text.lower()) if len(token) >= 2}
+    tokens: set[str] = set()
+    for token in re.findall(r"[^\W_]+", text.casefold(), flags=re.UNICODE):
+        if len(token) < 2:
+            continue
+        tokens.add(token)
+        if any(ord(character) > 127 for character in token):
+            tokens.update(
+                token[index : index + 2]
+                for index in range(len(token) - 1)
+            )
+    return tokens
+
+
+def _bounded_system_gate(
+    context: MemoryContext,
+    candidates: list[MemoryItem],
+) -> tuple[list[MemoryItem], dict[str, str]]:
+    system_allowed, system_blocked = system_gate(context, candidates)
+    if len(system_allowed) <= LLM_GATE_MAX_CANDIDATES:
+        return system_allowed, system_blocked
+
+    bounded_allowed = system_allowed[:LLM_GATE_MAX_CANDIDATES]
+    bounded_blocked = dict(system_blocked)
+    for memory in system_allowed[LLM_GATE_MAX_CANDIDATES:]:
+        bounded_blocked[memory.memory_id] = LLM_GATE_CANDIDATE_LIMIT_REASON
+    return bounded_allowed, bounded_blocked
 
 
 def _memory_tokens(memory: MemoryItem) -> set[str]:

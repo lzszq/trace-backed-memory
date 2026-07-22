@@ -160,15 +160,16 @@ the word `required` selects `invalid_tool_argument` only in the conservative
 `required property` markers. Permission and authentication requirements retain
 the existing evaluator/unknown fallback instead of becoming argument failures.
 `review_failure_case()` keeps ambiguous or heuristic drafts in `draft` status
-while recording reviewer, root cause, notes, and timestamp. Only draft cases can
-become verified, and a case still needs fix and regression evidence before that
-transition.
+while recording reviewer, root cause, notes, and timestamp. Only reviewed draft
+cases can become verified. The transition requires `reviewed_by`, `root_cause`,
+`reviewed_at`, a fix, a fix commit, and passing regression evidence.
 
 The in-memory store rejects failure cases whose `source_trace_id` has not been
-recorded, and rejects cases whose `commit_sha` differs from the source trace.
-It also rejects empty identity fields, unsupported statuses, and `verified`
-cases without fix, fix commit, and passing regression evidence. This keeps the
-trace record as the provenance anchor for every postmortem.
+recorded, whose source Trace did not fail or error, or whose `commit_sha`
+differs from the source trace. It also rejects empty identity fields,
+unsupported statuses, and `verified` cases without completed review, fix
+commit, and passing regression evidence. This keeps the trace record as the
+provenance anchor for every postmortem.
 
 ## Layer 3: Lesson Store
 
@@ -192,9 +193,11 @@ into runtime prompts.
 
 The in-memory store enforces the provenance chain by rejecting lessons whose
 `source_case_id` is missing from the store or does not point to a verified,
-regression-backed failure case. It also rejects lessons with empty IDs, invalid
-memory type or status, empty scope, unknown scope fields, non-string or empty
-scope values, or confidence outside the inclusive 0.0 to 1.0 range. Lesson
+regression-backed failure case. Active Lessons also reject a dirty source Trace
+because its commit does not identify the executed worktree. The Store also
+rejects lessons with empty IDs, invalid memory type or status, empty scope,
+unknown scope fields, non-string or empty scope values, or confidence outside
+the inclusive 0.0 to 1.0 range. Lesson
 `sensitive` and `eval_leaking` flags are preserved when lessons become
 `MemoryItem` candidates so System Gate can block unsafe memory before LLM
 applicability checks.
@@ -255,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 18 canonical Schema, memory-support, and example files. Its
+the repository's 19 canonical Schema, SQL, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -548,16 +551,28 @@ matching `LLM_GATE_MAX_CANDIDATES`. Parser and direct low-level gate boundaries
 check the list length before per-ID validation, duplicate sets, or copies. The
 decision JSON Schema publishes the same `maxItems: 50` rule; internally derived
 System Gate block records retain their existing audit behavior.
+The complete decision response is bounded before field validation:
+`LLM_GATE_RESPONSE_MAX_BYTES` is 65,536 UTF-8 bytes,
+`LLM_GATE_RESPONSE_MAX_NODES` is 1,000, and
+`LLM_GATE_RESPONSE_MAX_DEPTH` is 20. `reason` is limited to
+`MEMORY_DECISION_REASON_MAX_CHARS`, or 2,000 characters, for parsed decisions,
+direct decisions, usage logs, JSON Schema, and fresh-install PostgreSQL DDL.
 Task text, context summaries, and candidate memory text in the gate prompt are
 JSON-quoted and capped so long or instruction-like dynamic inputs stay data,
 not prompt structure.
 Runtime injection honors the parsed `recommended_injection` mode: `none` emits
-no snippet, `pointer_only` emits IDs/source/scope without lesson text, and
-summary modes JSON-quote and cap injected text.
+no snippet, `pointer_only` emits IDs/source/scope without lesson text,
+`short_summary` emits a JSON-quoted rule capped at 500 characters, and
+`full_case_summary` emits up to 2,000 characters of Store-enriched lesson,
+failure, root-cause, fix, commit, regression, and reviewer evidence.
 
 Runtime output is bounded by fixed contract constants:
 `MEMORY_ID_MAX_CHARS` is 128, `METADATA_VALUE_MAX_CHARS` is 512,
 `LLM_GATE_MAX_CANDIDATES` is 50, `LLM_GATE_PROMPT_MAX_CHARS` is 32,000,
+`LLM_GATE_RESPONSE_MAX_BYTES` is 65,536,
+`LLM_GATE_RESPONSE_MAX_NODES` is 1,000,
+`LLM_GATE_RESPONSE_MAX_DEPTH` is 20,
+`MEMORY_DECISION_REASON_MAX_CHARS` is 2,000,
 `INJECTION_MAX_MEMORIES` is 20, and `INJECTION_SNIPPET_MAX_CHARS` is
 12,000. Identifier and metadata limits are enforced before rendering; total
 prompt and snippet limits are checked before either value is returned.
@@ -569,7 +584,9 @@ regression-backed failure cases by deriving runtime memory scope from the
 source trace plus failure type. Retrieval can then apply an optional keyword
 query. Keyword overlap is only a retrieval aid and does not replace System Gate
 or LLM applicability checks. Short domain tokens such as `AI` and `v2` are
-preserved in keyword filtering.
+preserved in keyword filtering. Tokenization uses Unicode alphanumeric words
+and adds two-character grams for non-ASCII words so queries such as `空查询` can
+match longer CJK text.
 
 Callers may alternatively provide precomputed semantic scores keyed by stored
 runtime memory ID. Semantic mode remains metadata-first, requires an explicit
@@ -586,8 +603,11 @@ score-descending and memory-ID-ascending output. For `K` eligible candidates and
 This changes no snapshot version 2 or PostgreSQL schema version 1 contract.
 
 The safe store workflow is `prepare_memory()` followed by `finalize_memory()`.
-Preparation performs retrieval, System Gate, and bounded LLM prompt creation;
-finalization rechecks current state, narrows the LLM decision, renders the
+Preparation performs retrieval, System Gate, and bounded LLM prompt creation.
+If more than 50 candidates pass System Gate, it deterministically keeps the
+first 50 in candidate order and records every overflow candidate as System
+blocked with `LLM gate candidate limit exceeded`. Finalization rechecks current
+state, narrows the LLM decision, renders the
 snippet, and atomically records trace-linked evidence. Only this workflow
 provides ownership, replay, stale-state, trace-link, and atomic logging
 guarantees. Low-level helpers remain public for callers that own equivalent
@@ -811,6 +831,9 @@ blank, whose imported decision IDs are duplicated, whose memory ID lists contain
 duplicate, empty-string, or non-string memory IDs, whose used and blocked IDs
 overlap, whose used or blocked IDs were not recorded candidates, or whose mode, risk,
 recommended injection, or optional `eval_result` values are unsupported.
+Every System-approved candidate omitted from the final LLM allow list is added
+to the final blocked IDs, so used plus blocked covers deterministic and LLM
+narrowing. Usage-log reasons are capped at 2,000 characters.
 
 The JSON Schema requires the four safe-workflow audit fields for persisted
 usage logs while Python keeps defaults to migrate exact legacy snapshots.
@@ -977,6 +1000,44 @@ clients continue to use TCP loopback. Windows omits that POSIX-only option.
 Portable JSON Schema files document trace, failure case, lesson, project policy,
 usage log, and full snapshot shapes; cross-record provenance checks still live
 in the store because they require current store state.
+
+## SQLite Runtime Repository
+
+`SQLiteMemoryRepository` is the standard-library embedded SQL persistence
+boundary for a complete `TraceBackedMemoryStore`. It uses `sqlite3`, is public
+from the package root, and requires no optional dependency. A file database is
+the default durable choice for local harnesses, CI jobs, and single-host tools;
+an owned `:memory:` database exists only for that connection's lifetime.
+
+The repository requires schema version 1 from canonical
+`schemas/sqlite.sql`. `connect(..., initialize=True)` applies the packaged
+fresh-install schema, while operators may export the same bytes with `tbm
+resource export schemas/sqlite.sql sqlite.sql`. The five tables use stable IDs
+and canonical JSON payload envelopes. Store validation remains authoritative
+for domain and cross-record invariants; direct SQL payload mutation is outside
+the supported contract and is rejected when `load()` or `sync()` reconstructs
+the Store.
+
+`sync(store)` is additive and atomic. A top-level write uses `BEGIN IMMEDIATE`
+to acquire SQLite's writer reservation before comparison. Existing records are
+classified as exact replay, a supported forward transition, or an immutable
+conflict using the same Trace, usage-outcome, Failure Case, Lesson, and Project
+Policy rules as the PostgreSQL adapter. Obsoleting a Failure Case cascades its
+active Lessons. Any conflict or final Store validation failure rolls back the
+whole synchronization.
+
+`load()` opens one read transaction, checks schema version 1, then enforces the
+snapshot defaults of 100,000 records per collection, 250,000 records overall,
+and 64 MiB for both the largest UTF-8 payload and the aggregate payload before
+returning a validated Store. A repository created from an existing connection
+borrows it; `connect()` owns and closes its connection. If a caller transaction
+is already active, each operation uses a savepoint and leaves final commit or
+rollback to the caller.
+
+SQLite is the embedded choice, not a substitute for PostgreSQL's database-side
+JSONB, trigger, row-lock, registry, and multi-client enforcement. Both adapters
+share public sync/load lifecycle semantics and schema version 1, but their DDL
+and operational concurrency guarantees are intentionally separate.
 
 ## PostgreSQL Runtime Repository
 
@@ -1243,6 +1304,20 @@ the PostgreSQL repository. The feature changes neither persistence contracts
 nor the existing gate contracts.
 
 ## Non-goals
+
+The current scope matcher is declared-scope matching, not a multi-tenant
+authorization model: a memory that omits `repo` or `tenant` does not acquire
+that boundary implicitly. Production isolation requires a future canonical
+`repository_id`, explicit global/repository/tenant scope kind, and privileged
+global-policy creation. Snapshot version 2 also does not persist Gate requests,
+retrieval/gate/renderer versions or hashes, or structured regression-run
+evidence. Git ancestry remains opt-in. These are schema v3 / PostgreSQL schema
+v2 requirements, not properties of the current Alpha contract.
+
+Phase 71 keeps the existing version numbers while tightening accepted state.
+Version-2 snapshots with verified but unreviewed cases require review evidence
+before loading. Existing PostgreSQL schema-version-1 installations require an
+operator migration to match the current fresh-install DDL constraints.
 
 - Do not build generic personalization memory first.
 - Do not inject raw traces directly into prompts.

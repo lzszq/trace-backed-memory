@@ -90,6 +90,7 @@ input:
 ```text
 tbm resource list
 tbm resource read schemas/trace.schema.json
+tbm resource export schemas/sqlite.sql sqlite.sql
 tbm resource export schemas/postgres.sql postgres.sql
 tbm resource export schemas/postgres.sql postgres.sql --overwrite
 ```
@@ -112,7 +113,9 @@ from trace_backed_memory import (
 )
 
 resources = packaged_resources()
+sqlite_sql = read_packaged_resource("schemas/sqlite.sql")
 postgres_sql = read_packaged_resource("schemas/postgres.sql")
+export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
@@ -469,15 +472,56 @@ identity is checked again after OS lock acquisition and before yielding. It is
 advisory and non-reentrant: all cooperating writers must use it, and callers
 must pass one held transaction scope down instead of nesting another
 acquisition. It is not the Store's in-process `RLock`, a lock inside
-`save_json()` alone, or a PostgreSQL transaction. This additive API changes no
-snapshot version 2 or PostgreSQL schema version 1 contract.
+`save_json()` alone, or a SQLite/PostgreSQL transaction. This additive API
+changes no snapshot version 2 or SQL repository schema-version-1 contract.
 
-This interface accepts neither stdin nor remote URLs or PostgreSQL
+This interface accepts neither stdin nor remote URLs or SQL repository
 connections. Lesson export has one explicit destination; no command accepts an
 alternate snapshot output path. It adds no persisted domain, CLI, or report
 record:
-snapshot version 2, active-lessons YAML, JSON Schemas, and PostgreSQL schema
-version 1 remain unchanged.
+snapshot version 2, active-lessons YAML, JSON Schemas, and SQL repository
+schema version 1 remain unchanged.
+
+## SQLite Repository
+
+SQLite support uses Python's standard-library `sqlite3` module and requires no
+extra package. It is the embedded SQL choice for local harnesses, CI jobs, and
+single-host tools:
+
+```python
+from trace_backed_memory import SQLiteMemoryRepository
+
+with SQLiteMemoryRepository.connect(
+    "memory.sqlite3",
+    initialize=True,
+) as repository:
+    result = repository.sync(store)
+    restored = repository.load()
+```
+
+`initialize=True` applies the packaged `schemas/sqlite.sql` fresh-install
+schema at version 1. Operators may instead export and apply those exact bytes:
+
+```powershell
+tbm resource export schemas/sqlite.sql sqlite.sql
+sqlite3 memory.sqlite3 ".read sqlite.sql"
+```
+
+`sync(store)` is additive and atomic. It uses `BEGIN IMMEDIATE` to serialize
+writers, preserves supported Trace, Failure Case, Lesson, Project Policy, and
+usage-outcome forward transitions, cascades obsolete Failure Cases to active
+Lessons, and rolls the entire operation back on immutable conflicts. When a
+borrowed connection already has an outer transaction, the repository uses a
+savepoint and leaves the final commit or rollback to the caller.
+
+`load()` reads one SQLite transaction, checks schema version 1, enforces the
+same 100,000-per-collection, 250,000-total, and 64 MiB record/aggregate payload
+budgets, then reconstructs a normal validated `TraceBackedMemoryStore`. The
+SQLite tables store canonical JSON payload envelopes; database-side JSONB and
+cross-row policy enforcement remain PostgreSQL strengths. Direct SQL payload
+mutation is unsupported and is rejected on the next repository load or sync.
+Use a file database for persistence; a `:memory:` database lives only as long
+as its owned connection.
 
 ## PostgreSQL Repository
 
@@ -1084,6 +1128,7 @@ from trace_backed_memory import (
     TraceBackedMemoryStore,
     draft_failure_case,
     lesson_from_failure_case,
+    review_failure_case,
     verify_failure_case,
 )
 
@@ -1107,11 +1152,15 @@ source_trace = store.record_trace(
 )
 case = store.add_failure_case(
     verify_failure_case(
-        draft_failure_case(
-            source_trace,
-            case_id="case_benchmark_source",
-            failure_type="invalid_tool_argument",
-            symptom="search_docs received an empty query",
+        review_failure_case(
+            draft_failure_case(
+                source_trace,
+                case_id="case_benchmark_source",
+                failure_type="invalid_tool_argument",
+                symptom="search_docs received an empty query",
+            ),
+            reviewed_by="memory-reviewer",
+            root_cause="the prompt omitted the non-empty query contract",
         ),
         fix="require a non-empty query",
         fix_commit_sha="def456",
@@ -1293,8 +1342,9 @@ Use an immutable `PRChangeSet` when a PR changes trace-backed metadata values.
 Each tuple is `(field_name, old_value, new_value)` and supports only
 `prompt_version`, `prompt_family`, `tool`, `tool_schema_version`, `model`, and
 `eval_suite`. `new_value` must exactly equal the post-change `MemoryContext`
-value, including `None`. Repo and tenant remain hard exact-match isolation
-boundaries, and unchanged declared context metadata continues to match exactly.
+value, including `None`. For PR report selection, repo and tenant are mandatory
+exact-match Trace filters, and unchanged declared context metadata continues to
+match exactly. This report filter is not a multi-tenant authorization boundary.
 Because those six names must be unique, `PRChangeSet` accepts at most 6 entries;
 cardinality is checked before entry inspection or historical case scanning.
 Accepted field names use one pass for unsupported and duplicate detection.
@@ -1328,6 +1378,7 @@ from trace_backed_memory import (
     TraceBackedMemoryStore,
     capture_commit_ancestry,
     draft_failure_case,
+    review_failure_case,
     verify_failure_case,
 )
 
@@ -1349,11 +1400,15 @@ def add_case(case_id, commit_sha, prompt_version, tool_schema_version):
     )
     store.add_failure_case(
         verify_failure_case(
-            draft_failure_case(
-                trace,
-                case_id=case_id,
-                failure_type="invalid_tool_argument",
-                symptom="search_docs rejected an empty query",
+            review_failure_case(
+                draft_failure_case(
+                    trace,
+                    case_id=case_id,
+                    failure_type="invalid_tool_argument",
+                    symptom="search_docs rejected an empty query",
+                ),
+                reviewed_by="memory-reviewer",
+                root_cause="the prompt omitted the non-empty query contract",
             ),
             fix="require a non-empty query",
             fix_commit_sha=f"fix-{case_id}",
@@ -1399,6 +1454,10 @@ report = store.pr_memory_report(
 ```
 
 ## Low-level System Gate Helper
+
+LLM decisions must keep `use_memory`, `allowed_memory_ids`, and
+`recommended_injection` consistent: using memory requires an allowed ID and a
+non-`none` mode; declining memory requires no allowed IDs and the `none` mode.
 
 ```python
 from trace_backed_memory import MemoryContext, MemoryItem, system_gate
@@ -1475,6 +1534,8 @@ try:
     metadata = capture_trace_metadata(repo_path=".")
 except TraceMetadataCaptureError as exc:
     raise RuntimeError(f"cannot capture git metadata for memory trace: {exc}") from exc
+if metadata.dirty:
+    raise RuntimeError("refuse to promote memory from an uncommitted worktree")
 taxonomy = load_failure_taxonomy()
 
 trace = store.record_trace(
@@ -1718,14 +1779,15 @@ Implemented pieces:
   and draft failure cases without classifying from tool names or arbitrary
   output content.
 - Manual review helper that records reviewer, root cause, notes, and review timestamp on draft failure cases.
-- Verification loop hardening: only draft cases can be verified, and verified cases require a fix commit and passing regression evidence.
+- Verification loop hardening: only reviewed drafts can be verified; verified cases require reviewer identity, root cause, review timestamp, a fix commit, and passing regression evidence.
 - Obsolete transitions for failure cases and lessons.
-- Store-level checks that reject failure cases with empty identity fields, invalid status, missing verified evidence, missing source trace, or source commit mismatch.
+- Store-level checks that reject failure cases with empty identity fields, invalid status, incomplete review/fix evidence, a non-failing source Trace, missing source Trace, or source commit mismatch. Active Lessons also reject dirty source Traces.
 - Project policy helper that turns manually maintained prompt/tool/eval policy into sourced `MemoryItem` policy memory.
-- Deterministic System Gate with strict source, tenant-aware scope, status, memory-type, confidence, sensitivity, eval-leak, and mode checks.
-- Gate boundary helpers that validate runtime context JSON and direct-call container/record types before use, require non-empty string tasks and string-or-`None` queries, JSON-quote and cap dynamic gate prompt fields, validate LLM decision JSON with non-empty unique IDs, at most 50 `allowed_memory_ids` and 50 `blocked_memory_ids`, and consistent `use_memory` / `recommended_injection` fields, reject contradictory System Gate allowed/blocked inputs, require the final `MemoryDecision` before rendering non-empty runtime snippets, honor `none`/`pointer_only`/`short_summary` injection modes, and prevent the LLM decision from overriding System Gate.
-- In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, optional opt-in Git ancestry filtering before keyword or semantic ranking, debug/repair visibility for verified regression-backed failure cases, optional keyword filtering including short domain tokens, optional bounded caller-provided semantic scores ranked score-descending with memory-ID-ascending ties, and usage decision logs; retrieval cannot bypass System Gate or LLM Gate.
-- Usage-log validation and persisted contract that require trace ID, serialized context, candidate status snapshots, and System Gate block reasons; reject empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
+- Deterministic System Gate with strict source, declared-scope, status, memory-type, confidence, sensitivity, eval-leak, and mode checks.
+- Gate boundary helpers that validate runtime context JSON and direct-call container/record types before use, require non-empty string tasks and string-or-`None` queries, JSON-quote and cap dynamic gate prompt fields, and bound LLM decision responses to 64 KiB, 1,000 JSON nodes, depth 20, and a 2,000-character reason. Decision ID lists remain capped at 50 each, System Gate cannot be overridden, and every system-approved candidate omitted by the LLM is audited as blocked.
+- Distinct injection renderers: `none` emits nothing, `pointer_only` emits identity and scope, `short_summary` emits a 500-character rule, and `full_case_summary` emits up to 2,000 characters of lesson plus reviewed failure/fix provenance when Store-owned case evidence is available.
+- In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, optional opt-in Git ancestry filtering before keyword or semantic ranking, debug/repair visibility for verified regression-backed failure cases, Unicode-aware keyword filtering, optional bounded caller-provided semantic scores ranked score-descending with memory-ID-ascending ties, and usage decision logs. The high-level prepare/finalize path deterministically keeps the first 50 system-approved candidates and audits overflow; retrieval cannot bypass either gate.
+- Usage-log validation and persisted contract that require trace ID, serialized context, candidate status snapshots, System Gate block reasons, and a reason no longer than 2,000 characters; reject empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
 - Dependency-free strict JSON snapshot save/load for trace, failure case, lesson, project policy, and usage-log records; non-object snapshots, non-finite floats, over-limit integers, and non-standard JSON numeric constants are rejected while JSON-serializable integer costs remain valid.
 - Aggregate runtime validation for Trace structured JSON: 100,000 nodes,
   8 MiB of object-key/string UTF-8 text, depth 100, early wide-container
@@ -1737,8 +1799,11 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 18 canonical Schemas, examples, and memory
+  explicit atomic export for all 19 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
+- Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
+  bounded validated loads, forward-only lifecycle updates, and caller-owned
+  transaction savepoints.
 - Store-level checks that reject lessons with empty identity fields, invalid memory type/status, unknown non-empty scope fields, unbounded confidence, or a missing, unverified, non-regression-backed source case.
 - Store-level checks that reject project policies with empty identity/text fields, invalid status, invalid scope, unbounded confidence, or IDs that collide with failure case, lesson, or project policy memory IDs.
 - JSON schemas for stored records and full memory-store snapshots.
@@ -1755,6 +1820,28 @@ Implemented pieces:
 - PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, warns on risky prompt/tool/model/eval-suite changes, and supports immutable complete-endpoint `PRChangeSet` matching with old/new/both provenance.
 - Legacy PR warning generation validates names in one pass, retains the first occurrence of at most 7 supported fields, and prevents duplicate or unknown strings from multiplying case-level work.
 - Deferred, idempotent decision-outcome sealing plus outcome-aware metrics for decisions, candidates, used/blocked memory, measured pass rates with explicit denominators, unevaluated decisions, wrong-memory failures, obsolete attempts, and lesson confidence.
+
+## Production-readiness boundaries
+
+This release closes the review findings that can be enforced without replacing
+the persisted domain model. It does not claim that snapshot version 2 is a
+multi-tenant production service contract. The following remain explicit schema
+v3 / PostgreSQL schema v2 work:
+
+- replace `regression_passed` with structured regression Trace/run/evaluator evidence and commit relationships;
+- add a canonical `repository_id`, explicit global/repository/tenant scope kind, and authorization for global policy;
+- persist or cryptographically sign `MemoryGateRequest` state with idempotency, expiry, cancellation, and crash recovery;
+- persist retriever, index, gate model/prompt, ancestry, renderer, response, and snippet hashes for reproducible audit;
+- replace opt-in ancestry with an explicit required/disabled policy whose bypass is itself audited.
+
+Until those contracts exist, use this package as a single-process harness
+component or reference implementation, not as an untrusted shared multi-tenant
+memory service.
+
+This Alpha hardening keeps the version numbers stable but tightens validation.
+Existing version-2 snapshots whose verified cases lack review evidence must be
+repaired before loading. Existing PostgreSQL schema-version-1 installations
+need an operator migration to match the updated fresh-install constraints.
 
 ## Repository layout
 
@@ -1782,6 +1869,7 @@ Implemented pieces:
 |   `-- failure_taxonomy.yaml
 |-- schemas/
 |   |-- postgres.sql
+|   |-- sqlite.sql
 |   |-- trace.schema.json
 |   |-- failure_case.schema.json
 |   |-- lesson.schema.json
@@ -1803,6 +1891,7 @@ Implemented pieces:
 |   |-- models.py
 |   |-- policy.py
 |   |-- postgres.py
+|   |-- sqlite.py
 |   |-- py.typed
 |   |-- resources.py
 |   `-- store.py

@@ -3,8 +3,8 @@
 **English** | [简体中文](product.md)
 
 - Current version: `0.1.0` (Alpha)
-- Delivery: Python library, `tbm` CLI, JSON/YAML/JSON Schema, and an optional PostgreSQL repository
-- Runtime: Python 3.11+; PostgreSQL features require PostgreSQL 12+
+- Delivery: Python library, `tbm` CLI, JSON/YAML/JSON Schema, SQLite, and an optional PostgreSQL repository
+- Runtime: Python 3.11+ with standard-library SQLite; PostgreSQL features require PostgreSQL 12+
 - License: MIT
 
 ## 1. Product Positioning
@@ -29,7 +29,7 @@ Trace -> Failure Case -> Human/Eval Verification -> Verified Lesson
 |---|---|---|
 | Agent and harness engineers | Turn runtime failures into reusable experience | Trace, failure cases, verified lessons, runtime gates |
 | Evaluation and quality teams | Prevent historical-answer leakage and measure memory behavior | Benchmark identity, block reasons, outcome metrics |
-| Platform engineers | Integrate memory safely across repositories and tenants | Scope, tenant/repo isolation, fixed budgets, audit logs |
+| Platform engineers | Integrate memory across repositories and tenants | Declared-scope applicability, fixed budgets, audit logs, and documented deployment boundaries |
 | PR and CI maintainers | Find historical failures related to a change | Git ancestry, endpoint-aware PR reports, regression suggestions |
 | Operations teams | Detect and recover interrupted or partially completed memory runs | Audit, remediation plans, atomic single and batch recovery |
 
@@ -59,17 +59,17 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Failure learning | Six concrete failure taxonomy categories plus `unknown`, draft extraction, human review, regression verification, and obsolete lifecycle |
 | Memory types | Verified Lesson, Verified Failure Case, and Project Policy |
 | Retrieval | Metadata-first filtering, keywords, caller-provided semantic scores, and optional Git ancestry |
-| Safety gating | System Gate plus LLM applicability Gate; strict JSON boundaries; 50-ID limits for each LLM decision list |
+| Safety gating | System Gate plus LLM applicability Gate; 64 KiB/depth/node/reason response limits; 50-ID decision lists; complete blocked accounting |
 | Injection | `none`, `pointer_only`, `short_summary`, and `full_case_summary` under fixed item and character budgets |
 | Runtime closure | Two-phase prepare/finalize, atomic single and batch completion, and deferred outcome sealing |
 | Runtime orchestration | `run_memory_execution()` joins decision and execution callbacks with atomic completion |
 | Operations recovery | Five-state audits, remediation actions, single/batch recovery, and ready-recovery sweeps |
 | Operations CLI | Dependency-free `tbm` and module entry point for snapshots, lessons, obsolescence, audits, metrics, PR reports, completion, and recovery |
-| Distribution resources | 18 byte-identical packaged Schemas, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Distribution resources | 19 byte-identical packaged Schemas, SQL files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |
-| Persistence | Durable atomic JSON/YAML files and an optional synchronous PostgreSQL repository with bounded consistent loads |
+| Persistence | Durable atomic JSON/YAML files, a standard-library SQLite repository, and an optional synchronous PostgreSQL repository with bounded validated loads |
 
 All caller-owned JSON is checked for duplicate object keys before conversion to ordinary mappings. `TraceBackedMemoryStore.load_json()`, `parse_memory_context()`, `parse_memory_decision()`, and CLI JSON readers reject duplicates at every nesting level rather than applying last-key-wins behavior. Valid JSON, direct Mapping input, snapshot version 2, and PostgreSQL schema version 1 remain compatible.
 
@@ -88,7 +88,7 @@ Synchronous callers may use `run_memory_execution()` to combine steps 2 through 
 
 ### 5.2 From Failure to Reusable Lesson
 
-1. Classify a failed Trace and create a Failure Case draft.
+1. Classify a clean failed/errored Trace and create a Failure Case draft.
 2. Add reviewed root cause, reviewer, and notes.
 3. Bind a fix commit and require a passing regression.
 4. Create a scoped, confidence-bounded Lesson with source identity.
@@ -114,13 +114,13 @@ Synchronous callers may use `run_memory_execution()` to combine steps 2 through 
 
 The product fails closed:
 
-- **Provenance chain:** a Lesson must resolve through a verified, regression-backed Failure Case to a source Trace and commit.
+- **Provenance chain:** a Lesson must resolve through a reviewed, verified, regression-backed Failure Case to a failed/errored source Trace and commit; dirty source Traces cannot activate Lessons.
 - **Strict scope:** every declared memory scope field must match the current context exactly; a missing field is not a match.
-- **Tenant and repository isolation:** `tenant` and `repo` are hard boundaries.
+- **Declared-scope matching:** every declared `repo` or `tenant` value is exact, but omission remains broad in snapshot version 2 and is not an authorization boundary.
 - **Benchmark leakage protection:** historical memory from the same `(eval_suite, input_hash)` pair is blocked automatically; sensitive and explicitly leaking memory is blocked earlier.
 - **Irreversible history:** identities, sources, and populated execution evidence cannot be rewritten; lifecycle transitions only move forward.
 - **Atomic writes:** single and batch Trace/decision completion stages and validates all candidates before assignment.
-- **Fixed runtime budgets:** 50 gate candidates, 20 injected memories, a 32,000-character gate prompt, a 12,000-character snippet, and a shared Trace JSON budget of 100,000 nodes plus 8 MiB of key/string UTF-8 text at depth 100.
+- **Fixed runtime budgets:** 50 gate candidates, 20 injected memories, a 32,000-character gate prompt, a 65,536-byte/1,000-node/depth-20 LLM response with a 2,000-character reason, a 12,000-character snippet, and a shared Trace JSON budget of 100,000 nodes plus 8 MiB of key/string UTF-8 text at depth 100.
 - **Measured latency:** `latency_ms` is `None` or an integer from 0 through 2,147,483,647.
 - **Bounded local documents:** snapshots are capped at 64 MiB, active lessons and CLI JSON at 8 MiB, failure taxonomy at 1 MiB, with record, node, item, and depth limits.
 - **Defensive ownership:** the Store uses locking and defensive copies so caller-owned objects cannot mutate internal state.
@@ -142,6 +142,15 @@ The product fails closed:
 - `pr-report` is read-only and reuses exact change-set matching and externally captured Git ancestry.
 - Packaged resources are accessed only through a strict allowlist and the public resource API.
 
+### SQLite Mode
+
+- No extra dependency is required; the adapter uses Python's `sqlite3` module.
+- `SQLiteMemoryRepository.connect(path, initialize=True)` creates or opens a file database and applies packaged `schemas/sqlite.sql` at schema version 1.
+- `sync()` is additive and atomic, uses `BEGIN IMMEDIATE` for top-level writes, preserves supported forward transitions, and rolls back immutable conflicts.
+- `load()` enforces 100,000 rows per collection, 250,000 rows overall, and exact 64 MiB largest-row and aggregate UTF-8 payload limits before returning a validated Store.
+- Borrowed connections remain caller-owned, and operations inside a caller transaction use savepoints.
+- Canonical JSON payload envelopes are an adapter boundary; direct SQL payload mutation and in-place schema migration are unsupported.
+
 ### PostgreSQL Mode
 
 - Install `trace-backed-memory[postgres]`.
@@ -154,7 +163,7 @@ The product fails closed:
 
 ## 8. Product Maturity
 
-The current release implements roadmap Phases 0 through 70. The main product path has executable README examples, JSON Schemas, SQL invariants, and pytest coverage across Python 3.11, 3.12, 3.13, Windows, and required PostgreSQL CI.
+The current release implements roadmap Phases 0 through 72. The main product path has executable README examples, JSON Schemas, SQL invariants, and pytest coverage across Python 3.11, 3.12, 3.13, Windows, SQLite, and required PostgreSQL CI.
 
 The implemented hardening includes:
 
@@ -164,6 +173,8 @@ The implemented hardening includes:
 - active-only Lesson portability and forward-only memory obsolescence;
 - single/batch measured completion, recovery, remediation, and health metrics;
 - consistent PostgreSQL loads with record-count and loaded-row payload preflights;
+- standard-library SQLite persistence with atomic additive sync, savepoints,
+  bounded payload loads, and Store-level reconstruction validation;
 - concurrent insert revalidation and row-locked lifecycle synchronization;
 - portable nonblank persisted strings across Store and JSON Schema boundaries;
 - average O(n) snapshot usage-log validation and private O(1) live indexes;
@@ -171,7 +182,11 @@ The implemented hardening includes:
 - serialized snapshot CLI writes and a public snapshot advisory lock;
 - durable POSIX atomic publication and lock-sidecar identity hardening;
 - bounded semantic top-k ranking and bounded Git subprocess capture;
-- validated Git metadata outputs and final-delimiter attribution parsing.
+- validated Git metadata outputs and final-delimiter attribution parsing;
+- mandatory review/source/clean-worktree promotion invariants across Store,
+  JSON Schema, and fresh-install PostgreSQL DDL;
+- bounded LLM responses, complete narrowing audit, distinct summary renderers,
+  Unicode keyword filtering, and deterministic audited candidate overflow.
 
 The project remains Alpha. Its API is systematic and tested, but long-term backward compatibility and online schema migration are not yet promised.
 
@@ -182,6 +197,13 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
 - No built-in embedding or vector database; callers compute semantic scores.
 - Vector similarity is not sufficient evidence of safety or applicability.
 - An LLM cannot activate, verify, or reopen memory.
+- Snapshot version 2 has no canonical repository ID or explicit global/repository/tenant scope kind; do not use declared-scope matching as multi-tenant authorization.
+- `regression_passed` is not yet structured run/evaluator evidence.
+- Gate requests and finalized tombstones are process-local and have no persisted idempotency, TTL, cancellation, or crash recovery.
+- Usage logs do not yet persist retriever/index, gate model/prompt, ancestry, renderer, response, or snippet hashes required for exact replay.
+- Git ancestry filtering is opt-in rather than an explicit required/disabled production policy.
+- Existing version-2 snapshots with verified but unreviewed cases must be repaired with review evidence before loading; existing PostgreSQL schema-version-1 installations require an operator migration before using the tightened constraints.
+- SQLite uses canonical JSON payload envelopes and does not provide direct-SQL domain mutation, in-place migration, async access, or shared multi-host writer coordination.
 - PostgreSQL does not currently provide in-place migration, connection pooling, or an async repository.
 - Outcome metrics are observed associations, not causal estimates for one memory item.
 - Conflicting runs expose investigation state and never overwrite a sealed result automatically.

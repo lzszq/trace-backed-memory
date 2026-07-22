@@ -28,7 +28,7 @@
     "candidate_memory_ids": {"$ref": "#/$defs/memory_id_list"},
     "used_memory_ids": {"$ref": "#/$defs/memory_id_list"},
     "blocked_memory_ids": {"$ref": "#/$defs/memory_id_list"},
-    "reason": {"type": "string", "pattern": "\\S"},
+    "reason": {"type": "string", "pattern": "\\S", "maxLength": 2000},
     "risk": {
       "type": "string",
       "enum": ["none", "low", "medium", "high"]

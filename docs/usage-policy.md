@@ -10,6 +10,34 @@ Memory is not default context. Memory is historical experience that must be filt
 raw trace -> failure case -> verified lesson -> gated runtime memory
 ```
 
+## SQLite Persistence Boundary
+
+`SQLiteMemoryRepository` persists the same gated Store records and
+does not change retrieval or injection eligibility. It uses Python's standard
+library `sqlite3`, requires no extra, and operates on schema version 1 from the
+canonical or packaged `schemas/sqlite.sql`. `connect(..., initialize=True)` is
+the convenience path for a fresh file database.
+
+Synchronization is additive and atomic. A top-level operation uses `BEGIN
+IMMEDIATE`; an operation inside a caller-owned transaction uses a savepoint and
+does not own the outer commit or rollback. Sync retains database-only records,
+allows only the documented Trace, usage-outcome, Failure Case, Lesson, and
+Project Policy forward transitions, applies the Failure Case-to-Lesson obsolete
+cascade, and rolls back the complete operation on conflict.
+
+Load executes in one read transaction, requires schema version 1, and rejects
+more than 100,000 rows in any collection or 250,000 overall. It also rejects a
+largest canonical JSON payload or aggregate payload above 64 MiB before
+returning a fully reconstructed and validated `TraceBackedMemoryStore`. Exact
+boundaries are accepted and failures leave the connection reusable.
+
+SQLite rows contain stable IDs and canonical JSON payload envelopes. The Store
+is the authority for domain and cross-record invariants; direct SQL payload
+mutation is unsupported and may cause the next load or sync to fail. Use a file
+database for durable local persistence. SQLite is intended for local harnesses,
+CI, and single-host tools; PostgreSQL remains the choice for database-side
+JSONB, triggers, row locks, shared-ID enforcement, and multi-client workloads.
+
 ## PostgreSQL Persistence Boundary
 
 The optional synchronous PostgreSQL repository persists the same gated store
@@ -116,7 +144,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 18 installed resource copies must remain byte-identical to the top-level
+The 19 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -500,10 +528,16 @@ Each decision list accepts at most 50 IDs, the same fixed budget as
 `apply_llm_gate_decision()` calls reject the 51st ID before entry validation,
 deduplication, or set construction. `memory_decision.schema.json` encodes this
 as `maxItems: 50` for both arrays.
+Before field validation, a decision response is limited to 65,536 UTF-8 bytes,
+1,000 JSON nodes, and depth 20. `reason` is limited to 2,000 characters across
+parsed and direct decisions, usage logs, JSON Schema, and fresh-install
+PostgreSQL DDL.
 System Gate still remains authoritative: parsed LLM decisions can only narrow
 the system-approved memory set, not reopen blocked memory. If the LLM output
 lists the same memory ID as both allowed and blocked, blocked wins and the
 memory is not injected.
+Every system-approved candidate not present in the final allowed set is added
+to final blocked IDs, including candidates the LLM simply omitted.
 Low-level callers must also provide disjoint System Gate allowed and blocked
 results; `apply_llm_gate_decision()` rejects contradictory inputs before it
 constructs a final decision.
@@ -511,7 +545,9 @@ constructs a final decision.
 ## Safe Store Workflow
 
 Use `TraceBackedMemoryStore.prepare_memory()` to retrieve candidates, apply
-System Gate, and create the bounded LLM prompt. Pass the decision payload to
+System Gate, and create the bounded LLM prompt. When more than 50 candidates
+pass System Gate, preparation keeps the first 50 in deterministic candidate
+order and records the overflow as `LLM gate candidate limit exceeded`. Pass the decision payload to
 `finalize_memory()` with the trace ID; it rechecks stale state, applies the
 LLM decision as a narrowing operation, renders the snippet, and atomically
 persists trace ID, context, candidate statuses, and System Gate block reasons.
@@ -856,8 +892,9 @@ evidence must cover every resulting anchor for the exact context commit.
 
 The report accepts only complete old or complete new endpoints. Callers must
 not interpret a trace containing a mixture of old and new values as related.
-Repo and tenant remain exact isolation boundaries, and unchanged declared
-trace-backed context metadata remains exact-match. Exact value-aware change
+Repo and tenant are mandatory exact-match Trace filters for report selection,
+not multi-tenant authorization boundaries. Unchanged declared trace-backed
+context metadata remains exact-match. Exact value-aware change
 sets support only `prompt_version`, `prompt_family`, `tool`,
 `tool_schema_version`, `model`, and `eval_suite`. Callers must not claim exact
 `model_family` provenance: it is unsupported because traces do not record it.
@@ -943,7 +980,8 @@ serialized.
 
 - `none`: inject nothing.
 - `pointer_only`: inject only memory ID, source, and scope.
-- `short_summary` / `full_case_summary`: inject bounded, quoted memory text after System Gate and LLM Gate approval.
+- `short_summary`: inject a quoted rule capped at 500 characters.
+- `full_case_summary`: inject up to 2,000 characters of Store-enriched Lesson, reviewed failure/root-cause/fix, commit, regression, and reviewer evidence.
 
 Task text, context summaries, and candidate memory shown to the LLM
 applicability gate should also be bounded and quoted as data. Long or
@@ -961,6 +999,10 @@ The runtime fails closed at these fixed boundaries:
 - `LLM_GATE_MAX_CANDIDATES`: 50 candidates per gate request.
 - `allowed_memory_ids` / `blocked_memory_ids`: 50 IDs per LLM decision list.
 - `LLM_GATE_PROMPT_MAX_CHARS`: 32,000 characters in the final gate prompt.
+- `LLM_GATE_RESPONSE_MAX_BYTES`: 65,536 UTF-8 bytes per decision response.
+- `LLM_GATE_RESPONSE_MAX_NODES`: 1,000 nodes per decision response.
+- `LLM_GATE_RESPONSE_MAX_DEPTH`: depth 20 per decision response.
+- `MEMORY_DECISION_REASON_MAX_CHARS`: 2,000 characters.
 - `INJECTION_MAX_MEMORIES`: 20 memories per injection.
 - `INJECTION_SNIPPET_MAX_CHARS`: 12,000 characters in the final snippet.
 - `COMMIT_ANCESTRY_MAX_ANCHORS`: 1,000 input anchors per capture call.
@@ -968,6 +1010,21 @@ The runtime fails closed at these fixed boundaries:
   fields.
 - `TRACE_JSON_MAX_TEXT_BYTES`: 8 MiB of aggregate UTF-8 object-key and string
   text across the three Trace JSON fields.
+
+Metadata and keyword retrieval use Unicode-aware tokenization. Non-ASCII words
+also contribute two-character grams, so CJK query substrings can filter longer
+candidate text without disabling either gate.
+
+For production deployments, treat declared-scope matching as applicability,
+not authorization. A memory that omits `repo` or `tenant` is not implicitly
+isolated by that field. Canonical repository identity, explicit scope kind,
+durable Gate requests, replay metadata, structured regression evidence, and
+required ancestry remain schema v3 / PostgreSQL schema v2 work.
+
+The Phase 71 validation hardening does not change those version numbers.
+Repair verified-but-unreviewed cases before loading an existing version-2
+snapshot, and migrate existing PostgreSQL schema-version-1 installations to
+the updated fresh-install constraints before synchronization.
 
 Recommended:
 

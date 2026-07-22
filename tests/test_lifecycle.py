@@ -16,6 +16,31 @@ from trace_backed_memory import (
 )
 
 
+_transition_verify_failure_case = verify_failure_case
+
+
+def verify_failure_case(
+    case: FailureCase,
+    *,
+    fix: str,
+    fix_commit_sha: str,
+    regression_passed: bool,
+) -> FailureCase:
+    if case.status == "draft" and not case.reviewed_by:
+        case = review_failure_case(
+            case,
+            reviewed_by="test-reviewer",
+            root_cause=case.root_cause or "the recorded contract was incomplete",
+            reviewed_at="2026-07-22T00:00:00Z",
+        )
+    return _transition_verify_failure_case(
+        case,
+        fix=fix,
+        fix_commit_sha=fix_commit_sha,
+        regression_passed=regression_passed,
+    )
+
+
 def test_failed_trace_can_become_verified_lesson_memory():
     trace = Trace(
         trace_id="trace_001",
@@ -61,6 +86,30 @@ def test_failed_trace_can_become_verified_lesson_memory():
     assert memory.status == "active"
     assert memory.source_case_id == "case_001"
     assert memory.scope == {"tool": "search_docs", "tool_schema_version": "search_docs_v2"}
+
+
+def test_verification_requires_completed_manual_review():
+    trace = Trace(
+        trace_id="trace_unreviewed",
+        run_id="run_unreviewed",
+        commit_sha="abc123",
+        eval_result="fail",
+    )
+    draft = draft_failure_case(
+        trace,
+        case_id="case_unreviewed",
+        failure_type="tool_error",
+        symptom="search failed",
+        root_cause="the tool contract changed",
+    )
+
+    with pytest.raises(ValueError, match="completed review"):
+        _transition_verify_failure_case(
+            draft,
+            fix="update the prompt contract",
+            fix_commit_sha="def456",
+            regression_passed=True,
+        )
 
 
 @pytest.mark.parametrize("sign", [1, -1], ids=["positive", "negative"])
@@ -600,6 +649,11 @@ def test_verified_failure_case_can_become_runtime_memory_item_with_trace_scope()
         "failure_type": "invalid_tool_argument",
     }
     assert "planner called search_docs with null query" in memory.text
+    assert memory.full_text is not None
+    assert "Source commit: abc123" in memory.full_text
+    assert "Fix commit: def456" in memory.full_text
+    assert "Regression: passed" in memory.full_text
+    assert "Reviewed by: test-reviewer" in memory.full_text
     assert "prompt omitted the non-empty query contract" in memory.text
     assert "added schema example" in memory.text
 

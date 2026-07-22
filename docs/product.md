@@ -3,8 +3,8 @@
 [English](product.en.md) | **简体中文**
 
 - 当前版本：`0.1.0`（Alpha）
-- 交付形态：Python 库 + `tbm` CLI + JSON/YAML/JSON Schema + 可选 PostgreSQL Repository
-- 运行要求：Python 3.11+；PostgreSQL 能力要求 PostgreSQL 12+
+- 交付形态：Python 库 + `tbm` CLI + JSON/YAML/JSON Schema + SQLite + 可选 PostgreSQL Repository
+- 运行要求：Python 3.11+（标准库 SQLite）；PostgreSQL 能力要求 PostgreSQL 12+
 - 开源协议：MIT
 
 ## 1. 产品定位
@@ -29,7 +29,7 @@ Trace -> Failure Case -> Human/Eval Verification -> Verified Lesson
 |---|---|---|
 | Agent/Harness 工程师 | 让运行失败形成可复用经验 | Trace、失败案例、验证 lesson、运行时门控 |
 | Eval/质量团队 | 防止历史答案污染评测并量化记忆效果 | benchmark identity、阻断原因、outcome metrics |
-| 平台工程师 | 在多仓库、多租户环境安全接入记忆 | scope、tenant/repo 隔离、固定预算、审计日志 |
+| 平台工程师 | 在多仓库、多租户环境接入记忆 | declared-scope 适用性、固定预算、审计日志与明确的部署边界 |
 | PR/CI 维护者 | 在变更时找到相关历史故障 | Git ancestry、endpoint-aware PR report、回归建议 |
 | 运行维护人员 | 发现并恢复中断或半完成的记忆运行 | audit、remediation plan、原子单项/批量恢复 |
 
@@ -59,17 +59,17 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 失败学习 | 六类具体 failure taxonomy（另有 `unknown` fallback）、草稿提取、人工 review、回归验证、obsolete 生命周期 |
 | 记忆类型 | Verified Lesson、Verified Failure Case、Project Policy |
 | 检索 | metadata-first、关键词、调用方提供的 semantic score、可选 Git ancestry 过滤 |
-| 安全门控 | System Gate + LLM applicability Gate；严格 JSON 输入/输出校验；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项 |
+| 安全门控 | System Gate + LLM applicability Gate；响应限制为 64 KiB、1,000 nodes、depth 20、reason 2,000 字符；decision ID 列表各限 50 项；blocked 审计完整覆盖未选择项 |
 | 注入 | `none`、`pointer_only`、`short_summary`、`full_case_summary`；固定数量与字符预算 |
 | 运行闭环 | 两阶段 prepare/finalize、单项/批量原子完成、延迟 outcome sealing |
 | 运行编排 | `run_memory_execution()` 同步串联 decision callback、execution callback 与原子完成；`MemoryRunMeasurement` 无需调用方复制 decision ID |
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
 | 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、active lessons 原子导出与 dry-run 导入、failure case/lesson/project policy forward-only 淘汰预览与显式写入、audit/metrics/remediation、只读 PR report、单项与清单式批量 measured completion、dry-run 恢复与显式 `--write` 原子替换 |
-| 分发资源 | wheel/sdist/editable 内置 18 份 byte-identical Schema、taxonomy 与示例；支持发现、读取、校验元数据和原子导出 |
+| 分发资源 | wheel/sdist/editable 内置 19 份 byte-identical Schema、SQL、taxonomy 与示例；支持发现、读取、校验元数据和原子导出 |
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类；bounded local document ingestion 对本地 JSON/YAML 先限额再校验，并以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
 | PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配，以及可直接接入流水线的 `pr-report` JSON 输出 |
-| 持久化 | 同目录临时文件、落盘同步和原子替换的 JSON snapshot / active lesson YAML；lesson 多段文本保真；可选同步 PostgreSQL Repository；五表锁后以 count 与 UTF-8 payload 双预检在记录物化前限制数据库加载规模 |
+| 持久化 | 原子 JSON snapshot / active lesson YAML；标准库 SQLite Repository；可选同步 PostgreSQL Repository；两种 SQL 选择都执行有界、完整验证的 Store 重建 |
 
 所有 caller-owned JSON 都在转换为普通 mapping 前执行对象键唯一性检查：`TraceBackedMemoryStore.load_json()`、`parse_memory_context()`、`parse_memory_decision()` 和 CLI JSON 文件解析会在任意嵌套层拒绝 duplicate object keys，不采用 last-key-wins。有效 JSON、直接 Mapping 输入、snapshot version 2 与 PostgreSQL schema version 1 保持兼容。
 
@@ -88,7 +88,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 ### 5.2 从失败到可复用 Lesson
 
-1. 从失败 Trace 分类并生成 Failure Case 草稿。
+1. 从 clean 且结果为 `fail`/`error` 的 Trace 分类并生成 Failure Case 草稿。
 2. 人工补充 root cause、reviewer 和 review notes。
 3. 绑定修复 commit，并要求 regression 通过。
 4. 从 verified case 生成带 scope、confidence 和 source identity 的 Lesson。
@@ -114,13 +114,13 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 产品采用 fail-closed 策略：
 
-- **Provenance chain**：Lesson 必须可追溯到 verified、regression-backed Failure Case，再追溯到 source Trace 和 commit。
+- **Provenance chain**：Lesson 必须可追溯到经过 review、verified、regression-backed 的 Failure Case，再追溯到 `fail`/`error` source Trace 和 commit；dirty source Trace 不能激活 Lesson。
 - **严格 scope**：memory 声明的每个 scope 字段都必须与当前 context 精确匹配；缺失字段不算匹配。
-- **租户与仓库隔离**：`tenant` 和 `repo` 是硬边界。
+- **Declared-scope 匹配**：已声明的 `tenant` 和 `repo` 必须精确匹配，但 snapshot version 2 中省略字段仍会扩大适用范围，因此不能把它当作多租户授权边界。
 - **评测泄漏防护**：相同 `(eval_suite, input_hash)` 的历史示例自动阻断；sensitive 和 eval-leaking memory 更早阻断。
 - **不可逆历史**：身份、来源和已填充的执行证据不可重写；生命周期只允许前向变化。
 - **原子写入**：Trace/decision 的单项和批量完成先构建并验证全部候选，再一次提交。
-- **固定预算**：最多 50 个 gate candidates、20 个 injected memories、32,000 字符 gate prompt 和 12,000 字符 snippet；Trace 的 `retrieved_context`、`tool_calls`、`tool_outputs` 合计最多 100,000 个 JSON nodes 与 8 MiB 的 key/string UTF-8 文本，保留 depth 100。
+- **固定预算**：最多 50 个 gate candidates、20 个 injected memories、32,000 字符 gate prompt、65,536 bytes/1,000 nodes/depth 20 的 LLM response、2,000 字符 reason 和 12,000 字符 snippet；Trace 的 `retrieved_context`、`tool_calls`、`tool_outputs` 合计最多 100,000 个 JSON nodes 与 8 MiB 的 key/string UTF-8 文本，保留 depth 100。
 - **测量语义**：`latency_ms` 只能为 `None` 或 0 至 2,147,483,647 的 integer，两个边界均有效；越界值由共享 Store validator 在提交前拒绝。CLI 保留 structured `state` error / exit code 3，`cost_usd` 的 finite-number 契约不变。
 - **本地文档限额**：snapshot 为 64 MiB、每集合 100,000 条且总计 250,000 条；active lessons 与 CLI JSON 为 8 MiB；failure taxonomy 为 1 MiB。CLI JSON 另限 10,000 个顶层项目、100,000 个 JSON nodes 和 depth 100；`recover-batch` 另限 10,000 decision IDs 与 10,000 attribution options，并在 snapshot 读取前拒绝超限。Python API 可通过 `max_bytes` 等关键字参数显式传入 `None`，仅用于可信离线迁移；CLI 固定安全上限不提供 opt-out。
 - **防御性所有权**：store 使用锁与 defensive copies，调用方不能通过返回对象修改内部状态。
@@ -146,18 +146,34 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 - `tbm resource list/read/export` 和 Python resource interface 在不依赖 checkout 路径的情况下提供严格 allowlist 的规范资源；包通过 `py.typed` 声明类型信息。
 - `run_memory_execution()` 提供无第三方依赖的同步 harness 编排；`MemoryRunExecutionError` 保留各阶段的 request/decision 恢复上下文与原始异常，但不自动猜测执行 outcome。
 
+### SQLite 模式
+
+- 不需要额外依赖，适配器使用 Python 标准库 `sqlite3`。
+- `SQLiteMemoryRepository.connect(path, initialize=True)` 创建或打开文件数据库，并应用包内 schema 版本 1 的 `schemas/sqlite.sql`。
+- `sync()` 是增量原子同步；顶层写入使用 `BEGIN IMMEDIATE`，保留受支持的前向转换，并在不可变冲突时完整回滚。
+- `load()` 限制每集合 100,000 条、总计 250,000 条，以及最大单条/累计 UTF-8 payload 各 64 MiB，之后才返回完整验证的 Store。
+- borrowed connection 由调用方管理；已有外层事务时 Repository 使用 savepoint。
+- 规范 JSON payload envelope 属于 adapter 边界；不支持直接 SQL 修改领域 payload 或原地 schema migration。
+
 ### PostgreSQL 模式
 
 - 安装 `trace-backed-memory[postgres]`。
 - 使用 PostgreSQL 12+ 和 fresh-install `schemas/postgres.sql`；pip 安装用户可先用 `tbm resource export schemas/postgres.sql postgres.sql` 导出同一份字节。
 - 当前 PostgreSQL schema version 为 1。
+- Phase 71 的 fresh-install DDL 强制 Failure Case 来源为 `fail`/`error` Trace、verified case 包含 review 证据，并阻止 dirty source 激活 Lesson；既有 schema-version-1 数据库不会自动获得这些约束，需要 operator migration。
 - canonical 与 packaged Trace Schema 使用 `minimum: 0` 与 `maximum: 2147483647`；fresh-install DDL 的 `traces_latency_ms_non_negative` CHECK 提供下界，signed `INTEGER` 列提供相同上界。既有 schema-version-1 数据库已具备该物理上界，Phase 47 不需数据库迁移；资源路径/数量仍为 18，仅 Trace Schema 字节更新，DDL 字节不变。
 - Repository 提供同步 `sync()` / `load()`、事务回滚、borrowed/owned connection 和 caller transaction savepoint；`load()` 使用 schema owner 或具备表级写权限的 repository role，以五表有序 `SHARE` 锁读取一致状态并等待 external writer，再依次执行单条五表 `count(*)` count preflight（每集合 100,000 条、总计 250,000 条）和 loaded-row projection UTF-8 JSON payload preflight（最大单行与五表总计均为 64 MiB）；failure cases、lessons、project policies 只排除 selector 不读取的内部 `updated_at`，Trace 与 usage decision 保留全部 physical columns；全部通过后才读取记录。`sync()` 对全部既有目标行使用 `FOR UPDATE` 后再做 canonical conflict validation，其 accepted set 不因 load guard 改变；嵌套调用取得的锁持续到 caller outer transaction 最终 commit/rollback。
 - 缺失行的 INSERT 使用 nested savepoint；same-primary-key concurrent INSERT 返回 `23505` 或 registry 精确 `P0001` 时重新 `FOR UPDATE`。精确重放为 `unchanged`，合法前向转换为 `updated`，保护字段差异为 `PostgresConflictError`，目标仍缺失或其他驱动错误保持 `PostgresPersistenceError`。
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-70，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；Trace 三个 structured JSON 字段共享 100,000 nodes 与 8 MiB key/string UTF-8 text 的固定 runtime budget；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后依次以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，再以 loaded-row projection UTF-8 JSON preflight 将最大单行与五表总计限制为 64 MiB，在 collection fetch 前拒绝超限数据库，且不再计入三个 selector 未读取的内部 `updated_at`；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。Phase 45 将 `latency_ms` 统一为 None 或 non-negative integer，并同步 Trace Schema 与 fresh-install PostgreSQL CHECK；Phase 46 补齐既有 `obsolete_project_policy()` 的根包公开导出；Phase 47 将延迟上界与 PostgreSQL signed `INTEGER` 的 2,147,483,647 对齐，在数据库同步前拒绝不可持久化值；Phase 48 为数据库加载补齐最大单行与累计 payload 字节预算。snapshot version 2、active-lessons YAML、18 份 packaged resource 路径/数量、PostgreSQL DDL 与 schema version 1 保持不变，Phase 47 更新 Trace Schema canonical/package 字节；Phase 49 更新六组 nonblank Schema canonical/package 字节。
+当前版本已完成路线图 Phase 0-72，主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；Trace 三个 structured JSON 字段共享 100,000 nodes 与 8 MiB key/string UTF-8 text 的固定 runtime budget；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后依次以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，再以 loaded-row projection UTF-8 JSON preflight 将最大单行与五表总计限制为 64 MiB，在 collection fetch 前拒绝超限数据库，且不再计入三个 selector 未读取的内部 `updated_at`；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。Phase 45 将 `latency_ms` 统一为 None 或 non-negative integer，并同步 Trace Schema 与 fresh-install PostgreSQL CHECK；Phase 46 补齐既有 `obsolete_project_policy()` 的根包公开导出；Phase 47 将延迟上界与 PostgreSQL signed `INTEGER` 的 2,147,483,647 对齐，在数据库同步前拒绝不可持久化值；Phase 48 为数据库加载补齐最大单行与累计 payload 字节预算。snapshot version 2、active-lessons YAML 与 PostgreSQL schema version 1 保持不变；Phase 71 更新 Failure Case、Memory Decision、Memory Usage Schema 及 fresh-install PostgreSQL DDL，既有数据需要补齐 review 证据并由 operator 迁移数据库约束；Phase 72 增加 schema 版本 1 的 SQLite Repository 与第 19 项 packaged resource。
+
+Phase 71 强化可信提升与运行时边界：Failure Case 只能来自 `fail`/`error` Trace，verify 前必须具备 reviewer、root cause 与 review timestamp，dirty source 不能激活 Lesson；LLM response 限制为 64 KiB、1,000 nodes、depth 20，reason 最多 2,000 字符；所有未被 LLM 选中的系统候选都会进入 blocked 审计，超过 50 项时确定性保留前 50 项并记录其余项；`short_summary` 与 `full_case_summary` 使用不同 renderer，关键词检索支持 Unicode。
+
+Phase 72 增加标准库 `SQLiteMemoryRepository`：增量原子同步使用 `BEGIN IMMEDIATE`，caller transaction 使用 savepoint，load 在 Store 重建前执行记录数与 UTF-8 payload 限制。SQLite 与 PostgreSQL 现在是两个 SQL 选择，均使用独立的 schema 版本 1；资源总数为 19。
+
+当前仍有明确的生产边界：snapshot version 2 没有 canonical `repository_id` 或显式 global/repository/tenant scope kind；`regression_passed` 仍不是结构化 run/evaluator 证据；Gate request 与 finalized tombstone 只存在于进程内；usage log 不足以精确重放 retriever、gate、ancestry 与 renderer；Git ancestry 仍是 opt-in。以上属于 Phase 73 的 schema v3 / PostgreSQL schema v2 工作。既有 version-2 snapshot 中 verified 但未 review 的 case 必须补齐证据后才能加载。
 
 Phase 49 将持久化 identity、linkage、必填 failure 文本、lesson/policy scope、Memory Context 与 usage-audit mapping 的键值统一为“至少包含一个 non-whitespace 字符”，但不会 trim 已接受的值。可选 Trace metadata、无关 Failure Case narrative 字段和 candidate/used/blocked memory-ID arrays 保持既有契约。PostgreSQL schema version 1 的默认 `btrim` 已拒绝全普通空格，但比 Python/JSON Schema 边界更窄；受支持的 Store→Repository 写入路径使用更严格的 portable validation，直接 SQL 写入的其他 whitespace-only 数据需由 operator 清理。
 
@@ -233,6 +249,7 @@ Phase 70 修复 `recover-batch --attribution` 对合法 decision ID 的分隔歧
 - 不内置 embedding/vector database；semantic scores 由调用方计算。
 - 不把向量相似度视为安全或适用性的充分证明。
 - 不允许 LLM 自行激活、验证或重新放行 memory。
+- SQLite 使用规范 JSON payload envelope，不支持直接 SQL 领域修改、原地迁移、异步访问或跨主机共享 writer 协调。
 - PostgreSQL 暂不提供 in-place migration、connection pool 或 async repository。
 - Outcome metrics 是观测关联，不是单个 memory 的因果效果估计。
 - 冲突运行只提供调查入口，不自动覆盖任一已封存结果。

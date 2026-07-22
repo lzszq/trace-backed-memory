@@ -443,3 +443,31 @@
 - 完整非空前缀原样作为 decision ID，包括更早的 `=`，不 trim 或 normalize。
 - 后缀仍只接受小写 `true`/`false`；畸形、未请求和重复项保持退出码 2。
 - 请求顺序、Store 原子性、API、快照、Schema 与 18 项包资源不变。
+
+## Phase 71：Review 驱动的可信提升与有界 LLM Decision（已实现）
+
+- Failure Case 只能引用 `fail` 或 `error` Trace；verify 前必须具备 reviewer、root cause 与 review timestamp；dirty source Trace 不能激活 Lesson。
+- Store、JSON Schema 与 fresh-install PostgreSQL DDL 使用同一提升约束。既有 schema-version-1 数据库需要 operator migration，旧 version-2 snapshot 可能需要先补齐 review 证据。
+- LLM decision response 在进入持久审计前最多为 65,536 UTF-8 bytes、1,000 个 JSON nodes、depth 20，reason 最多 2,000 字符。
+- LLM narrowing 遗漏的所有 system-approved candidate 都计入 blocked；确定性保留前 50 个允许项，并用稳定 System Gate 原因审计 overflow。
+- `short_summary` 与 `full_case_summary` 使用不同 renderer；Store-owned full summary 包含经过 review 的 failure/fix provenance；关键词过滤支持 Unicode。
+- snapshot version 2、PostgreSQL schema version 1、公开 lifecycle signatures 与 18 个 packaged resource 路径保持不变。
+
+## Phase 72：SQLite Repository 选择（已实现）
+
+- 在可选 `PostgresMemoryRepository` 之外增加标准库 `SQLiteMemoryRepository`，保持一致的增量 `sync()` 与完整校验 `load()` 生命周期语义。
+- 发布 SQLite schema 版本 1 的规范 `schemas/sqlite.sql` 与字节一致包内副本，把 packaged resource 白名单从 18 项增加到 19 项。
+- 顶层写入使用 `BEGIN IMMEDIATE`，caller-owned transaction 内使用 nested savepoint，并保持 borrowed/owned connection 边界。
+- 支持精确重放、Store 允许的前向转换、Failure Case 到 Lesson 的 obsolete 级联，以及冲突时全有或全无回滚。
+- 返回完整验证 Store 前执行每集合/总记录数限制，以及最大单条/累计 64 MiB UTF-8 payload 限制；重建时拒绝不受支持的直接 SQL payload 修改。
+- 双语 README、架构、产品和使用策略文档将 SQLite 与 PostgreSQL 分别说明为嵌入式和服务端 SQL 选择。
+- snapshot version 2 与 PostgreSQL schema version 1 保持不变；SQLite 使用独立 schema version 1。
+
+## Phase 73：可部署信任边界与可重放审计（计划）
+
+- 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
+- 增加 canonical repository ID、显式 global/repository/tenant scope kind 与 global policy 权限，使 scope 成为可执行的授权边界。
+- 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
+- 记录可重放 decision 所需的 retriever/index、gate model/prompt、ancestry、policy、renderer、response 与 snippet version/hash。
+- 用显式 `required`/`disabled` policy 替代可选 ancestry，并审计 bypass reason。
+- 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 2 发布，并提供迁移文档。

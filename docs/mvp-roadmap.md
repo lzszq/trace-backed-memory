@@ -1185,3 +1185,58 @@ Track:
 - Preserve request ordering, Store-owned recovery atomicity, public APIs,
   snapshot version 2, PostgreSQL schema version 1, JSON Schemas, and all 18
   packaged resources.
+
+## Phase 71: Review-driven trust and bounded LLM decisions (implemented)
+
+- Require every Failure Case to reference a `fail` or `error` Trace, require
+  reviewer/root-cause/timestamp evidence before verification, and prevent a
+  dirty source Trace from activating a Lesson.
+- Enforce the same promotion invariants in the Store, JSON Schema, and
+  fresh-install PostgreSQL DDL. Existing schema-version-1 databases require an
+  operator migration, and older version-2 snapshots may need review evidence
+  before loading.
+- Bound each LLM decision response to 65,536 UTF-8 bytes, 1,000 JSON nodes,
+  depth 20, and a 2,000-character reason before it enters persistent audit.
+- Account for every system-approved candidate omitted by LLM narrowing as
+  blocked; deterministically retain the first 50 approved candidates and audit
+  overflow with a stable system-gate reason.
+- Give `short_summary` and `full_case_summary` distinct renderers, including
+  reviewed failure/fix provenance for Store-owned full summaries, and make
+  keyword filtering Unicode-aware.
+- Preserve snapshot version 2, PostgreSQL schema version 1, public lifecycle
+  signatures, and the 18 packaged resource paths.
+
+## Phase 72: SQLite repository choice (implemented)
+
+- Add a standard-library `SQLiteMemoryRepository` alongside the optional
+  `PostgresMemoryRepository`, with matching additive `sync()` and validated
+  `load()` lifecycle semantics.
+- Publish canonical and byte-identical packaged `schemas/sqlite.sql` at SQLite
+  schema version 1, increasing the packaged resource allowlist from 18 to 19.
+- Use `BEGIN IMMEDIATE` for top-level writes and nested savepoints inside
+  caller-owned transactions; preserve borrowed/owned connection boundaries.
+- Support exact replay, Store-approved forward transitions, Failure Case to
+  Lesson obsolescence cascade, and all-or-nothing rollback on conflicts.
+- Enforce per-collection and total count limits plus largest-record and
+  aggregate 64 MiB UTF-8 payload limits before returning a fully validated
+  Store; reject unsupported direct-SQL payload mutation during reconstruction.
+- Document SQLite and PostgreSQL as separate embedded and server SQL choices,
+  with bilingual README, architecture, product, and usage-policy coverage.
+- Preserve snapshot version 2 and PostgreSQL schema version 1; SQLite starts at
+  its own schema version 1.
+
+## Phase 73: Deployable trust boundaries and replayable audit (planned)
+
+- Replace the regression boolean with structured Trace/run/evaluator evidence
+  and verifiable source/fix/regression commit relationships.
+- Add a canonical repository ID, explicit global/repository/tenant scope kind,
+  and privileged creation for global policy so scope becomes an enforceable
+  authorization boundary.
+- Persist Gate requests or use signed envelopes with idempotency, expiry,
+  cancellation, capacity control, and crash recovery.
+- Record retriever/index, gate model/prompt, ancestry, policy, renderer,
+  response, and snippet versions or hashes needed to replay a decision.
+- Replace optional ancestry with an explicit `required`/`disabled` policy and
+  auditable bypass reason.
+- Deliver these breaking contracts together as snapshot schema version 3 and
+  PostgreSQL schema version 2 with documented migrations.

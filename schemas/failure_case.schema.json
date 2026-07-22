@@ -10,12 +10,12 @@
     "commit_sha": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512},
     "failure_type": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512},
     "symptom": {"type": "string", "pattern": "\\S", "minLength": 1},
-    "root_cause": {"type": ["string", "null"], "minLength": 1},
+    "root_cause": {"type": ["string", "null"], "pattern": "\\S", "minLength": 1},
     "fix": {"type": ["string", "null"], "pattern": "\\S", "minLength": 1},
     "fix_commit_sha": {"type": ["string", "null"], "pattern": "\\S", "minLength": 1, "maxLength": 512},
     "regression_passed": {"type": "boolean", "default": false},
-    "reviewed_by": {"type": ["string", "null"], "minLength": 1, "maxLength": 512},
-    "review_notes": {"type": ["string", "null"], "minLength": 1},
+    "reviewed_by": {"type": ["string", "null"], "pattern": "\\S", "minLength": 1, "maxLength": 512},
+    "review_notes": {"type": ["string", "null"], "pattern": "\\S", "minLength": 1},
     "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
     "status": {
       "type": "string",
@@ -31,11 +31,14 @@
         "properties": {"status": {"const": "verified"}}
       },
       "then": {
-        "required": ["fix", "fix_commit_sha"],
+        "required": ["root_cause", "fix", "fix_commit_sha", "reviewed_by", "reviewed_at"],
         "properties": {
+          "root_cause": {"type": "string", "pattern": "\\S", "minLength": 1},
           "fix": {"type": "string", "pattern": "\\S", "minLength": 1},
           "fix_commit_sha": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512},
-          "regression_passed": {"const": true}
+          "regression_passed": {"const": true},
+          "reviewed_by": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512},
+          "reviewed_at": {"type": "string", "format": "date-time"}
         }
       }
     }

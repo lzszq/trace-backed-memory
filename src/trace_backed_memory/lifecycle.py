@@ -35,6 +35,17 @@ def _require_supported_value(value: str, field_name: str, supported_values: set[
         raise ValueError(f"{field_name} is not supported: {value}")
 
 
+def _require_completed_review(case: FailureCase) -> None:
+    if any(
+        not isinstance(value, str) or not value.strip()
+        for value in (case.reviewed_by, case.root_cause, case.reviewed_at)
+    ):
+        raise ValueError(
+            "verified failure cases require a completed review with "
+            "reviewed_by, root_cause, and reviewed_at"
+        )
+
+
 def validate_lesson_contract(*, lesson_text: str, scope: dict[str, str], confidence: float) -> None:
     if not isinstance(scope, dict) or not scope:
         raise ValueError("lessons require non-empty scope")
@@ -96,6 +107,7 @@ def verify_failure_case(
     _require_non_empty_string(fix_commit_sha, "fix_commit_sha")
     if type(regression_passed) is not bool or not regression_passed:
         raise ValueError("verified failure cases require a passing regression")
+    _require_completed_review(case)
 
     return replace(
         case,
@@ -118,10 +130,10 @@ def review_failure_case(
 ) -> FailureCase:
     if case.status != "draft":
         raise ValueError("only draft failure cases can be manually reviewed")
-    if not reviewed_by:
-        raise ValueError("manual review requires reviewed_by")
-    if not root_cause:
-        raise ValueError("manual review requires root_cause")
+    _require_non_empty_string(reviewed_by, "reviewed_by")
+    _require_non_empty_string(root_cause, "root_cause")
+    if reviewed_at is not None:
+        _require_non_empty_string(reviewed_at, "reviewed_at")
 
     return replace(
         case,
@@ -154,6 +166,7 @@ def lesson_from_failure_case(
     _require_non_empty_string(lesson_id, "lesson_id")
     _require_supported_value(memory_type, "memory_type", _SUPPORTED_MEMORY_TYPES)
     validate_lesson_contract(lesson_text=lesson_text, scope=scope, confidence=confidence)
+    _require_completed_review(case)
 
     return Lesson(
         lesson_id=lesson_id,
@@ -170,7 +183,13 @@ def memory_item_from_lesson(
     lesson: Lesson,
     *,
     source_trace: Trace | None = None,
+    source_case: FailureCase | None = None,
 ) -> MemoryItem:
+    if source_case is not None:
+        if source_case.case_id != lesson.source_case_id:
+            raise ValueError("lesson source_case_id must match source_case")
+        if source_trace is not None and source_case.source_trace_id != source_trace.trace_id:
+            raise ValueError("source_case source_trace_id must match source_trace")
     source_eval_suite, source_input_hash = _complete_trace_source_identity(source_trace)
     return MemoryItem(
         memory_id=lesson.lesson_id,
@@ -184,6 +203,11 @@ def memory_item_from_lesson(
         eval_leaking=lesson.eval_leaking,
         source_eval_suite=source_eval_suite,
         source_input_hash=source_input_hash,
+        full_text=(
+            _lesson_full_case_text(lesson, source_case)
+            if source_case is not None
+            else None
+        ),
     )
 
 
@@ -194,6 +218,7 @@ def memory_item_from_failure_case(case: FailureCase, trace: Trace) -> MemoryItem
         raise ValueError("failure case source_trace_id must match trace")
     if case.commit_sha != trace.commit_sha:
         raise ValueError("failure case commit_sha must match trace")
+    _require_completed_review(case)
     source_eval_suite, source_input_hash = _complete_trace_source_identity(trace)
 
     return MemoryItem(
@@ -207,6 +232,7 @@ def memory_item_from_failure_case(case: FailureCase, trace: Trace) -> MemoryItem
         confidence=1.0,
         source_eval_suite=source_eval_suite,
         source_input_hash=source_input_hash,
+        full_text=_failure_case_full_text(case),
     )
 
 
@@ -291,4 +317,23 @@ def _failure_case_text(case: FailureCase) -> str:
         lines.append(f"Root cause: {case.root_cause}")
     if case.fix:
         lines.append(f"Fix: {case.fix}")
+    return "\n".join(lines)
+
+
+def _lesson_full_case_text(lesson: Lesson, case: FailureCase) -> str:
+    return "\n".join(
+        [f"Lesson: {lesson.lesson_text}", _failure_case_full_text(case)]
+    )
+
+
+def _failure_case_full_text(case: FailureCase) -> str:
+    lines = [_failure_case_text(case)]
+    lines.append(f"Source commit: {case.commit_sha}")
+    if case.fix_commit_sha:
+        lines.append(f"Fix commit: {case.fix_commit_sha}")
+    lines.append(
+        "Regression: passed" if case.regression_passed else "Regression: not passed"
+    )
+    if case.reviewed_by:
+        lines.append(f"Reviewed by: {case.reviewed_by}")
     return "\n".join(lines)

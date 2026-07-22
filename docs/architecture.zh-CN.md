@@ -56,15 +56,15 @@ Failure Case 是从失败 Trace 派生的结构化事后复盘，保存 case ID�
 
 `load_failure_taxonomy()` 与保守提取辅助函数先从明确失败证据分类，再生成草稿。证据顺序为 `Trace.error`、`tool_calls[].error`、`tool_outputs[].error`。工具名称永远不能选择 taxonomy；只有同一条记录存在 truthy 顶层 error 时才可为症状命名。任意参数、成功结果、嵌套内容和标识符都不参与关键字分类。
 
-显式 `invalid argument` 有效；单独的 `required` 无效，只有 `required argument`、`required parameter`、`required field`、`required property` 这些保守短语触发 `invalid_tool_argument`。`review_failure_case()` 在记录 reviewer、root cause、notes 和时间的同时保持草稿状态。只有带修复 commit 和通过回归证据的 draft 才能验证。
+显式 `invalid argument` 有效；单独的 `required` 无效，只有 `required argument`、`required parameter`、`required field`、`required property` 这些保守短语触发 `invalid_tool_argument`。`review_failure_case()` 在记录 reviewer、root cause、notes 和时间的同时保持草稿状态。只有已经包含 `reviewed_by`、`root_cause`、`reviewed_at`、修复 commit 和通过回归证据的 draft 才能验证。
 
-Store 拒绝不存在的 `source_trace_id`、与 source Trace 不一致的 `commit_sha`、空身份、非法状态，以及缺少修复和回归证据的 verified case。
+Store 拒绝不存在的 `source_trace_id`、结果不是 `fail`/`error` 的 source Trace、与 source Trace 不一致的 `commit_sha`、空身份、非法状态，以及缺少完整 review、修复和回归证据的 verified case。
 
 ## 第 3 层：Lesson Store
 
 Lesson 是从 verified case 派生的可复用规则，包含 lesson ID、source case、文本、memory type、scope、0.0 到 1.0 的 confidence、安全标志、状态和时间戳。
 
-只有 active、来源已验证、作用域匹配且 confidence 合法的 Lesson 才能进入运行时门控。Store 会拒绝缺失或未验证的 source case、空 ID、非法 memory type/status、空或未知 scope、非字符串/空 scope 值，以及越界 confidence。`sensitive` 与 `eval_leaking` 标志会保留到 `MemoryItem`，供 System Gate 在 LLM 判断前阻止。
+只有 active、来源已验证、作用域匹配且 confidence 合法的 Lesson 才能进入运行时门控。Store 会拒绝缺失或未验证的 source case；active Lesson 还会拒绝 dirty source Trace，因为 commit 无法唯一描述当时执行的工作区。空 ID、非法 memory type/status、空或未知 scope、非字符串/空 scope 值，以及越界 confidence 同样会被拒绝。`sensitive` 与 `eval_leaking` 标志会保留到 `MemoryItem`，供 System Gate 在 LLM 判断前阻止。
 
 ## 第 3b 层：Project Policy
 
@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 18 个规范 Schema、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 19 个规范 Schema、SQL、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -103,7 +103,7 @@ Python API 可对单个限制显式传 `None`，只用于可信离线迁移；CL
 
 ## 快照操作 CLI
 
-无依赖适配器通过 `tbm` 和 `python -m trace_backed_memory` 暴露。快照命令只接受一个本地路径，并统一通过 `TraceBackedMemoryStore.load_json()` 重建 Store；不接受 stdin、远程 URL、PostgreSQL 连接或备用快照输出路径。
+无依赖适配器通过 `tbm` 和 `python -m trace_backed_memory` 暴露。快照命令只接受一个本地路径，并统一通过 `TraceBackedMemoryStore.load_json()` 重建 Store；不接受 stdin、远程 URL、SQL Repository 连接或备用快照输出路径。
 
 读取接口直接映射现有 Store 视图：`snapshot validate`、`snapshot stats`、`audit`、`remediation` 和 `metrics`。变更接口把 `complete`、`complete-batch`、`recover`、`recover-batch`、`recover-ready`、`obsolete` 与 `obsolete-batch` 委托给对应 Store API，不复制状态机。
 
@@ -117,7 +117,7 @@ Lesson 导出委托 active-only 选择和规范 YAML 序列化，默认拒绝覆
 
 所有变更默认 dry-run。只有显式 `--write` 且操作完整成功时，才调用 `save_json()` 原子替换输入快照。每个写命令在快照加载前获取 sibling `.tbm.lock` 排他建议锁，并持有到原子发布结束。sidecar 必须是与 descriptor 相同的单链接普通文件；符号链接、Windows reparse point、硬链接和特殊文件会在加载快照前失败。默认争用超时为 30 秒。
 
-公开的 `snapshot_write_lock()` 让 Python 调用方遵循同一协议。它必须包围完整 load、mutate、save 事务，是跨进程、建议性、非重入的锁，不替代 Store `RLock` 或 PostgreSQL 事务。
+公开的 `snapshot_write_lock()` 让 Python 调用方遵循同一协议。它必须包围完整 load、mutate、save 事务，是跨进程、建议性、非重入的锁，不替代 Store `RLock` 或 SQLite/PostgreSQL 事务。
 
 成功输出一个确定性 JSON 与换行；失败向 stderr 输出一个结构化 JSON，不带 traceback。退出码 0 到 4 分别表示成功/空操作、内部错误、输入错误、状态拒绝和写入失败。成功输出在持久化前序列化，已经提交后发生 stdout 关闭不会把操作误报为失败。
 
@@ -133,17 +133,17 @@ System Gate -> LLM Gate
 
 System Gate 是确定性的，检查来源、状态、scope、tenant、confidence、敏感性、评估泄漏和运行模式。LLM Gate 只对通过 System Gate 的候选判断语义适用性。
 
-`parse_memory_decision()` 严格验证 LLM JSON。`use_memory`、allowed IDs 和 injection mode 必须一致；`allowed_memory_ids` 与 `blocked_memory_ids` 各最多 50 项。LLM 只能缩小系统允许集合，不能重新放行被阻止的记忆。
+`parse_memory_decision()` 严格验证 LLM JSON。完整响应最多 65,536 UTF-8 bytes、1,000 个 JSON nodes、深度 20，`reason` 最多 2,000 字符；`use_memory`、allowed IDs 和 injection mode 必须一致，`allowed_memory_ids` 与 `blocked_memory_ids` 各最多 50 项。LLM 只能缩小系统允许集合，不能重新放行被阻止的记忆；系统允许但未被 LLM 选择的候选会自动进入最终 blocked 审计。
 
-动态 task、context summary 和候选文本都以 JSON 字符串编码并受长度限制。注入模式 `none` 不输出内容，`pointer_only` 只输出 ID/source/scope，摘要模式输出受限、转义后的记忆文本。
+动态 task、context summary 和候选文本都以 JSON 字符串编码并受长度限制。注入模式 `none` 不输出内容，`pointer_only` 只输出 ID/source/scope，`short_summary` 输出最多 500 字符的规则，`full_case_summary` 输出最多 2,000 字符的 Lesson 与经过 review 的 failure/fix provenance。
 
-固定预算包括 128 字符 ID、512 字符 metadata、50 个候选、32,000 字符 gate prompt、20 条注入 memory 和 12,000 字符 snippet。
+固定预算包括 128 字符 ID、512 字符 metadata、50 个候选、32,000 字符 gate prompt、65,536 bytes decision response、1,000 个 response nodes、response 深度 20、2,000 字符 reason、20 条注入 memory 和 12,000 字符 snippet。
 
-候选检索 metadata-first。Lesson 与 Project Policy 要求所有已声明 scope 精确匹配；debug/repair 模式还能从 source Trace 派生 verified Failure Case memory。关键词或调用方 semantic score 只能帮助检索，不能替代两层门控。
+候选检索 metadata-first。Lesson 与 Project Policy 要求所有已声明 scope 精确匹配；debug/repair 模式还能从 source Trace 派生 verified Failure Case memory。关键词解析支持 Unicode，并为非 ASCII 词生成双字符 gram，使 CJK 子串能够匹配。关键词或调用方 semantic score 只能帮助检索，不能替代两层门控。
 
 Semantic 模式要求 `max_candidates` 为 1 到 50，验证完整 score mapping 后使用有界 heap top-k，结果按 score 降序、同分按 memory ID 升序，复杂度为 `O(K log k)` 时间与 `O(k)` 排名存储。score 与 embedding 不持久化。
 
-安全主流程是 `prepare_memory()` 后接 `finalize_memory()`：准备阶段检索并运行 System Gate，最终化重新验证状态、收窄 LLM decision、渲染 snippet 并原子记录 Trace-linked 证据。
+安全主流程是 `prepare_memory()` 后接 `finalize_memory()`：准备阶段检索并运行 System Gate；若系统允许候选超过 50 个，则按确定性候选顺序保留前 50 个，并把其余项以 `LLM gate candidate limit exceeded` 记录为系统阻止。最终化重新验证状态、收窄 LLM decision、渲染 snippet 并原子记录 Trace-linked 证据。
 
 ### 同步 Memory Run 执行
 
@@ -183,6 +183,18 @@ PostgreSQL 使用 composite provenance、confidence、JSONB shape、runtime memo
 
 PostgreSQL 集成测试在普通本地环境可跳过；CI 的 `TBM_REQUIRE_POSTGRES=1` 将缺少工具或非法 initdb 用户转换为失败。独立 Ubuntu job 运行真实集群测试，Windows job 运行完整 Python 套件。
 
+## SQLite 运行时存储库
+
+`SQLiteMemoryRepository` 是完整 `TraceBackedMemoryStore` 的标准库嵌入式 SQL 持久化边界。它使用 `sqlite3`，从包根公开且不需要可选依赖。文件数据库适合本地 harness、CI 和单机工具；owned `:memory:` 数据库只在该连接生命周期内存在。
+
+Repository 要求规范 `schemas/sqlite.sql` 的 schema 版本 1。`connect(..., initialize=True)` 应用包内 fresh-install schema；运维也可以通过 `tbm resource export schemas/sqlite.sql sqlite.sql` 导出相同字节。五张表保存稳定 ID 与规范 JSON payload envelope；领域及跨记录不变量仍由 Store 最终验证。直接 SQL 修改 payload 不属于支持契约，会在 `load()` 或 `sync()` 重建 Store 时被拒绝。
+
+`sync(store)` 是增量原子同步。顶层写入用 `BEGIN IMMEDIATE` 提前取得 writer reservation，并按与 PostgreSQL adapter 相同的 Trace、usage outcome、Failure Case、Lesson 和 Project Policy 规则，把记录分类为精确重放、受支持前向转换或不可变冲突。Failure Case 淘汰会级联 active Lesson；任何冲突或最终 Store 验证失败都回滚完整同步。
+
+`load()` 在一个读事务内检查 schema 版本 1，并执行每集合 100,000 条、总计 250,000 条、最大单条与累计 UTF-8 payload 各 64 MiB 的限制，再返回完整验证的 Store。传入既有连接时 Repository 借用连接；`connect()` 创建并拥有连接。已有调用方事务时，每次操作使用 savepoint，最终 commit/rollback 仍由调用方负责。
+
+SQLite 是嵌入式选择，不替代 PostgreSQL 的数据库侧 JSONB、trigger、row lock、共享 ID registry 和多客户端约束。两个适配器共享公开 sync/load 生命周期语义与 schema 版本 1，但 DDL 和并发保证独立。
+
 ## PostgreSQL 运行时存储库
 
 `PostgresMemoryRepository` 是完整 `TraceBackedMemoryStore` 的同步持久化边界。`psycopg` 是可选、延迟导入的 extra；核心包导入不加载驱动。
@@ -220,6 +232,10 @@ Lesson anchor 是 source case 的 fix commit，Failure Case anchor 是 source co
 处理顺序是 metadata discovery、外部 ancestry capture、ancestry filter、可选关键词/semantic retrieval、System Gate、LLM Gate。证据不写入快照、usage log、YAML、Schema 或 PostgreSQL。
 
 ## 非目标
+
+当前 scope 是“仅匹配 memory 已声明字段”的语义，不是多租户授权模型；省略 `repo` 或 `tenant` 的 memory 不会自动获得对应硬边界。生产隔离需要未来的 canonical `repository_id`、显式 global/repository/tenant scope kind 和 global policy 权限。snapshot version 2 也不会持久化 Gate request、retriever/gate/renderer 版本与 hash 或结构化 regression run 证据，Git ancestry 仍为 opt-in。这些属于 schema v3 / PostgreSQL schema v2，而不是当前 Alpha 契约。
+
+Phase 71 保持现有版本号，但收紧了可接受状态。version-2 snapshot 中 verified 但未 review 的 case 必须先补齐 review 证据；既有 PostgreSQL schema-version-1 安装需要 operator migration，才能与当前 fresh-install DDL 约束一致。
 
 - 不优先构建通用个性化记忆。
 - 不把原始 Trace 直接注入 prompt。

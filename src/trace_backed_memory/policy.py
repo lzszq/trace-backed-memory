@@ -34,10 +34,15 @@ EVAL_ALLOWED_TYPES = {"policy"}
 DECISION_RISKS = {"none", "low", "medium", "high"}
 RECOMMENDED_INJECTIONS = {"none", "short_summary", "full_case_summary", "pointer_only"}
 INJECTION_TEXT_MAX_CHARS = 500
+FULL_CASE_INJECTION_TEXT_MAX_CHARS = 2_000
 MEMORY_ID_MAX_CHARS = 128
 METADATA_VALUE_MAX_CHARS = 512
 LLM_GATE_MAX_CANDIDATES = 50
 LLM_GATE_PROMPT_MAX_CHARS = 32_000
+LLM_GATE_RESPONSE_MAX_BYTES = 64 * 1024
+LLM_GATE_RESPONSE_MAX_NODES = 1_000
+LLM_GATE_RESPONSE_MAX_DEPTH = 20
+MEMORY_DECISION_REASON_MAX_CHARS = 2_000
 INJECTION_MAX_MEMORIES = 20
 INJECTION_SNIPPET_MAX_CHARS = 12_000
 DECISION_REQUIRED_FIELDS = {
@@ -127,6 +132,10 @@ def _memory_item_contract_error(memory: MemoryItem) -> str | None:
         return "memory_type must be a string"
     if not isinstance(memory.text, str):
         return "text must be a string"
+    if memory.full_text is not None and (
+        not isinstance(memory.full_text, str) or not memory.full_text.strip()
+    ):
+        return "full_text must be a non-empty string or None"
     if not isinstance(memory.scope, dict):
         return "scope must be a mapping of known non-empty string fields"
     for key, value in memory.scope.items():
@@ -376,6 +385,10 @@ def apply_llm_gate_decision(
     for memory_id in allowed_memory_ids:
         if memory_id not in allowed_by_id and memory_id not in blocked_ids:
             blocked_ids.append(memory_id)
+    final_allowed_id_set = set(final_allowed_ids)
+    for memory_id in allowed_by_id:
+        if memory_id not in final_allowed_id_set and memory_id not in blocked_ids:
+            blocked_ids.append(memory_id)
 
     final_decision = MemoryDecision(
         use_memory=use_memory,
@@ -422,7 +435,7 @@ def parse_memory_context(payload: str | Mapping[str, Any]) -> MemoryContext:
 
 def parse_memory_decision(payload: str | Mapping[str, Any]) -> MemoryDecision:
     """Parse and validate the JSON shape returned by the LLM applicability gate."""
-    data = _json_object(payload, "memory decision")
+    data = _bounded_memory_decision_object(payload)
 
     missing = sorted(DECISION_REQUIRED_FIELDS.difference(data))
     if missing:
@@ -451,6 +464,11 @@ def parse_memory_decision(payload: str | Mapping[str, Any]) -> MemoryDecision:
         raise ValueError("reason must be a string")
     if not reason.strip():
         raise ValueError("reason must be nonblank")
+    if len(reason) > MEMORY_DECISION_REASON_MAX_CHARS:
+        raise ValueError(
+            "reason must be at most "
+            f"{MEMORY_DECISION_REASON_MAX_CHARS} characters"
+        )
 
     risk = data["risk"]
     if not isinstance(risk, str) or risk not in DECISION_RISKS:
@@ -536,8 +554,16 @@ def build_injection_snippet(
             f"[source: {_json_scalar(source)}]"
         )
         lines.append(f"Scope: {scope}")
-        if injection_mode != "pointer_only":
-            lines.append(f"Rule: {json.dumps(_cap_injected_text(memory.text))}")
+        if injection_mode == "short_summary":
+            lines.append(
+                f"Rule: {json.dumps(_cap_injected_text(memory.text, INJECTION_TEXT_MAX_CHARS))}"
+            )
+        elif injection_mode == "full_case_summary":
+            full_text = memory.full_text or memory.text
+            lines.append(
+                "Details: "
+                f"{json.dumps(_cap_injected_text(full_text, FULL_CASE_INJECTION_TEXT_MAX_CHARS))}"
+            )
     snippet = "\n".join(lines)
     if len(snippet) > INJECTION_SNIPPET_MAX_CHARS:
         raise ValueError(
@@ -626,6 +652,11 @@ def _validated_decision_fields(
         raise ValueError("reason must be a string")
     if not decision.reason.strip():
         raise ValueError("reason must be nonblank")
+    if len(decision.reason) > MEMORY_DECISION_REASON_MAX_CHARS:
+        raise ValueError(
+            "reason must be at most "
+            f"{MEMORY_DECISION_REASON_MAX_CHARS} characters"
+        )
     if not isinstance(decision.risk, str) or decision.risk not in DECISION_RISKS:
         raise ValueError("risk must be one of: high, low, medium, none")
     if (
@@ -657,10 +688,12 @@ def _memory_decision_consistency_error(
     return None
 
 
-def _cap_injected_text(text: str) -> str:
-    if len(text) <= INJECTION_TEXT_MAX_CHARS:
+def _cap_injected_text(
+    text: str, max_chars: int = INJECTION_TEXT_MAX_CHARS
+) -> str:
+    if len(text) <= max_chars:
         return text
-    return text[: INJECTION_TEXT_MAX_CHARS - 3].rstrip() + "..."
+    return text[: max_chars - 3].rstrip() + "..."
 
 
 def _json_scalar(value: str) -> str:
@@ -757,3 +790,114 @@ def _json_object(payload: str | Mapping[str, Any], label: str) -> dict[str, Any]
     if any(not isinstance(key, str) for key in data):
         raise ValueError(f"{label} payload keys must be strings")
     return data
+
+
+def _bounded_memory_decision_object(
+    payload: str | Mapping[str, Any],
+) -> dict[str, Any]:
+    if isinstance(payload, str):
+        try:
+            payload_size = len(payload.encode("utf-8"))
+        except UnicodeEncodeError as exc:
+            raise ValueError(
+                "memory decision response must be UTF-8 encodable"
+            ) from exc
+        if payload_size > LLM_GATE_RESPONSE_MAX_BYTES:
+            raise ValueError(
+                "memory decision response exceeds "
+                f"{LLM_GATE_RESPONSE_MAX_BYTES} UTF-8 bytes"
+            )
+    elif (
+        isinstance(payload, Mapping)
+        and len(payload) + 1 > LLM_GATE_RESPONSE_MAX_NODES
+    ):
+        raise ValueError(
+            "memory decision response contains more than "
+            f"{LLM_GATE_RESPONSE_MAX_NODES} nodes"
+        )
+
+    try:
+        data = _json_object(payload, "memory decision")
+    except RecursionError as exc:
+        raise ValueError(
+            "memory decision response exceeds maximum nesting depth "
+            f"{LLM_GATE_RESPONSE_MAX_DEPTH}"
+        ) from exc
+    _validate_memory_decision_payload_budget(data)
+    return data
+
+
+def _validate_memory_decision_payload_budget(value: dict[str, Any]) -> None:
+    node_count = 0
+    text_bytes = 0
+    active_container_ids: set[int] = set()
+    stack: list[tuple[Any, int, bool]] = [(value, 0, False)]
+
+    def consume_text(text: str) -> None:
+        nonlocal text_bytes
+        try:
+            text_bytes += len(text.encode("utf-8"))
+        except UnicodeEncodeError as exc:
+            raise ValueError(
+                "memory decision response must be UTF-8 encodable"
+            ) from exc
+        if text_bytes > LLM_GATE_RESPONSE_MAX_BYTES:
+            raise ValueError(
+                "memory decision response exceeds "
+                f"{LLM_GATE_RESPONSE_MAX_BYTES} UTF-8 bytes"
+            )
+
+    while stack:
+        current, depth, leaving = stack.pop()
+        if leaving:
+            active_container_ids.remove(id(current))
+            continue
+
+        node_count += 1
+        if node_count > LLM_GATE_RESPONSE_MAX_NODES:
+            raise ValueError(
+                "memory decision response contains more than "
+                f"{LLM_GATE_RESPONSE_MAX_NODES} nodes"
+            )
+        if current is None or type(current) is bool or type(current) is int:
+            continue
+        if type(current) is float:
+            if not math.isfinite(current):
+                raise ValueError(
+                    "memory decision response must contain finite JSON numbers"
+                )
+            continue
+        if type(current) is str:
+            consume_text(current)
+            continue
+        if type(current) not in {dict, list}:
+            raise ValueError(
+                "memory decision response must contain only JSON semantic values"
+            )
+        if current and depth >= LLM_GATE_RESPONSE_MAX_DEPTH:
+            raise ValueError(
+                "memory decision response exceeds maximum nesting depth "
+                f"{LLM_GATE_RESPONSE_MAX_DEPTH}"
+            )
+        if len(current) > LLM_GATE_RESPONSE_MAX_NODES - node_count:
+            raise ValueError(
+                "memory decision response contains more than "
+                f"{LLM_GATE_RESPONSE_MAX_NODES} nodes"
+            )
+
+        container_id = id(current)
+        if container_id in active_container_ids:
+            raise ValueError("memory decision response contains a reference cycle")
+        active_container_ids.add(container_id)
+        stack.append((current, depth, True))
+
+        if type(current) is list:
+            for child in reversed(current):
+                stack.append((child, depth + 1, False))
+            continue
+
+        for key, child in reversed(current.items()):
+            if not isinstance(key, str):
+                raise ValueError("memory decision payload keys must be strings")
+            consume_text(key)
+            stack.append((child, depth + 1, False))

@@ -10,6 +10,16 @@
 raw trace -> failure case -> verified lesson -> gated runtime memory
 ```
 
+## SQLite 持久化边界
+
+`SQLiteMemoryRepository` 持久化与本地 Store 相同的受门控记录，不改变检索或注入资格。它使用 Python 标准库 `sqlite3`，不需要额外依赖，并要求规范或包内 `schemas/sqlite.sql` 的 schema 版本 1。`connect(..., initialize=True)` 是初始化新文件数据库的便捷路径。
+
+同步是增量且原子的。顶层操作使用 `BEGIN IMMEDIATE`；已有 caller-owned transaction 时使用 savepoint，不拥有外层 commit/rollback。sync 保留只存在于数据库的记录，只允许文档定义的 Trace、usage outcome、Failure Case、Lesson 与 Project Policy 前向转换，执行 Failure Case 到 Lesson 的 obsolete 级联，并在冲突时回滚完整操作。
+
+load 在一个读事务内检查 schema 版本 1；每集合超过 100,000 条、总计超过 250,000 条、最大单条或累计规范 JSON payload 超过 64 MiB 时拒绝。精确边界有效；只有完成 `TraceBackedMemoryStore` 重建与校验后才返回，失败后连接仍可复用。
+
+SQLite 行保存稳定 ID 与规范 JSON payload envelope。领域和跨记录不变量以 Store 为准；直接 SQL 修改 payload 不属于支持契约，可能导致下一次 load 或 sync 失败。持久化应使用文件数据库。SQLite 面向本地 harness、CI 与单机工具；需要数据库侧 JSONB、trigger、row lock、共享 ID 强制和多客户端负载时选择 PostgreSQL。
+
 ## PostgreSQL 持久化边界
 
 可选的同步 PostgreSQL Repository 持久化与本地 Store 相同的受门控记录；它不会让 raw Trace 自动具备注入资格，也不能绕过 System Gate 或 LLM Gate。安装 `trace-backed-memory[postgres]`，把规范 `schemas/postgres.sql` 应用到新的 `public` schema，并使用 schema 版本 1。PostgreSQL 必须为 12+。
@@ -38,7 +48,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-18 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。
+19 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -84,7 +94,7 @@ CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在�
 
 每个快照 `--write` 必须在 load 前获取规范 sibling `.tbm.lock` 排他建议锁，并持有到 `save_json()` 发布结束，在 stdout 前释放。sidecar 持久存在且只含一个 placeholder byte；路径与 descriptor 必须是同一单链接普通文件。符号链接、Windows reparse point、硬链接和特殊文件必须在写目标或加载快照前拒绝。争用最多等待 30 秒。
 
-Python 写入方必须用公开 `snapshot_write_lock(snapshot_path, timeout_seconds=...)` 包围完整 load、mutate、save 事务。该锁是建议性、跨进程、非重入的，不是 Store `RLock`，也不替代 PostgreSQL transaction。
+Python 写入方必须用公开 `snapshot_write_lock(snapshot_path, timeout_seconds=...)` 包围完整 load、mutate、save 事务。该锁是建议性、跨进程、非重入的，不是 Store `RLock`，也不替代 SQLite/PostgreSQL transaction。
 
 `complete` 只提交准确关联 Trace/decision 的新测量结果，要求显式 `--eval-result`，不得推断 outcome、ID、因果归因或执行证据。可选 tool-output 文件必须是严格 UTF-8 JSON 对象数组，省略参数必须保留 Store omission 语义。
 
@@ -132,11 +142,11 @@ System Gate 后，LLM 只判断候选的语义适用性。推荐 prompt 必须�
 }
 ```
 
-`parse_memory_decision()` 必须验证 shape、enum、ID 类型和字段一致性。使用 memory 时至少一个 allowed ID 且 injection 非 `none`；拒绝使用时 allowed 为空且 injection 为 `none`。两个 ID 数组各最多 50 项。LLM 只能缩小 System Gate allowed set；同一 ID 同时 allowed/blocked 时 blocked 胜出。底层调用方也不得提供相互矛盾的 System Gate 结果。
+`parse_memory_decision()` 必须验证 shape、enum、ID 类型和字段一致性。完整响应最多 65,536 UTF-8 bytes、1,000 个 JSON nodes、深度 20，`reason` 最多 2,000 字符。使用 memory 时至少一个 allowed ID 且 injection 非 `none`；拒绝使用时 allowed 为空且 injection 为 `none`。两个 ID 数组各最多 50 项。LLM 只能缩小 System Gate allowed set；同一 ID 同时 allowed/blocked 时 blocked 胜出。系统允许但未进入最终 allowed set 的候选会自动写入 blocked 审计。底层调用方也不得提供相互矛盾的 System Gate 结果。
 
 ## 安全 Store 工作流
 
-使用 `prepare_memory()` 检索、运行 System Gate 并创建有界 LLM prompt；再把 decision payload 与 Trace ID 传给 `finalize_memory()`。它重新验证陈旧状态、将 LLM decision 作为缩窄操作、渲染 snippet，并原子记录 context、候选状态和 block reason。只有该工作流提供所有权、重放、陈旧状态、Trace linkage 与原子日志保证。
+使用 `prepare_memory()` 检索、运行 System Gate 并创建有界 LLM prompt。若超过 50 个候选通过 System Gate，则按确定性候选顺序保留前 50 个，并把溢出项记录为 `LLM gate candidate limit exceeded`；再把 decision payload 与 Trace ID 传给 `finalize_memory()`。它重新验证陈旧状态、将 LLM decision 作为缩窄操作、渲染 snippet，并原子记录 context、候选状态和 block reason。只有该工作流提供所有权、重放、陈旧状态、Trace linkage 与原子日志保证。
 
 常见同步路径使用 `run_memory_execution()`。调用方提供 decision callback 与 execution callback，并返回显式 `MemoryRunMeasurement`。模块使用 Store decision ID 并委托 `complete_memory_run()`；不得从异常猜测 outcome、failure attribution 或 evidence。
 
@@ -180,7 +190,7 @@ Git exit 0 表示 ancestor，1 表示非 ancestor，其他错误停止流程。�
 
 值感知 PR 报告必须使用不可变 `PRChangeSet`，提供准确 old/new value，并要求每个 new value 与变更后 `MemoryContext` 一致。anchor discovery 与 report 必须复用同一个 change set，ancestry 覆盖准确 context commit。
 
-报告只接受完整 old endpoint 或完整 new endpoint，不接受混合。repo 与 tenant 是精确隔离边界。支持字段仅 `prompt_version`、`prompt_family`、`tool`、`tool_schema_version`、`model`、`eval_suite`，最多 6 项。`model_family` 无 Trace provenance，不支持精确匹配。
+报告只接受完整 old endpoint 或完整 new endpoint，不接受混合。对报告筛选而言，repo 与 tenant 是必须精确匹配的 Trace 过滤条件，而不是多租户授权边界。支持字段仅 `prompt_version`、`prompt_family`、`tool`、`tool_schema_version`、`model`、`eval_suite`，最多 6 项。`model_family` 无 Trace provenance，不支持精确匹配。
 
 Legacy `changed_fields` 保留宽泛兼容行为，但 warning 名称必须在案例扫描前一次验证，只保留最多 7 个支持名称的首次出现，保持 `O(W + C)`。
 
@@ -202,7 +212,8 @@ Lesson/Failure Case 在候选构造时临时获得 source identity，并在 LLM 
 
 - `none`：不注入。
 - `pointer_only`：只注入 memory ID、source 和 scope。
-- `short_summary` / `full_case_summary`：两层门控批准后注入受限、转义的文本。
+- `short_summary`：注入最多 500 字符的转义规则。
+- `full_case_summary`：注入最多 2,000 字符的 Lesson、经过 review 的 failure/root-cause/fix、commit、regression 与 reviewer 证据。
 
 提供给 LLM Gate 的 task、context summary 和 candidate memory 也必须作为有界、quoted data。运行时 snippet 必须来自最终解析的 `MemoryDecision`，不得直接从检索候选渲染非空内容。
 
@@ -215,11 +226,21 @@ Lesson/Failure Case 在候选构造时临时获得 source identity，并在 LLM 
 - `LLM_GATE_MAX_CANDIDATES`：50。
 - 每个 `allowed_memory_ids` / `blocked_memory_ids`：50。
 - `LLM_GATE_PROMPT_MAX_CHARS`：32,000。
+- `LLM_GATE_RESPONSE_MAX_BYTES`：65,536 UTF-8 bytes。
+- `LLM_GATE_RESPONSE_MAX_NODES`：1,000。
+- `LLM_GATE_RESPONSE_MAX_DEPTH`：20。
+- `MEMORY_DECISION_REASON_MAX_CHARS`：2,000。
 - `INJECTION_MAX_MEMORIES`：20。
 - `INJECTION_SNIPPET_MAX_CHARS`：12,000。
 - `COMMIT_ANCESTRY_MAX_ANCHORS`：1,000。
 - `TRACE_JSON_MAX_NODES`：三个 Trace JSON 字段合计 100,000。
 - `TRACE_JSON_MAX_TEXT_BYTES`：三个字段对象键与字符串 UTF-8 文本合计 8 MiB。
+
+metadata 与关键词检索使用 Unicode-aware tokenization；非 ASCII 词还会生成双字符 gram，使 CJK 查询子串可以筛选更长文本，同时不改变两层门控。
+
+生产部署必须把 declared-scope matching 视为适用性判断，而不是授权。省略 `repo` 或 `tenant` 的 memory 不会自动获得该字段的隔离。canonical repository identity、显式 scope kind、durable Gate request、可重放审计、结构化 regression evidence 与 required ancestry 仍属于 schema v3 / PostgreSQL schema v2。
+
+Phase 71 的校验加固没有改变这些版本号。加载既有 version-2 snapshot 前必须补齐 verified-but-unreviewed case 的 review 证据；同步前应将既有 PostgreSQL schema-version-1 安装迁移到更新后的 fresh-install 约束。
 
 推荐格式：
 

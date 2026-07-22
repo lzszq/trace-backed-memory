@@ -72,6 +72,7 @@ _RESOURCE_SPECS: tuple[
     ),
     ("schemas/postgres.sql", "schema", "application/sql"),
     ("schemas/project_policy.schema.json", "schema", "application/schema+json"),
+    ("schemas/sqlite.sql", "schema", "application/sql"),
     ("schemas/trace.schema.json", "schema", "application/schema+json"),
 )
 _RESOURCE_SPEC_BY_NAME = {

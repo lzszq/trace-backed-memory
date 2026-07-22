@@ -83,6 +83,7 @@ wheel、源码分发包和可编辑安装都会提供 `schemas/` 与 `examples/`
 ```text
 tbm resource list
 tbm resource read schemas/trace.schema.json
+tbm resource export schemas/sqlite.sql sqlite.sql
 tbm resource export schemas/postgres.sql postgres.sql
 tbm resource export schemas/postgres.sql postgres.sql --overwrite
 ```
@@ -99,7 +100,9 @@ from trace_backed_memory import (
 )
 
 resources = packaged_resources()
+sqlite_sql = read_packaged_resource("schemas/sqlite.sql")
 postgres_sql = read_packaged_resource("schemas/postgres.sql")
+export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
@@ -191,7 +194,33 @@ with snapshot_write_lock("memory-store.json", timeout_seconds=30):
     store.save_json("memory-store.json")
 ```
 
-该锁是非重入的建议锁，不等同于 Store 进程内 `RLock`、只包围 `save_json()` 的锁或 PostgreSQL 事务。所有协作写入方都必须遵循同一协议。
+该锁是非重入的建议锁，不等同于 Store 进程内 `RLock`、只包围 `save_json()` 的锁或 SQLite/PostgreSQL 事务。所有协作写入方都必须遵循同一协议。
+
+## SQLite 存储库
+
+SQLite 支持使用 Python 标准库 `sqlite3`，不需要安装额外依赖。它适合本地 harness、CI 作业和单机工具：
+
+```python
+from trace_backed_memory import SQLiteMemoryRepository
+
+with SQLiteMemoryRepository.connect(
+    "memory.sqlite3",
+    initialize=True,
+) as repository:
+    result = repository.sync(store)
+    restored = repository.load()
+```
+
+`initialize=True` 会应用包内 schema 版本 1 的 `schemas/sqlite.sql` fresh-install 脚本。运维人员也可以导出并应用完全相同的字节：
+
+```powershell
+tbm resource export schemas/sqlite.sql sqlite.sql
+sqlite3 memory.sqlite3 ".read sqlite.sql"
+```
+
+`sync(store)` 是增量且原子的。它使用 `BEGIN IMMEDIATE` 串行化写入，保留 Trace、Failure Case、Lesson、Project Policy 和 usage outcome 的受支持前向转换，在 Failure Case 淘汰时级联 active Lesson，并在不可变冲突时回滚整个操作。借用连接已有外层事务时，Repository 使用 savepoint，把最终 commit 或 rollback 留给调用方。
+
+`load()` 在一个 SQLite 事务中读取数据，检查 schema 版本 1，执行每集合 100,000 条、总计 250,000 条以及单条/累计 64 MiB payload 限制，再重建普通且完整校验的 `TraceBackedMemoryStore`。SQLite 表保存规范 JSON payload envelope；数据库侧 JSONB 和跨行约束仍是 PostgreSQL 的优势。直接 SQL 修改 payload 不属于支持契约，会在下一次 load 或 sync 时被拒绝。持久化应使用文件数据库；`:memory:` 数据库只在其 owned connection 生命周期内存在。
 
 ## PostgreSQL 存储库
 
@@ -521,7 +550,7 @@ request = store.prepare_memory(
 
 PR 改变 trace-backed 元数据值时，使用不可变 `PRChangeSet`。每项为 `(field_name, old_value, new_value)`，只支持 `prompt_version`、`prompt_family`、`tool`、`tool_schema_version`、`model` 和 `eval_suite`。`new_value` 必须与变更后 `MemoryContext` 精确相等，包括 `None`。
 
-`repo` 与 `tenant` 始终是严格隔离边界。Store 会把每个变化字段同时匹配完整旧端点和完整新端点，排除混合配置，并把报告来源标为 `old`、`new` 或 `both`。因为六个字段必须唯一，`PRChangeSet` 最多接受 6 项，且在扫描历史 case 前检查基数。
+对 PR 报告筛选而言，`repo` 与 `tenant` 是必须精确匹配的 Trace 过滤条件，但这不构成多租户授权边界。Store 会把每个变化字段同时匹配完整旧端点和完整新端点，排除混合配置，并把报告来源标为 `old`、`new` 或 `both`。因为六个字段必须唯一，`PRChangeSet` 最多接受 6 项，且在扫描历史 case 前检查基数。
 
 旧的 `changed_fields=[...]` 仍保留宽泛、仅字段名的兼容行为；其 warning 工作使用有界去重。精确值感知的 `model_family` 不受支持，因为 Trace 没有该溯源字段。change set 与 endpoint provenance 都只存在于报告，不持久化。
 
@@ -606,11 +635,14 @@ from trace_backed_memory import (
     lesson_from_failure_case,
     load_failure_taxonomy,
     parse_memory_context,
+    review_failure_case,
     verify_failure_case,
 )
 
 store = TraceBackedMemoryStore()
 metadata = capture_trace_metadata(repo_path=".")
+if metadata.dirty:
+    raise RuntimeError("拒绝从未提交的工作区生成 active memory")
 taxonomy = load_failure_taxonomy()
 
 trace = store.record_trace(
@@ -629,10 +661,14 @@ trace = store.record_trace(
     )
 )
 case = verify_failure_case(
-    draft_failure_case_from_trace(
-        trace,
-        case_id="case_001",
-        taxonomy=taxonomy,
+    review_failure_case(
+        draft_failure_case_from_trace(
+            trace,
+            case_id="case_001",
+            taxonomy=taxonomy,
+        ),
+        reviewed_by="memory-reviewer",
+        root_cause="planner prompt 遗漏了 search_docs query 契约",
     ),
     fix="added schema example",
     fix_commit_sha="def456",
@@ -708,9 +744,11 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、18 项 zip-safe 包资源和原子文件发布。
-- 快照 advisory lock，以及同步 PostgreSQL schema 版本 `1` 的增量事务存储库。
+- 严格 JSON 快照、简单 active lesson YAML、19 项 zip-safe 包资源和原子文件发布。
+- 快照 advisory lock，以及同步 SQLite/PostgreSQL schema 版本 `1` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
+
+本轮 review 加固还包括：Failure Case 必须来自 `fail`/`error` Trace，verify 前必须完成 reviewer/root-cause/timestamp 证据，dirty source 不能激活 Lesson；LLM decision 响应最多 64 KiB、1,000 个 JSON 节点、深度 20，reason 最多 2,000 字符；LLM 未选择的系统候选会进入 blocked 审计；`short_summary` 与 `full_case_summary` 使用不同渲染器；关键词检索支持 Unicode；prepare/finalize 会确定性保留前 50 个系统允许候选，并记录其余候选的限制原因。
 
 所有 Store 输入在复制和提交前验证。嵌套 JSON 会拒绝非字符串对象键、非有限数、引用环、过深结构及预算溢出；失败操作不消耗 ID，也不留下部分变更。低级辅助函数仍公开，但只有 Store 工作流承诺所有权、重放、陈旧状态、Trace 关联与原子日志语义。
 
@@ -729,6 +767,14 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 `memory_outcome_metrics()` 为每个已存 Failure Case、Lesson 和 Project Policy 返回按 memory ID 排序的 tuple，包括零观测记录。`candidate_count`、`used_count` 与 `blocked_count` 分别表示检索、最终使用和阻止频率；阻止同时覆盖 System Gate 与 LLM 缩窄。
 
 对实际使用，还会提供 `evaluated_use_count`、`passed_use_count`、`failed_or_errored_use_count`、`unevaluated_use_count` 和 `observed_pass_rate`。这些只是观测关联，不是因果估计；一次运行使用多个 memory ID 时，同一结果会计入每个 ID。API 不会从 decision 级 `memory_caused_failure` 自动推导逐记忆归因。
+
+## 生产就绪边界
+
+当前 snapshot version 2 仍不是多租户在线服务契约。以下事项需要 schema v3 / PostgreSQL schema v2 才能完整实现：结构化 regression Trace/run/evaluator 证据与 commit 关系、稳定 `repository_id` 和显式 global/repository/tenant scope、可持久化或签名的 GateRequest（含幂等/过期/取消/崩溃恢复）、可重放的 retriever/gate/renderer/hash 审计，以及显式 required/disabled 且记录绕过原因的 ancestry policy。
+
+在这些契约完成前，应将本项目用于单进程 harness 组件或参考实现，而不是不受信任的共享多租户 memory service。
+
+本次 Alpha 加固保持版本号不变，但收紧了校验。既有 version-2 snapshot 中 verified 但缺少 review 证据的 case 必须先补齐才能加载；既有 PostgreSQL schema-version-1 安装需要由 operator 迁移，才能与更新后的 fresh-install 约束一致。
 
 ## 仓库布局
 
@@ -758,6 +804,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   `-- failure_taxonomy.yaml
 |-- schemas/
 |   |-- postgres.sql
+|   |-- sqlite.sql
 |   |-- trace.schema.json
 |   |-- failure_case.schema.json
 |   |-- lesson.schema.json
@@ -779,6 +826,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- models.py
 |   |-- policy.py
 |   |-- postgres.py
+|   |-- sqlite.py
 |   |-- py.typed
 |   |-- resources.py
 |   `-- store.py

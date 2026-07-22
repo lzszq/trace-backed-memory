@@ -50,6 +50,35 @@ class NonIterableMemoryMap(dict):
         raise AssertionError("candidate retrieval must not iterate the ID catalog")
 
 
+def _reviewed_case(case: FailureCase) -> FailureCase:
+    return review_failure_case(
+        case,
+        reviewed_by="test-reviewer",
+        root_cause=case.root_cause or "the recorded contract was incomplete",
+        reviewed_at="2026-07-22T00:00:00Z",
+    )
+
+
+_transition_verify_failure_case = verify_failure_case
+
+
+def verify_failure_case(
+    case: FailureCase,
+    *,
+    fix: str,
+    fix_commit_sha: str,
+    regression_passed: bool,
+) -> FailureCase:
+    if case.status == "draft" and not case.reviewed_by:
+        case = _reviewed_case(case)
+    return _transition_verify_failure_case(
+        case,
+        fix=fix,
+        fix_commit_sha=fix_commit_sha,
+        regression_passed=regression_passed,
+    )
+
+
 def store_with_verified_case(
     *, repo: str = "repo", tenant: str | None = "tenant_a"
 ) -> tuple[TraceBackedMemoryStore, Trace, FailureCase]:
@@ -66,18 +95,78 @@ def store_with_verified_case(
         )
     )
     case = verify_failure_case(
-        draft_failure_case(
+        _reviewed_case(draft_failure_case(
             trace,
             case_id="case_contract",
             failure_type="invalid_tool_argument",
             symptom="search_docs received an empty query",
-        ),
+        )),
         fix="require a non-empty query",
         fix_commit_sha="def",
         regression_passed=True,
     )
     store.add_failure_case(case)
     return store, trace, case
+
+
+def test_store_rejects_failure_case_whose_source_trace_passed():
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_passed",
+            run_id="run_passed",
+            commit_sha="abc123",
+            eval_result="pass",
+        )
+    )
+    case = FailureCase(
+        case_id="case_from_pass",
+        source_trace_id=trace.trace_id,
+        commit_sha=trace.commit_sha,
+        failure_type="tool_error",
+        symptom="this record is inconsistent with its source",
+    )
+
+    with pytest.raises(ValueError, match="failed or errored source trace"):
+        store.add_failure_case(case)
+
+
+def test_store_rejects_active_lesson_from_dirty_source_trace():
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_dirty",
+            run_id="run_dirty",
+            commit_sha="abc123",
+            repo="repo",
+            dirty=True,
+            eval_result="fail",
+        )
+    )
+    case = verify_failure_case(
+        _reviewed_case(
+            draft_failure_case(
+                trace,
+                case_id="case_dirty",
+                failure_type="tool_error",
+                symptom="the dirty worktree failed",
+            )
+        ),
+        fix="repair the committed implementation",
+        fix_commit_sha="def456",
+        regression_passed=True,
+    )
+    store.add_failure_case(case)
+    lesson = lesson_from_failure_case(
+        case,
+        lesson_id="lesson_dirty",
+        lesson_text="Do not reuse uncommitted evidence.",
+        memory_type="procedural",
+        scope={"repo": "repo"},
+    )
+
+    with pytest.raises(ValueError, match="clean source trace"):
+        store.add_lesson(lesson)
 
 
 def store_with_records_in_order(trace_ids: list[str]) -> TraceBackedMemoryStore:
@@ -149,6 +238,9 @@ def store_with_retrieval_records_in_order(
                 fix=f"fix {suffix}",
                 fix_commit_sha=f"fix_commit_{suffix}",
                 regression_passed=True,
+                root_cause=f"root cause {suffix}",
+                reviewed_by="test-reviewer",
+                reviewed_at="2026-07-22T00:00:00Z",
                 status="verified",
             )
         )
@@ -383,6 +475,54 @@ def allow_decision(memory_id: str) -> dict[str, object]:
         "reason": "direct match",
         "risk": "low",
         "recommended_injection": "short_summary",
+    }
+
+
+def test_prepare_memory_caps_and_audits_excess_llm_candidates():
+    store = TraceBackedMemoryStore()
+    current_trace = store.record_trace(
+        Trace(
+            trace_id="trace_candidate_limit",
+            run_id="run_candidate_limit",
+            commit_sha="abc123",
+            repo="repo",
+            eval_result="unknown",
+        )
+    )
+    for index in range(51):
+        store.add_project_policy(
+            ProjectPolicy(
+                policy_id=f"policy_{index:03d}",
+                policy_text=f"Policy {index}",
+                scope={"repo": "repo"},
+            )
+        )
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc123")
+
+    request = store.prepare_memory(context, task="repair the current failure")
+
+    assert len(request.candidate_memory_ids) == 51
+    assert request.system_allowed_memory_ids == tuple(
+        f"policy_{index:03d}" for index in range(50)
+    )
+    assert dict(request.system_blocked) == {
+        "policy_050": "LLM gate candidate limit exceeded"
+    }
+
+    result = store.finalize_memory(
+        request,
+        allow_decision("policy_000"),
+        trace_id=current_trace.trace_id,
+    )
+    log = store.usage_logs[-1]
+
+    assert result.allowed_memory_ids == ("policy_000",)
+    assert len(result.blocked_memory_ids) == 50
+    assert set(result.blocked_memory_ids) == {
+        f"policy_{index:03d}" for index in range(1, 51)
+    }
+    assert log.system_blocked_reasons == {
+        "policy_050": "LLM gate candidate limit exceeded"
     }
 
 
@@ -4168,7 +4308,7 @@ def fully_populated_snapshot() -> dict[str, object]:
                 commit_sha=f"commit_{suffix}",
                 repo="repo",
                 tenant="tenant",
-                eval_result="pass",
+                eval_result="fail",
             )
         )
         case = store.add_failure_case(
@@ -4181,6 +4321,9 @@ def fully_populated_snapshot() -> dict[str, object]:
                 fix=f"fix {suffix}",
                 fix_commit_sha=f"fix_commit_{suffix}",
                 regression_passed=True,
+                root_cause=f"root cause {suffix}",
+                reviewed_by="test-reviewer",
+                reviewed_at="2026-07-22T00:00:00Z",
                 status="verified",
             )
         )
@@ -4429,6 +4572,9 @@ def test_runtime_records_reject_postgres_incompatible_whitespace_strings(
                 fix="validate query",
                 fix_commit_sha="def",
                 regression_passed=True,
+                root_cause="query validation was skipped",
+                reviewed_by="test-reviewer",
+                reviewed_at="2026-07-22T00:00:00Z",
                 status="verified",
             ),
             store_module._validate_failure_case,
@@ -7512,6 +7658,32 @@ def test_candidate_memories_can_filter_metadata_matches_by_keyword_query():
     assert [memory.memory_id for memory in store.candidate_memories(context, query="timeout retry")] == [
         "timeout_lesson"
     ]
+
+
+def test_candidate_memories_keyword_filter_is_unicode_aware():
+    store = TraceBackedMemoryStore()
+    store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_query",
+            policy_text="调用 search_docs 时禁止空查询",
+            scope={"repo": "agent-harness"},
+        )
+    )
+    store.add_project_policy(
+        ProjectPolicy(
+            policy_id="policy_timeout",
+            policy_text="工具超时后使用指数退避",
+            scope={"repo": "agent-harness"},
+        )
+    )
+    context = MemoryContext(
+        mode="repair", repo="agent-harness", commit_sha="abc123"
+    )
+
+    assert [
+        memory.memory_id
+        for memory in store.candidate_memories(context, query="空查询")
+    ] == ["policy_query"]
 
 
 def test_candidate_memories_short_query_tokens_do_not_drop_metadata_matches():

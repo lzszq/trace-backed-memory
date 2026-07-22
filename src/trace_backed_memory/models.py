@@ -149,6 +149,7 @@ class MemoryItem:
     source_policy_id: str | None = None
     source_eval_suite: str | None = None
     source_input_hash: str | None = None
+    full_text: str | None = None
 
 
 @dataclass(frozen=True)

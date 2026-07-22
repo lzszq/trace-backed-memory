@@ -1023,3 +1023,17 @@ Track:
   history.
 - Preserve every public signature, dependency, YAML field, snapshot version 2,
   PostgreSQL schema version 1, and all packaged resources.
+
+## Phase 59: Bounded PR change sets (implemented)
+
+- Derive the exact `PRChangeSet` maximum from its six supported unique fields
+  and accept at most 6 entries.
+- Reject a seventh item before entry shape, endpoint, or historical PR case
+  scanning in both Store report interfaces.
+- Validate accepted field names in one pass with bounded seen, unsupported, and
+  duplicate sets while retaining unsupported-before-duplicate diagnostics.
+- Return CLI oversized input as an input error with exit code 2 and stop
+  without Git ancestry capture.
+- Preserve the exact six-field boundary, canonical sorting, legacy
+  `changed_fields`, snapshot version 2, PostgreSQL schema version 1, and all
+  packaged resources.

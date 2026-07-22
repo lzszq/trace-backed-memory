@@ -798,6 +798,12 @@ sets support only `prompt_version`, `prompt_family`, `tool`,
 `tool_schema_version`, `model`, and `eval_suite`. Callers must not claim exact
 `model_family` provenance: it is unsupported because traces do not record it.
 
+Limit `PRChangeSet` to at most 6 entries, matching the six supported unique
+fields. Reject a seventh item before entry shape, endpoint, or historical case
+scanning. For accepted cardinality, detect unsupported and duplicate field
+names in one pass while reporting unsupported names first. The CLI must return
+an input error with exit code 2 and stop without Git ancestry capture.
+
 Existing `changed_fields` reports remain available for legacy broad
 field-name-only behavior, including legacy `model_family` warnings. Change
 sets and endpoint tags are ephemeral report inputs and outputs, not persisted

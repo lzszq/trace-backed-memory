@@ -1086,6 +1086,13 @@ values. The only supported exact-provenance fields are `prompt_version`,
 `model_family` is rejected for a change set because traces do not store exact
 model-family provenance.
 
+The supported unique field set also defines the cardinality boundary:
+`PRChangeSet` accepts at most 6 entries. Both Store interfaces reject a seventh
+item before entry shape or PR case scanning, then use one pass of bounded sets
+to collect unsupported and duplicate names while preserving error priority.
+The CLI maps the rejection to input error exit code 2 and returns without Git
+ancestry capture.
+
 Every change-set new value must exactly equal the post-change `MemoryContext`,
 including `None`; validation never mutates the caller-owned change set. The
 common matcher first applies the verified/regression-backed, repo, tenant,

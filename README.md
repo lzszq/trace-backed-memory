@@ -377,7 +377,10 @@ only the remaining `MemoryContext` fields, and rejects unknown keys.
 only `field_name`, `old_value`, and `new_value`; endpoint values may be strings
 or JSON `null`. The Store still validates supported unique fields, endpoint
 bounds, old/new differences, and equality between each new value and the
-post-change context.
+post-change context. `PRChangeSet` accepts at most 6 entries. The Store rejects
+the seventh item before entry shape scanning, then validates accepted field
+names in one pass. Oversized CLI input is an input error with exit code 2 and
+returns without Git ancestry capture.
 
 The command calls `pr_report_commit_anchors()`, captures Git evidence in the
 explicit `--repo-path`, and calls `pr_memory_report()` with the same immutable
@@ -1219,6 +1222,9 @@ Each tuple is `(field_name, old_value, new_value)` and supports only
 `eval_suite`. `new_value` must exactly equal the post-change `MemoryContext`
 value, including `None`. Repo and tenant remain hard exact-match isolation
 boundaries, and unchanged declared context metadata continues to match exactly.
+Because those six names must be unique, `PRChangeSet` accepts at most 6 entries;
+cardinality is checked before entry inspection or historical case scanning.
+Accepted field names use one pass for unsupported and duplicate detection.
 
 The store matches every changed field against a complete old endpoint and a
 complete new endpoint. It excludes mixed configurations. Report provenance

@@ -109,6 +109,7 @@ PR_CHANGE_SET_FIELDS = (
     "model",
     "eval_suite",
 )
+PR_CHANGE_SET_MAX_FIELDS = len(PR_CHANGE_SET_FIELDS)
 DECLARED_TRACE_CONTEXT_FIELDS = (
     "branch",
     "prompt_version",
@@ -2046,29 +2047,36 @@ def _validated_pr_change_set(
     field_changes = change_set.field_changes
     if type(field_changes) is not tuple or not field_changes:
         raise ValueError("change_set.field_changes must be a non-empty tuple")
+    if len(field_changes) > PR_CHANGE_SET_MAX_FIELDS:
+        raise ValueError(
+            "change_set.field_changes accepts at most "
+            f"{PR_CHANGE_SET_MAX_FIELDS} entries"
+        )
     if any(type(entry) is not tuple or len(entry) != 3 for entry in field_changes):
         raise ValueError("change_set entries must be 3-item tuples")
 
-    field_names: list[str] = []
-    unsupported_fields: list[str] = []
+    seen_fields: set[str] = set()
+    duplicate_fields: set[str] = set()
+    unsupported_fields: set[str] = set()
     for entry in field_changes:
         field_name = entry[0]
         if type(field_name) is not str:
             raise ValueError("change_set field names must be strings")
-        field_names.append(field_name)
+        if field_name in seen_fields:
+            duplicate_fields.add(field_name)
+        else:
+            seen_fields.add(field_name)
         if field_name not in PR_CHANGE_SET_FIELDS:
-            unsupported_fields.append(field_name)
+            unsupported_fields.add(field_name)
     if unsupported_fields:
         raise ValueError(
-            "unsupported change_set fields: " + ", ".join(sorted(set(unsupported_fields)))
+            "unsupported change_set fields: " + ", ".join(sorted(unsupported_fields))
         )
 
-    duplicate_fields = sorted(
-        {field_name for field_name in field_names if field_names.count(field_name) > 1}
-    )
     if duplicate_fields:
         raise ValueError(
-            "duplicate change_set fields: " + ", ".join(duplicate_fields)
+            "duplicate change_set fields: "
+            + ", ".join(sorted(duplicate_fields))
         )
 
     validated: list[tuple[str, str | None, str | None]] = []

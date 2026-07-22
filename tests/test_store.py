@@ -5978,6 +5978,23 @@ def test_pr_change_set_boundaries_reject_malformed_shape_before_scanning(
         pr_change_set_boundary(store, context, change_set)
 
 
+def test_pr_change_set_boundaries_reject_cardinality_before_entry_scanning(
+    monkeypatch: pytest.MonkeyPatch,
+    pr_change_set_boundary,
+):
+    store = TraceBackedMemoryStore()
+    prevent_pr_case_scan(monkeypatch, store)
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+    maximum = len(store_module.PR_CHANGE_SET_FIELDS)
+    change_set = PRChangeSet((object(),) * (maximum + 1))
+
+    with pytest.raises(
+        ValueError,
+        match=f"change_set.field_changes accepts at most {maximum} entries",
+    ):
+        pr_change_set_boundary(store, context, change_set)
+
+
 @pytest.mark.parametrize("endpoint_index", [1, 2], ids=("old", "new"))
 @pytest.mark.parametrize(
     ("invalid_endpoint", "message"),
@@ -6037,6 +6054,28 @@ def test_pr_change_set_boundaries_reject_duplicate_fields_before_scanning(
     )
 
     with pytest.raises(ValueError, match="duplicate change_set fields: model"):
+        pr_change_set_boundary(store, context, change_set)
+
+
+def test_pr_change_set_boundaries_report_unsupported_before_duplicate_fields(
+    monkeypatch: pytest.MonkeyPatch,
+    pr_change_set_boundary,
+):
+    store = TraceBackedMemoryStore()
+    prevent_pr_case_scan(monkeypatch, store)
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+    change_set = PRChangeSet(
+        (
+            ("model", "old", "new"),
+            ("model", "older", "new"),
+            ("model_family", "old-family", "new-family"),
+        )
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="unsupported change_set fields: model_family",
+    ):
         pr_change_set_boundary(store, context, change_set)
 
 
@@ -6120,6 +6159,30 @@ def test_pr_change_set_boundaries_accept_every_supported_field_bound_to_context(
         context,
         PRChangeSet(((field_name, "old", "new"),)),
     )
+
+
+def test_pr_change_set_boundaries_accept_all_six_supported_fields(
+    pr_change_set_boundary,
+):
+    store = TraceBackedMemoryStore()
+    new_values = {
+        field_name: f"new-{field_name}"
+        for field_name in store_module.PR_CHANGE_SET_FIELDS
+    }
+    context = MemoryContext(
+        mode="repair",
+        repo="repo",
+        commit_sha="abc",
+        **new_values,
+    )
+    change_set = PRChangeSet(
+        tuple(
+            (field_name, f"old-{field_name}", new_values[field_name])
+            for field_name in store_module.PR_CHANGE_SET_FIELDS
+        )
+    )
+
+    pr_change_set_boundary(store, context, change_set)
 
 
 @pytest.mark.parametrize(

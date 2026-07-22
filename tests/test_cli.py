@@ -4760,6 +4760,19 @@ def test_cli_pr_report_accepts_null_change_endpoint(tmp_path, capsys):
             },
             "change_set model new value must match context",
         ),
+        (
+            {
+                "field_changes": [
+                    {
+                        "field_name": "model",
+                        "old_value": f"model-old-{index}",
+                        "new_value": "model-new",
+                    }
+                    for index in range(7)
+                ]
+            },
+            "change_set.field_changes accepts at most 6 entries",
+        ),
     ],
 )
 def test_cli_pr_report_maps_change_set_domain_errors_to_input(

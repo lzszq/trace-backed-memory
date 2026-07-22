@@ -420,6 +420,27 @@ Acquisition waits for at most 30 seconds; unresolved contention fails before
 snapshot load as a write error with exit code 4. Dry runs, read-only commands,
 lessons export, and resource export do not take this lock.
 
+Python processes can cooperate with the same advisory lock by wrapping the
+complete read-modify-write transaction in the public `snapshot_write_lock()`
+context manager:
+
+```python
+from trace_backed_memory import TraceBackedMemoryStore, snapshot_write_lock
+
+with snapshot_write_lock("memory-store.json", timeout_seconds=30):
+    store = TraceBackedMemoryStore.load_json("memory-store.json")
+    # Apply Store mutations while ownership is held.
+    store.save_json("memory-store.json")
+```
+
+The helper canonicalizes aliases to the same sibling `.tbm.lock`, validates a
+finite non-negative `timeout_seconds`, and releases ownership after exceptions
+or process exit. It is advisory and non-reentrant: all cooperating writers must
+use it, and callers must pass one held transaction scope down instead of nesting
+another acquisition. It is not the Store's in-process `RLock`, a lock inside
+`save_json()` alone, or a PostgreSQL transaction. This additive API changes no
+snapshot version 2 or PostgreSQL schema version 1 contract.
+
 This interface accepts neither stdin nor remote URLs or PostgreSQL
 connections. Lesson export has one explicit destination; no command accepts an
 alternate snapshot output path. It adds no persisted domain, CLI, or report

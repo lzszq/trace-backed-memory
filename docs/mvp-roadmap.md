@@ -1091,3 +1091,17 @@ Track:
 - Reduce ranking to `O(K log k)` time and `O(k)` storage while preserving public
   signatures, snapshot version 2, PostgreSQL schema version 1, and packaged
   resources.
+
+## Phase 64: Public snapshot write lock (implemented)
+
+- Extract the CLI's cross-platform lock backend into a dependency-free module
+  and export `snapshot_write_lock()` from the package root.
+- Let Python callers coordinate the complete load, mutate, and `save_json()`
+  read-modify-write transaction through the same canonical `.tbm.lock`.
+- Accept an explicit finite non-negative `timeout_seconds`, validate it before
+  filesystem access, and preserve immediate zero-timeout acquisition semantics.
+- Document the advisory, non-reentrant contract and keep persistent placeholder,
+  alias normalization, exception release, and process-exit ownership semantics.
+- Keep the CLI private wrapper, 30-second default, write error/exit code 4,
+  dry-run/read-only behavior, snapshot version 2, PostgreSQL schema version 1,
+  and packaged resources unchanged.

@@ -462,6 +462,15 @@ lessons export, and resource export remain lock-free. This coordinates
 cooperating local CLI processes without adding snapshot or PostgreSQL state;
 snapshot version 2 and PostgreSQL schema version 1 remain unchanged.
 
+The root-package `snapshot_write_lock()` context manager exposes that same
+canonical `.tbm.lock` protocol to Python callers. It accepts a finite
+non-negative `timeout_seconds` and must surround the full load, Store mutation,
+and `save_json()` read-modify-write transaction. The lock is cross-process,
+advisory, and non-reentrant; it complements rather than replaces the Store's
+per-instance `RLock` and is unrelated to PostgreSQL transactions. CLI and
+Python writers using the helper therefore converge on one persistent sidecar
+without changing snapshot version 2 or PostgreSQL schema version 1.
+
 Successful commands emit one deterministic JSON value plus a newline. Failures
 emit one structured JSON object to stderr without a traceback. Exit codes are
 0 for success or no-op, 1 for an unexpected internal failure, 2 for command,

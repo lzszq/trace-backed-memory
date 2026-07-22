@@ -18,6 +18,7 @@ from .lifecycle import (
     review_failure_case,
     verify_failure_case,
 )
+from .locking import snapshot_write_lock
 from .models import (
     FailureCase,
     CommitAncestryEvidence,
@@ -163,6 +164,7 @@ __all__ = [
     "review_failure_case",
     "read_packaged_resource",
     "run_memory_execution",
+    "snapshot_write_lock",
     "system_gate",
     "build_injection_snippet",
     "verify_failure_case",

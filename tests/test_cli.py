@@ -3549,6 +3549,27 @@ def test_cli_write_lock_failure_prevents_snapshot_loading(
     assert path.read_bytes() == original
 
 
+def test_cli_snapshot_write_lock_delegates_to_shared_backend(
+    tmp_path,
+    monkeypatch,
+):
+    snapshot_path = tmp_path / "snapshot.json"
+    calls = []
+
+    @contextmanager
+    def shared_lock(path, *, timeout_seconds):
+        calls.append((Path(path), timeout_seconds))
+        yield
+
+    monkeypatch.setattr(cli, "_shared_snapshot_write_lock", shared_lock)
+    monkeypatch.setattr(cli, "_SNAPSHOT_LOCK_TIMEOUT_SECONDS", 2.5)
+
+    with cli._snapshot_write_lock(snapshot_path) as lock_value:
+        assert lock_value is None
+
+    assert calls == [(snapshot_path, 2.5)]
+
+
 def test_snapshot_write_lock_serializes_contenders_and_releases_on_error(
     tmp_path,
 ):

@@ -308,6 +308,16 @@ dry runs, read-only snapshot commands, lessons export, or resource export. This
 coordination adds no domain state: snapshot version 2 and PostgreSQL schema
 version 1 remain unchanged.
 
+For Python-owned snapshot transactions, use the public
+`snapshot_write_lock(snapshot_path, timeout_seconds=...)` context manager around
+the complete load, mutate, and `save_json()` read-modify-write sequence. It uses
+the same canonical sibling `.tbm.lock` as the CLI. Treat it as advisory and
+non-reentrant: every local writer must cooperate, and a held scope must be
+passed down rather than reacquired. Timeout validation and lock acquisition
+must happen before snapshot load; exceptions must release descriptor ownership.
+This helper is not the Store `RLock` and does not replace a PostgreSQL
+transaction. It changes no snapshot version 2 or PostgreSQL schema version 1.
+
 Use `complete` only to submit a fresh measured result for an exact linked
 Trace and decision. Require `--eval-result` to state `pass`, `fail`, or `error`;
 the command does not infer the outcome, IDs, causal attribution, or execution

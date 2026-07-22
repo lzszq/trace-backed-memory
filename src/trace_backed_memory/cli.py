@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 import argparse
-import errno
 import json
 import math
 import os
 import sys
-import time
-from contextlib import ExitStack, contextmanager, suppress
+from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, fields
 from pathlib import Path
-from typing import Any, BinaryIO, Iterator, Sequence, TextIO
+from typing import Any, Iterator, Sequence, TextIO
 
 from ._ingestion import (
     CLI_JSON_FILE_MAX_BYTES,
@@ -22,6 +20,10 @@ from ._ingestion import (
     unique_json_object_pairs,
 )
 from .capture import CommitAncestryCaptureError, capture_commit_ancestry
+from .locking import (
+    _snapshot_lock_path as _shared_snapshot_lock_path,
+    snapshot_write_lock as _shared_snapshot_write_lock,
+)
 from .models import (
     Lesson,
     MemoryContext,
@@ -42,8 +44,6 @@ from .store import TraceBackedMemoryStore
 
 
 _ERROR_MESSAGE_MAX_CHARS = 2048
-_SNAPSHOT_LOCK_SUFFIX = ".tbm.lock"
-_SNAPSHOT_LOCK_RETRY_SECONDS = 0.05
 _SNAPSHOT_LOCK_TIMEOUT_SECONDS = 30.0
 _MEMORY_CONTEXT_FIELDS = frozenset(
     field.name for field in fields(MemoryContext)
@@ -60,76 +60,16 @@ class CLIInputError(ValueError):
 
 
 def _snapshot_lock_path(snapshot_path: str | Path) -> Path:
-    try:
-        canonical = Path(snapshot_path).expanduser().resolve(strict=False)
-    except (OSError, RuntimeError) as error:
-        raise OSError(f"cannot resolve snapshot lock path: {error}") from error
-    normalized = Path(os.path.normcase(os.fspath(canonical)))
-    return normalized.with_name(f"{normalized.name}{_SNAPSHOT_LOCK_SUFFIX}")
-
-
-def _initialize_lock_file(lock_file: BinaryIO) -> None:
-    lock_file.seek(0, os.SEEK_END)
-    if lock_file.tell() == 0:
-        lock_file.write(b"0")
-        lock_file.flush()
-    lock_file.seek(0)
-
-
-def _acquire_file_lock(lock_file: BinaryIO, lock_path: Path) -> None:
-    is_windows = os.name == "nt"
-    if is_windows:
-        import msvcrt
-
-        contention_errors = {errno.EACCES, errno.EAGAIN, errno.EDEADLK}
-    else:
-        import fcntl
-
-        contention_errors = {errno.EACCES, errno.EAGAIN}
-
-    deadline = time.monotonic() + _SNAPSHOT_LOCK_TIMEOUT_SECONDS
-    while True:
-        lock_file.seek(0)
-        try:
-            if is_windows:
-                msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return
-        except OSError as error:
-            if error.errno not in contention_errors:
-                raise
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError(
-                    f"timed out waiting for snapshot write lock: {lock_path}"
-                ) from error
-            time.sleep(min(_SNAPSHOT_LOCK_RETRY_SECONDS, remaining))
-
-
-def _release_file_lock(lock_file: BinaryIO) -> None:
-    with suppress(OSError):
-        lock_file.seek(0)
-        if os.name == "nt":
-            import msvcrt
-
-            msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    return _shared_snapshot_lock_path(snapshot_path)
 
 
 @contextmanager
 def _snapshot_write_lock(snapshot_path: str | Path) -> Iterator[None]:
-    lock_path = _snapshot_lock_path(snapshot_path)
-    with lock_path.open("a+b") as lock_file:
-        _initialize_lock_file(lock_file)
-        _acquire_file_lock(lock_file, lock_path)
-        try:
-            yield
-        finally:
-            _release_file_lock(lock_file)
+    with _shared_snapshot_write_lock(
+        snapshot_path,
+        timeout_seconds=_SNAPSHOT_LOCK_TIMEOUT_SECONDS,
+    ):
+        yield
 
 
 class _JSONArgumentParser(argparse.ArgumentParser):

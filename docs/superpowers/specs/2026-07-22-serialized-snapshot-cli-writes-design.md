@@ -86,3 +86,12 @@ exceptions, times out bounded contention, serializes contenders, and is absent
 for dry-run and read-only commands. Existing write-failure, atomic publication,
 and BrokenPipe tests continue to protect their prior behavior on both Linux and
 Windows CI.
+
+## Phase 64 Addendum
+
+Phase 64 extracts this backend without changing the CLI protocol and exposes it
+as the root-package `snapshot_write_lock(snapshot_path, timeout_seconds=...)`
+context manager. Python callers can now cooperate on the same canonical
+`.tbm.lock` when they hold it across their full load, mutate, and `save_json()`
+transaction. The public helper is advisory and non-reentrant; it does not add a
+lock inside Store methods or change any Phase 57 CLI behavior.

@@ -3,6 +3,10 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -3399,6 +3403,304 @@ def test_cli_write_failure_uses_exit_four_without_replacing_snapshot(
         "type": "OSError",
     }
     assert path.read_bytes() == original
+
+
+def test_cli_write_lock_covers_load_to_save_and_releases_before_stdout(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    events: list[str] = []
+    original_load = TraceBackedMemoryStore.load_json
+    original_save = TraceBackedMemoryStore.save_json
+    original_write_text = cli._write_text
+
+    @contextmanager
+    def tracked_lock(snapshot_path):
+        assert Path(snapshot_path) == path
+        events.append("lock-enter")
+        try:
+            yield
+        finally:
+            events.append("lock-exit")
+
+    def tracked_load(snapshot_path):
+        events.append("load")
+        return original_load(snapshot_path)
+
+    def tracked_save(store, snapshot_path):
+        events.append("save")
+        return original_save(store, snapshot_path)
+
+    def tracked_write_text(stream, text):
+        events.append("stdout")
+        return original_write_text(stream, text)
+
+    monkeypatch.setattr(
+        cli,
+        "_snapshot_write_lock",
+        tracked_lock,
+        raising=False,
+    )
+    monkeypatch.setattr(TraceBackedMemoryStore, "load_json", tracked_load)
+    monkeypatch.setattr(TraceBackedMemoryStore, "save_json", tracked_save)
+    monkeypatch.setattr(cli, "_write_text", tracked_write_text)
+
+    code, payload, error = _run(
+        capsys,
+        "outcome",
+        str(path),
+        decision_ids["pending"],
+        "--eval-result",
+        "pass",
+        "--write",
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["written"] is True
+    assert events == ["lock-enter", "load", "save", "lock-exit", "stdout"]
+
+
+def test_cli_write_lock_failure_prevents_snapshot_loading(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+    events: list[str] = []
+
+    @contextmanager
+    def reject_lock(_snapshot_path):
+        events.append("lock")
+        raise OSError("injected snapshot lock failure")
+        yield
+
+    def reject_load(_snapshot_path):
+        events.append("load")
+        raise AssertionError("snapshot loading must follow lock acquisition")
+
+    monkeypatch.setattr(
+        cli,
+        "_snapshot_write_lock",
+        reject_lock,
+        raising=False,
+    )
+    monkeypatch.setattr(TraceBackedMemoryStore, "load_json", reject_load)
+
+    code, payload, error = _run(
+        capsys,
+        "outcome",
+        str(path),
+        decision_ids["pending"],
+        "--eval-result",
+        "pass",
+        "--write",
+    )
+
+    assert code == 4
+    assert payload is None
+    assert error["error"] == {
+        "kind": "write",
+        "message": "injected snapshot lock failure",
+        "type": "OSError",
+    }
+    assert events == ["lock"]
+    assert path.read_bytes() == original
+
+
+def test_snapshot_write_lock_serializes_contenders_and_releases_on_error(
+    tmp_path,
+):
+    assert hasattr(cli, "_snapshot_write_lock")
+    path, _decision_ids = _snapshot_with_states(tmp_path, "pending")
+    first_acquired = threading.Event()
+    release_first = threading.Event()
+    second_attempting = threading.Event()
+    second_acquired = threading.Event()
+
+    def hold_lock():
+        with cli._snapshot_write_lock(path):
+            first_acquired.set()
+            if not release_first.wait(timeout=5):
+                raise AssertionError("first lock holder was not released")
+            raise RuntimeError("injected locked operation failure")
+
+    def wait_for_lock():
+        second_attempting.set()
+        with cli._snapshot_write_lock(path):
+            second_acquired.set()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(hold_lock)
+        assert first_acquired.wait(timeout=5)
+        second = executor.submit(wait_for_lock)
+        assert second_attempting.wait(timeout=5)
+        assert not second_acquired.wait(timeout=0.25)
+        release_first.set()
+        with pytest.raises(
+            RuntimeError,
+            match="injected locked operation failure",
+        ):
+            first.result(timeout=5)
+        second.result(timeout=5)
+
+    assert second_acquired.is_set()
+    lock_path = path.with_name(f"{path.name}.tbm.lock")
+    assert lock_path.read_bytes()
+
+
+def test_snapshot_write_lock_times_out_then_recovers(tmp_path, monkeypatch):
+    path, _decision_ids = _snapshot_with_states(tmp_path, "pending")
+    lock_path = path.with_name(f"{path.name}.tbm.lock")
+    monkeypatch.setattr(cli, "_SNAPSHOT_LOCK_TIMEOUT_SECONDS", 0.0)
+
+    with cli._snapshot_write_lock(path):
+        with pytest.raises(
+            TimeoutError,
+            match=r"timed out waiting for snapshot write lock",
+        ):
+            with cli._snapshot_write_lock(path):
+                raise AssertionError("a contending writer must not acquire the lock")
+
+    with cli._snapshot_write_lock(path):
+        pass
+    assert lock_path.read_bytes()
+
+
+def test_cli_snapshot_write_lock_timeout_uses_write_exit_code(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+    lock_path = cli._snapshot_lock_path(path)
+    monkeypatch.setattr(cli, "_SNAPSHOT_LOCK_TIMEOUT_SECONDS", 0.0)
+
+    with cli._snapshot_write_lock(path):
+        code, payload, error = _run(
+            capsys,
+            "outcome",
+            str(path),
+            decision_ids["pending"],
+            "--eval-result",
+            "pass",
+            "--write",
+        )
+
+    assert code == 4
+    assert payload is None
+    assert error["error"] == {
+        "kind": "write",
+        "message": f"timed out waiting for snapshot write lock: {lock_path}",
+        "type": "TimeoutError",
+    }
+    assert path.read_bytes() == original
+
+
+def test_cli_snapshot_writes_serialize_across_processes(tmp_path):
+    path = tmp_path / "concurrent.snapshot.json"
+    store = TraceBackedMemoryStore()
+    decision_ids = [
+        _pending_run(store, f"concurrent_{index}")[1]
+        for index in (1, 2)
+    ]
+    store.save_json(path)
+    root = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    existing_pythonpath = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = os.pathsep.join(
+        item
+        for item in (str(root / "src"), existing_pythonpath)
+        if item
+    )
+    commands = [
+        [
+            sys.executable,
+            "-m",
+            "trace_backed_memory",
+            "outcome",
+            str(path),
+            decision_id,
+            "--eval-result",
+            eval_result,
+            "--write",
+        ]
+        for decision_id, eval_result in zip(
+            decision_ids,
+            ("pass", "error"),
+            strict=True,
+        )
+    ]
+    processes: list[subprocess.Popen[str]] = []
+
+    try:
+        with cli._snapshot_write_lock(path):
+            processes = [
+                subprocess.Popen(
+                    command,
+                    cwd=root,
+                    env=environment,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                for command in commands
+            ]
+            time.sleep(0.25)
+            assert all(process.poll() is None for process in processes)
+
+        for process in processes:
+            stdout, stderr = process.communicate(timeout=10)
+            assert process.returncode == 0, f"stdout:\n{stdout}\nstderr:\n{stderr}"
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=5)
+
+    restored = TraceBackedMemoryStore.load_json(path)
+    outcomes = {
+        log.decision_id: log.eval_result for log in restored.usage_logs
+    }
+    assert outcomes == {
+        decision_ids[0]: "pass",
+        decision_ids[1]: "error",
+    }
+
+
+def test_cli_dry_run_and_read_only_commands_do_not_create_write_lock(
+    tmp_path,
+    capsys,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    lock_path = path.with_name(f"{path.name}.tbm.lock")
+
+    dry_run_code, dry_run_payload, dry_run_error = _run(
+        capsys,
+        "outcome",
+        str(path),
+        decision_ids["pending"],
+        "--eval-result",
+        "pass",
+    )
+    read_code, read_payload, read_error = _run(
+        capsys,
+        "snapshot",
+        "stats",
+        str(path),
+    )
+
+    assert dry_run_code == 0
+    assert dry_run_error is None
+    assert dry_run_payload["written"] is False
+    assert read_code == 0
+    assert read_error is None
+    assert read_payload["snapshot_version"] == 2
+    assert not lock_path.exists()
 
 
 def test_module_entry_point_emits_one_json_value(tmp_path):

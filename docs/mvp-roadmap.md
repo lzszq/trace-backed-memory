@@ -993,3 +993,19 @@ Track:
 - Change no public signature, dependency, model, snapshot field, JSON Schema,
   active-lessons YAML, packaged resource, PostgreSQL DDL, snapshot version 2,
   or PostgreSQL schema version 1.
+
+## Phase 57: Serialized snapshot CLI writes (implemented)
+
+- Acquire a canonical sibling `.tbm.lock` exclusive advisory lock before
+  snapshot load for every explicit snapshot `--write` command.
+- Hold the lock across the complete read-modify-write transaction through
+  success serialization and atomic publication, then release it before stdout.
+- Use POSIX `flock` or a Windows one-byte locking region so descriptor close or
+  process exit releases ownership without stale sentinel recovery.
+- Initialize the non-sensitive sidecar with one placeholder byte and keep it
+  persistent to preserve one stable coordination inode.
+- Retry contention for at most 30 seconds, then return a write error with exit
+  code 4 before snapshot load; leave dry runs, read-only commands, lessons
+  export, and resource export lock-free.
+- Preserve command payloads, error classes, BrokenPipe behavior, snapshot
+  version 2, PostgreSQL schema version 1, and all packaged resources.

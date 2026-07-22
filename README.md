@@ -399,9 +399,20 @@ downstream pipe closes stdout after an export or `--write` commit, the
 already-persisted operation remains a success rather than inviting an unsafe
 retry.
 
+Every snapshot mutation requested with `--write` serializes its complete
+read-modify-write transaction with a cross-platform exclusive advisory lock.
+The persistent sibling `.tbm.lock` sidecar is acquired before snapshot load
+and released after atomic publication but before stdout. It is initialized with
+one placeholder byte and contains no domain or process data; OS ownership is
+released on close or process exit, so crashes do not leave stale ownership.
+Acquisition waits for at most 30 seconds; unresolved contention fails before
+snapshot load as a write error with exit code 4. Dry runs, read-only commands,
+lessons export, and resource export do not take this lock.
+
 This interface accepts neither stdin nor remote URLs or PostgreSQL
 connections. Lesson export has one explicit destination; no command accepts an
-alternate snapshot output path. It adds no persisted CLI or report state:
+alternate snapshot output path. It adds no persisted domain, CLI, or report
+record:
 snapshot version 2, active-lessons YAML, JSON Schemas, and PostgreSQL schema
 version 1 remain unchanged.
 

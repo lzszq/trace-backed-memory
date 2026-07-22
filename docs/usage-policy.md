@@ -286,6 +286,18 @@ explicit. A dry-run may mutate the reconstructed store in memory but must leave
 the source bytes unchanged. A write is permitted only after the whole operation
 succeeds, and it must use `save_json()` to replace the same snapshot atomically.
 
+For explicit snapshot `--write`, acquire the canonical sibling `.tbm.lock`
+exclusive advisory lock before snapshot load and hold it across the full
+read-modify-write sequence through `save_json()`. Release it before stdout.
+Initialize the sidecar with one placeholder byte and keep it persistent so
+waiters and newcomers cannot split across different lockfile inodes; lock
+ownership belongs to the open OS descriptor and is released after exceptions
+or process exit. Bound contention waits to 30 seconds and report timeout before
+snapshot load as a write error with exit code 4. Do not acquire this lock for
+dry runs, read-only snapshot commands, lessons export, or resource export. This
+coordination adds no domain state: snapshot version 2 and PostgreSQL schema
+version 1 remain unchanged.
+
 Use `complete` only to submit a fresh measured result for an exact linked
 Trace and decision. Require `--eval-result` to state `pass`, `fail`, or `error`;
 the command does not infer the outcome, IDs, causal attribution, or execution

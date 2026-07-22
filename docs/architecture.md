@@ -441,6 +441,18 @@ records, parse YAML, or classify records independently, and it never synthesizes
 a batch by looping over single-record transitions. Snapshot version 2 and
 PostgreSQL schema version 1 remain unchanged because the manifest is ephemeral.
 
+Each snapshot `--write` command also acquires a sibling `.tbm.lock` exclusive
+advisory lock before snapshot load and holds it across the complete
+read-modify-write transaction through atomic publication. The lock is released
+before stdout, so downstream backpressure cannot extend committed ownership.
+The persistent sidecar is initialized with one placeholder byte and provides a
+stable inode while OS descriptor ownership prevents stale locks after crashes.
+Both platforms retry contention for at most 30 seconds; timeout fails before
+snapshot load as a write error with exit code 4. Dry runs, read-only commands,
+lessons export, and resource export remain lock-free. This coordinates
+cooperating local CLI processes without adding snapshot or PostgreSQL state;
+snapshot version 2 and PostgreSQL schema version 1 remain unchanged.
+
 Successful commands emit one deterministic JSON value plus a newline. Failures
 emit one structured JSON object to stderr without a traceback. Exit codes are
 0 for success or no-op, 1 for an unexpected internal failure, 2 for command,

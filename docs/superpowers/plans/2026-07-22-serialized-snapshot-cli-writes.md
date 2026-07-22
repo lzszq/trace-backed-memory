@@ -9,12 +9,13 @@ payload contracts.
 ## Steps
 
 1. Add deterministic tests for the load-through-save lock boundary, lock
-   acquisition failure, exception release, contender serialization, and
-   lock-free dry-run/read-only commands.
+   acquisition failure, bounded contention timeout, exception release,
+   contender serialization, and lock-free dry-run/read-only commands.
 2. Add a private canonical sidecar path helper and cross-platform advisory
    lock context manager using only the Python standard library.
 3. Hold the lock before snapshot load through successful same-path atomic
-   publication, then release it before stdout output.
+   publication, then release it before stdout output. Bound cross-platform
+   contention waits to 30 seconds and fail before load with exit code 4.
 4. Preserve every existing input/state/write exit code, serialization-before-
    publication rule, and post-publication BrokenPipe success behavior.
 5. Update README, architecture, usage policy, product status, roadmap, and

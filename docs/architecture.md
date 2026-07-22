@@ -463,6 +463,12 @@ read-modify-write transaction through atomic publication. The lock is released
 before stdout, so downstream backpressure cannot extend committed ownership.
 The persistent sidecar is initialized with one placeholder byte and provides a
 stable inode while OS descriptor ownership prevents stale locks after crashes.
+Before that placeholder write, exclusive creation or pre-open/descriptor/
+post-open identity validation requires one single-link regular file at the
+canonical path. A final descriptor/path identity check runs after OS lock
+acquisition and before control reaches the transaction. Symbolic links,
+Windows reparse points, hard links, and special files fail before snapshot
+loading without modifying an alias target.
 Both platforms retry contention for at most 30 seconds; timeout fails before
 snapshot load as a write error with exit code 4. Dry runs, read-only commands,
 lessons export, and resource export remain lock-free. This coordinates

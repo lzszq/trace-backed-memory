@@ -432,6 +432,9 @@ The persistent sibling `.tbm.lock` sidecar is acquired before snapshot load
 and released after atomic publication but before stdout. It is initialized with
 one placeholder byte and contains no domain or process data; OS ownership is
 released on close or process exit, so crashes do not leave stale ownership.
+Before placeholder initialization, the sidecar must be a single-link regular
+file. Symbolic links, Windows reparse points, hard links, and special files are
+rejected without writing their targets or loading the snapshot.
 Acquisition waits for at most 30 seconds; unresolved contention fails before
 snapshot load as a write error with exit code 4. Dry runs, read-only commands,
 lessons export, and resource export do not take this lock.
@@ -451,9 +454,12 @@ with snapshot_write_lock("memory-store.json", timeout_seconds=30):
 
 The helper canonicalizes aliases to the same sibling `.tbm.lock`, validates a
 finite non-negative `timeout_seconds`, and releases ownership after exceptions
-or process exit. It is advisory and non-reentrant: all cooperating writers must
-use it, and callers must pass one held transaction scope down instead of nesting
-another acquisition. It is not the Store's in-process `RLock`, a lock inside
+or process exit. Existing sidecars are opened only after no-follow metadata and
+descriptor identity checks establish the same single-link regular file; the
+identity is checked again after OS lock acquisition and before yielding. It is
+advisory and non-reentrant: all cooperating writers must use it, and callers
+must pass one held transaction scope down instead of nesting another
+acquisition. It is not the Store's in-process `RLock`, a lock inside
 `save_json()` alone, or a PostgreSQL transaction. This additive API changes no
 snapshot version 2 or PostgreSQL schema version 1 contract.
 
@@ -1721,6 +1727,9 @@ Implemented pieces:
 - PostgreSQL payload accounting over actual loaded-row projections, excluding
   only the unfetched `updated_at` metadata in failure cases, lessons, and
   project policies while retaining compact row-JSON semantics.
+- Snapshot lock sidecar validation before placeholder writes, rejecting
+  symbolic links, Windows reparse points, hard links, and special files unless
+  the canonical path is the same single-link regular file as the descriptor.
 - Lesson safety flags for sensitive or eval-leaking memory are preserved through retrieval and blocked by System Gate.
 - PR reports can reuse current-commit-bound ancestry evidence to exclude unrelated historical failure cases before generating report content.
 - PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, warns on risky prompt/tool/model/eval-suite changes, and supports immutable complete-endpoint `PRChangeSet` matching with old/new/both provenance.

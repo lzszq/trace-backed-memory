@@ -3549,6 +3549,47 @@ def test_cli_write_lock_failure_prevents_snapshot_loading(
     assert path.read_bytes() == original
 
 
+def test_cli_rejects_hard_link_lock_sidecar_before_snapshot_loading(
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    path, decision_ids = _snapshot_with_states(tmp_path, "pending")
+    original = path.read_bytes()
+    lock_path = cli._snapshot_lock_path(path)
+    target_path = tmp_path / "unrelated-empty-file"
+    target_path.write_bytes(b"")
+    os.link(target_path, lock_path)
+
+    def reject_load(_snapshot_path):
+        raise AssertionError("unsafe sidecars must fail before snapshot load")
+
+    monkeypatch.setattr(TraceBackedMemoryStore, "load_json", reject_load)
+
+    code, payload, error = _run(
+        capsys,
+        "outcome",
+        str(path),
+        decision_ids["pending"],
+        "--eval-result",
+        "pass",
+        "--write",
+    )
+
+    assert code == 4
+    assert payload is None
+    assert error["error"] == {
+        "kind": "write",
+        "message": (
+            "snapshot lock sidecar must be a single-link regular file: "
+            f"{lock_path}"
+        ),
+        "type": "OSError",
+    }
+    assert path.read_bytes() == original
+    assert target_path.read_bytes() == b""
+
+
 def test_cli_snapshot_write_lock_delegates_to_shared_backend(
     tmp_path,
     monkeypatch,

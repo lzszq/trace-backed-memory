@@ -95,3 +95,15 @@ context manager. Python callers can now cooperate on the same canonical
 `.tbm.lock` when they hold it across their full load, mutate, and `save_json()`
 transaction. The public helper is advisory and non-reentrant; it does not add a
 lock inside Store methods or change any Phase 57 CLI behavior.
+
+## Phase 67 Sidecar Safety Addendum
+
+Sidecar persistence no longer implies following arbitrary filesystem aliases.
+Before placeholder initialization, the canonical `.tbm.lock` path and opened
+descriptor must identify the same single-link regular file. Exclusive creation
+or no-follow metadata plus identity validation rejects symbolic links, Windows
+reparse points, hard links, and special files without touching alias targets.
+The descriptor/path identity is checked again after OS acquisition and before
+the transaction begins. Rejection remains a pre-load CLI write error with exit
+code 4; lock timing, ownership, placeholder bytes, snapshot version 2, and
+PostgreSQL schema version 1 remain unchanged.

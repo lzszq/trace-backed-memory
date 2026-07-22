@@ -1,3 +1,4 @@
+import errno
 import inspect
 import os
 import subprocess
@@ -8,11 +9,33 @@ from pathlib import Path
 import pytest
 
 import trace_backed_memory as tbm
+import trace_backed_memory.locking as locking
 from trace_backed_memory import TraceBackedMemoryStore
 
 
 class FloatLike(float):
     pass
+
+
+def _symlink_or_skip(link_path: Path, target_path: Path) -> None:
+    try:
+        link_path.symlink_to(target_path)
+    except NotImplementedError as error:
+        pytest.skip(f"symbolic links are unavailable: {error}")
+    except OSError as error:
+        unsupported_errors = {
+            errno.EACCES,
+            errno.ENOSYS,
+            errno.EPERM,
+            getattr(errno, "ENOTSUP", errno.EPERM),
+            getattr(errno, "EOPNOTSUPP", errno.EPERM),
+        }
+        if (
+            error.errno not in unsupported_errors
+            and getattr(error, "winerror", None) != 1314
+        ):
+            raise
+        pytest.skip(f"symbolic links are unavailable: {error}")
 
 
 def test_snapshot_write_lock_is_exported_from_the_package_root():
@@ -36,6 +59,177 @@ def test_snapshot_write_lock_zero_timeout_succeeds_without_contention(tmp_path):
         pass
 
     assert (tmp_path / "snapshot.json.tbm.lock").read_bytes() == b"0"
+
+
+def test_snapshot_write_lock_rejects_symbolic_link_sidecar_without_writing(
+    tmp_path,
+):
+    snapshot_path = tmp_path / "snapshot.json"
+    lock_path = tmp_path / "snapshot.json.tbm.lock"
+    target_path = tmp_path / "unrelated-empty-file"
+    target_path.write_bytes(b"")
+    _symlink_or_skip(lock_path, target_path)
+
+    with pytest.raises(
+        OSError,
+        match="snapshot lock sidecar must be a single-link regular file",
+    ):
+        with tbm.snapshot_write_lock(snapshot_path, timeout_seconds=0):
+            raise AssertionError("a symbolic-link sidecar acquired the lock")
+
+    assert lock_path.is_symlink()
+    assert target_path.read_bytes() == b""
+
+
+def test_snapshot_write_lock_rejects_hard_link_sidecar_without_writing(
+    tmp_path,
+):
+    snapshot_path = tmp_path / "snapshot.json"
+    lock_path = tmp_path / "snapshot.json.tbm.lock"
+    target_path = tmp_path / "unrelated-empty-file"
+    target_path.write_bytes(b"")
+    os.link(target_path, lock_path)
+
+    with pytest.raises(
+        OSError,
+        match="snapshot lock sidecar must be a single-link regular file",
+    ):
+        with tbm.snapshot_write_lock(snapshot_path, timeout_seconds=0):
+            raise AssertionError("a hard-link sidecar acquired the lock")
+
+    assert target_path.read_bytes() == b""
+
+
+def test_snapshot_write_lock_rejects_sidecar_replaced_before_open(
+    tmp_path,
+    monkeypatch,
+):
+    snapshot_path = tmp_path / "snapshot.json"
+    lock_path = tmp_path / "snapshot.json.tbm.lock"
+    original_path = tmp_path / "original-lock-file"
+    lock_path.write_bytes(b"0")
+    original_open = locking.os.open
+    replaced = False
+
+    def replacing_open(path, flags, mode=0o777):
+        nonlocal replaced
+        if Path(path) == lock_path and not flags & os.O_EXCL and not replaced:
+            replaced = True
+            lock_path.replace(original_path)
+            lock_path.write_bytes(b"")
+        return original_open(path, flags, mode)
+
+    monkeypatch.setattr(locking.os, "open", replacing_open)
+
+    with pytest.raises(
+        OSError,
+        match="snapshot lock sidecar must be a single-link regular file",
+    ):
+        with tbm.snapshot_write_lock(snapshot_path, timeout_seconds=0):
+            raise AssertionError("a replaced sidecar acquired the lock")
+
+    assert replaced is True
+    assert original_path.read_bytes() == b"0"
+    assert lock_path.read_bytes() == b""
+
+
+def test_snapshot_write_lock_rejects_sidecar_replaced_during_acquisition(
+    tmp_path,
+    monkeypatch,
+):
+    snapshot_path = tmp_path / "snapshot.json"
+    lock_path = tmp_path / "snapshot.json.tbm.lock"
+    replacement_path = tmp_path / "replacement-lock-file"
+    replacement_path.write_bytes(b"0")
+    original_acquire = locking._acquire_file_lock
+    original_lstat = locking.os.lstat
+    acquired = False
+
+    def acquire_then_report_replacement(lock_file, path, timeout_seconds):
+        nonlocal acquired
+        original_acquire(lock_file, path, timeout_seconds)
+        acquired = True
+
+    def replacement_lstat(path):
+        if acquired and Path(path) == lock_path:
+            return original_lstat(replacement_path)
+        return original_lstat(path)
+
+    monkeypatch.setattr(
+        locking,
+        "_acquire_file_lock",
+        acquire_then_report_replacement,
+    )
+    monkeypatch.setattr(locking.os, "lstat", replacement_lstat)
+
+    with pytest.raises(
+        OSError,
+        match="snapshot lock sidecar must be a single-link regular file",
+    ):
+        with tbm.snapshot_write_lock(snapshot_path, timeout_seconds=0):
+            raise AssertionError("a replaced lock identity reached the caller")
+
+    assert acquired is True
+    assert lock_path.read_bytes() == b"0"
+    assert replacement_path.read_bytes() == b"0"
+
+
+def test_snapshot_write_lock_rejects_windows_reparse_metadata(
+    tmp_path,
+    monkeypatch,
+):
+    lock_path = tmp_path / "snapshot.json.tbm.lock"
+    lock_path.write_bytes(b"0")
+    file_stat = lock_path.stat()
+
+    class ReparseStat:
+        st_mode = file_stat.st_mode
+        st_nlink = 1
+        st_file_attributes = 0x400
+
+    monkeypatch.setattr(
+        locking.stat,
+        "FILE_ATTRIBUTE_REPARSE_POINT",
+        0x400,
+        raising=False,
+    )
+
+    with pytest.raises(
+        OSError,
+        match="snapshot lock sidecar must be a single-link regular file",
+    ):
+        locking._validate_lock_sidecar_stat(lock_path, ReparseStat())
+
+
+def test_snapshot_write_lock_closes_descriptor_when_wrapping_fails(
+    tmp_path,
+    monkeypatch,
+):
+    snapshot_path = tmp_path / "snapshot.json"
+    descriptors: list[int] = []
+    original_open = locking.os.open
+
+    def tracked_open(path, flags, mode=0o777):
+        descriptor = original_open(path, flags, mode)
+        descriptors.append(descriptor)
+        return descriptor
+
+    def reject_fdopen(_descriptor, _mode):
+        raise RuntimeError("injected descriptor wrapping failure")
+
+    monkeypatch.setattr(locking.os, "open", tracked_open)
+    monkeypatch.setattr(locking.os, "fdopen", reject_fdopen)
+
+    with pytest.raises(
+        RuntimeError,
+        match="injected descriptor wrapping failure",
+    ):
+        with tbm.snapshot_write_lock(snapshot_path, timeout_seconds=0):
+            raise AssertionError("a failed wrapper acquired the lock")
+
+    assert len(descriptors) == 1
+    with pytest.raises(OSError):
+        os.fstat(descriptors[0])
 
 
 @pytest.mark.parametrize(

@@ -1131,3 +1131,18 @@ Track:
   and return only maximum-record and aggregate byte counts to the client.
 - Preserve sanitized failures, connection reuse, public APIs, snapshot version
   2, PostgreSQL schema version 1, DDL, JSON Schemas, and packaged resources.
+
+## Phase 67: Snapshot lock sidecar safety (implemented)
+
+- Require the canonical `.tbm.lock` sidecar to be one single-link regular file
+  before placeholder initialization or advisory lock acquisition.
+- Create absent sidecars exclusively; validate existing sidecars with no-follow
+  metadata plus pre-open, descriptor, and post-open file identity checks, then
+  revalidate descriptor/path identity after OS lock acquisition.
+- Reject symbolic links, Windows reparse points, hard links, and special files
+  without modifying an alias target or loading the snapshot.
+- Preserve persistent sidecars, placeholder bytes, canonical snapshot aliases,
+  30-second contention, structured write error/exit code 4, and descriptor
+  release semantics.
+- Change no public signature, successful CLI payload, snapshot version 2,
+  PostgreSQL schema version 1, DDL, JSON Schema, or packaged resource.

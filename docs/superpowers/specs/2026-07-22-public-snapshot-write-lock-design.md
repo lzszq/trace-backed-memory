@@ -94,3 +94,15 @@ canonical alias contention, immediate timeout and recovery, exception release,
 persistent placeholder content, CLI delegation and transaction ordering, and
 two real Python processes whose locked load-mutate-save operations preserve both
 updates. The complete suite and remote Windows/POSIX jobs must remain green.
+
+## Phase 67 Sidecar Safety Addendum
+
+Before the persistent placeholder byte is written, the canonical sidecar must
+be a single-link regular file. Absent paths use exclusive creation. Existing
+paths use no-follow metadata checks plus pre-open, descriptor, and post-open
+identity comparison. Symbolic links, Windows reparse points, hard links, and
+special files raise `OSError` without modifying an alias target. Descriptor and
+path identity are checked again after OS acquisition and before yielding; CLI
+callers retain write error/exit code 4 before snapshot load. Advisory ownership,
+placeholder content, timeouts, API shape, snapshot version 2, and PostgreSQL
+schema version 1 remain unchanged.

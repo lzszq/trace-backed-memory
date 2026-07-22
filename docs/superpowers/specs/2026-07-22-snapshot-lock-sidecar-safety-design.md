@@ -29,13 +29,16 @@ Creation and existing-file opening use separate paths:
 - for an existing sidecar, inspect it without following links, reject unsafe
   metadata, open read/write with no-follow where the platform provides it, and
   compare pre-open, descriptor, and post-open identities before any write;
+- after OS lock acquisition, compare the descriptor and canonical path again
+  before yielding control to the snapshot transaction;
 - close the descriptor on every validation or wrapping failure;
 - retain the persistent inode after successful use.
 
-The identity checks protect against stable aliases and ordinary replacement
-races without adding a platform dependency. They do not make an advisory
-protocol mandatory or defend against a privileged actor continuously deleting
-the canonical sidecar while ownership is held.
+The identity checks protect against stable aliases and replacements that occur
+before the final post-acquisition check without adding a platform dependency.
+They do not make an advisory protocol mandatory. An actor with directory-write
+access that replaces the canonical sidecar after that final check remains
+outside the cooperating-writer trust boundary.
 
 ## Compatibility
 

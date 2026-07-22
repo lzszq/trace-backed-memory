@@ -221,6 +221,14 @@ O(r), where `r` is the number of referenced IDs. Keep one reused
 and preserve deduplication, sorted unknown-ID diagnostics, validation order,
 snapshot version 2, and PostgreSQL schema version 1.
 
+Keep `metrics()` to one usage-log pass and O(1) accumulator space. Classify
+evaluated cohorts from the persisted `used_memory_ids`, count `pass`, `fail`,
+and `error` as evaluated, and keep `unknown` or a missing result unevaluated.
+Return `None` only for an empty cohort and `0.0` for a nonempty cohort with no
+passes. Count obsolete candidate statuses and wrong-memory attribution in the
+same pass. Do not change `memory_outcome_metrics()`, memory-run ordering, CLI
+call boundaries, snapshot version 2, or PostgreSQL schema version 1.
+
 Also cap `recover-batch` at 10,000 decision IDs and 10,000 attribution options.
 Count submitted values before duplicate detection and reject overflow as input
 before snapshot loading, Store construction, recovery, or publication. Do not

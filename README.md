@@ -226,6 +226,14 @@ reusing one `known_memory_ids` set across its logs. No new derived index is
 added, unknown IDs remain sorted in errors, and snapshot version 2 and
 PostgreSQL schema version 1 do not change.
 
+The Store's `metrics()` now uses one usage-log pass and O(1)
+accumulator space for candidate, used, blocked, obsolete, evaluated cohort,
+unevaluated, and wrong-memory counts. Pass rates use pass/total counters, so an
+empty cohort still returns `None` while a nonempty all-failure cohort returns
+`0.0`. Lesson confidence remains a separate lesson-map aggregate.
+`memory_outcome_metrics()`, memory-run metrics, and CLI call boundaries remain
+unchanged, as do snapshot version 2 and PostgreSQL schema version 1.
+
 ## Snapshot Operations CLI
 
 Installing the package exposes the dependency-free `tbm` console script. The

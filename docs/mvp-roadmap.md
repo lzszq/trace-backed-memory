@@ -964,3 +964,18 @@ Track:
 - Change no public signature, dependency, model, snapshot field, JSON Schema,
   active-lessons YAML, packaged resource, PostgreSQL DDL, snapshot version 2,
   or PostgreSQL schema version 1.
+
+## Phase 55: Single-pass Store metrics (implemented)
+
+- Aggregate every usage-log-derived `metrics()` field in one usage-log pass
+  with O(1) accumulator space.
+- Replace evaluated cohort result lists with pass and total counters while
+  preserving empty-cohort `None` and nonempty zero-pass `0.0`.
+- Keep cohort membership based on persisted `used_memory_ids`; retain the
+  evaluated/unevaluated result boundary, obsolete candidate-status count, and
+  wrong-memory attribution count.
+- Leave lesson confidence, `memory_outcome_metrics()`, memory-run ordering, and
+  CLI public-API call boundaries unchanged.
+- Change no public signature, dependency, model, snapshot field, JSON Schema,
+  active-lessons YAML, packaged resource, PostgreSQL DDL, snapshot version 2,
+  or PostgreSQL schema version 1.

@@ -7584,6 +7584,74 @@ def test_store_metrics_track_pass_rates_and_wrong_memory_failures():
     assert metrics.wrong_memory_failure_count == 1
 
 
+@pytest.mark.parametrize("record_count", [16, 64])
+def test_store_metrics_iterate_usage_log_history_once(record_count: int):
+    class IterationCountingLogs(list[MemoryUsageLog]):
+        iterations = 0
+        iterated_items = 0
+
+        def __iter__(self):
+            type(self).iterations += 1
+            for log in super().__iter__():
+                type(self).iterated_items += 1
+                yield log
+
+    store, trace, _case, lesson = store_with_active_lesson()
+    decision = MemoryDecision(
+        use_memory=True,
+        allowed_memory_ids=[lesson.lesson_id],
+        blocked_memory_ids=[],
+        reason="the verified lesson is relevant",
+        risk="low",
+        recommended_injection="short_summary",
+    )
+    for _ in range(record_count):
+        store.log_decision(
+            trace.run_id,
+            matching_context(trace),
+            [lesson.lesson_id],
+            decision,
+            eval_result="pass",
+        )
+    store._usage_logs = IterationCountingLogs(store._usage_logs)
+    IterationCountingLogs.iterations = 0
+    IterationCountingLogs.iterated_items = 0
+
+    metrics = store.metrics()
+
+    assert metrics.decision_count == record_count
+    assert metrics.evaluated_with_memory_count == record_count
+    assert metrics.pass_rate_with_memory == 1.0
+    assert IterationCountingLogs.iterations == 1
+    assert IterationCountingLogs.iterated_items == record_count
+
+
+def test_store_metrics_count_errored_wrong_memory_as_zero_pass_rate():
+    store, trace, _case, lesson = store_with_active_lesson()
+    store.log_decision(
+        trace.run_id,
+        matching_context(trace),
+        [lesson.lesson_id],
+        MemoryDecision(
+            use_memory=True,
+            allowed_memory_ids=[lesson.lesson_id],
+            blocked_memory_ids=[],
+            reason="the memory caused an execution error",
+            risk="high",
+            recommended_injection="short_summary",
+        ),
+        eval_result="error",
+        memory_caused_failure=True,
+    )
+
+    metrics = store.metrics()
+
+    assert metrics.evaluated_with_memory_count == 1
+    assert metrics.unevaluated_decision_count == 0
+    assert metrics.pass_rate_with_memory == 0.0
+    assert metrics.wrong_memory_failure_count == 1
+
+
 def test_memory_metrics_appends_outcome_counts_without_positional_breakage():
     metrics = MemoryMetrics(1, 2, 3, 4, 5, 0.5, 0.75, 0.25, 6)
 

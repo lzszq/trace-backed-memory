@@ -317,6 +317,16 @@ derived index is introduced; deduplication, sorted unknown-ID errors,
 validation order, snapshot version 2, and PostgreSQL schema version 1 remain
 unchanged.
 
+The Store's `metrics()` view performs one usage-log pass with O(1)
+accumulator space. The loop collects candidate, used, blocked, obsolete,
+evaluated-with-memory, evaluated-without-memory, unevaluated, pass, and
+wrong-memory counts without materializing cohort result lists. Count-based
+rates preserve `None` for an empty cohort and `0.0` for a nonempty cohort with
+no passes. Lesson confidence still traverses the separate lesson map.
+`memory_outcome_metrics()`, decision-sorted memory-run views, and the CLI's
+independent public API calls retain their existing lock and ordering behavior.
+Snapshot version 2 and PostgreSQL schema version 1 remain unchanged.
+
 The `recover-batch` argv surface separately caps submitted values at 10,000
 decision IDs and 10,000 attribution options. A preload cardinality check runs
 immediately after argparse and before snapshot loading, tuple/set/dictionary

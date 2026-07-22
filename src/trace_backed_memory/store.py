@@ -1661,36 +1661,43 @@ class TraceBackedMemoryStore:
 
     @_synchronized
     def metrics(self) -> MemoryMetrics:
-        candidate_memory_count = sum(len(log.candidate_memory_ids) for log in self._usage_logs)
-        used_memory_count = sum(len(log.used_memory_ids) for log in self._usage_logs)
-        blocked_memory_count = sum(len(log.blocked_memory_ids) for log in self._usage_logs)
-        obsolete_attempts = sum(
-            1
-            for log in self._usage_logs
-            for status in log.candidate_memory_statuses.values()
-            if status == "obsolete"
-        )
+        candidate_memory_count = 0
+        used_memory_count = 0
+        blocked_memory_count = 0
+        obsolete_attempts = 0
+        evaluated_with_memory_count = 0
+        passed_with_memory_count = 0
+        evaluated_without_memory_count = 0
+        passed_without_memory_count = 0
+        unevaluated_decision_count = 0
+        wrong_memory_failure_count = 0
+        for log in self._usage_logs:
+            candidate_memory_count += len(log.candidate_memory_ids)
+            used_memory_count += len(log.used_memory_ids)
+            blocked_memory_count += len(log.blocked_memory_ids)
+            obsolete_attempts += sum(
+                1
+                for status in log.candidate_memory_statuses.values()
+                if status == "obsolete"
+            )
+            if log.memory_caused_failure:
+                wrong_memory_failure_count += 1
+            if log.eval_result not in EVALUATED_RESULTS:
+                unevaluated_decision_count += 1
+            elif log.used_memory_ids:
+                evaluated_with_memory_count += 1
+                if log.eval_result == "pass":
+                    passed_with_memory_count += 1
+            else:
+                evaluated_without_memory_count += 1
+                if log.eval_result == "pass":
+                    passed_without_memory_count += 1
+
         average_confidence = 0.0
         if self._lessons:
             average_confidence = sum(
                 lesson.confidence for lesson in self._lessons.values()
             ) / len(self._lessons)
-
-        with_memory_results = [
-            log.eval_result
-            for log in self._usage_logs
-            if log.used_memory_ids and log.eval_result in EVALUATED_RESULTS
-        ]
-        without_memory_results = [
-            log.eval_result
-            for log in self._usage_logs
-            if not log.used_memory_ids and log.eval_result in EVALUATED_RESULTS
-        ]
-        unevaluated_decision_count = sum(
-            1
-            for log in self._usage_logs
-            if log.eval_result not in EVALUATED_RESULTS
-        )
 
         return MemoryMetrics(
             decision_count=len(self._usage_logs),
@@ -1699,13 +1706,17 @@ class TraceBackedMemoryStore:
             blocked_memory_count=blocked_memory_count,
             obsolete_memory_usage_attempts=obsolete_attempts,
             average_lesson_confidence=average_confidence,
-            pass_rate_with_memory=_pass_rate(with_memory_results),
-            pass_rate_without_memory=_pass_rate(without_memory_results),
-            wrong_memory_failure_count=sum(
-                1 for log in self._usage_logs if log.memory_caused_failure
+            pass_rate_with_memory=_pass_rate(
+                passed_with_memory_count,
+                evaluated_with_memory_count,
             ),
-            evaluated_with_memory_count=len(with_memory_results),
-            evaluated_without_memory_count=len(without_memory_results),
+            pass_rate_without_memory=_pass_rate(
+                passed_without_memory_count,
+                evaluated_without_memory_count,
+            ),
+            wrong_memory_failure_count=wrong_memory_failure_count,
+            evaluated_with_memory_count=evaluated_with_memory_count,
+            evaluated_without_memory_count=evaluated_without_memory_count,
             unevaluated_decision_count=unevaluated_decision_count,
         )
 
@@ -3238,10 +3249,10 @@ def _has_metadata_match(scope: dict[str, str], context_values: dict[str, str | N
     return all(context_values.get(key) == value for key, value in scope.items())
 
 
-def _pass_rate(results: list[EvalResult]) -> float | None:
-    if not results:
+def _pass_rate(passed_count: int, evaluated_count: int) -> float | None:
+    if evaluated_count == 0:
         return None
-    return sum(1 for result in results if result == "pass") / len(results)
+    return passed_count / evaluated_count
 
 
 def _validated_semantic_scores(

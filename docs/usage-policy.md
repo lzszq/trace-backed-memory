@@ -254,9 +254,13 @@ Use `lessons import SNAPSHOT SOURCE_YAML [--write]` as a complete validation
 dry-run by default. Always retain the fixed 8 MiB and 10,000-lesson limits and
 call `load_lessons_yaml()` exactly once. Do not add a second YAML parser,
 replace existing IDs, skip provenance, or partially accept a document. The
-Store's merge, duplicate, shared-ID, scope, source-case, and all-or-nothing
-rules remain authoritative. Only explicit `--write` may publish the fully
-validated in-memory result back to the same snapshot.
+Store's merge, duplicate, shared-ID, scope, source-case, active-only status,
+and all-or-nothing rules remain authoritative. Reject every `status` other than
+`active`; `obsolete` belongs to full Store lifecycle persistence, not portable
+lesson import. The CLI must report this as an input error with exit code 2, and
+even explicit `--write` must leave the snapshot unchanged. Only explicit
+`--write` may publish a fully validated active document back to the same
+snapshot.
 
 Use `obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID
 [--write]` only for forward-only deactivation. Require an explicit kind; do not

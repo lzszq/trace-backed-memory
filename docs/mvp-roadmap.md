@@ -1009,3 +1009,17 @@ Track:
   export, and resource export lock-free.
 - Preserve command payloads, error classes, BrokenPipe behavior, snapshot
   version 2, PostgreSQL schema version 1, and all packaged resources.
+
+## Phase 58: Active-only lesson imports (implemented)
+
+- Enforce the portable active-only artifact domain inside
+  `load_lessons_yaml()` after general Lesson and provenance validation.
+- Reject `status: obsolete` before staged insertion; preserve source-order
+  diagnostics and all-or-nothing mutation for mixed documents.
+- Map the CLI rejection to an input error with exit code 2 and leave an
+  explicit `--write` snapshot byte-for-byte unchanged.
+- Keep `add_lesson()`, full snapshots, PostgreSQL loading, obsolescence,
+  System Gate auditing, and metrics able to preserve obsolete lifecycle
+  history.
+- Preserve every public signature, dependency, YAML field, snapshot version 2,
+  PostgreSQL schema version 1, and all packaged resources.

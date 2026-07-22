@@ -607,6 +607,44 @@ def test_cli_lessons_import_is_dry_run_until_write(
     assert list(restored.lessons.values()) == list(active_lessons)
 
 
+def test_cli_lessons_import_rejects_obsolete_status_without_writing(
+    tmp_path,
+    capsys,
+):
+    source, _active_lessons = _lesson_portability_store(include_lessons=True)
+    yaml_path = tmp_path / "obsolete-import.yaml"
+    source.save_lessons_yaml(yaml_path)
+    yaml_text = yaml_path.read_text(encoding="utf-8")
+    prefix, marker, suffix = yaml_text.rpartition('    status: "active"')
+    assert marker
+    yaml_path.write_text(
+        prefix + '    status: "obsolete"' + suffix,
+        encoding="utf-8",
+    )
+    target, _ = _lesson_portability_store(include_lessons=False)
+    snapshot_path = tmp_path / "obsolete-import.snapshot.json"
+    target.save_json(snapshot_path)
+    original_snapshot = snapshot_path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "lessons",
+        "import",
+        str(snapshot_path),
+        str(yaml_path),
+        "--write",
+    )
+
+    assert code == 2
+    assert payload is None
+    assert error["error"]["kind"] == "input"
+    assert "active lessons YAML requires status 'active'" in (
+        error["error"]["message"]
+    )
+    assert snapshot_path.read_bytes() == original_snapshot
+    assert TraceBackedMemoryStore.load_json(snapshot_path).lessons == {}
+
+
 def test_cli_lessons_export_empty_store_and_structured_write_failure(
     tmp_path,
     capsys,

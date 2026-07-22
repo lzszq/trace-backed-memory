@@ -205,9 +205,12 @@ keeps confidence bounded to 0.0 through 1.0, and parses strict JSON without
 `save_lessons_yaml()` and `load_lessons_yaml()` provide a small dependency-free
 adapter for active lessons using the repository's `memory/lessons.example.yaml`
 shape; loading and `add_lesson()` share the same side-effect-free candidate
-validator, so source-case and lesson-contract checks remain enforced. YAML
-serialization quotes strings so numeric-looking scope values remain strings
-when loaded. The constrained taxonomy parser
+validator, so source-case and lesson-contract checks remain enforced. The
+portable `load_lessons_yaml()` interface adds an active-only rule after general
+candidate validation: `status: obsolete` is rejected before staged insertion,
+while snapshots, PostgreSQL, and lifecycle APIs continue to preserve obsolete
+history. YAML serialization quotes strings so numeric-looking scope values
+remain strings when loaded. The constrained taxonomy parser
 rejects duplicate IDs or descriptions, and the lessons parser rejects duplicate
 record or scope fields. A complete lesson document is parsed and every candidate
 is constructed and validated against staged state before an all-or-nothing
@@ -399,8 +402,9 @@ destination that aliases the source snapshot. Its deterministic result names
 the active lesson IDs selected in Store order. `lessons import SNAPSHOT
 SOURCE_YAML [--write]` calls `load_lessons_yaml()` once with the fixed 8 MiB and
 10,000-record defaults. The Store owns constrained parsing, duplicate checks,
-shared-ID and provenance validation, source order, merge semantics, and the
-all-or-nothing mutation boundary.
+shared-ID and provenance validation, the active-only status rule, source order,
+merge semantics, and the all-or-nothing mutation boundary. A non-active record
+is an input error with exit code 2 and cannot publish an explicit `--write`.
 
 `obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]`
 captures only the current status and active dependent lesson IDs needed for a

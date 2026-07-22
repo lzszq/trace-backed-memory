@@ -9139,6 +9139,44 @@ def test_store_saves_and_loads_active_lessons_yaml(tmp_path):
     assert loaded.lessons == {"lesson_active": active_lesson}
 
 
+def test_load_lessons_yaml_rejects_obsolete_record_without_mutation(tmp_path):
+    source, _trace, case = store_with_verified_case()
+    for lesson_id in ("lesson_active_first", "lesson_obsolete_second"):
+        source.add_lesson(
+            lesson_from_failure_case(
+                case,
+                lesson_id=lesson_id,
+                lesson_text=f"Portable guidance for {lesson_id}.",
+                memory_type="procedural",
+                scope={"repo": "repo", "tenant": "tenant_a"},
+            )
+        )
+    path = tmp_path / "mixed-status-lessons.yaml"
+    source.save_lessons_yaml(path)
+    prefix, marker, suffix = path.read_text(encoding="utf-8").rpartition(
+        '    status: "active"'
+    )
+    assert marker
+    path.write_text(
+        prefix + '    status: "obsolete"' + suffix,
+        encoding="utf-8",
+    )
+    target, _target_trace, _target_case = store_with_verified_case()
+    before = target.to_snapshot()
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "active lessons YAML requires status 'active': "
+            "lesson_obsolete_second"
+        ),
+    ):
+        target.load_lessons_yaml(path)
+
+    assert target.to_snapshot() == before
+    assert target.lessons == {}
+
+
 def test_save_lessons_yaml_syncs_and_replaces_with_a_sibling(
     monkeypatch,
     tmp_path,

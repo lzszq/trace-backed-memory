@@ -298,11 +298,14 @@ the same path, a symbolic link, or a hard link. Empty stores produce exactly
 limits, then delegates duplicate-key checks, Lesson construction, shared-ID
 collision checks, and Trace/case provenance validation to
 `load_lessons_yaml()`. Import merges all records or none; it is not an upsert,
-so an existing lesson ID is an input error even when values match. The command
-returns `imported_count`, source-ordered `imported_lesson_ids`, and `written`.
-It is a full validation dry-run by default and changes the same snapshot only
-after complete success with explicit `--write`. CLI callers cannot disable the
-safe ingestion limits.
+so an existing lesson ID is an input error even when values match. Portable
+lesson imports are active-only: any record whose `status` is `obsolete` is an
+input error with exit code 2, and a later rejection cannot partially import
+earlier records. General Store snapshots still preserve obsolete lifecycle
+history. The command returns `imported_count`, source-ordered
+`imported_lesson_ids`, and `written`. It is a full validation dry-run by default
+and changes the same snapshot only after complete success with explicit
+`--write`. CLI callers cannot disable the safe ingestion limits.
 
 `obsolete` performs one forward-only Store lifecycle transition. The explicit
 kind selects `obsolete_failure_case()`, `obsolete_lesson()`, or

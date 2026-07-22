@@ -369,6 +369,11 @@ class TraceBackedMemoryStore:
                 lesson,
                 staged_lessons,
             )
+            if stored_lesson.status != "active":
+                raise ValueError(
+                    "active lessons YAML requires status 'active': "
+                    f"{stored_lesson.lesson_id}"
+                )
             staged_lessons[stored_lesson.lesson_id] = stored_lesson
             stored_lessons.append(stored_lesson)
 

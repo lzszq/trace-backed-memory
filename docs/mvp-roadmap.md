@@ -1146,3 +1146,16 @@ Track:
   release semantics.
 - Change no public signature, successful CLI payload, snapshot version 2,
   PostgreSQL schema version 1, DDL, JSON Schema, or packaged resource.
+
+## Phase 68: Git metadata output validation (implemented)
+
+- Require every injected trace-metadata command to return a string and wrap
+  non-string output in command-specific `TraceMetadataCaptureError`.
+- Reject a blank commit SHA or blank repository root before starting the next
+  Git command, without echoing malformed output.
+- Enforce the existing 512-character metadata limit for commit SHA, branch,
+  and final repository basename at the capture boundary.
+- Preserve blank branch as detached HEAD, blank status as clean, command order,
+  injected runner signatures, and the bounded default runner.
+- Change no public signature, model, serialized byte, snapshot version 2,
+  PostgreSQL schema version 1, DDL, JSON Schema, or packaged resource.

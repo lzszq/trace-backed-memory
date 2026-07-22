@@ -7,7 +7,7 @@
 `capture_trace_metadata()` trusts every injected `CommandRunner` result to be
 a string and strips it outside the command error wrapper. A blank `HEAD` result
 therefore creates `TraceMetadata(commit_sha="")`, which fails only when a later
-Store operation validates a Trace. A non-string result leaks `AttributeError`
+Store operation validates a Trace. A non-string output leaks `AttributeError`
 instead of the documented `TraceMetadataCaptureError`. Oversized injected
 commit, branch, or repository-name values can likewise outlive capture before
 the Store's existing metadata limit rejects them.
@@ -15,15 +15,15 @@ the Store's existing metadata limit rejects them.
 ## Output Contract
 
 Keep the same four commands, order, runner signature, and `repo_path` argument.
-Every runner result must be an exact string. Reject other result types at the
+Every runner result must be a string. Reject other result types at the
 command boundary with `TraceMetadataCaptureError` and do not include the
 returned value in the error.
 
 Normalize string output with `strip()` and apply command-specific rules:
 
-- `git rev-parse HEAD` must return a nonblank commit SHA of at most the existing
+- `git rev-parse HEAD` rejects a blank commit SHA and accepts at most the existing
   512-character metadata limit;
-- `git rev-parse --show-toplevel` must return a nonblank repository root; its
+- `git rev-parse --show-toplevel` rejects a blank repository root; its
   final basename is either `None` for a filesystem-root repository or at most
   512 characters;
 - `git branch --show-current` may be blank for detached HEAD, otherwise it is

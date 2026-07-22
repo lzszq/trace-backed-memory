@@ -480,6 +480,158 @@ def test_capture_trace_metadata_marks_clean_repo():
     assert metadata.dirty is False
 
 
+_VALID_METADATA_OUTPUTS = {
+    ("git", "rev-parse", "HEAD"): "abc123\n",
+    ("git", "rev-parse", "--show-toplevel"): "C:/work/repo\n",
+    ("git", "branch", "--show-current"): "main\n",
+    ("git", "status", "--porcelain"): "",
+}
+
+
+@pytest.mark.parametrize(
+    ("invalid_command", "output_name", "expected_calls"),
+    [
+        (("git", "rev-parse", "HEAD"), "commit SHA", 1),
+        (
+            ("git", "rev-parse", "--show-toplevel"),
+            "repository root",
+            2,
+        ),
+    ],
+)
+def test_capture_trace_metadata_rejects_blank_required_runner_output(
+    invalid_command,
+    output_name,
+    expected_calls,
+):
+    commands: list[tuple[str, ...]] = []
+
+    def runner(args: list[str], cwd: str | None = None) -> str:
+        command = tuple(args)
+        commands.append(command)
+        if command == invalid_command:
+            return " \t\n"
+        return _VALID_METADATA_OUTPUTS[command]
+
+    with pytest.raises(
+        TraceMetadataCaptureError,
+        match=rf"runner returned blank {output_name} output",
+    ) as captured:
+        capture_trace_metadata(repo_path="C:/work/repo", runner=runner)
+
+    assert " ".join(invalid_command) in str(captured.value)
+    assert "C:/work/repo" in str(captured.value)
+    assert commands == list(_VALID_METADATA_OUTPUTS)[:expected_calls]
+
+
+@pytest.mark.parametrize("invalid_command", list(_VALID_METADATA_OUTPUTS))
+def test_capture_trace_metadata_rejects_non_string_runner_output(
+    invalid_command,
+):
+    class SensitiveOutput:
+        def __repr__(self) -> str:
+            return "DO_NOT_ECHO_RUNNER_OUTPUT"
+
+    commands: list[tuple[str, ...]] = []
+
+    def runner(args: list[str], cwd: str | None = None) -> object:
+        command = tuple(args)
+        commands.append(command)
+        if command == invalid_command:
+            return SensitiveOutput()
+        return _VALID_METADATA_OUTPUTS[command]
+
+    with pytest.raises(
+        TraceMetadataCaptureError,
+        match="runner returned non-string output",
+    ) as captured:
+        capture_trace_metadata(
+            repo_path="C:/work/repo",
+            runner=runner,  # type: ignore[arg-type]
+        )
+
+    message = str(captured.value)
+    assert " ".join(invalid_command) in message
+    assert "DO_NOT_ECHO_RUNNER_OUTPUT" not in message
+    expected_index = list(_VALID_METADATA_OUTPUTS).index(invalid_command)
+    assert commands == list(_VALID_METADATA_OUTPUTS)[: expected_index + 1]
+
+
+def test_capture_trace_metadata_accepts_exact_metadata_character_limits():
+    limit = capture_module.METADATA_VALUE_MAX_CHARS
+    outputs = {
+        **_VALID_METADATA_OUTPUTS,
+        ("git", "rev-parse", "HEAD"): "c" * limit,
+        ("git", "rev-parse", "--show-toplevel"): (
+            "C:/work/" + "r" * limit
+        ),
+        ("git", "branch", "--show-current"): "b" * limit,
+    }
+
+    metadata = capture_trace_metadata(
+        runner=lambda args, _cwd=None: outputs[tuple(args)]
+    )
+
+    assert metadata.commit_sha == "c" * limit
+    assert metadata.repo == "r" * limit
+    assert metadata.branch == "b" * limit
+    assert metadata.dirty is False
+
+
+@pytest.mark.parametrize(
+    ("invalid_command", "output_name", "invalid_output"),
+    [
+        (
+            ("git", "rev-parse", "HEAD"),
+            "commit SHA",
+            "c" * (capture_module.METADATA_VALUE_MAX_CHARS + 1),
+        ),
+        (
+            ("git", "rev-parse", "--show-toplevel"),
+            "repository name",
+            "C:/work/" + "r" * (capture_module.METADATA_VALUE_MAX_CHARS + 1),
+        ),
+        (
+            ("git", "branch", "--show-current"),
+            "branch",
+            "b" * (capture_module.METADATA_VALUE_MAX_CHARS + 1),
+        ),
+    ],
+)
+def test_capture_trace_metadata_rejects_oversized_metadata_output(
+    invalid_command,
+    output_name,
+    invalid_output,
+):
+    outputs = {**_VALID_METADATA_OUTPUTS, invalid_command: invalid_output}
+
+    with pytest.raises(
+        TraceMetadataCaptureError,
+        match=(
+            rf"{output_name} output must be at most "
+            rf"{capture_module.METADATA_VALUE_MAX_CHARS} characters"
+        ),
+    ) as captured:
+        capture_trace_metadata(
+            runner=lambda args, _cwd=None: outputs[tuple(args)]
+        )
+
+    assert invalid_output not in str(captured.value)
+
+
+def test_capture_trace_metadata_maps_filesystem_root_repo_to_none():
+    outputs = {
+        **_VALID_METADATA_OUTPUTS,
+        ("git", "rev-parse", "--show-toplevel"): Path.cwd().anchor,
+    }
+
+    metadata = capture_trace_metadata(
+        runner=lambda args, _cwd=None: outputs[tuple(args)]
+    )
+
+    assert metadata.repo is None
+
+
 def test_capture_trace_metadata_default_runner_discards_large_status_output(
     monkeypatch: pytest.MonkeyPatch,
 ):

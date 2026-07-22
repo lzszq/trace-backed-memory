@@ -23,7 +23,7 @@ from trace_backed_memory.models import EvalResult, FailureCaseStatus, LessonStat
 
 ROOT = Path(__file__).resolve().parents[1]
 DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
-CURRENT_IMPLEMENTED_PHASE = "Phase 0-67"
+CURRENT_IMPLEMENTED_PHASE = "Phase 0-68"
 
 
 def test_postgres_adapter_dependencies_are_optional():
@@ -2704,6 +2704,58 @@ def test_docs_publish_snapshot_lock_sidecar_safety():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 67: Snapshot lock sidecar safety (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert len(packaged_resources()) == 18
+
+
+def test_docs_publish_git_metadata_output_validation():
+    import trace_backed_memory.capture as capture_module
+    from trace_backed_memory import packaged_resources
+
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "Phase 61 design": _doc(
+            "superpowers/specs/2026-07-22-bounded-git-capture-design.md"
+        ),
+        "Phase 68 design": _doc(
+            "superpowers/specs/"
+            "2026-07-22-git-metadata-output-validation-design.md"
+        ),
+    }
+    required_contracts = (
+        "blank commit sha",
+        "blank repository root",
+        "non-string output",
+        "512 characters",
+        "detached head",
+        "tracemetadatacaptureerror",
+        "snapshot version 2",
+        "postgresql schema version 1",
+    )
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower().replace(
+            "512-character",
+            "512 characters",
+        )
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert capture_module.METADATA_VALUE_MAX_CHARS == 512
+    assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
+    assert (
+        "Phase 68: Git metadata output validation (implemented)"
         in documents["docs/mvp-roadmap.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")

@@ -93,9 +93,39 @@ def capture_trace_metadata(
     runner: CommandRunner | None = None,
 ) -> TraceMetadata:
     run = runner or _run_command
-    commit_sha = _run_git(run, ["git", "rev-parse", "HEAD"], repo_path).strip()
-    repo_root = _run_git(run, ["git", "rev-parse", "--show-toplevel"], repo_path).strip()
-    branch_output = _run_git(run, ["git", "branch", "--show-current"], repo_path).strip()
+    commit_args = ["git", "rev-parse", "HEAD"]
+    commit_sha = _capture_metadata_output(
+        run,
+        commit_args,
+        repo_path,
+        output_name="commit SHA",
+        required=True,
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
+    repo_args = ["git", "rev-parse", "--show-toplevel"]
+    repo_root = _capture_metadata_output(
+        run,
+        repo_args,
+        repo_path,
+        output_name="repository root",
+        required=True,
+    )
+    repo_name = Path(repo_root).name or None
+    if repo_name is not None:
+        _validate_metadata_output_length(
+            repo_name,
+            "repository name",
+            repo_args,
+            repo_path,
+        )
+    branch_args = ["git", "branch", "--show-current"]
+    branch_output = _capture_metadata_output(
+        run,
+        branch_args,
+        repo_path,
+        output_name="branch",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
     status_run = runner or _run_status_command
     status_output = _run_git(
         status_run,
@@ -105,7 +135,7 @@ def capture_trace_metadata(
 
     return TraceMetadata(
         commit_sha=commit_sha,
-        repo=Path(repo_root).name if repo_root else None,
+        repo=repo_name,
         branch=branch_output or None,
         dirty=bool(status_output.strip()),
     )
@@ -405,14 +435,75 @@ def _kill_process_tree(process: subprocess.Popen[bytes]) -> None:
 
 def _run_git(run: CommandRunner, args: list[str], repo_path: str | None) -> str:
     try:
-        return run(args, repo_path)
+        result = run(args, repo_path)
     except Exception as exc:  # pragma: no cover - exact exception type depends on runner/subprocess
-        command = " ".join(args)
-        location = repo_path or "."
-        detail = _command_error_detail(exc)
-        raise TraceMetadataCaptureError(
-            f"failed to capture git metadata with `{command}` in {location}: {detail}"
+        raise _metadata_capture_error(
+            args,
+            repo_path,
+            _command_error_detail(exc),
         ) from exc
+    if not isinstance(result, str):
+        raise _metadata_capture_error(
+            args,
+            repo_path,
+            "runner returned non-string output",
+        )
+    return str(result)
+
+
+def _capture_metadata_output(
+    run: CommandRunner,
+    args: list[str],
+    repo_path: str | None,
+    *,
+    output_name: str,
+    required: bool = False,
+    max_chars: int | None = None,
+) -> str:
+    output = _run_git(run, args, repo_path).strip()
+    if required and not output:
+        raise _metadata_capture_error(
+            args,
+            repo_path,
+            f"runner returned blank {output_name} output",
+        )
+    if max_chars is not None:
+        _validate_metadata_output_length(
+            output,
+            output_name,
+            args,
+            repo_path,
+            max_chars=max_chars,
+        )
+    return output
+
+
+def _validate_metadata_output_length(
+    output: str,
+    output_name: str,
+    args: list[str],
+    repo_path: str | None,
+    *,
+    max_chars: int = METADATA_VALUE_MAX_CHARS,
+) -> None:
+    if len(output) > max_chars:
+        raise _metadata_capture_error(
+            args,
+            repo_path,
+            f"{output_name} output must be at most {max_chars} characters",
+        )
+
+
+def _metadata_capture_error(
+    args: list[str],
+    repo_path: str | None,
+    detail: str,
+) -> TraceMetadataCaptureError:
+    command = " ".join(args)
+    location = repo_path or "."
+    return TraceMetadataCaptureError(
+        f"failed to capture git metadata with `{command}` in {location}: {detail}"
+    )
 
 
 def _command_error_detail(exc: Exception) -> str:

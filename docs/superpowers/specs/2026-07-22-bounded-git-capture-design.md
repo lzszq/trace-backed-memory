@@ -91,3 +91,14 @@ first-byte retention while a large remainder is discarded. A real Git smoke
 test covers clean and untracked worktrees. Existing injected-runner, ancestry
 DAG, CLI state-error, README, full-suite, distribution, and Windows CI tests
 protect compatibility.
+
+## Phase 68 Metadata Output Addendum
+
+The injected runner signatures and successful command behavior remain
+unchanged, but every trace-metadata result must now be a string. A blank commit
+SHA, blank repository root, non-string output, or commit/branch/repository name
+above 512 characters raises command-specific `TraceMetadataCaptureError`
+without echoing the malformed value or starting the next command. Blank branch
+still means detached HEAD and blank status still means clean. The bounded
+default process runner, snapshot version 2, and PostgreSQL schema version 1 are
+unchanged.

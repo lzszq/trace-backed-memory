@@ -1660,13 +1660,23 @@ old_lesson = obsolete_lesson(lesson)
 old_policy = obsolete_project_policy(policy)
 ```
 
+`capture_trace_metadata()` requires every injected runner result to be a
+string. A blank commit SHA, blank repository root, non-string output, commit/
+branch/repository name above 512 characters, or other command failure raises
+`TraceMetadataCaptureError` at the command boundary without echoing the
+malformed value. A blank branch remains valid for detached HEAD and blank
+status remains a clean tree. These checks change neither snapshot version 2
+nor PostgreSQL schema version 1.
+
 Implemented pieces:
 
 - Core models: `Trace`, `FailureCase`, `Lesson`, `ProjectPolicy`,
   `MemoryUsageLog`, `MemoryRunResult`, `MemoryRunCompletion`, `MemoryRunAudit`,
   `MemoryRunRemediation`, `MemoryRunMetrics`, `MemoryMetrics`, and
   `MemoryOutcomeMetrics`.
-- Git metadata capture for repo name, commit SHA, branch, and dirty state, with command failure errors wrapped for harness diagnostics.
+- Git metadata capture for repo name, commit SHA, branch, and dirty state, with
+  command failures plus malformed injected output wrapped for harness
+  diagnostics before invalid metadata reaches Trace construction.
 - Git ancestry capture produces immutable, current-commit-bound relations for caller-discovered local commit anchors, with a 1,000-input `COMMIT_ANCESTRY_MAX_ANCHORS` process-work budget before deduplication.
 - Trace provenance fields for repo, prompt version, prompt family, tool schema version, model, and eval suite.
 - Store-level checks that validate both the incoming and copied trace, preserve copy isolation, reject concurrent copy mutation, and reject empty identity fields, unsupported eval results, or malformed nested JSON trace collections, including non-string object keys, non-finite numbers, reference cycles, and excessive nesting.

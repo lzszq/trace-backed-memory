@@ -781,8 +781,13 @@ pipes, and explicit UTF-8 replacement decoding. Retain at most 64 KiB for each
 ordinary stdout/stderr stream; kill and reap on timeout or output overflow.
 For `git status --porcelain`, retain only the first byte for dirty detection
 while draining all remaining output. Do not change injected runner signatures,
-arguments, or error mapping. These controls do not alter snapshot version 2 or
-PostgreSQL schema version 1.
+arguments, or conforming output behavior. Require strings from all four
+injected commands. Reject a blank commit SHA, blank repository root, non-string
+output, or commit/branch/repository name above 512 characters with
+`TraceMetadataCaptureError` before starting the next command. Do not echo the
+malformed value. Preserve blank branch as detached HEAD and blank status as
+clean. These controls do not alter snapshot version 2 or PostgreSQL schema
+version 1.
 
 An exit status of 0 from `git merge-base --is-ancestor` means the anchor is an
 ancestor; exit status 1 means it is not and the anchored history is excluded.

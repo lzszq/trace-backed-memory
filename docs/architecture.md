@@ -68,8 +68,14 @@ The MVP includes `capture_trace_metadata()` for reading repo name, commit SHA,
 current branch, and dirty state from git before a harness records the trace.
 Prompt version, prompt family, tool schema version, model, and eval suite are
 first-class trace fields that callers attach from the harness runtime. Git
-command failures are wrapped in a trace metadata capture error that includes
-the command and repository path.
+command failures are wrapped in `TraceMetadataCaptureError` with the command
+and repository path. Injected runners must return strings for all
+four commands. A blank commit SHA, blank repository root, non-string output, or
+commit/branch/repository name above 512 characters fails at that same boundary
+without echoing the malformed value. Blank branch output remains detached HEAD,
+blank status remains clean, and a filesystem-root repository has no basename
+and therefore reports `repo=None`. Snapshot version 2 and PostgreSQL schema
+version 1 remain unchanged.
 
 The in-memory store can persist a dependency-free JSON snapshot of traces,
 failure cases, lessons, project policies, and usage logs. Loading a snapshot
@@ -1204,8 +1210,10 @@ readers retain at most 64 KiB of ordinary stdout and stderr; timeout or output
 overflow kills and reaps the process. Trace metadata status capture retains
 only the first byte of `git status --porcelain` and drains the rest, preserving
 dirty semantics without caller-sized memory. Injected runner APIs and command
-order are unchanged. The runner is ephemeral infrastructure: snapshot version
-2 and PostgreSQL schema version 1 remain unchanged.
+order are unchanged. Malformed injected results are validated after each
+command, before the next command or Trace construction. The runner is ephemeral
+infrastructure: snapshot version 2 and PostgreSQL schema version 1 remain
+unchanged.
 
 Runtime anchor meaning is exact: lesson memory uses its source failure case's
 `fix_commit_sha`; failure-case memory uses its source `commit_sha`; project

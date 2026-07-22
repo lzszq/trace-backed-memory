@@ -8,7 +8,7 @@ A provenance-backed memory layer for LLM / agent harness engineering.
 
 Trace-backed Memory turns provenance-bound agent traces, eval results, and git commits into verified, scoped, auditable memory that can be used selectively during debug, repair, regression analysis, planning, and production runtime.
 
-[产品概览与当前能力](docs/product.md) | [Architecture](docs/architecture.md) | [Memory Usage Policy](docs/usage-policy.md) | [Roadmap](docs/mvp-roadmap.md)
+[Product Overview and Current Capabilities](docs/product.md) | [Architecture](docs/architecture.md) | [Memory Usage Policy](docs/usage-policy.md) | [Roadmap](docs/mvp-roadmap.md)
 
 ## What this is
 

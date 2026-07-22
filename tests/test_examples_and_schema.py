@@ -85,7 +85,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
     ]:
         assert contract in product
 
-    assert "[产品概览与当前能力](docs/product.md)" in readme
+    assert "[Product Overview and Current Capabilities](docs/product.md)" in readme
     assert project["readme"] == "README.md"
     assert project["license"] == "MIT"
     assert project["license-files"] == ["LICENSE"]

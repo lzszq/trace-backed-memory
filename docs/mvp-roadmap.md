@@ -1,5 +1,7 @@
 # MVP Roadmap
 
+**English** | [简体中文](mvp-roadmap.zh-CN.md)
+
 ## Phase 0: Project framing
 
 - Define memory object model.

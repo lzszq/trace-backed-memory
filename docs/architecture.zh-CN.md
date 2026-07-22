@@ -1,0 +1,230 @@
+# 架构
+
+[English](architecture.md) | **简体中文**
+
+## 目标
+
+构建一个面向 LLM / Agent Harness 工程、以 Trace 为依据、感知 Git commit 且受门控控制的记忆层。
+
+系统需要回答：
+
+- 这个失败以前是否发生过？
+- 哪个 commit 引入或修复了它？
+- 涉及哪个 prompt 版本、tool schema、model 或 eval suite？
+- 是否存在适用于当前任务的已验证 Lesson？
+- 该记忆应该被注入、摘要，还是阻止？
+
+## 数据流
+
+```text
+1. Harness Run
+   ↓
+2. Immutable Trace Store
+   ↓
+3. Failure Case Extraction
+   ↓
+4. Human / Eval Verification
+   ↓
+5. Verified Lesson Memory
+   ↓
+6. Memory Applicability Gate
+   ↓
+7. Controlled Runtime Injection
+   ↓
+8. Memory Usage Log
+```
+
+## 第 1 层：Trace Store
+
+Trace Store 记录事实，应当追加写且可审计。核心字段包括运行身份、Git provenance、prompt/tool/model/eval 元数据、输入输出哈希、检索上下文、工具调用与输出、结果、延迟、成本、错误、URI 和创建时间。原始 Trace 是证据，不是运行时记忆。
+
+`capture_trace_metadata()` 在 Harness 记录 Trace 前读取仓库名、commit SHA、当前分支和 dirty state。四个注入 runner 命令都必须返回字符串；空 commit SHA、空仓库根、非字符串输出，以及超过 512 字符的 commit、branch 或 repository 名称会在同一命令边界产生 `TraceMetadataCaptureError`，且不回显非法值。空 branch 表示 detached HEAD，空 status 表示干净工作树。
+
+内存 Store 可以把 Trace、Failure Case、Lesson、Project Policy 和 usage log 保存为无依赖 JSON 快照。加载快照复用实时写入验证，因此重复 ID、全局 memory ID 唯一性和 Lesson provenance 继续强制执行。
+
+Trace 要求非空白 `trace_id`、`run_id`、`commit_sha`，`eval_result` 只能是 `pass`、`fail`、`error` 或 `unknown`。`retrieved_context`、`tool_calls`、`tool_outputs` 必须是 JSON 对象列表。Store 验证调用方对象、深拷贝、再次验证副本后才插入。
+
+三个结构化 JSON 字段共享 `_TraceJSONBudget`：最多 100,000 个节点和 8 MiB 对象键/字符串 UTF-8 文本，并保留深度 100。验证器在扩展遍历栈或 `dict.items()` 前检查宽容器，避免防御性复制放大超限输入。
+
+当前运行可以先以 `eval_result="unknown"` 注册。执行后，`complete_trace()` 原子转换到 `pass`、`fail` 或 `error`，并只填充原先为空的完成字段。省略字段保留已有值，已填充字段只能精确重放，其他 Trace 字段不可变。
+
+`latency_ms` 的跨持久化统一范围是 `None` 或 0 到 2,147,483,647 的整数。共享验证器覆盖记录、快照重建、回调执行和单项/批量完成。CLI 中越界属于退出码 3 的结构化状态错误。
+
+## 第 2 层：Failure Case Store
+
+Failure Case 是从失败 Trace 派生的结构化事后复盘，保存 case ID、source Trace、commit、失败类型、症状、root cause、review 信息、修复、回归结果、状态和时间戳。它属于 episodic memory。
+
+`load_failure_taxonomy()` 与保守提取辅助函数先从明确失败证据分类，再生成草稿。证据顺序为 `Trace.error`、`tool_calls[].error`、`tool_outputs[].error`。工具名称永远不能选择 taxonomy；只有同一条记录存在 truthy 顶层 error 时才可为症状命名。任意参数、成功结果、嵌套内容和标识符都不参与关键字分类。
+
+显式 `invalid argument` 有效；单独的 `required` 无效，只有 `required argument`、`required parameter`、`required field`、`required property` 这些保守短语触发 `invalid_tool_argument`。`review_failure_case()` 在记录 reviewer、root cause、notes 和时间的同时保持草稿状态。只有带修复 commit 和通过回归证据的 draft 才能验证。
+
+Store 拒绝不存在的 `source_trace_id`、与 source Trace 不一致的 `commit_sha`、空身份、非法状态，以及缺少修复和回归证据的 verified case。
+
+## 第 3 层：Lesson Store
+
+Lesson 是从 verified case 派生的可复用规则，包含 lesson ID、source case、文本、memory type、scope、0.0 到 1.0 的 confidence、安全标志、状态和时间戳。
+
+只有 active、来源已验证、作用域匹配且 confidence 合法的 Lesson 才能进入运行时门控。Store 会拒绝缺失或未验证的 source case、空 ID、非法 memory type/status、空或未知 scope、非字符串/空 scope 值，以及越界 confidence。`sensitive` 与 `eval_leaking` 标志会保留到 `MemoryItem`，供 System Gate 在 LLM 判断前阻止。
+
+## 第 3b 层：Project Policy
+
+Project Policy 是人工维护的 prompt、tool 或 eval 规则，不从 Failure Case 派生，但仍必须有来源身份、scope、状态和安全标志。`ProjectPolicy` 与 `memory_item_from_project_policy()` 把维护记录转换为 policy memory。
+
+Store 会拒绝空 ID/文本、非法状态或 scope、越界 confidence，以及与 Failure Case、Lesson、Project Policy 共享运行时命名空间发生冲突的 ID。
+
+完整 Store 的稳定持久化边界由 `to_snapshot()`、`from_snapshot()`、`save_json()` 和 `load_json()` 提供。它要求 JSON 对象，拒绝非有限浮点数、运行时序列化上限之外的整数和非法 confidence。
+
+`save_lessons_yaml()` 与 `load_lessons_yaml()` 为 active lesson 提供无依赖适配器。导入只接受 active 状态，并在一次提交前解析完整文档、拒绝重复字段、构造所有候选并按暂存状态验证，因此后续记录失败不会部分导入前面的记录。
+
+JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规范 LF、flush、`os.fsync()`、关闭和原子发布。覆盖使用 `os.replace()`，no-replace Lesson 导出使用 `os.link()`。POSIX 在发布与临时名清理后同步父目录。发布前失败保留旧目标；发布后目录同步失败会传播，此时目标状态被视为持久性不确定。
+
+## 打包分发资源
+
+`trace_backed_memory.resources` 提供 18 个规范 Schema、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+
+资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
+
+顶层文件是规范编辑源，包内 `_resources/` 是字节一致副本。构建验证会比较 wheel 与 sdist 中每个成员。`py.typed` 声明安装包类型信息。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍属于调用方输入。
+
+### 有界本地文档摄取
+
+私有摄取边界只打开调用方路径一次，通过同一句柄读取后再严格 UTF-8 解码。默认限制：
+
+- 快照 64 MiB、每集合 100,000 条、合计 250,000 条；
+- active Lesson YAML 8 MiB、10,000 条；
+- failure taxonomy 1 MiB、1,000 类；
+- CLI JSON 8 MiB、10,000 顶层项、100,000 节点、深度 100。
+
+Python API 可对单个限制显式传 `None`，只用于可信离线迁移；CLI 始终使用安全默认值。限制不是持久化配置。
+
+快照 usage-log 重建通过 load-local `decision_id`、known memory、legacy `run_id` 与 tool-name 索引保持平均 O(n)。实时 Store 还维护不持久化的 decision ID 位置/后缀索引，以及 `run_id` 到有序 `trace_id` 的索引，使单项查找平均 O(1)。
+
+实时 usage-log 存在性检查只访问被引用的 ID，不复制完整 memory catalog。`metrics()` 与 `memory_run_metrics()` 各使用一次 usage-log 扫描和 O(1) 累加空间。`recover-batch` 在快照加载前分别把 decision ID 与 attribution 限制为 10,000 项。
+
+## 快照操作 CLI
+
+无依赖适配器通过 `tbm` 和 `python -m trace_backed_memory` 暴露。快照命令只接受一个本地路径，并统一通过 `TraceBackedMemoryStore.load_json()` 重建 Store；不接受 stdin、远程 URL、PostgreSQL 连接或备用快照输出路径。
+
+读取接口直接映射现有 Store 视图：`snapshot validate`、`snapshot stats`、`audit`、`remediation` 和 `metrics`。变更接口把 `complete`、`complete-batch`、`recover`、`recover-batch`、`recover-ready`、`obsolete` 与 `obsolete-batch` 委托给对应 Store API，不复制状态机。
+
+`complete` 要求明确的 Trace、decision 和测量结果；`complete-batch` 解析严格的 `MemoryRunResult` 数组并只调用一次批量 API。重复对象键、非法类型、未知字段、共享 Trace 冲突或后续条目失败都会在任何变更前拒绝整个批次。
+
+所有调用方 JSON 在普通 dict 形成前拒绝任意层级重复键。快照、MemoryContext、MemoryDecision 和 CLI 文件共用相同 ordered-pairs 原语，同时保留各自错误边界。
+
+Lesson 导出委托 active-only 选择和规范 YAML 序列化，默认拒绝覆盖及源快照别名。Lesson 导入固定使用 8 MiB/10,000 条限制，只接受 active 状态，并保持来源、共享 ID 与 all-or-nothing 验证。
+
+单项和批量 obsolescence 都只允许向前转换。Store 从同一入口状态暂存显式记录与 Failure Case 的完整 active Lesson cascade，验证后一次提交。CLI 只输出 ID、状态、计数和 `written`，不泄露 memory 文本或 Trace 证据。
+
+所有变更默认 dry-run。只有显式 `--write` 且操作完整成功时，才调用 `save_json()` 原子替换输入快照。每个写命令在快照加载前获取 sibling `.tbm.lock` 排他建议锁，并持有到原子发布结束。sidecar 必须是与 descriptor 相同的单链接普通文件；符号链接、Windows reparse point、硬链接和特殊文件会在加载快照前失败。默认争用超时为 30 秒。
+
+公开的 `snapshot_write_lock()` 让 Python 调用方遵循同一协议。它必须包围完整 load、mutate、save 事务，是跨进程、建议性、非重入的锁，不替代 Store `RLock` 或 PostgreSQL 事务。
+
+成功输出一个确定性 JSON 与换行；失败向 stderr 输出一个结构化 JSON，不带 traceback。退出码 0 到 4 分别表示成功/空操作、内部错误、输入错误、状态拒绝和写入失败。成功输出在持久化前序列化，已经提交后发生 stdout 关闭不会把操作误报为失败。
+
+## 第 4 层：Memory Gate
+
+记忆使用必须通过两层门控：
+
+```text
+System Gate -> LLM Gate
+```
+
+`parse_memory_context()` 验证 JSON 字符串或 mapping，要求 `mode`、`repo`、`commit_sha`，并只保留已知字段。所有公开 gate helper 都会在迭代、排序或读取字段前验证 context、列表、`MemoryItem`、唯一 ID 与字符串映射。
+
+System Gate 是确定性的，检查来源、状态、scope、tenant、confidence、敏感性、评估泄漏和运行模式。LLM Gate 只对通过 System Gate 的候选判断语义适用性。
+
+`parse_memory_decision()` 严格验证 LLM JSON。`use_memory`、allowed IDs 和 injection mode 必须一致；`allowed_memory_ids` 与 `blocked_memory_ids` 各最多 50 项。LLM 只能缩小系统允许集合，不能重新放行被阻止的记忆。
+
+动态 task、context summary 和候选文本都以 JSON 字符串编码并受长度限制。注入模式 `none` 不输出内容，`pointer_only` 只输出 ID/source/scope，摘要模式输出受限、转义后的记忆文本。
+
+固定预算包括 128 字符 ID、512 字符 metadata、50 个候选、32,000 字符 gate prompt、20 条注入 memory 和 12,000 字符 snippet。
+
+候选检索 metadata-first。Lesson 与 Project Policy 要求所有已声明 scope 精确匹配；debug/repair 模式还能从 source Trace 派生 verified Failure Case memory。关键词或调用方 semantic score 只能帮助检索，不能替代两层门控。
+
+Semantic 模式要求 `max_candidates` 为 1 到 50，验证完整 score mapping 后使用有界 heap top-k，结果按 score 降序、同分按 memory ID 升序，复杂度为 `O(K log k)` 时间与 `O(k)` 排名存储。score 与 embedding 不持久化。
+
+安全主流程是 `prepare_memory()` 后接 `finalize_memory()`：准备阶段检索并运行 System Gate，最终化重新验证状态、收窄 LLM decision、渲染 snippet 并原子记录 Trace-linked 证据。
+
+### 同步 Memory Run 执行
+
+`run_memory_execution()` 为常见同步路径提供无依赖编排：prepare、decision callback、finalize、execution callback、`complete_memory_run()`。`MemoryRunMeasurement` 不含 decision ID；模块总是传递 Store 生成的 ID，并只转发非 `None` 可选证据。
+
+prepare 后的普通异常包装为 `MemoryRunExecutionError`，阶段为 `decision`、`finalization`、`execution` 或 `completion`，同时保留原始 cause 与恢复上下文。prepare 错误原样传播，`KeyboardInterrupt` 和 `SystemExit` 不包装。一次性 helper 每次调用都会准备新 request，不能作为幂等重试令牌。
+
+正常时间顺序为注册 unknown Trace、finalize decision、执行、再原子完成。`complete_memory_run()` 在一把 Store 锁下验证 Trace 与 usage-log 候选后同时赋值，支持 pending、匹配部分完成和精确重放；任何 outcome、归因、证据或 linkage 冲突都不会留下半完成状态。
+
+`complete_memory_runs()` 对唯一 decision ID 的非空 `MemoryRunResult` tuple 应用同一状态机，从已验证 decision 推导 Trace ID。共享 Trace 的结果必须一致，证据只在互不重叠或相同的情况下合并。批量完成与批量恢复共用不变更状态的 candidate stager。
+
+`memory_run_audits()` 把 decision 分类为 `pending`、`trace_only`、`decision_only`、`complete` 或 `conflict`。`memory_run_remediations()` 再映射为 `measure`、`recover`、`recover_with_attribution`、`investigate` 或 `none`。冲突只供人工调查，Store 不自动选边。
+
+`recover_ready_memory_runs()` 在同一可重入锁下重新规划、选择 `recover` 项并批量提交，避免 plan-to-write 竞态。`memory_run_metrics()` 用一次扫描统计状态与恢复工作。`recover_memory_run()` 和 `recover_memory_runs()` 只从已测量一侧推导结果；失败/错误 Trace-only 状态必须由调用方显式提供 attribution。
+
+finalization 与底层日志要求 `repo`、`commit_sha`、`tenant` 始终匹配 Trace；其他 provenance 只有 context 声明时绑定。验证发生在 request 消费或 usage append 之前。
+
+usage log 保存 Trace ID、序列化 context、候选与状态、System Gate 阻止原因、最终 ID、风险、理由、注入模式、可选结果和 failure attribution。Store 拒绝未知、重复、空或相互矛盾的 ID 证据。
+
+### 结果感知指标
+
+`pass`、`fail`、`error` 是已评估结果，其中 `error` 为未通过；`unknown` 与 `None` 不进入通过率分母。`evaluated_with_memory_count`、`evaluated_without_memory_count` 与 `unevaluated_decision_count` 之和等于 `decision_count`。
+
+`tbm outcome` 是 `record_decision_outcome()` 的 decision-only CLI，输出仅包含前后 outcome pair、decision ID、`changed` 与 `written`，不会完成 Trace 或泄露 context、memory IDs 和工具证据。
+
+`memory_outcome_metrics()` 为每个 Failure Case、Lesson 和 Project Policy 返回按 ID 排序的候选、使用、阻止和 outcome 观测。多记忆 decision 会把同一结果关联到每个 used ID；这些是观测关联，不是因果估计。
+
+### 基准示例身份边界
+
+基准泄漏身份是精确二元组 `(eval_suite, input_hash)`。调用方负责稳定 suite 名称、确定性规范化、隐私保护哈希和碰撞策略。source-derived memory 在运行时临时获得 `source_eval_suite` 与 `source_input_hash`；这些字段不进入 prompt、snippet 或持久化。
+
+完整身份相同会在所有模式下以 `memory originates from current benchmark example` 自动阻止。`sensitive` 与 `eval_leaking` 检查优先。身份不完整时不会猜测匹配；不同 hash 或不同 suite 不触发规则。finalization 在状态变更前绑定当前 context 与 Trace 身份。
+
+Trace 嵌套 JSON 只接受字符串键与有限数，拒绝环、超深结构、预算溢出和 lone surrogate。持久化身份、linkage、必需文本、scope、Memory Context 与 audit mapping 键值都必须至少包含一个非空白字符；六组 JSON Schema 使用 `pattern: "\\S"` 发布同一规则。
+
+PostgreSQL 使用 composite provenance、confidence、JSONB shape、runtime memory ID registry、前向状态 trigger 和行锁保持跨层约束。fresh-install DDL 在一个事务中执行，函数固定 `pg_catalog` search path，并要求 PostgreSQL 12+。Schema 版本 1 的普通空格检查比 Python 规则窄，因此受支持写入始终先经过 Store 验证。
+
+PostgreSQL 集成测试在普通本地环境可跳过；CI 的 `TBM_REQUIRE_POSTGRES=1` 将缺少工具或非法 initdb 用户转换为失败。独立 Ubuntu job 运行真实集群测试，Windows job 运行完整 Python 套件。
+
+## PostgreSQL 运行时存储库
+
+`PostgresMemoryRepository` 是完整 `TraceBackedMemoryStore` 的同步持久化边界。`psycopg` 是可选、延迟导入的 extra；核心包导入不加载驱动。
+
+存储库只操作由规范 `schemas/postgres.sql` 安装的新 `public` schema，并锁定 metadata 行要求 schema 版本 1。它不是在线迁移机制。
+
+`sync(store)` 先获取内存快照，再在一个数据库事务中增量同步。它插入缺失记录，保留数据库中额外记录，不执行破坏性 reconciliation。已有记录在写前按规范形式比较；不可变冲突回滚整个事务。
+
+Trace 只允许 unknown 到 measured 的前向完成，并只填充空执行证据；usage log 只允许封存未评估 outcome pair；Failure Case 只允许诊断、review、修复与状态字段的受支持更新；Lesson 与 Project Policy 只允许状态前向更新。
+
+缺失主键行的 INSERT 在 nested savepoint 中执行。并发同主键 `23505` 或 registry 精确 `P0001` 会回滚保存点、重新 `FOR UPDATE` 并按相同规则判断 exact replay、forward update 或 protected conflict。找不到目标的碰撞和其他 driver 错误保持 `PostgresPersistenceError`。
+
+`load()` 在第一次集合读取前按序对五表获取 `SHARE` 锁，然后执行 count 预检和 loaded-row UTF-8 JSON payload 预检。它在 fetch 前拒绝每集合超过 100,000、总计超过 250,000、单行或总载荷超过 64 MiB。Failure Case、Lesson、Project Policy projection 只排除 selector 不读取的内部 `updated_at`。
+
+显式 `SHARE` 锁要求 schema owner 或具备表级写权限的角色。在调用方事务中，锁会持续到外层 commit/rollback。`PostgresMemoryRepository(connection)` 借用连接；`connect()` 创建并拥有连接。已有外层事务时使用 savepoint，否则正常提交。当前不提供 connection pool。
+
+## 第 5 层：PR / CI Memory Report
+
+PR 报告只考虑 Trace 的 repo/tenant 与当前 context 精确匹配、verified 且 regression-backed 的历史 Failure Case。它输出相关案例、source/fix provenance、建议回归测试，以及 prompt、tool、model 或 eval 变化风险。
+
+`pr_memory_report()` 接受一种 change 输入。Legacy `changed_fields` 保留宽泛字段名匹配；值感知模式使用不可变 `PRChangeSet(field_name, old_value, new_value)`，支持 `prompt_version`、`prompt_family`、`tool`、`tool_schema_version`、`model` 和 `eval_suite`，最多 6 项。`model_family` 因 Trace 无精确 provenance 而不支持。
+
+Store 要求每个 new value 与变更后 context 相等，并只匹配完整 old endpoint 或完整 new endpoint，排除混合配置。匹配 provenance 标为 `old`、`new` 或 `both`。Legacy warning 名称在扫描案例前一次验证，只保留最多 7 个支持名称的首次出现，使工作量保持 `O(W + C)`。
+
+`pr_report_commit_anchors()` 与 `pr_memory_report()` 必须复用同一个 change set。报告先匹配 endpoint，再要求完整 ancestry evidence，最后排除 false 关系。只读 `pr-report` CLI 在显式 repo path 捕获 ancestry，输出 `commit_ancestry` 与 `report`，不接受 `--write` 或调用方伪造证据。
+
+## Git 祖先关系适用性
+
+`CommitAncestryEvidence` 是绑定一个当前 commit 的不可变 request-time 证据。运行时先通过 `candidate_commit_anchors()` 发现 metadata-scoped anchor，在 Store 锁外执行 `capture_commit_ancestry()`，再把同一对象传给检索；PR 流程使用对应 report anchor API。
+
+单次捕获最多接收 1,000 个输入，重复项在去重前计数，overflow 时最多消费 1,001 项且不启动 Git。默认 runner 使用 binary `Popen`、`stdin=DEVNULL`、30 秒 timeout、UTF-8 replacement 解码和每个 stdout/stderr 64 KiB 上限；超时或输出溢出会 kill/reap。
+
+Lesson anchor 是 source case 的 fix commit，Failure Case anchor 是 source commit，Project Policy 无 anchor。提供证据时必须覆盖所有候选 anchor 并绑定当前 `context.commit_sha`；缺失证据 fail closed，false 关系排除对应历史。省略证据保留兼容路径。
+
+处理顺序是 metadata discovery、外部 ancestry capture、ancestry filter、可选关键词/semantic retrieval、System Gate、LLM Gate。证据不写入快照、usage log、YAML、Schema 或 PostgreSQL。
+
+## 非目标
+
+- 不优先构建通用个性化记忆。
+- 不把原始 Trace 直接注入 prompt。
+- 不把向量相似度视为相关性的充分证明。
+- 不允许 LLM 在未验证时激活记忆。
+- 不提供已部署 schema 版本之间的原地迁移。
+- 不提供 connection pool 或其生命周期管理。
+- 不提供异步 PostgreSQL repository。

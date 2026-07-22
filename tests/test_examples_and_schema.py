@@ -85,7 +85,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
     ]:
         assert contract in product
 
-    assert "[Product Overview and Current Capabilities](docs/product.md)" in readme
+    assert "[Product Overview and Current Capabilities](docs/product.en.md)" in readme
     assert project["readme"] == "README.md"
     assert project["license"] == "MIT"
     assert project["license-files"] == ["LICENSE"]
@@ -127,15 +127,51 @@ def test_readme_language_versions_stay_linked_and_structurally_aligned():
     assert re.search(r"[\u4e00-\u9fff]", chinese) is not None
     assert _markdown_heading_levels(chinese) == _markdown_heading_levels(english)
 
-    for target in [
-        "docs/product.md",
+    english_targets = [
+        "docs/product.en.md",
         "docs/architecture.md",
         "docs/usage-policy.md",
         "docs/mvp-roadmap.md",
+    ]
+    chinese_targets = [
+        "docs/product.md",
+        "docs/architecture.zh-CN.md",
+        "docs/usage-policy.zh-CN.md",
+        "docs/mvp-roadmap.zh-CN.md",
+    ]
+    for document, targets in [
+        (english, english_targets),
+        (chinese, chinese_targets),
     ]:
-        assert f"]({target})" in english
-        assert f"]({target})" in chinese
-        assert (ROOT / target).is_file()
+        for target in targets:
+            assert f"]({target})" in document
+            assert (ROOT / target).is_file()
+
+
+def test_product_and_reference_documents_are_localized_in_pairs():
+    pairs = [
+        ("docs/product.en.md", "docs/product.md"),
+        ("docs/architecture.md", "docs/architecture.zh-CN.md"),
+        ("docs/usage-policy.md", "docs/usage-policy.zh-CN.md"),
+        ("docs/mvp-roadmap.md", "docs/mvp-roadmap.zh-CN.md"),
+    ]
+
+    for english_name, chinese_name in pairs:
+        english_path = ROOT / english_name
+        chinese_path = ROOT / chinese_name
+        english = english_path.read_text(encoding="utf-8")
+        chinese = chinese_path.read_text(encoding="utf-8")
+
+        assert (
+            f"**English** | [简体中文]({chinese_path.name})"
+            in english.splitlines()[:4]
+        )
+        assert (
+            f"[English]({english_path.name}) | **简体中文**"
+            in chinese.splitlines()[:4]
+        )
+        assert re.search(r"[\u4e00-\u9fff]", chinese) is not None
+        assert _markdown_heading_levels(chinese) == _markdown_heading_levels(english)
 
 
 def test_public_batch_obsolescence_types_are_exact_and_canonical():

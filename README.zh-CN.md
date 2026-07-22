@@ -8,7 +8,7 @@
 
 Trace-backed Memory 将绑定来源的 Agent Trace、评估结果和 Git 提交，转化为经过验证、受作用域约束且可审计的记忆，并允许系统在调试、修复、回归分析、规划和生产运行时有选择地使用这些记忆。
 
-[产品概览与当前能力](docs/product.md) | [架构](docs/architecture.md) | [记忆使用策略](docs/usage-policy.md) | [路线图](docs/mvp-roadmap.md)
+[产品概览与当前能力](docs/product.md) | [架构](docs/architecture.zh-CN.md) | [记忆使用策略](docs/usage-policy.zh-CN.md) | [路线图](docs/mvp-roadmap.zh-CN.md)
 
 ## 项目定位
 
@@ -737,10 +737,14 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |-- README.md
 |-- README.zh-CN.md
 |-- docs/
-|   |-- product.md
 |   |-- architecture.md
+|   |-- architecture.zh-CN.md
+|   |-- mvp-roadmap.md
+|   |-- mvp-roadmap.zh-CN.md
+|   |-- product.en.md
+|   |-- product.md
 |   |-- usage-policy.md
-|   `-- mvp-roadmap.md
+|   `-- usage-policy.zh-CN.md
 |-- examples/
 |   |-- trace.example.json
 |   |-- failure_case.example.json

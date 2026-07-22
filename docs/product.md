@@ -1,5 +1,7 @@
 # Trace-backed Memory 产品文档
 
+[English](product.en.md) | **简体中文**
+
 - 当前版本：`0.1.0`（Alpha）
 - 交付形态：Python 库 + `tbm` CLI + JSON/YAML/JSON Schema + 可选 PostgreSQL Repository
 - 运行要求：Python 3.11+；PostgreSQL 能力要求 PostgreSQL 12+
@@ -248,8 +250,8 @@ Phase 70 修复 `recover-batch --attribution` 对合法 decision ID 的分隔歧
 
 ## 11. 相关文档
 
-- [README / Quick start](../README.md)
-- [Architecture](architecture.md)
-- [Memory usage policy](usage-policy.md)
-- [Implemented roadmap](mvp-roadmap.md)
+- [README / 快速开始](../README.zh-CN.md)
+- [架构](architecture.zh-CN.md)
+- [记忆使用策略](usage-policy.zh-CN.md)
+- [已实现路线图](mvp-roadmap.zh-CN.md)
 - [MIT License](../LICENSE)

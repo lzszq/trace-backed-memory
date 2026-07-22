@@ -1,5 +1,7 @@
 # Memory Usage Policy
 
+**English** | [简体中文](usage-policy.zh-CN.md)
+
 ## Rule
 
 Memory is not default context. Memory is historical experience that must be filtered, scoped, and approved before use.

@@ -110,6 +110,17 @@ PR_CHANGE_SET_FIELDS = (
     "eval_suite",
 )
 PR_CHANGE_SET_MAX_FIELDS = len(PR_CHANGE_SET_FIELDS)
+LEGACY_PR_WARNING_FIELDS = frozenset(
+    {
+        "prompt_version",
+        "prompt_family",
+        "tool_schema_version",
+        "tool",
+        "model",
+        "model_family",
+        "eval_suite",
+    }
+)
 DECLARED_TRACE_CONTEXT_FIELDS = (
     "branch",
     "prompt_version",
@@ -1920,15 +1931,12 @@ class TraceBackedMemoryStore:
             )
         changes = None
         if changed_fields is not None:
-            if not isinstance(changed_fields, list) or any(
-                not isinstance(field_name, str) or not field_name.strip()
-                for field_name in changed_fields
-            ):
-                raise ValueError("changed_fields must be a list of non-empty strings")
-            warning_fields = changed_fields
+            warning_fields = _validated_legacy_pr_warning_fields(changed_fields)
         else:
             changes = _validated_pr_change_set(context, change_set)
-            warning_fields = [field_name for field_name, _old, _new in changes]
+            warning_fields = tuple(
+                field_name for field_name, _old, _new in changes
+            )
         ancestry_relations = _validated_commit_ancestry(
             context, commit_ancestry
         )
@@ -1952,8 +1960,6 @@ class TraceBackedMemoryStore:
             _change_warning(case, context, changed_field)
             for case in related_cases
             for changed_field in warning_fields
-            if changed_field
-            in {"prompt_version", "prompt_family", "tool_schema_version", "tool", "model", "model_family", "eval_suite"}
         ]
 
         return PRMemoryReport(
@@ -2034,6 +2040,23 @@ def _context_values(context: MemoryContext) -> dict[str, str | None]:
         "task_type": context.task_type,
         "failure_type": context.failure_type,
     }
+
+
+def _validated_legacy_pr_warning_fields(
+    changed_fields: object,
+) -> tuple[str, ...]:
+    if not isinstance(changed_fields, list):
+        raise ValueError("changed_fields must be a list of non-empty strings")
+
+    validated: list[str] = []
+    seen: set[str] = set()
+    for field_name in changed_fields:
+        if not isinstance(field_name, str) or not field_name.strip():
+            raise ValueError("changed_fields must be a list of non-empty strings")
+        if field_name in LEGACY_PR_WARNING_FIELDS and field_name not in seen:
+            seen.add(field_name)
+            validated.append(field_name)
+    return tuple(validated)
 
 
 def _validated_pr_change_set(
@@ -3458,7 +3481,10 @@ def _change_warning(case: FailureCase, context: MemoryContext, changed_field: st
 
 def _unique(values: list[str]) -> list[str]:
     result: list[str] = []
+    seen: set[str] = set()
     for value in values:
-        if value not in result:
-            result.append(value)
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
     return result

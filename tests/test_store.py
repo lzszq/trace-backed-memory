@@ -8718,6 +8718,85 @@ def test_pr_memory_report_surfaces_related_failures_and_regression_suggestions()
     ]
 
 
+def test_legacy_pr_report_normalizes_warning_fields_before_case_cross_product(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    store = TraceBackedMemoryStore()
+    for suffix in ("a", "b"):
+        trace = store.record_trace(
+            Trace(
+                trace_id=f"trace_{suffix}",
+                run_id=f"run_{suffix}",
+                commit_sha=f"commit_{suffix}",
+                repo="repo",
+                tenant="tenant",
+                eval_result="fail",
+                tool_calls=[{"name": "search_docs", "arguments": {}}],
+            )
+        )
+        store.add_failure_case(
+            verify_failure_case(
+                draft_failure_case(
+                    trace,
+                    case_id=f"case_{suffix}",
+                    failure_type="tool_error",
+                    symptom=f"tool failure {suffix}",
+                ),
+                fix=f"fix {suffix}",
+                fix_commit_sha=f"fix_{suffix}",
+                regression_passed=True,
+            )
+        )
+
+    original_change_warning = store_module._change_warning
+    warning_calls: list[tuple[str, str]] = []
+
+    def count_change_warning(
+        case: FailureCase,
+        context: MemoryContext,
+        changed_field: str,
+    ) -> str:
+        warning_calls.append((case.case_id, changed_field))
+        return original_change_warning(case, context, changed_field)
+
+    monkeypatch.setattr(store_module, "_change_warning", count_change_warning)
+    repeated_fields = [
+        "unknown",
+        "model_family",
+        "model",
+        "tool",
+        "model",
+        "unknown",
+        "model_family",
+    ] * 200
+    context = MemoryContext(
+        mode="regression",
+        repo="repo",
+        tenant="tenant",
+        commit_sha="current",
+        tool="search_docs",
+    )
+
+    report = store.pr_memory_report(context, changed_fields=repeated_fields)
+
+    assert warning_calls == [
+        ("case_a", "model_family"),
+        ("case_a", "model"),
+        ("case_a", "tool"),
+        ("case_b", "model_family"),
+        ("case_b", "model"),
+        ("case_b", "tool"),
+    ]
+    assert report.warnings == [
+        "model_family change touches known failure case case_a for search_docs.",
+        "model change touches known failure case case_a for search_docs.",
+        "tool change touches known failure case case_a for search_docs.",
+        "model_family change touches known failure case case_b for search_docs.",
+        "model change touches known failure case case_b for search_docs.",
+        "tool change touches known failure case case_b for search_docs.",
+    ]
+
+
 def test_pr_memory_report_ignores_different_tenant_failures():
     store = TraceBackedMemoryStore()
     trace = store.record_trace(
@@ -11176,6 +11255,24 @@ def test_pr_memory_report_validates_changed_fields_before_scanning_empty_store(
         match="changed_fields must be a list of non-empty strings",
     ):
         TraceBackedMemoryStore().pr_memory_report(
+            context,
+            changed_fields=changed_fields,  # type: ignore[arg-type]
+        )
+
+
+def test_legacy_pr_report_validates_all_fields_before_case_scanning(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    store = TraceBackedMemoryStore()
+    prevent_pr_case_scan(monkeypatch, store)
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+    changed_fields: list[object] = ["model"] * 1_000 + [None]
+
+    with pytest.raises(
+        ValueError,
+        match="changed_fields must be a list of non-empty strings",
+    ):
+        store.pr_memory_report(
             context,
             changed_fields=changed_fields,  # type: ignore[arg-type]
         )

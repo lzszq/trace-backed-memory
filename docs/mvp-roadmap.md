@@ -1037,3 +1037,16 @@ Track:
 - Preserve the exact six-field boundary, canonical sorting, legacy
   `changed_fields`, snapshot version 2, PostgreSQL schema version 1, and all
   packaged resources.
+
+## Phase 60: Linear legacy PR warnings (implemented)
+
+- Validate permissive legacy `changed_fields` in one pass before ancestry or
+  historical case scanning.
+- Retain the first occurrence of at most 7 supported warning names while
+  continuing to accept duplicate, unknown, and empty-list inputs.
+- Prevent caller input length from multiplying case-level warning construction
+  and make stable suggestion/warning deduplication set-backed.
+- Reduce expected legacy warning work from `O(C * W)` plus quadratic stable
+  deduplication to `O(W + C)` without changing text or order.
+- Preserve exact `PRChangeSet`, matching, ancestry, provenance, snapshot
+  version 2, PostgreSQL schema version 1, and all packaged resources.

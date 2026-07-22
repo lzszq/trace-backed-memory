@@ -809,6 +809,13 @@ field-name-only behavior, including legacy `model_family` warnings. Change
 sets and endpoint tags are ephemeral report inputs and outputs, not persisted
 records or schema extensions.
 
+Validate legacy PR warning names in one pass before scanning cases. Retain the
+first occurrence of at most 7 supported names; continue accepting duplicate
+and unknown non-empty strings, but do not let them multiply case-level work.
+Stable output deduplication must preserve warning order and keep expected
+legacy warning complexity at `O(W + C)`. Snapshot version 2 and PostgreSQL
+schema version 1 remain unchanged.
+
 For CI, use the read-only `pr-report SNAPSHOT CONTEXT_JSON CHANGE_SET_JSON
 --repo-path REPO_PATH` command. `CONTEXT_JSON` must be an exact validated
 `MemoryContext` object, and `CHANGE_SET_JSON` must contain exact

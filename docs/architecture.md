@@ -1086,6 +1086,13 @@ values. The only supported exact-provenance fields are `prompt_version`,
 `model_family` is rejected for a change set because traces do not store exact
 model-family provenance.
 
+Legacy PR warning names are validated and normalized in one pass before
+ancestry or case scanning. The Store retains the first occurrence of at most 7
+supported names. Duplicate and unknown strings remain valid inputs but cannot
+increase the case cross product. Set-backed stable output deduplication keeps
+the original first-occurrence order while making legacy warning work expected
+`O(W + C)` for `W` caller entries and `C` related cases.
+
 The supported unique field set also defines the cardinality boundary:
 `PRChangeSet` accepts at most 6 entries. Both Store interfaces reject a seventh
 item before entry shape or PR case scanning, then use one pass of bounded sets

@@ -1237,6 +1237,11 @@ The existing `changed_fields=[...]` input remains supported with its broad,
 field-name-only behavior and legacy provenance of `None`, including its
 existing `model_family` warning behavior. Exact value-aware `model_family`
 matching is unsupported because traces do not store that provenance.
+Legacy PR warning fields are validated in one pass before case scanning. The
+Store retains the first occurrence of at most 7 supported names; duplicate and
+unknown strings remain accepted but cannot increase downstream warning work.
+Together with stable set-backed output deduplication, legacy PR warning work is
+expected `O(W + C)` for `W` input names and `C` related cases.
 `PRChangeSet` values and endpoint provenance are ephemeral report-only values:
 they are not persisted and do not change snapshot version 2, JSON schemas,
 active-lessons YAML, or PostgreSQL schema version 1.
@@ -1655,6 +1660,7 @@ Implemented pieces:
 - Lesson safety flags for sensitive or eval-leaking memory are preserved through retrieval and blocked by System Gate.
 - PR reports can reuse current-commit-bound ancestry evidence to exclude unrelated historical failure cases before generating report content.
 - PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, warns on risky prompt/tool/model/eval-suite changes, and supports immutable complete-endpoint `PRChangeSet` matching with old/new/both provenance.
+- Legacy PR warning generation validates names in one pass, retains the first occurrence of at most 7 supported fields, and prevents duplicate or unknown strings from multiplying case-level work.
 - Deferred, idempotent decision-outcome sealing plus outcome-aware metrics for decisions, candidates, used/blocked memory, measured pass rates with explicit denominators, unevaluated decisions, wrong-memory failures, obsolete attempts, and lesson confidence.
 
 ## Repository layout

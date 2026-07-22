@@ -1,5 +1,7 @@
 # Trace-backed Memory
 
+**English** | [简体中文](README.zh-CN.md)
+
 A provenance-backed memory layer for LLM / agent harness engineering.
 
 ## One-liner

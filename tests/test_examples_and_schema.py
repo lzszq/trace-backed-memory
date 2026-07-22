@@ -26,6 +26,24 @@ DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 CURRENT_IMPLEMENTED_PHASE = "Phase 0-70"
 
 
+def _markdown_heading_levels(document: str) -> tuple[int, ...]:
+    levels: list[int] = []
+    in_fence = False
+
+    for line in document.splitlines():
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = re.match(r"^(#{1,6})\s+", line)
+        if match is not None:
+            levels.append(len(match.group(1)))
+
+    assert not in_fence
+    return tuple(levels)
+
+
 def test_postgres_adapter_dependencies_are_optional():
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     project = pyproject["project"]
@@ -90,6 +108,34 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         "credentials.json",
     ]:
         assert ignored_secret_pattern in gitignore
+
+
+def test_readme_language_versions_stay_linked_and_structurally_aligned():
+    english_path = ROOT / "README.md"
+    chinese_path = ROOT / "README.zh-CN.md"
+    english = english_path.read_text(encoding="utf-8")
+    chinese = chinese_path.read_text(encoding="utf-8")
+
+    assert english.startswith(
+        "# Trace-backed Memory\n\n"
+        "**English** | [简体中文](README.zh-CN.md)\n"
+    )
+    assert chinese.startswith(
+        "# Trace-backed Memory\n\n"
+        "[English](README.md) | **简体中文**\n"
+    )
+    assert re.search(r"[\u4e00-\u9fff]", chinese) is not None
+    assert _markdown_heading_levels(chinese) == _markdown_heading_levels(english)
+
+    for target in [
+        "docs/product.md",
+        "docs/architecture.md",
+        "docs/usage-policy.md",
+        "docs/mvp-roadmap.md",
+    ]:
+        assert f"]({target})" in english
+        assert f"]({target})" in chinese
+        assert (ROOT / target).is_file()
 
 
 def test_public_batch_obsolescence_types_are_exact_and_canonical():

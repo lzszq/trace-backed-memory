@@ -1171,3 +1171,15 @@ Track:
 - Preserve taxonomy IDs, keyword precedence, evaluator fallbacks, public APIs,
   snapshot version 2, PostgreSQL schema version 1, JSON Schemas, and all 18
   packaged resources.
+
+## Phase 70: Recover attribution final delimiter (implemented)
+
+- Parse each `recover-batch --attribution DECISION_ID=true|false` value at the
+  final `=` delimiter.
+- Preserve the complete non-empty decision-ID prefix, including earlier `=`
+  characters, without trimming or normalization.
+- Keep exact lowercase `true`/`false` suffixes and existing structured input
+  errors with exit code 2 for malformed, unrequested, or duplicate entries.
+- Preserve request ordering, Store-owned recovery atomicity, public APIs,
+  snapshot version 2, PostgreSQL schema version 1, JSON Schemas, and all 18
+  packaged resources.

@@ -3416,6 +3416,47 @@ def test_cli_batch_parses_attributions_strictly(tmp_path, capsys):
     assert "unrequested" in error["error"]["message"]
 
 
+@pytest.mark.parametrize(
+    "decision_id",
+    [
+        "decision=regional",
+        "decision=regional=true",
+    ],
+)
+def test_cli_batch_attribution_preserves_equals_in_decision_id(
+    tmp_path,
+    capsys,
+    decision_id,
+):
+    path, _decision_ids = _snapshot_with_states(
+        tmp_path,
+        "trace_only_fail",
+    )
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    snapshot["usage_logs"][0]["decision_id"] = decision_id
+    path.write_text(json.dumps(snapshot), encoding="utf-8")
+    original = path.read_bytes()
+
+    code, payload, error = _run(
+        capsys,
+        "recover-batch",
+        str(path),
+        decision_id,
+        "--attribution",
+        f"{decision_id}=false",
+        "--write",
+    )
+
+    assert code == 0
+    assert error is None
+    assert payload["decision_ids"] == [decision_id]
+    assert payload["written"] is True
+    assert path.read_bytes() != original
+    written = json.loads(path.read_text(encoding="utf-8"))
+    assert written["usage_logs"][0]["decision_id"] == decision_id
+    assert written["usage_logs"][0]["eval_result"] == "fail"
+
+
 def test_cli_write_failure_uses_exit_four_without_replacing_snapshot(
     tmp_path,
     capsys,

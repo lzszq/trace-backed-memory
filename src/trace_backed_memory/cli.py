@@ -440,7 +440,7 @@ def _parse_attributions(
     requested = set(requested_ids)
     attributions: dict[str, bool] = {}
     for value in values:
-        decision_id, separator, raw_attribution = value.partition("=")
+        decision_id, separator, raw_attribution = value.rpartition("=")
         if not separator or not decision_id or not raw_attribution:
             raise CLIInputError(
                 "attribution must use DECISION_ID=true|false"

@@ -23,7 +23,7 @@ from trace_backed_memory.models import EvalResult, FailureCaseStatus, LessonStat
 
 ROOT = Path(__file__).resolve().parents[1]
 DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
-CURRENT_IMPLEMENTED_PHASE = "Phase 0-69"
+CURRENT_IMPLEMENTED_PHASE = "Phase 0-70"
 
 
 def test_postgres_adapter_dependencies_are_optional():
@@ -3572,6 +3572,61 @@ def test_docs_publish_recover_batch_argument_cardinality():
         "const": 2,
     }
     assert "VALUES (true, 1)" in _postgres_schema()
+
+
+def test_docs_publish_recover_attribution_final_delimiter():
+    from trace_backed_memory import packaged_resources
+
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "Phase 25 design": _doc(
+            "superpowers/specs/2026-07-18-snapshot-operations-cli-design.md"
+        ),
+        "Phase 44 design": _doc(
+            "superpowers/specs/"
+            "2026-07-22-recover-batch-cardinality-design.md"
+        ),
+        "Phase 70 design": _doc(
+            "superpowers/specs/"
+            "2026-07-22-recover-attribution-delimiter-design.md"
+        ),
+    }
+    required_contracts = (
+        "recover-batch",
+        "decision_id=true|false",
+        "final `=`",
+        "exit code 2",
+        "snapshot version 2",
+        "postgresql schema version 1",
+    )
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower()
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
+    assert (
+        "Phase 70: Recover attribution final delimiter (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    usage_schema = _json_schema("memory_usage_log.schema.json")
+    assert usage_schema["properties"]["decision_id"] == {
+        "type": "string",
+        "pattern": "\\S",
+        "minLength": 1,
+        "maxLength": 128,
+    }
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    assert "VALUES (true, 1)" in _postgres_schema()
+    assert len(packaged_resources()) == 18
 
 
 def test_docs_publish_non_negative_trace_latency_contract():

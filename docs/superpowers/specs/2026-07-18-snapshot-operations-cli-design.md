@@ -121,6 +121,15 @@ schema version 1. A successful write canonicalizes the snapshot through the
 normal store serializer; a dry run or any input, recovery, serialization, or
 write failure leaves the original file unchanged.
 
+## Phase 70 Supersession
+
+Phase 70 defines the delimiter inside the existing
+`DECISION_ID=true|false` syntax as the final `=`. The complete non-empty prefix
+is preserved as the decision ID, including earlier `=` characters, while the
+suffix remains exact lowercase `true` or `false`. Malformed entries remain
+structured input errors with exit code 2. Snapshot version 2 and PostgreSQL
+schema version 1 remain unchanged.
+
 ## Verification
 
 Tests cover parser JSON errors, every read command, deterministic ordering,

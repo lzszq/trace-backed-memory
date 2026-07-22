@@ -301,6 +301,13 @@ construction, recovery, or `--write` publication. The CLI has no limit opt-out;
 accepted batches retain strict attribution parsing, request ordering, and the
 Store's all-or-nothing recovery rules.
 
+Each `--attribution DECISION_ID=true|false` value uses the final `=` as its
+delimiter. The complete non-empty prefix is preserved as the decision ID, so
+IDs such as `decision=regional` remain addressable; the suffix must still be
+exact lowercase `true` or `false`. Missing delimiters, empty components,
+invalid booleans, unrequested IDs, and duplicate attributions remain
+structured input errors with exit code 2.
+
 `outcome` is the decision-only adapter for deferred evaluation. It calls
 `record_decision_outcome()` once and never completes the linked Trace. Its
 result contains only the decision ID, previous/current measured pair,

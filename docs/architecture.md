@@ -397,6 +397,10 @@ argument cardinality. More than 10,000 decision IDs or 10,000 attribution
 options is a structured `CLIInputError` with exit code 2. Accepted values then
 follow the existing uniqueness, exact `DECISION_ID=true|false`, state, order,
 dry-run, and atomic-write path without a second recovery implementation.
+The final `=` is the attribution delimiter: the complete non-empty prefix is
+the decision ID and may itself contain `=`, while the suffix remains exact
+lowercase `true` or `false`. Malformed components remain structured input
+errors with exit code 2; accepted IDs are not trimmed or normalized.
 
 `complete-batch SNAPSHOT MEASUREMENTS_JSON [--write]` reads a strict UTF-8 JSON
 non-empty array. Each allowlisted object becomes one `MemoryRunResult`; the

@@ -364,6 +364,12 @@ use exact `DECISION_ID=true|false` syntax, and an invalid item must reject the
 whole batch all-or-nothing. Operators must investigate conflicts rather than
 using the CLI to choose a historical side.
 
+For each attribution value, split on the final `=`. Preserve the complete
+non-empty prefix as the decision ID, including any earlier `=` characters, and
+accept only exact lowercase `true` or `false` as the suffix. Missing or empty
+components, invalid booleans, unrequested IDs, and duplicate attributions are
+input errors with exit code 2 and must not reach recovery or publication.
+
 For `recover-batch`, enforce the 10,000 decision IDs and 10,000 attribution
 limits before snapshot loading. Overflow is input exit code 2 and must not read,
 mutate, or replace the snapshot. At or below the limits, retain the existing

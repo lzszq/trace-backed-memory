@@ -33,6 +33,11 @@ be unique, attribution values must still use exact
 `DECISION_ID=true|false` syntax, and the Store remains authoritative for
 identity, eligibility, linkage, attribution, and atomic recovery.
 
+Phase 70 clarifies that the syntax uses the final `=` as its delimiter. The
+complete non-empty prefix is the decision ID and may contain earlier `=`
+characters; malformed suffixes remain structured input errors with exit code
+2. Snapshot version 2 and PostgreSQL schema version 1 remain unchanged.
+
 ## Compatibility and Persistence
 
 Ordinary batches and the exact 10,000-item boundary remain valid. The new

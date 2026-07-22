@@ -91,7 +91,10 @@ WITH snapshot_rows(payload_bytes) AS (
     UNION ALL
     SELECT pg_catalog.octet_length(
                pg_catalog.convert_to(
-                   pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text,
+                   (
+                       pg_catalog.to_jsonb(snapshot_row)
+                       OPERATOR(pg_catalog.-) 'updated_at'
+                   )::pg_catalog.text,
                    'UTF8'
                )
            )::pg_catalog.int8
@@ -99,7 +102,10 @@ WITH snapshot_rows(payload_bytes) AS (
     UNION ALL
     SELECT pg_catalog.octet_length(
                pg_catalog.convert_to(
-                   pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text,
+                   (
+                       pg_catalog.to_jsonb(snapshot_row)
+                       OPERATOR(pg_catalog.-) 'updated_at'
+                   )::pg_catalog.text,
                    'UTF8'
                )
            )::pg_catalog.int8
@@ -107,7 +113,10 @@ WITH snapshot_rows(payload_bytes) AS (
     UNION ALL
     SELECT pg_catalog.octet_length(
                pg_catalog.convert_to(
-                   pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text,
+                   (
+                       pg_catalog.to_jsonb(snapshot_row)
+                       OPERATOR(pg_catalog.-) 'updated_at'
+                   )::pg_catalog.text,
                    'UTF8'
                )
            )::pg_catalog.int8

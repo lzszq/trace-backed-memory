@@ -546,10 +546,13 @@ After those locks and before any record query, load runs one five-table
 `count(*)` count preflight. It rejects more than 100,000 records in any one
 collection or more than 250,000 records in total before a record row is fetched
 or decoded. After accepted counts, a second scalar preflight encodes every
-persisted row as a PostgreSQL JSON object, measures its UTF-8 bytes, and rejects
-either a largest row or five-table aggregate above 64 MiB before any collection
-row enters psycopg. The regular Store snapshot validator repeats the record
-checks after the bounded reads.
+loaded row projection as a PostgreSQL JSON object, measures its UTF-8 bytes,
+and rejects either a largest row or five-table aggregate above 64 MiB before
+any collection row enters psycopg. The failure-case, lesson, and project-policy
+projections exclude their internal `updated_at` column because collection
+selectors never fetch it; traces and usage decisions select every physical
+column. The regular Store snapshot validator repeats the record checks after
+the bounded reads.
 
 The payload accounting is a database-load budget, not an exact measurement of
 the indented `save_json()` file envelope. Boundary values are accepted. An
@@ -1715,6 +1718,9 @@ Implemented pieces:
 - JSON schemas for stored records and full memory-store snapshots.
 - Postgres schema parity checks for model defaults, an atomic fresh-install transaction pinned to `public`, invariant functions pinned to `pg_catalog`, a trigger-owned shared runtime memory ID registry that rejects direct DML, `TRUNCATE`, helper-shadow bypasses, and ghost usage, non-empty required text, composite case/trace commit provenance, forward-only status updates, `FOR SHARE` parent/lesson lifecycle serialization and cascades, JSONB object/array and element-type checks, required usage-decision audit evidence, and context example parsing.
 - PostgreSQL load preflights for per-collection/total counts plus largest-row and aggregate UTF-8 payload bytes, including exact boundaries, malformed scalar results, pre-fetch rejection, sanitized errors, and connection reuse.
+- PostgreSQL payload accounting over actual loaded-row projections, excluding
+  only the unfetched `updated_at` metadata in failure cases, lessons, and
+  project policies while retaining compact row-JSON semantics.
 - Lesson safety flags for sensitive or eval-leaking memory are preserved through retrieval and blocked by System Gate.
 - PR reports can reuse current-commit-bound ancestry evidence to exclude unrelated historical failure cases before generating report content.
 - PR/CI helper that reports related verified, regression-backed historical failures from repo-matched traces, includes source/fix provenance, suggests regressions, warns on risky prompt/tool/model/eval-suite changes, and supports immutable complete-endpoint `PRChangeSet` matching with old/new/both provenance.

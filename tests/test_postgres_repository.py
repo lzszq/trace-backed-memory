@@ -606,9 +606,18 @@ def test_runtime_payload_sql_qualifies_all_tables_and_encoding_functions():
         "public.memory_usage_decisions",
     )
     positions = [payload_sql.index(table) for table in expected_tables]
+    payload_branches = payload_sql.split("UNION ALL")
+    projection = "OPERATOR(pg_catalog.-) 'updated_at'"
 
     assert positions == sorted(positions)
     assert payload_sql.count("pg_catalog.to_jsonb(snapshot_row)") == 5
+    assert [projection in branch for branch in payload_branches] == [
+        False,
+        True,
+        True,
+        True,
+        False,
+    ]
     assert payload_sql.count("pg_catalog.convert_to(") == 5
     assert payload_sql.count("pg_catalog.octet_length(") == 5
     assert payload_sql.count("UNION ALL") == 4
@@ -990,7 +999,8 @@ def test_postgres_snapshot_payload_query_aggregates_all_real_collections(
         repository.sync(_complete_store())
         with connection.cursor(row_factory=dict_row) as cursor:
             sizes = repository._snapshot_payload_sizes(cursor)
-            row_sizes = []
+            loaded_row_sizes = []
+            internal_row_deltas = []
             for table_name in (
                 "traces",
                 "failure_cases",
@@ -998,20 +1008,36 @@ def test_postgres_snapshot_payload_query_aggregates_all_real_collections(
                 "project_policies",
                 "memory_usage_decisions",
             ):
+                row_projection = "pg_catalog.to_jsonb(snapshot_row)"
+                if table_name in {
+                    "failure_cases",
+                    "lessons",
+                    "project_policies",
+                }:
+                    row_projection = (
+                        "(pg_catalog.to_jsonb(snapshot_row) "
+                        "OPERATOR(pg_catalog.-) 'updated_at')"
+                    )
                 cursor.execute(
                     "SELECT pg_catalog.octet_length(pg_catalog.convert_to("
+                    f"{row_projection}::pg_catalog.text, "
+                    "'UTF8')) AS loaded_bytes, "
+                    "pg_catalog.octet_length(pg_catalog.convert_to("
                     "pg_catalog.to_jsonb(snapshot_row)::pg_catalog.text, "
-                    "'UTF8')) AS payload_bytes "
+                    "'UTF8')) AS physical_bytes "
                     f"FROM public.{table_name} AS snapshot_row"
                 )
-                row_sizes.extend(
-                    row["payload_bytes"] for row in cursor.fetchall()
-                )
+                for row in cursor.fetchall():
+                    loaded_row_sizes.append(row["loaded_bytes"])
+                    internal_row_deltas.append(
+                        row["physical_bytes"] - row["loaded_bytes"]
+                    )
 
-    assert len(row_sizes) == 5
+    assert len(loaded_row_sizes) == 5
+    assert sum(delta > 0 for delta in internal_row_deltas) == 3
     assert sizes == _postgres_snapshot_payload_sizes(
-        max_record_bytes=max(row_sizes),
-        total_bytes=sum(row_sizes),
+        max_record_bytes=max(loaded_row_sizes),
+        total_bytes=sum(loaded_row_sizes),
     )
 
 

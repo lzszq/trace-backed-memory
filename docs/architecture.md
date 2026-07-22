@@ -1051,8 +1051,8 @@ After the locks, one scalar five-table `count(*)` count preflight enforces the
 snapshot defaults of 100,000 records per collection and 250,000 records in
 total. An oversized database is rejected before any collection row is fetched
 or decoded. Accepted counts are followed by a second scalar preflight. It uses
-schema-qualified PostgreSQL 12 functions to convert each persisted row to a
-JSON object, measure that representation in UTF-8, and return only
+schema-qualified PostgreSQL 12 functions to convert each loaded row projection
+to a JSON object, measure that representation in UTF-8, and return only
 `max_record_bytes` and `total_bytes`. A largest row or five-table aggregate
 above 64 MiB is rejected before a collection selector runs. The stable table
 locks prevent counts or payloads from changing before the bounded reads
@@ -1062,13 +1062,17 @@ shape and reconstructs the store through its normal validation path. It rejects
 database data that cannot form a valid store rather than returning partial or
 unvalidated records.
 
-The payload byte count describes compact PostgreSQL row JSON, not the indented
-snapshot file envelope written by `save_json()`. Both exact 64 MiB boundaries
-are accepted. Overflow retains the repository's sanitized persistence error,
-rolls back the operation, and returns no partial Store. `sync()` is unchanged:
-its input is already caller-owned client memory. These preflights change no
-public API, snapshot version 2, JSON Schema, active-lessons YAML, packaged
-resource, PostgreSQL DDL, or PostgreSQL schema version 1.
+The failure-case, lesson, and project-policy projections subtract their
+internal `updated_at` column before measurement because their collection
+selectors do not fetch it. Trace and usage-decision projections retain every
+physical column. The payload byte count still describes compact PostgreSQL row
+JSON, not the indented snapshot file envelope written by `save_json()`. Both
+exact 64 MiB boundaries are accepted. Overflow retains the repository's
+sanitized persistence error, rolls back the operation, and returns no partial
+Store. `sync()` is unchanged: its input is already caller-owned client memory.
+These preflights change no public API, snapshot version 2, JSON Schema,
+active-lessons YAML, packaged resource, PostgreSQL DDL, or PostgreSQL schema
+version 1.
 
 The repository uses the schema owner or an equivalent write-capable role. On
 PostgreSQL 12, explicit `SHARE` table locks require table-level `UPDATE`,

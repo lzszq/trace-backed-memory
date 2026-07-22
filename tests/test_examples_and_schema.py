@@ -23,7 +23,7 @@ from trace_backed_memory.models import EvalResult, FailureCaseStatus, LessonStat
 
 ROOT = Path(__file__).resolve().parents[1]
 DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
-CURRENT_IMPLEMENTED_PHASE = "Phase 0-65"
+CURRENT_IMPLEMENTED_PHASE = "Phase 0-66"
 
 
 def test_postgres_adapter_dependencies_are_optional():
@@ -2607,6 +2607,59 @@ def test_docs_publish_bounded_runtime_trace_json():
         "const": 2,
     }
     postgres_schema = _postgres_schema()
+    assert "VALUES (true, 1)" in postgres_schema
+    assert len(packaged_resources()) == 18
+
+
+def test_docs_publish_postgres_loaded_row_payloads():
+    from trace_backed_memory import packaged_resources, postgres
+
+    documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "Phase 48 design": _doc(
+            "superpowers/specs/"
+            "2026-07-22-postgres-load-payload-budget-design.md"
+        ),
+    }
+    required_contracts = (
+        "loaded-row projection",
+        "updated_at",
+        "compact",
+        "64 mib",
+        "snapshot version 2",
+        "postgresql schema version 1",
+    )
+    for name, document in documents.items():
+        normalized = " ".join(document.split()).lower().replace(
+            "loaded row",
+            "loaded-row",
+        )
+        for contract in required_contracts:
+            assert contract in normalized, f"{name} should publish: {contract}"
+
+    payload_sql = " ".join(
+        postgres._MEASURE_SNAPSHOT_PAYLOAD_BYTES.split()
+    )
+    projection = "OPERATOR(pg_catalog.-) 'updated_at'"
+    assert [
+        projection in branch for branch in payload_sql.split("UNION ALL")
+    ] == [False, True, True, True, False]
+    assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
+    assert (
+        "Phase 66: PostgreSQL loaded-row payloads (implemented)"
+        in documents["docs/mvp-roadmap.md"]
+    )
+    snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
+    assert snapshot_schema["properties"]["snapshot_version"] == {
+        "type": "integer",
+        "const": 2,
+    }
+    postgres_schema = _postgres_schema()
+    assert postgres_schema.count("updated_at TIMESTAMPTZ DEFAULT now()") == 3
     assert "VALUES (true, 1)" in postgres_schema
     assert len(packaged_resources()) == 18
 

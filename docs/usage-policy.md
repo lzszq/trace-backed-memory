@@ -35,10 +35,13 @@ different committed table states. While those locks are held, a five-table
 `count(*)` count preflight rejects more than 100,000 records in any collection
 or more than 250,000 records overall before any collection row is fetched or
 decoded. Accepted counts are followed by a scalar UTF-8 payload preflight. It
-measures each persisted row as a PostgreSQL JSON object and rejects either a
-largest row or five-table aggregate above 64 MiB before a collection selector
-runs. Store reconstruction repeats the same count validation after the bounded
-reads. Sync locks every existing target row
+measures each loaded row projection as a PostgreSQL JSON object and rejects
+either a largest row or five-table aggregate above 64 MiB before a collection
+selector runs. Exclude only the internal `updated_at` column from failure-case,
+lesson, and project-policy projections because their selectors do not fetch
+it; retain every physical Trace and usage-decision column. Store reconstruction
+repeats the same count validation after the bounded reads. Sync locks every
+existing target row
 `FOR UPDATE` before canonical comparison, including failure cases, lessons, and
 project policies; a newly committed protected-field difference is a conflict,
 not a stale successful lifecycle write. A repository created from a caller
@@ -56,8 +59,9 @@ driver error remain `PostgresPersistenceError`; sync never overwrites the
 concurrent value.
 
 The count and payload preflights are runtime load guards only. Payload bytes are
-the compact PostgreSQL row JSON representation, not the indented snapshot file
-envelope. Exact 64 MiB boundaries are accepted; overflow is returned through
+the compact PostgreSQL loaded-row JSON representation, not the indented
+snapshot file envelope. Exact 64 MiB boundaries are accepted; overflow is
+returned through
 the existing sanitized `PostgresPersistenceError`, with no partial Store and a
 reusable connection. `sync()` behavior is unchanged. The guards change no
 public API, snapshot version 2, JSON Schema, active-lessons YAML, packaged

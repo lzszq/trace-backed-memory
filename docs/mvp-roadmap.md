@@ -1118,3 +1118,16 @@ Track:
   PostgreSQL load paths; keep failures atomic and boundary values valid.
 - Preserve public signatures, accepted serialized bytes, snapshot version 2,
   PostgreSQL schema version 1, JSON Schemas, and all packaged resources.
+
+## Phase 66: PostgreSQL loaded-row payloads (implemented)
+
+- Keep the post-lock, post-count, prefetch scalar payload query and both exact
+  64 MiB boundaries unchanged.
+- Measure compact PostgreSQL JSON for the actual loaded-row projections used
+  by collection loaders rather than complete physical rows.
+- Exclude only internal `updated_at` from failure cases, lessons, and project
+  policies; retain every physical Trace and usage-decision column.
+- Pin JSONB subtraction, functions, casts, and tables to `pg_catalog`/`public`,
+  and return only maximum-record and aggregate byte counts to the client.
+- Preserve sanitized failures, connection reuse, public APIs, snapshot version
+  2, PostgreSQL schema version 1, DDL, JSON Schemas, and packaged resources.

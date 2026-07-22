@@ -85,3 +85,13 @@ PostgreSQL schema version 1 remain unchanged.
   cleanly, and leaves the connection reusable.
 - Existing count, lock, coherent-snapshot, Store validation, and sync tests
   remain unchanged.
+
+## Phase 66 Loaded-Row Projection Addendum
+
+The original Phase 48 phrase "persisted rows" described a conservative
+physical-row proxy. Phase 66 narrows that proxy to the row projection actually
+selected by each collection loader. `failure_cases`, `lessons`, and
+`project_policies` exclude only their unfetched internal `updated_at` column;
+traces and usage decisions retain every physical column. The compact JSONB
+encoding, UTF-8 measurement, 64 MiB limits, transaction ordering, error
+contract, snapshot version 2, and PostgreSQL schema version 1 remain unchanged.

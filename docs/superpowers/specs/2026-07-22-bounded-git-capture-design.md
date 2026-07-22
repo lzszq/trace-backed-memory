@@ -25,6 +25,12 @@ Replace the two default `subprocess.run()` paths with one private binary
 - two daemon reader threads so stdout and stderr are drained concurrently on
   Windows and POSIX.
 
+Start each command in an isolated process group. On POSIX, timeout or overflow
+kills the new session's process group. On Windows, use a new process group and
+the absolute System32 `taskkill.exe /T /F` path with a bounded timeout, then
+fall back to the retained process handle. This prevents a descendant that
+inherited stdout or stderr from keeping a reader blocked after Git is stopped.
+
 Each reader consumes fixed 8 KiB chunks and retains at most its configured
 byte limit. Ordinary metadata and ancestry commands retain at most 64 KiB for
 each stream. If either stream exceeds that limit, the process is killed and
@@ -34,9 +40,11 @@ boundary wraps it in the existing `TraceMetadataCaptureError` or
 
 The main thread polls process completion and reader overflow until the
 deadline. Timeout or overflow kills the process and waits for bounded cleanup;
-normal completion joins both readers before inspecting output. Reader buffers
-never grow beyond the configured limit, plus one fixed read chunk held by the
-thread. Pipes are closed after readers finish.
+normal completion joins both readers before inspecting output. Reader failure
+also stops the process group immediately, and cleanup attempts both joins even
+if one reader reports an error. Reader buffers never grow beyond the configured
+limit, plus one fixed read chunk held by the thread. Pipes are closed after
+readers finish.
 
 ## Dirty-State Capture
 

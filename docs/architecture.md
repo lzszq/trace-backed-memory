@@ -1158,6 +1158,15 @@ counted before deduplication. The validator consumes at most 1,001 iterable
 values and starts no Git command on overflow; accepted values retain sorted,
 unique evidence output.
 
+The default Git capture runner uses binary `Popen` pipes with `stdin=DEVNULL`,
+a 30 seconds timeout, and explicit UTF-8 replacement decoding. Two concurrent
+readers retain at most 64 KiB of ordinary stdout and stderr; timeout or output
+overflow kills and reaps the process. Trace metadata status capture retains
+only the first byte of `git status --porcelain` and drains the rest, preserving
+dirty semantics without caller-sized memory. Injected runner APIs and command
+order are unchanged. The runner is ephemeral infrastructure: snapshot version
+2 and PostgreSQL schema version 1 remain unchanged.
+
 Runtime anchor meaning is exact: lesson memory uses its source failure case's
 `fix_commit_sha`; failure-case memory uses its source `commit_sha`; project
 policy has no anchor. Evidence must bind `current_commit_sha` to the exact

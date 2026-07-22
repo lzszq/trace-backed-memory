@@ -733,6 +733,14 @@ entries. Count entries before deduplication and reject overflow before any Git
 runner is called; duplicate-heavy or lazy iterables do not bypass the budget.
 Callers must narrow an oversized candidate/report scope before capture.
 
+Default Git capture must use `stdin=DEVNULL`, a 30 seconds timeout, binary
+pipes, and explicit UTF-8 replacement decoding. Retain at most 64 KiB for each
+ordinary stdout/stderr stream; kill and reap on timeout or output overflow.
+For `git status --porcelain`, retain only the first byte for dirty detection
+while draining all remaining output. Do not change injected runner signatures,
+arguments, or error mapping. These controls do not alter snapshot version 2 or
+PostgreSQL schema version 1.
+
 An exit status of 0 from `git merge-base --is-ancestor` means the anchor is an
 ancestor; exit status 1 means it is not and the anchored history is excluded.
 Any command error must stop the workflow. Incomplete evidence is rejected:

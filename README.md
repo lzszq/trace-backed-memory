@@ -1209,6 +1209,14 @@ anchors. Input entries count before deduplication; overflow is detected while
 boundedly consuming an iterable and before any Git command starts. Narrow the
 candidate/report scope before capture when a larger history is discovered.
 
+Default Git capture uses `stdin=DEVNULL`, a 30 seconds timeout, binary pipes,
+and explicit UTF-8 replacement decoding. Ordinary stdout and stderr retain at
+most 64 KiB each; timeout or output overflow stops and reaps the command. The
+metadata `git status --porcelain` path retains only the first byte needed for
+dirty detection while draining and discarding the remaining output. Injected
+runner call signatures, commands, and error mapping remain unchanged. These
+runtime limits do not change snapshot version 2 or PostgreSQL schema version 1.
+
 Evidence is request-time input only: it is neither stored in snapshots nor
 persisted to PostgreSQL, and it does not replace either gate. PR callers use
 `pr_report_commit_anchors(context)`, capture against the same context commit,

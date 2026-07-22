@@ -1050,3 +1050,16 @@ Track:
   deduplication to `O(W + C)` without changing text or order.
 - Preserve exact `PRChangeSet`, matching, ancestry, provenance, snapshot
   version 2, PostgreSQL schema version 1, and all packaged resources.
+
+## Phase 61: Bounded Git capture (implemented)
+
+- Run default metadata and ancestry Git commands with `stdin=DEVNULL`, binary
+  pipes, explicit UTF-8 replacement decoding, and a 30 seconds timeout.
+- Retain at most 64 KiB for each ordinary stdout/stderr stream and kill/reap
+  the process on timeout or output overflow.
+- Retain only the first byte of `git status --porcelain` for dirty detection
+  while draining and discarding the remaining output.
+- Preserve injected runner signatures, exact commands and order,
+  `GIT_NO_LAZY_FETCH=1`, ancestry 0/1 meaning, and CLI state-error mapping.
+- Change no public model, snapshot version 2, PostgreSQL schema version 1, or
+  packaged resource.

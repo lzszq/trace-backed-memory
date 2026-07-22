@@ -1,3 +1,4 @@
+import io
 import os
 import subprocess
 from dataclasses import FrozenInstanceError
@@ -16,42 +17,214 @@ from trace_backed_memory import (
 )
 
 
-def test_capture_commit_ancestry_default_runner_disables_lazy_fetch(monkeypatch):
+class FakePopenProcess:
+    def __init__(
+        self,
+        args: list[str],
+        *,
+        stdout: bytes = b"",
+        stderr: bytes = b"",
+        returncode: int = 0,
+        wait_until_killed: bool = False,
+        never_reap: bool = False,
+    ) -> None:
+        self.args = args
+        self.stdout = io.BytesIO(stdout)
+        self.stderr = io.BytesIO(stderr)
+        self.final_returncode = returncode
+        self.returncode: int | None = None
+        self.wait_until_killed = wait_until_killed
+        self.never_reap = never_reap
+        self.killed = False
+        self.wait_timeouts: list[float | None] = []
+
+    def poll(self) -> int | None:
+        return self.returncode
+
+    def kill(self) -> None:
+        self.killed = True
+
+    def wait(self, timeout: float | None = None) -> int:
+        self.wait_timeouts.append(timeout)
+        if self.never_reap:
+            raise subprocess.TimeoutExpired(self.args, timeout)
+        if self.wait_until_killed and not self.killed:
+            raise subprocess.TimeoutExpired(self.args, timeout)
+        self.returncode = -9 if self.killed else self.final_returncode
+        return self.returncode
+
+
+def reject_subprocess_run(*_args: object, **_kwargs: object) -> None:
+    raise AssertionError("default capture runners must use bounded Popen")
+
+
+def test_capture_commit_ancestry_default_runner_uses_bounded_binary_process(
+    monkeypatch: pytest.MonkeyPatch,
+):
     monkeypatch.setenv("CAPTURE_EXISTING_VALUE", "preserved")
     monkeypatch.setenv("GIT_NO_LAZY_FETCH", "0")
     captured_env: dict[str, str] | None = None
+    captured_kwargs: dict[str, object] = {}
+    process: FakePopenProcess | None = None
 
-    def run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        nonlocal captured_env
+    def popen(args: list[str], **kwargs: object) -> FakePopenProcess:
+        nonlocal captured_env, process
         captured_env = kwargs.get("env")  # type: ignore[assignment]
-        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        captured_kwargs.update(kwargs)
+        process = FakePopenProcess(args)
+        return process
 
-    monkeypatch.setattr(capture_module.subprocess, "run", run)
+    monkeypatch.setattr(capture_module.subprocess, "run", reject_subprocess_run)
+    monkeypatch.setattr(capture_module.subprocess, "Popen", popen)
 
     evidence = capture_commit_ancestry("current", ["anchor"])
 
     assert evidence.commit_relations == (("anchor", True),)
+    assert process is not None
+    assert process.wait_timeouts
+    assert process.wait_timeouts[0] is not None
+    assert captured_kwargs["stdin"] is subprocess.DEVNULL
+    assert captured_kwargs["stdout"] is subprocess.PIPE
+    assert captured_kwargs["stderr"] is subprocess.PIPE
+    assert captured_kwargs["bufsize"] == 0
+    assert "text" not in captured_kwargs
+    assert "encoding" not in captured_kwargs
+    if os.name == "nt":
+        assert (
+            captured_kwargs["creationflags"]
+            == subprocess.CREATE_NEW_PROCESS_GROUP
+        )
+        assert "start_new_session" not in captured_kwargs
+    else:
+        assert captured_kwargs["start_new_session"] is True
+        assert "creationflags" not in captured_kwargs
+    assert capture_module.GIT_CAPTURE_TIMEOUT_SECONDS == 30.0
     assert captured_env is not os.environ
     assert captured_env is not None
     assert captured_env["GIT_NO_LAZY_FETCH"] == "1"
     assert captured_env["CAPTURE_EXISTING_VALUE"] == "preserved"
 
 
-def test_capture_commit_ancestry_default_runner_wraps_missing_object(monkeypatch):
-    stderr = "fatal: Not a valid object name missing\n"
+def test_capture_commit_ancestry_default_runner_wraps_utf8_replaced_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    stderr = b"fatal: Not a valid object name missing \xff\n"
 
-    def run(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(args, 128, stdout="", stderr=stderr)
+    def popen(args: list[str], **_kwargs: object) -> FakePopenProcess:
+        return FakePopenProcess(args, returncode=128, stderr=stderr)
 
-    monkeypatch.setattr(capture_module.subprocess, "run", run)
+    monkeypatch.setattr(capture_module.subprocess, "run", reject_subprocess_run)
+    monkeypatch.setattr(capture_module.subprocess, "Popen", popen)
 
     with pytest.raises(CommitAncestryCaptureError) as captured:
         capture_commit_ancestry("current", ["missing"])
 
-    assert stderr.strip() in str(captured.value)
+    assert "fatal: Not a valid object name missing �" in str(captured.value)
     assert isinstance(captured.value.__cause__, subprocess.CalledProcessError)
     assert captured.value.__cause__.returncode == 128
-    assert captured.value.__cause__.stderr == stderr
+    assert captured.value.__cause__.stderr == stderr.decode("utf-8", errors="replace")
+
+
+def test_capture_commit_ancestry_timeout_kills_and_reaps_process(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    process: FakePopenProcess | None = None
+
+    def popen(args: list[str], **_kwargs: object) -> FakePopenProcess:
+        nonlocal process
+        process = FakePopenProcess(args, wait_until_killed=True)
+        return process
+
+    monkeypatch.setattr(capture_module.subprocess, "run", reject_subprocess_run)
+    monkeypatch.setattr(capture_module.subprocess, "Popen", popen)
+    monkeypatch.setattr(capture_module, "GIT_CAPTURE_TIMEOUT_SECONDS", 0.0)
+
+    with pytest.raises(CommitAncestryCaptureError, match="timed out") as captured:
+        capture_commit_ancestry("current", ["anchor"])
+
+    assert isinstance(captured.value.__cause__, subprocess.TimeoutExpired)
+    assert process is not None
+    assert process.killed is True
+    assert process.returncode == -9
+    assert len(process.wait_timeouts) >= 1
+
+
+def test_capture_commit_ancestry_bounds_stderr_and_kills_process(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    limit = capture_module.GIT_CAPTURE_OUTPUT_MAX_BYTES
+    process: FakePopenProcess | None = None
+
+    def popen(args: list[str], **_kwargs: object) -> FakePopenProcess:
+        nonlocal process
+        process = FakePopenProcess(
+            args,
+            stderr=b"e" * (limit + 1),
+            wait_until_killed=True,
+        )
+        return process
+
+    monkeypatch.setattr(capture_module.subprocess, "run", reject_subprocess_run)
+    monkeypatch.setattr(capture_module.subprocess, "Popen", popen)
+
+    with pytest.raises(
+        CommitAncestryCaptureError,
+        match=rf"stderr exceeded {limit} bytes",
+    ):
+        capture_commit_ancestry("current", ["anchor"])
+
+    assert process is not None
+    assert process.killed is True
+    assert process.returncode == -9
+
+
+def test_capture_commit_ancestry_wraps_reader_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    class FailingStream(io.BytesIO):
+        def read(self, _size: int = -1) -> bytes:
+            raise OSError("pipe read failed")
+
+    def popen(args: list[str], **_kwargs: object) -> FakePopenProcess:
+        process = FakePopenProcess(args)
+        process.stdout = FailingStream()
+        return process
+
+    monkeypatch.setattr(capture_module.subprocess, "run", reject_subprocess_run)
+    monkeypatch.setattr(capture_module.subprocess, "Popen", popen)
+
+    with pytest.raises(
+        CommitAncestryCaptureError,
+        match="failed to read git command stdout: pipe read failed",
+    ) as captured:
+        capture_commit_ancestry("current", ["anchor"])
+
+    assert isinstance(captured.value.__cause__, RuntimeError)
+
+
+def test_capture_commit_ancestry_wraps_reap_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    process: FakePopenProcess | None = None
+
+    def popen(args: list[str], **_kwargs: object) -> FakePopenProcess:
+        nonlocal process
+        process = FakePopenProcess(args, never_reap=True)
+        return process
+
+    monkeypatch.setattr(capture_module.subprocess, "run", reject_subprocess_run)
+    monkeypatch.setattr(capture_module.subprocess, "Popen", popen)
+    monkeypatch.setattr(capture_module, "GIT_CAPTURE_TIMEOUT_SECONDS", 0.0)
+
+    with pytest.raises(
+        CommitAncestryCaptureError,
+        match="failed to reap terminated git command",
+    ) as captured:
+        capture_commit_ancestry("current", ["anchor"])
+
+    assert isinstance(captured.value.__cause__, RuntimeError)
+    assert process is not None
+    assert process.killed is True
 
 
 def test_capture_commit_ancestry_sorts_deduplicates_and_records_false():
@@ -305,6 +478,143 @@ def test_capture_trace_metadata_marks_clean_repo():
     assert metadata.repo == "trace-backed-memory"
     assert metadata.branch is None
     assert metadata.dirty is False
+
+
+def test_capture_trace_metadata_default_runner_discards_large_status_output(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    outputs = {
+        ("git", "rev-parse", "HEAD"): b"abc123\n",
+        ("git", "rev-parse", "--show-toplevel"): b"C:/work/repo\n",
+        ("git", "branch", "--show-current"): b"main\n",
+        ("git", "status", "--porcelain"): b" " + b"x" * 1_000_000,
+    }
+    calls: list[tuple[str, ...]] = []
+
+    def popen(args: list[str], **kwargs: object) -> FakePopenProcess:
+        calls.append(tuple(args))
+        assert kwargs["stdin"] is subprocess.DEVNULL
+        assert kwargs["stdout"] is subprocess.PIPE
+        assert kwargs["stderr"] is subprocess.PIPE
+        return FakePopenProcess(args, stdout=outputs[tuple(args)])
+
+    monkeypatch.setattr(capture_module.subprocess, "run", reject_subprocess_run)
+    monkeypatch.setattr(capture_module.subprocess, "Popen", popen)
+
+    metadata = capture_trace_metadata(repo_path="C:/work/repo")
+
+    assert metadata.commit_sha == "abc123"
+    assert metadata.repo == "repo"
+    assert metadata.branch == "main"
+    assert metadata.dirty is True
+    assert calls == [
+        ("git", "rev-parse", "HEAD"),
+        ("git", "rev-parse", "--show-toplevel"),
+        ("git", "branch", "--show-current"),
+        ("git", "status", "--porcelain"),
+    ]
+
+
+def test_capture_status_runner_retains_only_presence_and_handles_space(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    captured_kwargs: dict[str, object] = {}
+
+    def run(
+        args: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        captured_kwargs.update(kwargs)
+        return subprocess.CompletedProcess(args, 0, stdout=" ", stderr="")
+
+    monkeypatch.setattr(capture_module, "_run_bounded_process", run)
+
+    assert capture_module._run_status_command(
+        ["git", "status", "--porcelain"]
+    ) == "dirty"
+    assert captured_kwargs["stdout_max_bytes"] == 1
+    assert captured_kwargs["fail_on_stdout_overflow"] is False
+
+
+def test_capture_default_runner_accepts_exact_output_budget(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    limit = capture_module.GIT_CAPTURE_OUTPUT_MAX_BYTES
+
+    def popen(args: list[str], **_kwargs: object) -> FakePopenProcess:
+        return FakePopenProcess(args, stdout=b"x" * limit)
+
+    monkeypatch.setattr(capture_module.subprocess, "run", reject_subprocess_run)
+    monkeypatch.setattr(capture_module.subprocess, "Popen", popen)
+
+    output = capture_module._run_command(["git", "rev-parse", "HEAD"])
+
+    assert len(output.encode("utf-8")) == limit
+
+
+def test_capture_trace_metadata_default_runner_bounds_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    limit = capture_module.GIT_CAPTURE_OUTPUT_MAX_BYTES
+    process: FakePopenProcess | None = None
+
+    def popen(args: list[str], **_kwargs: object) -> FakePopenProcess:
+        nonlocal process
+        process = FakePopenProcess(
+            args,
+            stdout=b"x" * (limit + 1),
+            wait_until_killed=True,
+        )
+        return process
+
+    monkeypatch.setattr(capture_module.subprocess, "run", reject_subprocess_run)
+    monkeypatch.setattr(capture_module.subprocess, "Popen", popen)
+
+    with pytest.raises(
+        TraceMetadataCaptureError,
+        match=rf"stdout exceeded {limit} bytes",
+    ):
+        capture_trace_metadata()
+
+    assert process is not None
+    assert process.killed is True
+    assert process.returncode == -9
+
+
+def test_capture_trace_metadata_wraps_process_start_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    failure = OSError("git executable unavailable")
+
+    def popen(_args: list[str], **_kwargs: object) -> FakePopenProcess:
+        raise failure
+
+    monkeypatch.setattr(capture_module.subprocess, "run", reject_subprocess_run)
+    monkeypatch.setattr(capture_module.subprocess, "Popen", popen)
+
+    with pytest.raises(
+        TraceMetadataCaptureError,
+        match="git executable unavailable",
+    ) as captured:
+        capture_trace_metadata()
+
+    assert captured.value.__cause__ is failure
+
+
+def test_capture_trace_metadata_default_runner_marks_real_git_dirty(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "tests@example.com")
+    _git(repo, "config", "user.name", "Trace Tests")
+    _commit_file(repo, "tracked.txt", "tracked")
+
+    clean = capture_trace_metadata(repo_path=str(repo))
+    (repo / "untracked.txt").write_text("untracked", encoding="utf-8")
+    dirty = capture_trace_metadata(repo_path=str(repo))
+
+    assert clean.dirty is False
+    assert dirty.dirty is True
 
 
 def test_capture_trace_metadata_wraps_git_command_failures():

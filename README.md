@@ -120,12 +120,12 @@ default; passing a path continues to load a caller-owned taxonomy file.
 
 ## Evidence Ingestion Integrity
 
-Failure extraction treats `Trace.error`, then top-level `name`/`error` fields
-from `tool_calls`, followed by explicit top-level `error` fields from
-`tool_outputs`, as ordered structured evidence. An errored output's `name` may
-label its symptom, but a successful output name, arbitrary output fields, and
-nested result text are never searched for keywords. Ordinary tool content
-therefore cannot create a false classification or tool-failure symptom.
+Failure extraction treats `Trace.error`, then explicit top-level `error`
+fields from `tool_calls` and `tool_outputs`, as ordered failure text. Tool
+names never select a failure taxonomy entry; an errored call or output's name
+may still label its symptom. Arbitrary arguments, results, nested payloads,
+successful tool data, and tool identifiers are never searched for classifier
+keywords, so they cannot create a false classification.
 
 A tool-call name may label a tool-failure symptom only when that same call has
 truthy top-level `error` evidence; a successful named call is not blamed for a
@@ -1705,8 +1705,9 @@ Implemented pieces:
   strict file-backed `MemoryRunResult` array and Store-derived Trace linkage.
 - Lifecycle helpers: failed trace -> validated draft failure case -> verified case -> validated active lesson -> `MemoryItem`.
 - Failure extraction helpers that load the failure taxonomy, classify failed
-  traces from ordered Trace, tool-call, and top-level `tool_outputs` error
-  evidence, and draft failure cases without scanning arbitrary output content.
+  traces from ordered explicit Trace, tool-call, and tool-output error text,
+  and draft failure cases without classifying from tool names or arbitrary
+  output content.
 - Manual review helper that records reviewer, root cause, notes, and review timestamp on draft failure cases.
 - Verification loop hardening: only draft cases can be verified, and verified cases require a fix commit and passing regression evidence.
 - Obsolete transitions for failure cases and lessons.

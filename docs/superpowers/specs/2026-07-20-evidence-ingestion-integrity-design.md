@@ -110,6 +110,15 @@ that relied on last-key-wins behavior now fail explicitly; this is an intended
 integrity correction. No record model changes, no new package dependency, and
 no snapshot or database migration are introduced.
 
+## Phase 69 Supersession
+
+Phase 69 supersedes only the earlier classification rule for tool-call names.
+Current classification uses explicit failure text from `Trace.error` and
+top-level call/output `error` values; tool names never select a taxonomy entry.
+Errored call and output names remain available as symptom labels. Snapshot
+version 2, PostgreSQL schema version 1, and packaged resources remain
+unchanged.
+
 ## Verification
 
 Tests must cover:

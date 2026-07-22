@@ -106,15 +106,7 @@ def _trace_text(trace: Trace) -> str:
     parts: list[str] = []
     if trace.error:
         parts.append(trace.error)
-    for record in trace.tool_calls:
-        for key in ("name", "error"):
-            value = record.get(key)
-            if value is not None:
-                parts.append(str(value))
-    for record in trace.tool_outputs:
-        value = record.get("error")
-        if value is not None:
-            parts.append(str(value))
+    parts.extend(_tool_error_texts(trace))
     return " ".join(parts)
 
 

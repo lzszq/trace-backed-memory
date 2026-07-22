@@ -126,6 +126,57 @@ def test_non_error_tool_output_content_does_not_influence_classification():
     assert case.root_cause is None
 
 
+@pytest.mark.parametrize(
+    "tool_name",
+    [
+        "required context reader",
+        "invalid argument writer",
+        "stale cache reader",
+        "enum lookup",
+        "evaluator probe",
+        "format document",
+    ],
+)
+@pytest.mark.parametrize("tool_error", [None, "Permission denied"])
+def test_tool_call_names_do_not_influence_classification(
+    tool_name: str,
+    tool_error: str | None,
+):
+    tool_call = {"name": tool_name}
+    if tool_error is not None:
+        tool_call["error"] = tool_error
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="error",
+        tool_calls=[tool_call],
+    )
+
+    assert classify_failure_type(trace) == "unknown"
+
+
+def test_errored_tool_name_labels_symptom_without_selecting_failure_type():
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="error",
+        tool_calls=[
+            {
+                "name": "format document",
+                "error": "Permission denied",
+            }
+        ],
+    )
+
+    case = draft_failure_case_from_trace(trace, case_id="case_001")
+
+    assert case.failure_type == "unknown"
+    assert case.symptom == "unknown: tool call failed for format document"
+    assert case.root_cause == "Permission denied"
+
+
 def test_classifies_missing_required_context_from_empty_retrieval():
     trace = Trace(
         trace_id="trace_001",

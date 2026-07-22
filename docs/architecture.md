@@ -145,12 +145,12 @@ that classify obvious trace failures into taxonomy IDs before drafting a case.
 When a taxonomy is supplied, classifier output must be present in that taxonomy.
 Specific context-missing and stale-context signals take precedence over generic
 tool-argument and evaluator-mismatch fallbacks. Extraction considers
-`Trace.error`, then top-level `name` and `error` fields from `tool_calls`, then
-top-level `error` fields from `tool_outputs`, in stored order. An errored
-output's `name` may label its symptom, but successful output names, arbitrary
-output fields, and nested payload content are not searched. Successful tool
-data therefore cannot match a classifier keyword or produce a false
-tool-failure symptom.
+`Trace.error`, then top-level `error` fields from `tool_calls`, then top-level
+`error` fields from `tool_outputs`, in stored order. Tool names never select a
+failure taxonomy entry. An errored call or output's name may label its symptom,
+but successful tool data, arbitrary fields, identifiers, and nested payload
+content are not searched. They therefore cannot match a classifier keyword or
+produce a false classification.
 A tool-call name labels a symptom only when that call carries truthy top-level
 `error` evidence. Explicit `invalid argument` text remains authoritative, but
 the word `required` selects `invalid_tool_argument` only in the conservative

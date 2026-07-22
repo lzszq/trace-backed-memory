@@ -129,17 +129,17 @@ stdout after a successful export as success to prevent unsafe retry.
 
 ## Evidence Ingestion Integrity
 
-Treat only explicit structured failure fields as extraction evidence. The
-classifier reads `Trace.error`, then top-level `name` and `error` fields from
-`tool_calls`, followed by top-level `error` fields from `tool_outputs`. It must
-not search successful output names, arbitrary output fields, or nested result
-text for keywords: provider results may contain examples, historical errors,
-or quoted content that does not describe the current run. Trace errors retain
-precedence over tool calls, and tool-call errors retain precedence over
-tool-output errors when selecting a root cause. An output `name` may label a
-tool-failure symptom only when that output has a non-empty top-level `error`.
-A tool-call name follows the same rule: without truthy top-level `error`
-evidence it must not label a later Trace or output failure. Treat explicit
+Treat only explicit structured failure text as extraction evidence. The
+classifier reads `Trace.error`, then top-level `error` fields from
+`tool_calls`, followed by top-level `error` fields from `tool_outputs`. Tool
+names never select a failure taxonomy entry. Do not search arbitrary tool
+fields or nested result text for keywords: provider data may contain examples,
+historical errors, or quoted content that does not describe the current run.
+Trace errors retain precedence over tool calls, and tool-call errors retain
+precedence over tool-output errors when selecting a root cause. A call or
+output `name` may label a tool-failure symptom only when that record has a
+truthy top-level `error`; without that evidence it must not label a later
+Trace or output failure. Treat explicit
 `invalid argument` text and the narrow `required argument`, `required
 parameter`, `required field`, or `required property` tool-error markers as
 argument failures. Do not classify permission or authentication text from the

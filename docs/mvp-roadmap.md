@@ -1159,3 +1159,15 @@ Track:
   injected runner signatures, and the bounded default runner.
 - Change no public signature, model, serialized byte, snapshot version 2,
   PostgreSQL schema version 1, DDL, JSON Schema, or packaged resource.
+
+## Phase 69: Explicit failure text classification (implemented)
+
+- Classify failures only from `Trace.error` and explicit top-level `error`
+  values on tool calls and tool outputs.
+- Never select a failure taxonomy entry from a tool name, regardless of whether
+  that record also carries an error.
+- Preserve errored tool names as deterministic symptom labels and retain trace,
+  call, then output root-cause priority.
+- Preserve taxonomy IDs, keyword precedence, evaluator fallbacks, public APIs,
+  snapshot version 2, PostgreSQL schema version 1, JSON Schemas, and all 18
+  packaged resources.

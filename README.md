@@ -154,9 +154,14 @@ version 2, JSON Schema, packaged resource, or PostgreSQL schema version 1.
 file: they write canonical LF text, flush it, call `os.fsync()`, and then
 publish atomically. Existing Python calls retain `os.replace()` behavior;
 `save_lessons_yaml(..., overwrite=False)` uses one `os.link()` publication to
-refuse an existing destination without a racy pre-check. A serialization,
-sync, link, or replacement failure preserves the previous destination and
-cleans up the temporary file. Lesson exports use the canonical
+refuse an existing destination without a racy pre-check. On POSIX, a successful
+atomic publish then `fsync()`s the parent directory after normal temporary-name
+cleanup, making the directory entry durable; non-POSIX platforms retain the
+portable atomic-publication behavior. Serialization, temporary-file sync,
+link, or replacement failure preserves the previous destination and cleans up
+the temporary file. A post-publication parent-directory sync failure is
+propagated, but the destination may already expose the new bytes and must be
+treated as an indeterminate durability result. Lesson exports use the canonical
 `lesson_text: |` block form; imports accept both `|` and the legacy `>` form
 while preserving blank lines, leading and trailing LF characters, and
 intra-line spaces. This constrained adapter preserves its historical

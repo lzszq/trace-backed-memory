@@ -1063,3 +1063,17 @@ Track:
   `GIT_NO_LAZY_FETCH=1`, ancestry 0/1 meaning, and CLI state-error mapping.
 - Change no public model, snapshot version 2, PostgreSQL schema version 1, or
   packaged resource.
+
+## Phase 62: Durable atomic publish (implemented)
+
+- Keep canonical LF serialization, sibling temporary files, temporary-file
+  flush/`fsync()`, and `os.replace()`/`os.link()` publication unchanged.
+- After a successful atomic publish and normal temporary-name cleanup, open and
+  `fsync()` the parent directory on POSIX; retain portable atomic publication on
+  non-POSIX platforms.
+- Close every opened directory descriptor, including when its `fsync()` fails.
+- Preserve old destinations for every pre-publication failure, while propagating
+  a post-publication directory-sync error as an indeterminate durability result
+  because the new target may already be visible.
+- Preserve public signatures, serialized bytes, snapshot version 2, PostgreSQL
+  schema version 1, and all packaged resources.

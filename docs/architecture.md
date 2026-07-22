@@ -222,10 +222,15 @@ writes canonical LF text through a sibling temporary file, flushes it, calls
 `os.fsync()`, closes it, and publishes atomically. The default replacement path
 uses `os.replace()`; the additive lesson-writer `overwrite=False` path uses
 `os.link()` to combine the no-existing-destination condition and publication
-without a racy pre-check. Serialization, sync, link, or replacement failure
-removes the temporary file and leaves an existing destination unchanged. The
-lesson serializer emits canonical `lesson_text: |` blocks. The constrained
-reader accepts both `|` and legacy `>` while preserving blank lines, leading
+without a racy pre-check. After a successful atomic publish and normal
+temporary-name cleanup, POSIX opens and `fsync()`s the parent directory so its
+entry change is durable; non-POSIX platforms retain the existing portable
+publication boundary. Serialization, temporary-file sync, link, or replacement
+failure removes the temporary file and leaves an existing destination
+unchanged. A post-publication parent-directory sync failure propagates after the
+target may have changed, so callers must treat it as an indeterminate durability
+result. The lesson serializer emits canonical `lesson_text: |` blocks. The
+constrained reader accepts both `|` and legacy `>` while preserving blank lines, leading
 and trailing LF characters, and intra-line spaces instead of globally trimming
 block content. It retains the adapter's historical literal-line interpretation
 of `>` rather than implementing general YAML folding or chomping. This changes

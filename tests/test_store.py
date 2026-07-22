@@ -5308,25 +5308,170 @@ def test_save_json_uses_sibling_replace(monkeypatch, tmp_path):
     assert calls[0][0].parent == target.parent
 
 
-def test_save_json_syncs_temporary_file_before_replace(monkeypatch, tmp_path):
+def test_save_json_syncs_temporary_file_before_replace_and_directory_sync(
+    monkeypatch,
+    tmp_path,
+):
     events = []
     real_fsync = os.fsync
     real_replace = os.replace
 
     def recording_fsync(file_descriptor):
-        events.append("fsync")
+        events.append("file-fsync")
         real_fsync(file_descriptor)
 
     def recording_replace(source, target):
         events.append("replace")
         real_replace(source, target)
 
+    def recording_directory_sync(directory):
+        assert directory == tmp_path
+        events.append("directory-fsync")
+
     monkeypatch.setattr(os, "fsync", recording_fsync)
     monkeypatch.setattr(os, "replace", recording_replace)
+    monkeypatch.setattr(
+        store_module,
+        "_sync_parent_directory",
+        recording_directory_sync,
+    )
 
     TraceBackedMemoryStore().save_json(tmp_path / "snapshot.json")
 
-    assert events == ["fsync", "replace"]
+    assert events == ["file-fsync", "replace", "directory-fsync"]
+
+
+def test_save_json_directory_sync_failure_reports_post_publish_state(
+    monkeypatch,
+    tmp_path,
+):
+    target = tmp_path / "snapshot.json"
+    original = b"caller-owned snapshot\n"
+    target.write_bytes(original)
+
+    def fail_directory_sync(_directory):
+        raise OSError("injected directory fsync failure")
+
+    monkeypatch.setattr(store_module, "_sync_parent_directory", fail_directory_sync)
+
+    with pytest.raises(OSError, match="injected directory fsync failure"):
+        TraceBackedMemoryStore().save_json(target)
+
+    assert target.read_bytes() != original
+    assert json.loads(target.read_text(encoding="utf-8"))["snapshot_version"] == 2
+    assert list(tmp_path.glob(".snapshot.json.*.tmp")) == []
+
+
+def test_sync_parent_directory_fsyncs_and_closes_posix_descriptor(
+    monkeypatch,
+    tmp_path,
+):
+    events = []
+    descriptor = 41
+    expected_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+
+    monkeypatch.setattr(store_module, "_POSIX_DIRECTORY_SYNC_SUPPORTED", True)
+    monkeypatch.setattr(
+        os,
+        "open",
+        lambda path, flags: events.append(("open", path, flags)) or descriptor,
+    )
+    monkeypatch.setattr(os, "fsync", lambda fd: events.append(("fsync", fd)))
+    monkeypatch.setattr(os, "close", lambda fd: events.append(("close", fd)))
+
+    store_module._sync_parent_directory(tmp_path)
+
+    assert events == [
+        ("open", tmp_path, expected_flags),
+        ("fsync", descriptor),
+        ("close", descriptor),
+    ]
+
+
+def test_sync_parent_directory_closes_descriptor_when_fsync_fails(
+    monkeypatch,
+    tmp_path,
+):
+    events = []
+    descriptor = 42
+
+    monkeypatch.setattr(store_module, "_POSIX_DIRECTORY_SYNC_SUPPORTED", True)
+    monkeypatch.setattr(os, "open", lambda _path, _flags: descriptor)
+
+    def fail_fsync(fd):
+        events.append(("fsync", fd))
+        raise OSError("injected parent sync failure")
+
+    monkeypatch.setattr(os, "fsync", fail_fsync)
+    monkeypatch.setattr(os, "close", lambda fd: events.append(("close", fd)))
+
+    with pytest.raises(OSError, match="injected parent sync failure"):
+        store_module._sync_parent_directory(tmp_path)
+
+    assert events == [("fsync", descriptor), ("close", descriptor)]
+
+
+def test_sync_parent_directory_preserves_fsync_error_when_close_also_fails(
+    monkeypatch,
+    tmp_path,
+):
+    descriptor = 43
+
+    monkeypatch.setattr(store_module, "_POSIX_DIRECTORY_SYNC_SUPPORTED", True)
+    monkeypatch.setattr(os, "open", lambda _path, _flags: descriptor)
+
+    def fail_fsync(_descriptor):
+        raise OSError("primary directory fsync failure")
+
+    def fail_close(_descriptor):
+        raise OSError("secondary directory close failure")
+
+    monkeypatch.setattr(os, "fsync", fail_fsync)
+    monkeypatch.setattr(os, "close", fail_close)
+
+    with pytest.raises(OSError, match="primary directory fsync failure") as captured:
+        store_module._sync_parent_directory(tmp_path)
+
+    assert captured.value.__notes__ == [
+        "also failed to close parent directory descriptor: "
+        "secondary directory close failure"
+    ]
+
+
+def test_sync_parent_directory_propagates_open_failure_without_closing(
+    monkeypatch,
+    tmp_path,
+):
+    monkeypatch.setattr(store_module, "_POSIX_DIRECTORY_SYNC_SUPPORTED", True)
+
+    def fail_open(_path, _flags):
+        raise OSError("injected parent open failure")
+
+    monkeypatch.setattr(os, "open", fail_open)
+    monkeypatch.setattr(
+        os,
+        "fsync",
+        lambda _descriptor: pytest.fail("fsync must not follow open failure"),
+    )
+    monkeypatch.setattr(
+        os,
+        "close",
+        lambda _descriptor: pytest.fail("close must not follow open failure"),
+    )
+
+    with pytest.raises(OSError, match="injected parent open failure"):
+        store_module._sync_parent_directory(tmp_path)
+
+
+def test_sync_parent_directory_is_a_non_posix_noop(monkeypatch, tmp_path):
+    monkeypatch.setattr(store_module, "_POSIX_DIRECTORY_SYNC_SUPPORTED", False)
+
+    def fail_open(_path, _flags):
+        raise AssertionError("non-POSIX directory sync must not open a descriptor")
+
+    monkeypatch.setattr(os, "open", fail_open)
+
+    store_module._sync_parent_directory(tmp_path)
 
 
 def test_store_text_persistence_uses_canonical_lf_bytes(tmp_path):
@@ -9331,7 +9476,7 @@ def test_save_lessons_yaml_syncs_and_replaces_with_a_sibling(
     real_replace = os.replace
 
     def recording_fsync(file_descriptor):
-        events.append("fsync")
+        events.append("file-fsync")
         real_fsync(file_descriptor)
 
     def recording_replace(source, destination):
@@ -9339,12 +9484,21 @@ def test_save_lessons_yaml_syncs_and_replaces_with_a_sibling(
         replacements.append((Path(source), Path(destination)))
         real_replace(source, destination)
 
+    def recording_directory_sync(directory):
+        assert directory == tmp_path
+        events.append("directory-fsync")
+
     monkeypatch.setattr(os, "fsync", recording_fsync)
     monkeypatch.setattr(os, "replace", recording_replace)
+    monkeypatch.setattr(
+        store_module,
+        "_sync_parent_directory",
+        recording_directory_sync,
+    )
 
     store.save_lessons_yaml(target)
 
-    assert events == ["fsync", "replace"]
+    assert events == ["file-fsync", "replace", "directory-fsync"]
     assert replacements[0][0].parent == target.parent
     assert replacements[0][1] == target
     assert list(tmp_path.glob(".lessons.yaml.*.tmp")) == []
@@ -9357,19 +9511,35 @@ def test_save_lessons_yaml_can_publish_without_replacing(
     store, _trace, _case, _lesson = store_with_active_lesson()
     target = tmp_path / "lessons.yaml"
     links = []
+    directory_syncs = []
+    events = []
     real_link = os.link
 
     def recording_link(source, destination):
+        events.append("link")
         links.append((Path(source), Path(destination)))
         real_link(source, destination)
 
+    def recording_directory_sync(directory):
+        events.append("directory-fsync")
+        directory_syncs.append(
+            (directory, list(directory.glob(".lessons.yaml.*.tmp")))
+        )
+
     monkeypatch.setattr(os, "link", recording_link)
+    monkeypatch.setattr(
+        store_module,
+        "_sync_parent_directory",
+        recording_directory_sync,
+    )
 
     store.save_lessons_yaml(target, overwrite=False)
 
     assert len(links) == 1
     assert links[0][0].parent == target.parent
     assert links[0][1] == target
+    assert events == ["link", "directory-fsync"]
+    assert directory_syncs == [(tmp_path, [])]
     assert b"lesson_001" in target.read_bytes()
     assert list(tmp_path.glob(".lessons.yaml.*.tmp")) == []
 

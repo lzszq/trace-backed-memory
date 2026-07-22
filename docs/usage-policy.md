@@ -163,8 +163,14 @@ Persist local snapshots and active lessons only through `save_json()` and
 file, flush it, call `os.fsync()`, and publish atomically. Replacement uses
 `os.replace()`; lesson export may set `overwrite=False` to publish with
 `os.link()` and reject an existing destination in the same filesystem
-operation. A failed serialization, sync, link, or replacement must preserve
-the old destination and remove the temporary file. New lesson exports use
+operation. After a successful atomic publish and normal temporary-name cleanup,
+POSIX must open and `fsync()` the parent directory; non-POSIX platforms retain
+portable atomic publication without claiming directory-sync durability. A
+failed serialization, temporary-file sync, link, or replacement must preserve
+the old destination and remove the temporary file. A post-publication
+parent-directory sync failure must propagate even though the target may already
+contain the new bytes; classify that result as indeterminate durability and
+inspect the destination before retrying. New lesson exports use
 `lesson_text: |`. Imports may accept legacy `>` blocks, but must preserve blank
 lines, leading and trailing LF characters, intra-line spaces, and the adapter's
 historical literal line breaks exactly; do not assume general YAML folding or

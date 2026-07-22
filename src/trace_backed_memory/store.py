@@ -143,6 +143,7 @@ SNAPSHOT_COLLECTION_NAMES = (
     "usage_logs",
 )
 SNAPSHOT_COLLECTION_KEYS = frozenset(SNAPSHOT_COLLECTION_NAMES)
+_POSIX_DIRECTORY_SYNC_SUPPORTED = os.name == "posix"
 SNAPSHOT_V2_KEYS = SNAPSHOT_COLLECTION_KEYS.union({"snapshot_version"})
 
 
@@ -3113,6 +3114,25 @@ def _utc_timestamp() -> str:
     )
 
 
+def _sync_parent_directory(directory: Path) -> None:
+    if not _POSIX_DIRECTORY_SYNC_SUPPORTED:
+        return
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    directory_descriptor = os.open(directory, flags)
+    try:
+        os.fsync(directory_descriptor)
+    except BaseException as sync_error:
+        try:
+            os.close(directory_descriptor)
+        except BaseException as close_error:
+            sync_error.add_note(
+                f"also failed to close parent directory descriptor: {close_error}"
+            )
+        raise
+    else:
+        os.close(directory_descriptor)
+
+
 @contextmanager
 def _atomic_utf8_writer(
     target: Path,
@@ -3136,8 +3156,16 @@ def _atomic_utf8_writer(
             os.fsync(temporary_file.fileno())
         if overwrite:
             os.replace(temporary_path, target)
+            temporary_path = None
         else:
             os.link(temporary_path, target)
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            else:
+                temporary_path = None
+        _sync_parent_directory(target.parent)
     finally:
         if temporary_path is not None:
             try:

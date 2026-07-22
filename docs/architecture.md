@@ -543,7 +543,13 @@ integer `max_candidates` from 1 through 50 inclusive, accepts only finite
 numeric scores, and breaks ties by
 memory ID. Scores select candidates only; System Gate and LLM Gate remain the
 approval boundary. The store neither computes nor persists embeddings or raw
-scores.
+scores. It validates the complete caller mapping against a non-copying
+membership view of the three memory catalogs before eligibility work. After
+metadata and ancestry filtering, bounded semantic top-k streams eligible
+records through a heap instead of materializing a full sort, while retaining
+score-descending and memory-ID-ascending output. For `K` eligible candidates and
+`k <= 50` results, ranking is `O(K log k)` time with `O(k)` ranking storage.
+This changes no snapshot version 2 or PostgreSQL schema version 1 contract.
 
 The safe store workflow is `prepare_memory()` followed by `finalize_memory()`.
 Preparation performs retrieval, System Gate, and bounded LLM prompt creation;

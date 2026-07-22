@@ -158,12 +158,19 @@ Semantic mode processes only metadata-eligible candidates:
 
 1. Exclude candidates with no supplied score.
 2. Exclude candidates whose score is below `minimum_score`, when present.
-3. Sort by score descending, then `memory_id` ascending for stable ties.
-4. Return the first `max_candidates` records.
+3. Stream candidates through bounded top-k selection keyed by score descending,
+   then `memory_id` ascending for stable ties.
+4. Return the selected records in that exact key order without a full sort.
 
 Scores for valid stored records that are not metadata-eligible in the current
 context are ignored. Unscored eligible records are excluded. Negative scores
 and duplicate score values are valid; larger scores always rank first.
+
+Stored-ID validation uses a non-copying membership view over the three runtime
+catalogs only when semantic scores are present. Metadata-only and keyword calls
+do not build or iterate a separate ID universe. With `K` eligible candidates and
+`k <= 50` requested results, semantic ranking is `O(K log k)` time and `O(k)`
+ranking storage.
 
 The returned semantic candidate order is the rank order. `prepare_memory()`
 preserves that order in `MemoryGateRequest.candidate_memory_ids` and subsequent

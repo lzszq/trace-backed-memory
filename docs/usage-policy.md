@@ -705,6 +705,14 @@ For semantic retrieval, compute scores outside the store and pass
 evidence only: sensitive, obsolete, leaking, low-confidence, or out-of-scope
 memory must still be blocked by the normal gates.
 
+Validate every score and stored memory ID before metadata, ancestry, or ranking
+work. Use a non-copying membership view over the failure-case, lesson, and
+policy catalogs; metadata-only and keyword retrieval must not construct that
+view. After unchanged filters, use bounded semantic top-k selection rather than
+a full sort, while returning score-descending results with
+memory-ID-ascending ties. The optimization changes no snapshot version 2 or
+PostgreSQL schema version 1 contract.
+
 At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
 match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
 `tool_schema_version`, `model`, and `eval_suite` bind only when the context

@@ -1173,8 +1173,13 @@ Metadata scope is applied before ranking. Scores may use any finite numeric
 scale, but callers must normalize them so larger values mean greater relevance.
 Keyword `query` and `semantic_scores` cannot be combined in one call.
 `max_candidates` is required and must be an integer from 1 through 50 inclusive.
-System Gate and LLM Gate remain
-authoritative, and scores are not persisted in snapshots or PostgreSQL.
+All supplied scores and stored-ID references are validated before filtering.
+The Store uses a non-copying membership view over its memory catalogs, then
+streams eligible records through bounded semantic top-k selection without a
+full sort. Results remain score-descending with memory-ID-ascending ties.
+System Gate and LLM Gate remain authoritative, and scores are not persisted in
+snapshots or PostgreSQL. This changes no snapshot version 2 or PostgreSQL schema
+version 1 contract.
 
 ### Git ancestry applicability
 

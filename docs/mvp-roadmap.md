@@ -1077,3 +1077,17 @@ Track:
   because the new target may already be visible.
 - Preserve public signatures, serialized bytes, snapshot version 2, PostgreSQL
   schema version 1, and all packaged resources.
+
+## Phase 63: Bounded semantic top-k (implemented)
+
+- Skip semantic catalog construction entirely for metadata-only, keyword, and
+  semantic-only-option error paths.
+- Validate semantic IDs through a non-copying membership view over failure-case,
+  lesson, and policy catalogs without iterating the complete ID universe.
+- Stream metadata- and ancestry-eligible candidates through bounded semantic
+  top-k heap selection instead of materializing a full sort.
+- Preserve complete mapping validation, inclusive minimum scores,
+  score-descending and memory-ID-ascending output, and the 1-through-50 limit.
+- Reduce ranking to `O(K log k)` time and `O(k)` storage while preserving public
+  signatures, snapshot version 2, PostgreSQL schema version 1, and packaged
+  resources.

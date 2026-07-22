@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import heapq
 import json
 import math
 import os
 import re
 import tempfile
-from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections import ChainMap, Counter
+from collections.abc import Collection, Iterable, Mapping
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import asdict, replace
@@ -1080,8 +1081,14 @@ class TraceBackedMemoryStore:
             query=query,
             max_candidates=max_candidates,
             minimum_score=minimum_score,
-            stored_memory_ids=set(self._failure_cases).union(
-                self._lessons, self._project_policies
+            stored_memory_ids=(
+                ChainMap(
+                    self._failure_cases,
+                    self._lessons,
+                    self._project_policies,
+                )
+                if semantic_scores is not None
+                else None
             ),
         )
         commit_relations = _validated_commit_ancestry(context, commit_ancestry)
@@ -1092,22 +1099,24 @@ class TraceBackedMemoryStore:
             )
 
         if validated_semantic_scores is not None:
-            candidates = [
-                memory
-                for memory in candidates
-                if memory.memory_id in validated_semantic_scores
-                and (
-                    minimum_score is None
-                    or validated_semantic_scores[memory.memory_id] >= minimum_score
-                )
-            ]
-            candidates.sort(
+            candidate_limit = cast(int, max_candidates)
+            return heapq.nsmallest(
+                candidate_limit,
+                (
+                    memory
+                    for memory in candidates
+                    if memory.memory_id in validated_semantic_scores
+                    and (
+                        minimum_score is None
+                        or validated_semantic_scores[memory.memory_id]
+                        >= minimum_score
+                    )
+                ),
                 key=lambda memory: (
                     -validated_semantic_scores[memory.memory_id],
                     memory.memory_id,
-                )
+                ),
             )
-            return candidates[:max_candidates]
 
         query_tokens = _tokens(query or "")
         if query_tokens:
@@ -3344,7 +3353,7 @@ def _validated_semantic_scores(
     query: str | None,
     max_candidates: int | None,
     minimum_score: float | None,
-    stored_memory_ids: set[str],
+    stored_memory_ids: Collection[str] | None,
 ) -> dict[str, int | float] | None:
     if semantic_scores is None:
         if max_candidates is not None:
@@ -3381,7 +3390,12 @@ def _validated_semantic_scores(
             )
         validated[memory_id] = score
 
-    unknown_ids = sorted(set(validated).difference(stored_memory_ids))
+    assert stored_memory_ids is not None
+    unknown_ids = sorted(
+        memory_id
+        for memory_id in validated
+        if memory_id not in stored_memory_ids
+    )
     if unknown_ids:
         raise ValueError(
             "semantic_scores references unknown memory IDs: "

@@ -1,3 +1,4 @@
+import heapq
 import json
 import os
 import threading
@@ -6,6 +7,7 @@ from copy import deepcopy
 from dataclasses import FrozenInstanceError, replace
 from decimal import Decimal
 from pathlib import Path
+from types import GeneratorType
 from typing import get_args
 
 import pytest
@@ -41,6 +43,11 @@ from trace_backed_memory import (
 
 class IntLike(int):
     pass
+
+
+class NonIterableMemoryMap(dict):
+    def __iter__(self):
+        raise AssertionError("candidate retrieval must not iterate the ID catalog")
 
 
 def store_with_verified_case(
@@ -7232,6 +7239,99 @@ def test_candidate_memories_ranks_semantic_scores_after_metadata_filter():
         "lesson_b",
         "policy_c",
         "lesson_a",
+    ]
+
+
+@pytest.mark.parametrize("query", [None, "lesson"])
+def test_candidate_memories_without_semantic_scores_skips_id_catalog_iteration(
+    monkeypatch,
+    query,
+):
+    store = store_with_retrieval_records_in_order(["a"])
+    store._failure_cases = NonIterableMemoryMap(store._failure_cases)
+    store._lessons = NonIterableMemoryMap(store._lessons)
+    store._project_policies = NonIterableMemoryMap(store._project_policies)
+    monkeypatch.setattr(
+        store_module,
+        "ChainMap",
+        lambda *_catalogs: pytest.fail("non-semantic retrieval built a catalog view"),
+    )
+
+    store.candidate_memories(ancestry_context(), query=query)
+
+
+def test_candidate_memories_rejects_semantic_only_option_without_catalog_iteration():
+    store = store_with_retrieval_records_in_order(["a"])
+    store._failure_cases = NonIterableMemoryMap(store._failure_cases)
+    store._lessons = NonIterableMemoryMap(store._lessons)
+    store._project_policies = NonIterableMemoryMap(store._project_policies)
+
+    with pytest.raises(ValueError, match="max_candidates requires semantic_scores"):
+        store.candidate_memories(ancestry_context(), max_candidates=1)
+
+
+def test_candidate_memories_semantic_id_validation_uses_membership_only():
+    store = store_with_retrieval_records_in_order(["a"])
+    store._failure_cases = NonIterableMemoryMap(store._failure_cases)
+    store._lessons = NonIterableMemoryMap(store._lessons)
+    store._project_policies = NonIterableMemoryMap(store._project_policies)
+
+    candidates = store.candidate_memories(
+        ancestry_context(),
+        semantic_scores={"lesson_a": 0.9, "policy_a": 0.8},
+        max_candidates=2,
+    )
+
+    assert [memory.memory_id for memory in candidates] == [
+        "lesson_a",
+        "policy_a",
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="semantic_scores references unknown memory IDs: missing",
+    ):
+        store.candidate_memories(
+            ancestry_context(),
+            semantic_scores={"missing": 0.7},
+            max_candidates=1,
+        )
+
+
+def test_candidate_memories_streams_bounded_semantic_top_k(monkeypatch):
+    store = TraceBackedMemoryStore()
+    for index in reversed(range(12)):
+        store.add_project_policy(
+            ProjectPolicy(
+                policy_id=f"policy_{index:03d}",
+                policy_text=f"Policy {index}",
+                scope={"repo": "repo"},
+            )
+        )
+    context = MemoryContext(mode="planning", repo="repo", commit_sha="current")
+    scores = {f"policy_{index:03d}": 1.0 for index in range(12)}
+    calls = []
+    real_nsmallest = heapq.nsmallest
+
+    def recording_nsmallest(limit, iterable, *, key):
+        assert isinstance(iterable, GeneratorType)
+        items = list(iterable)
+        calls.append((limit, len(items)))
+        return real_nsmallest(limit, items, key=key)
+
+    monkeypatch.setattr(store_module.heapq, "nsmallest", recording_nsmallest)
+
+    candidates = store.candidate_memories(
+        context,
+        semantic_scores=scores,
+        max_candidates=3,
+    )
+
+    assert calls == [(3, 12)]
+    assert [memory.memory_id for memory in candidates] == [
+        "policy_000",
+        "policy_001",
+        "policy_002",
     ]
 
 

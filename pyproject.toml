@@ -31,7 +31,15 @@ Issues = "https://github.com/lzszq/trace-backed-memory/issues"
 
 [project.optional-dependencies]
 postgres = ["psycopg>=3.2,<4"]
-dev = ["build>=1.2,<2", "pytest>=8.0.0", "psycopg[binary]>=3.2,<4"]
+dev = [
+    "build>=1.2,<2",
+    "coverage[toml]>=7.9,<8",
+    "mypy>=1.16,<2",
+    "pip-audit>=2.9,<3",
+    "psycopg[binary]>=3.2,<4",
+    "pytest>=8.0.0",
+    "ruff>=0.12,<1",
+]
 
 [tool.setuptools.package-data]
 trace_backed_memory = [
@@ -51,6 +59,7 @@ trace_backed_memory = [
     "_resources/schemas/memory_decision.schema.json",
     "_resources/schemas/memory_store_snapshot.schema.json",
     "_resources/schemas/memory_usage_log.schema.json",
+    "_resources/schemas/postgres-v1-to-v2.sql",
     "_resources/schemas/postgres.sql",
     "_resources/schemas/project_policy.schema.json",
     "_resources/schemas/sqlite.sql",
@@ -60,3 +69,32 @@ trace_backed_memory = [
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_configs = true
+disable_error_code = [
+    "arg-type",
+    "assignment",
+    "attr-defined",
+    "call-overload",
+    "index",
+    "misc",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["trace_backed_memory"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true

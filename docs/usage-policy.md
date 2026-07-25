@@ -24,6 +24,11 @@ does not own the outer commit or rollback. Sync retains database-only records,
 allows only the documented Trace, usage-outcome, Failure Case, Lesson, and
 Project Policy forward transitions, applies the Failure Case-to-Lesson obsolete
 cascade, and rolls back the complete operation on conflict.
+One repository instance serializes `sync()`, `load()`, and `close()` with an
+`RLock`. Top-level rollback cleanup preserves the primary exception, retries
+once, and closes the connection if the transaction still cannot be rolled
+back. This catastrophic cleanup path also closes a caller-supplied connection
+so its partial transaction cannot be committed.
 
 Load executes in one read transaction, requires schema version 1, and rejects
 more than 100,000 rows in any collection or 250,000 overall. It also rejects a
@@ -44,11 +49,13 @@ The optional synchronous PostgreSQL repository persists the same gated store
 records; it does not make raw traces eligible for injection or bypass System
 Gate and LLM Gate policy. It requires PostgreSQL 12+ because the schema's
 hardened JSONB constraints use `jsonb_path_exists`. Install
-`trace-backed-memory[postgres]`, apply
-the canonical `schemas/postgres.sql` bytes to a fresh `public` schema at version
-1, then use `PostgresMemoryRepository` for persistence. A checkout may use that
-path directly. An installed package must first run `tbm resource export
-schemas/postgres.sql postgres.sql`; the exported bytes are identical.
+`trace-backed-memory[postgres]`, apply the canonical `schemas/postgres.sql`
+bytes to a fresh `public` schema at version 2, then use
+`PostgresMemoryRepository` for persistence. Existing version-1 installations
+must first apply the packaged `schemas/postgres-v1-to-v2.sql` migration. A
+checkout may use those paths directly. An installed package must first export
+the required resource with `tbm resource export`; the exported bytes are
+identical.
 
 Synchronization is additive and atomic. A sync retains database records absent
 from the submitted store, permits only supported forward lifecycle updates, and
@@ -75,9 +82,11 @@ existing target row
 `FOR UPDATE` before canonical comparison, including failure cases, lessons, and
 project policies; a newly committed protected-field difference is a conflict,
 not a stale successful lifecycle write. A repository created from a caller
-connection borrows it; `connect()` owns and closes the connection. Schema
-migration, connection pooling, and async access are outside this repository's
-current policy and implementation.
+connection borrows it; `connect()` owns and closes the connection. Failure Case
+source Trace/commit bindings and Lesson source Case bindings are
+immutable even for direct SQL. Automatic online migration beyond the explicit
+v1-to-v2 script, connection pooling, and async access are outside this
+repository's current policy and implementation.
 
 Because a missing primary-key row cannot be locked, each absent-row INSERT uses
 a nested savepoint. A concurrent same-primary-key INSERT that reports SQLSTATE
@@ -95,7 +104,7 @@ returned through
 the existing sanitized `PostgresPersistenceError`, with no partial Store and a
 reusable connection. `sync()` behavior is unchanged. The guards change no
 public API, snapshot version 2, JSON Schema, active-lessons YAML, packaged
-resource, PostgreSQL DDL, or PostgreSQL schema version 1.
+resource, PostgreSQL DDL, or PostgreSQL schema version 2.
 
 Before persistence, require at least one non-whitespace character in stored
 identity/linkage fields, required failure text, lesson and policy scope values,
@@ -111,6 +120,11 @@ are narrower than the portable Python/JSON Schema rule. Repository sync always
 receives a validated Store. Direct SQL that writes other whitespace-only values
 is outside that write contract and may make repository load fail until the row
 is cleaned. Phase 49 does not alter PostgreSQL DDL or schema version 1.
+
+Persisted timestamps must be strict RFC 3339 with an explicit `Z` or numeric
+UTC offset. Fractional seconds may contain at most six digits. Lifecycle APIs,
+snapshot import, SQLite, PostgreSQL, and canonical JSON Schemas reject
+sub-microsecond precision instead of silently truncating it.
 
 Use the schema owner or a write-capable repository role. PostgreSQL 12 requires
 table-level `UPDATE`, `DELETE`, or `TRUNCATE` privilege for the explicit
@@ -144,12 +158,14 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 19 installed resource copies must remain byte-identical to the top-level
+The 20 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
 without a path uses the packaged canonical taxonomy; an explicit path remains
 caller-owned input and follows the existing parser contract.
+The allowlist includes fresh-install PostgreSQL schema version 2 and the
+separate atomic `schemas/postgres-v1-to-v2.sql` operator migration.
 
 CLI resource reads emit deterministic JSON rather than unframed raw content.
 Export is the shell integration path. It must refuse an existing destination
@@ -458,6 +474,9 @@ not eval-leaking
 has source_case_id, source_trace_id, or source_policy_id
 ```
 
+When context names a tool, Failure Case memory additionally requires that exact
+named tool in its source Trace; absent tool evidence is not a wildcard.
+
 Reject immediately when:
 
 ```text
@@ -750,15 +769,15 @@ exit code 3, while malformed types remain `input` errors with exit code 2.
 Rejection must precede any Trace or usage-log commit. Do not change the existing
 finite-number contract for `cost_usd`.
 
-Keep canonical and packaged `trace.schema.json` at `minimum: 0` and
+At the Phase 47 baseline, keep canonical and packaged `trace.schema.json` at `minimum: 0` and
 `maximum: 2147483647`. Keep the named `traces_latency_ms_non_negative` CHECK
 and signed `INTEGER` column in both fresh-install PostgreSQL DDL copies. The
 column already supplies the upper bound for every schema-version-1 database,
 so Phase 47 is not a database migration; operators missing the earlier CHECK
 still own the lower-bound migration. Only the canonical and packaged Trace
-Schema bytes change in Phase 47. PostgreSQL DDL bytes, the 18 packaged resource
-names, snapshot version 2, active-lessons YAML, and PostgreSQL schema version 1
-remain current.
+Schema bytes changed in Phase 47; that baseline had 18 packaged resource names
+and PostgreSQL schema version 1. The current contract is snapshot version 2,
+20 packaged resources, and PostgreSQL schema version 2.
 
 Trace completion never seals a usage decision automatically, and decision
 outcome sealing never changes a Trace. Use the same evaluator result for both
@@ -784,7 +803,7 @@ policy catalogs; metadata-only and keyword retrieval must not construct that
 view. After unchanged filters, use bounded semantic top-k selection rather than
 a full sort, while returning score-descending results with
 memory-ID-ascending ties. The optimization changes no snapshot version 2 or
-PostgreSQL schema version 1 contract.
+PostgreSQL schema version 2 contract.
 
 At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
 match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
@@ -797,13 +816,13 @@ remain unbound because Trace has no corresponding stored provenance.
 The store validates this evidence before pending request consumption or
 usage-log append. Imported version-2 and supplied legacy context evidence is
 subject to the same checks. No persistence contract changes: snapshot version
-2 and PostgreSQL schema version 1 remain current.
+2 and PostgreSQL schema version 2 remain current.
 
 `MemoryRunCompletion` itself is not persisted. Snapshots retain the existing
 Trace and usage log, and PostgreSQL synchronization updates their linked
 `trace_id` and `decision_id` rows inside one transaction. A usage-row conflict
 therefore rolls back an earlier Trace update. Snapshot version 2, JSON Schemas,
-active-lessons YAML, and PostgreSQL schema version 1 remain unchanged.
+active-lessons YAML, and PostgreSQL schema version 2 remain unchanged.
 
 ## Git Ancestry Opt-in
 
@@ -969,8 +988,8 @@ The safe store workflow enforces context/trace binding at finalization before
 state changes. The audit log records the current pair, candidate/status
 evidence, and the automatic block reason. `input_hash` is identity evidence,
 not memory scope, and must not be added to lesson or policy scope. Storage stays
-at snapshot version 2 and PostgreSQL schema version 1 with no new persisted
-memory fields: existing trace storage keeps the source hash, existing usage
+at snapshot version 2 and PostgreSQL schema version 2 with no new persisted
+memory fields for benchmark identity: existing trace storage keeps the source hash, existing usage
 context JSON/JSONB keeps current identity, and ephemeral source fields are never
 serialized.
 
@@ -1019,12 +1038,11 @@ For production deployments, treat declared-scope matching as applicability,
 not authorization. A memory that omits `repo` or `tenant` is not implicitly
 isolated by that field. Canonical repository identity, explicit scope kind,
 durable Gate requests, replay metadata, structured regression evidence, and
-required ancestry remain schema v3 / PostgreSQL schema v2 work.
+required ancestry remain schema v3 / PostgreSQL schema v3 work.
 
-The Phase 71 validation hardening does not change those version numbers.
 Repair verified-but-unreviewed cases before loading an existing version-2
-snapshot, and migrate existing PostgreSQL schema-version-1 installations to
-the updated fresh-install constraints before synchronization.
+snapshot. Existing PostgreSQL schema-version-1 installations must apply the
+packaged `schemas/postgres-v1-to-v2.sql` migration before synchronization.
 
 Recommended:
 

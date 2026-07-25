@@ -74,7 +74,7 @@ Memory usage log
 python -m pip install -e .
 ```
 
-也可以使用 `pip` 安装构建出的 wheel 或源码分发包。发行包通过 `py.typed` 标记为带类型信息。若只需从检出目录执行一次本地命令，也可以设置 `PYTHONPATH=src`。
+也可以使用 `pip` 安装构建出的 wheel 或源码分发包。发行包通过 `py.typed` 标记为带类型信息。若只需从检出目录执行一次本地命令，PowerShell 使用 `$env:PYTHONPATH = "src"`，POSIX shell 使用 `PYTHONPATH=src`。
 
 ## 打包资源
 
@@ -84,6 +84,7 @@ wheel、源码分发包和可编辑安装都会提供 `schemas/` 与 `examples/`
 tbm resource list
 tbm resource read schemas/trace.schema.json
 tbm resource export schemas/sqlite.sql sqlite.sql
+tbm resource export schemas/postgres-v1-to-v2.sql postgres-v1-to-v2.sql
 tbm resource export schemas/postgres.sql postgres.sql
 tbm resource export schemas/postgres.sql postgres.sql --overwrite
 ```
@@ -101,12 +102,13 @@ from trace_backed_memory import (
 
 resources = packaged_resources()
 sqlite_sql = read_packaged_resource("schemas/sqlite.sql")
+postgres_migration_sql = read_packaged_resource("schemas/postgres-v1-to-v2.sql")
 postgres_sql = read_packaged_resource("schemas/postgres.sql")
 export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 20 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -201,7 +203,9 @@ with snapshot_write_lock("memory-store.json", timeout_seconds=30):
 SQLite 支持使用 Python 标准库 `sqlite3`，不需要安装额外依赖。它适合本地 harness、CI 作业和单机工具：
 
 ```python
-from trace_backed_memory import SQLiteMemoryRepository
+from trace_backed_memory import SQLiteMemoryRepository, TraceBackedMemoryStore
+
+store = TraceBackedMemoryStore()
 
 with SQLiteMemoryRepository.connect(
     "memory.sqlite3",
@@ -218,7 +222,11 @@ tbm resource export schemas/sqlite.sql sqlite.sql
 sqlite3 memory.sqlite3 ".read sqlite.sql"
 ```
 
+第二条命令需要单独安装 `sqlite3` 命令行程序；Python 标准库模块不会安装该可执行文件。
+
 `sync(store)` 是增量且原子的。它使用 `BEGIN IMMEDIATE` 串行化写入，保留 Trace、Failure Case、Lesson、Project Policy 和 usage outcome 的受支持前向转换，在 Failure Case 淘汰时级联 active Lesson，并在不可变冲突时回滚整个操作。借用连接已有外层事务时，Repository 使用 savepoint，把最终 commit 或 rollback 留给调用方。
+
+同一个 Repository 实例使用 `RLock` 串行化 `sync()`、`load()` 与 `close()`，因此关闭操作会等待进行中的数据库操作。顶层回滚失败不会覆盖主异常：清理会重试；再次失败时即使连接由调用方传入也会被关闭，因为其中的部分事务已不再可信。
 
 `load()` 在一个 SQLite 事务中读取数据，检查 schema 版本 1，执行每集合 100,000 条、总计 250,000 条以及单条/累计 64 MiB payload 限制，再重建普通且完整校验的 `TraceBackedMemoryStore`。SQLite 表保存规范 JSON payload envelope；数据库侧 JSONB 和跨行约束仍是 PostgreSQL 的优势。直接 SQL 修改 payload 不属于支持契约，会在下一次 load 或 sync 时被拒绝。持久化应使用文件数据库；`:memory:` 数据库只在其 owned connection 生命周期内存在。
 
@@ -238,7 +246,14 @@ tbm resource export schemas/postgres.sql postgres.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f postgres.sql
 ```
 
-SQL 文件是 schema 版本 `1` 的全新安装脚本，不是已有数据库的迁移脚本。数据库测试在缺少 `initdb`、`pg_ctl` 或 `psql` 时会跳过；CI 中独立的 Ubuntu 任务会对真实私有集群执行两个 PostgreSQL 测试模块，Windows 任务则运行完整 Python 测试套件。
+适配器要求 PostgreSQL schema 版本 `2`。`schemas/postgres.sql` 是全新安装脚本；既有版本 1 安装使用单独打包的原子迁移：
+
+```powershell
+tbm resource export schemas/postgres-v1-to-v2.sql postgres-v1-to-v2.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f postgres-v1-to-v2.sql
+```
+
+迁移会增加最终 Gate `request_id` 关联、不可变 Trace/usage 审计/Failure Case 来源/Lesson 来源 trigger、受保护的 outcome 前向转换和行锁，然后推进 metadata 版本。metadata 缺失、起始版本不是 1 或成功后重放都会被拒绝。数据库测试在缺少 `initdb`、`pg_ctl` 或 `psql` 时会跳过；CI 中独立的 Ubuntu 任务会对真实私有集群执行两个 PostgreSQL 测试模块，Windows 任务则运行完整 Python 测试套件。
 
 ```python
 from trace_backed_memory import PostgresMemoryRepository
@@ -254,7 +269,9 @@ with PostgresMemoryRepository.connect("postgresql://...") as repository:
 
 `repository.load()` 返回经过规范化和验证的 `TraceBackedMemoryStore`，而不是快照对象。读取五个集合前，它会对五张持久化表获取 `SHARE` 锁，避免一次 load 混合不同已提交数据库状态。随后先执行记录数预检，再执行 UTF-8 载荷预检：每个集合最多 100,000 条、合计最多 250,000 条，最大单行及五表总载荷受 64 MiB 边界约束。超限或格式错误会产生已净化的 `PostgresPersistenceError`，不留下部分 Store，并保持连接可复用。
 
-必需身份、关联、失败文本、lesson/policy 作用域、Memory Context 值，以及 usage-audit 映射键和值都必须至少包含一个非空白字符。Store 和六个规范 JSON Schema 使用一致的 `pattern: "\\S"` 规则。PostgreSQL schema 版本 `1` 已拒绝普通空格组成的对应值，但数据库的 `btrim(text)` 比 Python/JSON Schema 的空白定义更窄，因此支持路径仍以 Store 验证为准。
+必需身份、关联、失败文本、lesson/policy 作用域、Memory Context 值，以及 usage-audit 映射键和值都必须至少包含一个非空白字符。Store 和六个规范 JSON Schema 使用一致的 `pattern: "\\S"` 规则。PostgreSQL schema 版本 `2` 会拒绝普通空格组成的对应值，但数据库的 `btrim(text)` 比 Python/JSON Schema 的空白定义更窄，因此支持路径仍以 Store 验证为准。
+
+持久化时间戳必须是带显式 `Z` 或数字 UTC offset 的严格 RFC 3339。小数秒如果存在，最多包含六位；生命周期 API、snapshot、SQLite、PostgreSQL 和规范 JSON Schema 会一致拒绝亚微秒精度。
 
 在调用方事务中成功获取的表锁与行锁会一直保持到外层提交或回滚。需要保持写入响应时，应避免长时间持有调用方事务。
 
@@ -744,11 +761,13 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、19 项 zip-safe 包资源和原子文件发布。
-- 快照 advisory lock，以及同步 SQLite/PostgreSQL schema 版本 `1` 的增量事务存储库。
+- 严格 JSON 快照、简单 active lesson YAML、20 项 zip-safe 包资源和原子文件发布。
+- 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
 本轮 review 加固还包括：Failure Case 必须来自 `fail`/`error` Trace，verify 前必须完成 reviewer/root-cause/timestamp 证据，dirty source 不能激活 Lesson；LLM decision 响应最多 64 KiB、1,000 个 JSON 节点、深度 20，reason 最多 2,000 字符；LLM 未选择的系统候选会进入 blocked 审计；`short_summary` 与 `full_case_summary` 使用不同渲染器；关键词检索支持 Unicode；prepare/finalize 会确定性保留前 50 个系统允许候选，并记录其余候选的限制原因。
+
+每次 prepare 最多审计 1,000 个候选，所有进程内 pending request 合计最多引用 100,000 个候选；其中只有确定性的前 50 个 System Gate 允许项会进入 LLM Gate。PostgreSQL 同时禁止通过直接 SQL 改绑 Failure Case 与 Lesson 来源，SQLite 同实例操作已串行化且顶层回滚保留主异常。
 
 所有 Store 输入在复制和提交前验证。嵌套 JSON 会拒绝非字符串对象键、非有限数、引用环、过深结构及预算溢出；失败操作不消耗 ID，也不留下部分变更。低级辅助函数仍公开，但只有 Store 工作流承诺所有权、重放、陈旧状态、Trace 关联与原子日志语义。
 
@@ -770,11 +789,11 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 
 ## 生产就绪边界
 
-当前 snapshot version 2 仍不是多租户在线服务契约。以下事项需要 schema v3 / PostgreSQL schema v2 才能完整实现：结构化 regression Trace/run/evaluator 证据与 commit 关系、稳定 `repository_id` 和显式 global/repository/tenant scope、可持久化或签名的 GateRequest（含幂等/过期/取消/崩溃恢复）、可重放的 retriever/gate/renderer/hash 审计，以及显式 required/disabled 且记录绕过原因的 ancestry policy。
+当前 snapshot version 2 仍不是多租户在线服务契约。以下事项需要 schema v3 / PostgreSQL schema v3 才能完整实现：结构化 regression Trace/run/evaluator 证据与 commit 关系、稳定 `repository_id` 和显式 global/repository/tenant scope、可持久化或签名的 GateRequest（含幂等、过期和崩溃恢复；当前进程内请求已经具备容量限制、显式取消、Trace/run 绑定和最终 `request_id` 审计关联）、可重放的 retriever/gate/renderer/hash 审计，以及显式 required/disabled 且记录绕过原因的 ancestry policy。
 
 在这些契约完成前，应将本项目用于单进程 harness 组件或参考实现，而不是不受信任的共享多租户 memory service。
 
-本次 Alpha 加固保持版本号不变，但收紧了校验。既有 version-2 snapshot 中 verified 但缺少 review 证据的 case 必须先补齐才能加载；既有 PostgreSQL schema-version-1 安装需要由 operator 迁移，才能与更新后的 fresh-install 约束一致。
+本次 Alpha 加固保持 snapshot version 2，并将 PostgreSQL schema 推进到版本 2。既有 version-2 snapshot 中 verified 但缺少 review 证据的 case 必须先补齐才能加载；既有 PostgreSQL schema-version-1 安装必须先应用打包的 `schemas/postgres-v1-to-v2.sql`，再进行同步。
 
 ## 仓库布局
 
@@ -803,6 +822,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- lessons.example.yaml
 |   `-- failure_taxonomy.yaml
 |-- schemas/
+|   |-- postgres-v1-to-v2.sql
 |   |-- postgres.sql
 |   |-- sqlite.sql
 |   |-- trace.schema.json

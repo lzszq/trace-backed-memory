@@ -1225,7 +1225,31 @@ Track:
 - Preserve snapshot version 2 and PostgreSQL schema version 1; SQLite starts at
   its own schema version 1.
 
-## Phase 73: Deployable trust boundaries and replayable audit (planned)
+## Phase 73: Review-driven runtime and persistence hardening (implemented)
+
+- Bound query text, semantic score mappings, batch operations, process-local
+  pending requests and finalized tombstones, aggregate pending candidate
+  references, per-request candidates, and persisted lesson/policy text.
+- Add explicit Gate request cancellation, bind high-level requests to Trace/run
+  identity, and persist final `request_id` linkage in usage audit.
+- Reject special files during bounded local ingestion; make nested SQLite
+  cleanup fail safe by aborting the outer transaction when savepoint rollback
+  itself fails; serialize same-instance SQLite operations and preserve the
+  primary failure across top-level rollback cleanup.
+- Protect PostgreSQL Trace and usage audit records with immutable and
+  forward-only triggers, make Failure Case and Lesson source bindings
+  immutable, lock usage Trace context reads, and advance the PostgreSQL schema
+  version 2 contract.
+- Enforce one strict microsecond-bounded RFC 3339 timestamp contract across
+  lifecycle APIs, snapshots, JSON Schemas, SQLite, and PostgreSQL.
+- Add Ruff, mypy, branch-coverage, and dependency-audit CI gates in an isolated
+  quality environment.
+- Publish the atomic `schemas/postgres-v1-to-v2.sql` operator migration as the
+  twentieth (20th) packaged resource and test fresh installs, migration, replay
+  rejection, wheel, sdist, Windows, SQLite, and real PostgreSQL execution.
+- Preserve snapshot version 2 and SQLite schema version 1.
+
+## Phase 74: Deployable trust boundaries and replayable audit (planned)
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
@@ -1239,4 +1263,4 @@ Track:
 - Replace optional ancestry with an explicit `required`/`disabled` policy and
   auditable bypass reason.
 - Deliver these breaking contracts together as snapshot schema version 3 and
-  PostgreSQL schema version 2 with documented migrations.
+  PostgreSQL schema version 3 with documented migrations.

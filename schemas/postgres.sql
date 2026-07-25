@@ -9,7 +9,7 @@ CREATE TABLE public.trace_backed_memory_schema (
 );
 
 INSERT INTO public.trace_backed_memory_schema(singleton, schema_version)
-VALUES (true, 1);
+VALUES (true, 2);
 
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE
 ON public.trace_backed_memory_schema FROM PUBLIC;
@@ -56,6 +56,63 @@ CREATE TABLE traces (
   UNIQUE (trace_id, run_id),
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE FUNCTION protect_trace_record() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'trace records cannot be deleted: %', OLD.trace_id;
+  END IF;
+
+  IF ROW(
+    NEW.trace_id, NEW.run_id, NEW.commit_sha, NEW.repo, NEW.tenant,
+    NEW.branch, NEW.dirty, NEW.prompt_version, NEW.prompt_family,
+    NEW.tool_schema_version, NEW.model, NEW.eval_suite, NEW.input_hash,
+    NEW.retrieved_context, NEW.tool_calls, NEW.created_at
+  ) IS DISTINCT FROM ROW(
+    OLD.trace_id, OLD.run_id, OLD.commit_sha, OLD.repo, OLD.tenant,
+    OLD.branch, OLD.dirty, OLD.prompt_version, OLD.prompt_family,
+    OLD.tool_schema_version, OLD.model, OLD.eval_suite, OLD.input_hash,
+    OLD.retrieved_context, OLD.tool_calls, OLD.created_at
+  ) THEN
+    RAISE EXCEPTION 'trace provenance fields are immutable: %', OLD.trace_id;
+  END IF;
+
+  IF ROW(
+    NEW.output_hash, NEW.tool_outputs, NEW.eval_result, NEW.latency_ms,
+    NEW.cost_usd, NEW.error, NEW.trace_uri
+  ) IS NOT DISTINCT FROM ROW(
+    OLD.output_hash, OLD.tool_outputs, OLD.eval_result, OLD.latency_ms,
+    OLD.cost_usd, OLD.error, OLD.trace_uri
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  IF OLD.eval_result != 'unknown'
+    OR NEW.eval_result NOT IN ('pass', 'fail', 'error') THEN
+    RAISE EXCEPTION 'trace completion must move forward exactly once: %',
+      OLD.trace_id;
+  END IF;
+
+  IF (OLD.output_hash IS NOT NULL AND NEW.output_hash IS DISTINCT FROM OLD.output_hash)
+    OR (OLD.tool_outputs != '[]'::jsonb AND NEW.tool_outputs IS DISTINCT FROM OLD.tool_outputs)
+    OR (OLD.latency_ms IS NOT NULL AND NEW.latency_ms IS DISTINCT FROM OLD.latency_ms)
+    OR (OLD.cost_usd IS NOT NULL AND NEW.cost_usd IS DISTINCT FROM OLD.cost_usd)
+    OR (OLD.error IS NOT NULL AND NEW.error IS DISTINCT FROM OLD.error)
+    OR (OLD.trace_uri IS NOT NULL AND NEW.trace_uri IS DISTINCT FROM OLD.trace_uri) THEN
+    RAISE EXCEPTION 'trace completion cannot overwrite populated fields: %',
+      OLD.trace_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
+
+CREATE TRIGGER traces_protect_record
+BEFORE UPDATE OR DELETE ON traces
+FOR EACH ROW EXECUTE FUNCTION protect_trace_record();
+
+REVOKE DELETE ON traces FROM PUBLIC;
 
 CREATE TABLE memory_ids (
   memory_id TEXT PRIMARY KEY,
@@ -188,6 +245,10 @@ CREATE TRIGGER memory_ids_reject_truncate
 BEFORE TRUNCATE ON memory_ids
 FOR EACH STATEMENT EXECUTE FUNCTION reject_runtime_memory_truncate();
 
+CREATE TRIGGER traces_reject_truncate
+BEFORE TRUNCATE ON traces
+FOR EACH STATEMENT EXECUTE FUNCTION reject_runtime_memory_truncate();
+
 CREATE TRIGGER failure_cases_reject_truncate
 BEFORE TRUNCATE ON failure_cases
 FOR EACH STATEMENT EXECUTE FUNCTION reject_runtime_memory_truncate();
@@ -200,7 +261,7 @@ CREATE TRIGGER project_policies_reject_truncate
 BEFORE TRUNCATE ON project_policies
 FOR EACH STATEMENT EXECUTE FUNCTION reject_runtime_memory_truncate();
 
-REVOKE TRUNCATE ON memory_ids, failure_cases, lessons, project_policies FROM PUBLIC;
+REVOKE TRUNCATE ON memory_ids, traces, failure_cases, lessons, project_policies FROM PUBLIC;
 
 CREATE FUNCTION register_runtime_memory_id() RETURNS trigger AS $$
 DECLARE
@@ -250,6 +311,29 @@ BEGIN
       old_runtime_memory_id, new_runtime_memory_id;
   END IF;
 
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
+
+CREATE FUNCTION protect_failure_case_source() RETURNS trigger AS $$
+BEGIN
+  IF ROW(NEW.source_trace_id, NEW.commit_sha)
+    IS DISTINCT FROM ROW(OLD.source_trace_id, OLD.commit_sha) THEN
+    RAISE EXCEPTION 'failure case source provenance is immutable: %',
+      OLD.case_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
+
+CREATE FUNCTION protect_lesson_source() RETURNS trigger AS $$
+BEGIN
+  IF NEW.source_case_id IS DISTINCT FROM OLD.source_case_id THEN
+    RAISE EXCEPTION 'lesson source provenance is immutable: %',
+      OLD.lesson_id;
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql
@@ -351,6 +435,10 @@ CREATE TRIGGER failure_cases_require_failed_source_trace
 BEFORE INSERT OR UPDATE OF source_trace_id, commit_sha ON failure_cases
 FOR EACH ROW EXECUTE FUNCTION require_failure_case_source_trace();
 
+CREATE TRIGGER failure_cases_protect_source_provenance
+BEFORE UPDATE OF source_trace_id, commit_sha ON failure_cases
+FOR EACH ROW EXECUTE FUNCTION protect_failure_case_source();
+
 CREATE TRIGGER failure_cases_protect_runtime_memory_identity
 BEFORE UPDATE OF case_id OR DELETE ON failure_cases
 FOR EACH ROW EXECUTE FUNCTION protect_runtime_memory_identity('case_id');
@@ -370,6 +458,10 @@ FOR EACH ROW EXECUTE FUNCTION register_runtime_memory_id();
 CREATE TRIGGER lessons_protect_runtime_memory_identity
 BEFORE UPDATE OF lesson_id OR DELETE ON lessons
 FOR EACH ROW EXECUTE FUNCTION protect_runtime_memory_identity('lesson_id');
+
+CREATE TRIGGER lessons_protect_source_provenance
+BEFORE UPDATE OF source_case_id ON lessons
+FOR EACH ROW EXECUTE FUNCTION protect_lesson_source();
 
 CREATE TRIGGER lessons_enforce_forward_status
 BEFORE UPDATE OF status ON lessons
@@ -430,6 +522,7 @@ SET search_path = pg_catalog;
 
 CREATE TABLE memory_usage_decisions (
   decision_id TEXT PRIMARY KEY,
+  request_id TEXT,
   run_id TEXT NOT NULL,
   trace_id TEXT NOT NULL,
   mode TEXT NOT NULL CHECK (mode IN ('debug', 'repair', 'regression', 'planning', 'eval', 'production')),
@@ -462,6 +555,13 @@ CREATE TABLE memory_usage_decisions (
   candidate_memory_statuses JSONB NOT NULL CHECK (valid_candidate_memory_statuses(candidate_memory_statuses)),
   system_blocked_reasons JSONB NOT NULL CHECK (valid_non_empty_text_object(system_blocked_reasons)),
   CHECK (btrim(decision_id) <> ''),
+  CHECK (
+    request_id IS NULL
+    OR (
+      pg_catalog.btrim(request_id) <> ''
+      AND pg_catalog.char_length(request_id) <= 128
+    )
+  ),
   CHECK (btrim(run_id) <> ''),
   CHECK (btrim(trace_id) <> ''),
   CHECK (reason ~ '[^[:space:]]'),
@@ -482,6 +582,56 @@ CREATE TABLE memory_usage_decisions (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE FUNCTION protect_usage_decision_record() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'usage decision records cannot be deleted: %',
+      OLD.decision_id;
+  END IF;
+
+  IF ROW(
+    NEW.decision_id, NEW.request_id, NEW.run_id, NEW.trace_id, NEW.mode,
+    NEW.candidate_memory_ids, NEW.used_memory_ids, NEW.blocked_memory_ids,
+    NEW.risk, NEW.reason, NEW.recommended_injection, NEW.context,
+    NEW.candidate_memory_statuses, NEW.system_blocked_reasons, NEW.created_at
+  ) IS DISTINCT FROM ROW(
+    OLD.decision_id, OLD.request_id, OLD.run_id, OLD.trace_id, OLD.mode,
+    OLD.candidate_memory_ids, OLD.used_memory_ids, OLD.blocked_memory_ids,
+    OLD.risk, OLD.reason, OLD.recommended_injection, OLD.context,
+    OLD.candidate_memory_statuses, OLD.system_blocked_reasons, OLD.created_at
+  ) THEN
+    RAISE EXCEPTION 'usage decision audit fields are immutable: %',
+      OLD.decision_id;
+  END IF;
+
+  IF ROW(NEW.eval_result, NEW.memory_caused_failure)
+    IS NOT DISTINCT FROM
+    ROW(OLD.eval_result, OLD.memory_caused_failure) THEN
+    RETURN NEW;
+  END IF;
+
+  IF COALESCE(OLD.eval_result, 'unknown') != 'unknown'
+    OR NEW.eval_result IS NULL
+    OR NEW.eval_result NOT IN ('pass', 'fail', 'error') THEN
+    RAISE EXCEPTION 'usage decision outcome must move forward exactly once: %',
+      OLD.decision_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql
+SET search_path = pg_catalog;
+
+CREATE TRIGGER memory_usage_decisions_protect_record
+BEFORE UPDATE OR DELETE ON memory_usage_decisions
+FOR EACH ROW EXECUTE FUNCTION protect_usage_decision_record();
+
+CREATE TRIGGER memory_usage_decisions_reject_truncate
+BEFORE TRUNCATE ON memory_usage_decisions
+FOR EACH STATEMENT EXECUTE FUNCTION reject_runtime_memory_truncate();
+
+REVOKE DELETE, TRUNCATE ON memory_usage_decisions FROM PUBLIC;
+
 CREATE FUNCTION require_usage_trace_context() RETURNS trigger AS $$
 DECLARE
   trace_record public.traces%ROWTYPE;
@@ -489,7 +639,8 @@ BEGIN
   SELECT * INTO trace_record
   FROM public.traces
   WHERE trace_id = NEW.trace_id
-    AND run_id = NEW.run_id;
+    AND run_id = NEW.run_id
+  FOR SHARE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'usage trace_id and run_id must reference one trace: %, %',

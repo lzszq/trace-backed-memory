@@ -368,6 +368,28 @@ def test_verify_failure_case_rejects_whitespace_required_strings(
         verify_failure_case(case, **values)
 
 
+def test_verify_failure_case_rejects_malformed_existing_review_timestamp():
+    case = FailureCase(
+        case_id="case_001",
+        source_trace_id="trace_001",
+        commit_sha="abc123",
+        failure_type="invalid_tool_argument",
+        symptom="empty query",
+        root_cause="the prompt omitted the query contract",
+        reviewed_by="reviewer",
+        reviewed_at="not-a-timestamp",
+        status="draft",
+    )
+
+    with pytest.raises(ValueError, match="reviewed_at"):
+        _transition_verify_failure_case(
+            case,
+            fix="validate query",
+            fix_commit_sha="def456",
+            regression_passed=True,
+        )
+
+
 def test_verification_requires_regression_pass():
     trace = Trace(
         trace_id="trace_001",
@@ -482,6 +504,38 @@ def test_manual_review_defaults_review_timestamp_to_utc():
     assert reviewed.reviewed_at is not None
     assert reviewed.reviewed_at.endswith("Z")
     datetime.fromisoformat(reviewed.reviewed_at.replace("Z", "+00:00"))
+
+
+@pytest.mark.parametrize(
+    "reviewed_at",
+    [
+        "tomorrow",
+        "2026-07-09 00:00:00+00:00",
+        "2026-07-09T00:00:00",
+        "2026-07-09T00:00:00.1234567Z",
+    ],
+)
+def test_manual_review_rejects_invalid_or_overprecise_timestamp(reviewed_at: str):
+    trace = Trace(
+        trace_id="trace_001",
+        run_id="run_001",
+        commit_sha="abc123",
+        eval_result="fail",
+    )
+    draft = draft_failure_case(
+        trace,
+        case_id="case_001",
+        failure_type="evaluator_mismatch",
+        symptom="unclear failure",
+    )
+
+    with pytest.raises(ValueError, match="reviewed_at"):
+        review_failure_case(
+            draft,
+            reviewed_by="jason",
+            root_cause="planner prompt omitted the search_docs query contract",
+            reviewed_at=reviewed_at,
+        )
 
 
 def test_only_draft_failure_cases_can_be_manually_reviewed():

@@ -13,6 +13,22 @@ from pathlib import Path
 import pytest
 
 
+def test_postgres_timestamp_canonicalizer_is_strict_and_microsecond_bounded():
+    import trace_backed_memory.postgres as postgres_adapter
+
+    assert postgres_adapter._canonical_rfc3339(
+        "2026-07-23T09:00:00.123456+08:00",
+        "created_at",
+    ) == "2026-07-23T01:00:00.123456Z"
+
+    for invalid in (
+        "2026-07-23 01:00:00+00:00",
+        "2026-07-23T01:00:00.1234567Z",
+    ):
+        with pytest.raises(ValueError, match="created_at"):
+            postgres_adapter._canonical_rfc3339(invalid, "created_at")
+
+
 def _complete_store(
     *,
     decision_reason: str = "directly relevant",
@@ -1326,6 +1342,51 @@ def test_repository_sync_round_trips_and_is_idempotent(postgres_cluster):
         assert second.lessons == PostgresSyncCounts(unchanged=1)
         assert second.project_policies == PostgresSyncCounts(unchanged=1)
         assert second.usage_logs == PostgresSyncCounts(unchanged=1)
+
+
+def test_repository_round_trips_gate_request_id(postgres_cluster):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory import MemoryContext
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    store = _complete_store()
+    context = MemoryContext(
+        mode="repair",
+        repo="repo_sync",
+        tenant="tenant_sync",
+        commit_sha="commit_sync",
+    )
+    request = store.prepare_memory(
+        context,
+        task="repair",
+        trace_id="trace_sync",
+    )
+    store.finalize_memory(
+        request,
+        {
+            "use_memory": True,
+            "allowed_memory_ids": ["lesson_sync"],
+            "blocked_memory_ids": [],
+            "reason": "The lesson applies.",
+            "risk": "low",
+            "recommended_injection": "short_summary",
+        },
+        trace_id="trace_sync",
+    )
+
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        repository.sync(store)
+        loaded = repository.load()
+        persisted_request_id = connection.execute(
+            "SELECT request_id FROM public.memory_usage_decisions "
+            "WHERE decision_id = %s",
+            ("decision_000002",),
+        ).fetchone()
+
+    assert loaded.usage_logs[-1].request_id == request.request_id
+    assert persisted_request_id == (request.request_id,)
 
 
 def test_repository_round_trips_maximum_trace_latency(postgres_cluster):
@@ -3089,10 +3150,14 @@ def test_repository_sync_conflicts_when_immutable_json_types_differ(postgres_clu
     with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = PostgresMemoryRepository(connection)
         repository.sync(store)
-        connection.execute(
-            "UPDATE public.traces SET tool_outputs = %s WHERE trace_id = %s",
-            (Jsonb([{"succeeded": 0}]), "trace_json_types"),
-        )
+        connection.execute("SET session_replication_role = replica")
+        try:
+            connection.execute(
+                "UPDATE public.traces SET tool_outputs = %s WHERE trace_id = %s",
+                (Jsonb([{"succeeded": 0}]), "trace_json_types"),
+            )
+        finally:
+            connection.execute("SET session_replication_role = origin")
         connection.commit()
 
         with pytest.raises(PostgresConflictError, match="traces.*trace_json_types"):
@@ -3234,11 +3299,55 @@ def test_repository_sync_conflicts_for_differences_in_every_table(
     with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = PostgresMemoryRepository(connection)
         repository.sync(store)
-        connection.execute(update_sql, (replacement, record_id))
+        connection.execute("SET session_replication_role = replica")
+        try:
+            connection.execute(update_sql, (replacement, record_id))
+        finally:
+            connection.execute("SET session_replication_role = origin")
         connection.commit()
 
         with pytest.raises(PostgresConflictError, match=f"{table}.*{record_id}"):
             repository.sync(store)
+
+
+@pytest.mark.parametrize(
+    ("statement", "expected_message"),
+    [
+        (
+            "UPDATE public.traces SET model = 'tampered' "
+            "WHERE trace_id = 'trace_sync'",
+            "trace provenance fields are immutable",
+        ),
+        (
+            "DELETE FROM public.traces WHERE trace_id = 'trace_sync'",
+            "trace records cannot be deleted",
+        ),
+        (
+            "UPDATE public.memory_usage_decisions SET reason = 'tampered' "
+            "WHERE decision_id = 'decision_000001'",
+            "usage decision audit fields are immutable",
+        ),
+        (
+            "DELETE FROM public.memory_usage_decisions "
+            "WHERE decision_id = 'decision_000001'",
+            "usage decision records cannot be deleted",
+        ),
+    ],
+)
+def test_postgres_rejects_direct_trace_and_usage_audit_tampering(
+    postgres_cluster,
+    statement,
+    expected_message,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import PostgresMemoryRepository
+
+    postgres_cluster.load_schema()
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        PostgresMemoryRepository(connection).sync(_complete_store())
+
+        with pytest.raises(psycopg.errors.RaiseException, match=expected_message):
+            connection.execute(statement)
 
 
 def test_repository_rejects_missing_or_unknown_schema(postgres_cluster):
@@ -3261,10 +3370,10 @@ def test_repository_rejects_missing_or_unknown_schema(postgres_cluster):
             "usage_logs": [],
         }
         connection.execute(
-            "UPDATE public.trace_backed_memory_schema SET schema_version = 2"
+            "UPDATE public.trace_backed_memory_schema SET schema_version = 3"
         )
         connection.commit()
-        with pytest.raises(PostgresSchemaError, match="expected 1, found 2"):
+        with pytest.raises(PostgresSchemaError, match="expected 2, found 3"):
             repository.load()
 
 
@@ -3336,7 +3445,7 @@ def test_missing_or_incomplete_schema_keeps_sanitized_driver_cause(
             )
             connection.execute(
                 "INSERT INTO public.trace_backed_memory_schema "
-                "(singleton, schema_version) VALUES (true, 1)"
+                "(singleton, schema_version) VALUES (true, 2)"
             )
             connection.commit()
 

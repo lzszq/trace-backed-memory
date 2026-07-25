@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -69,5 +70,18 @@ def test_bounded_utf8_decoder_applies_the_same_budget_and_strict_decoding():
         decode_bounded_utf8(
             b"\xff",
             max_bytes=1,
+            description="fixture",
+        )
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="requires POSIX FIFO support")
+def test_bounded_utf8_reader_rejects_fifo_without_blocking(tmp_path: Path):
+    fifo = tmp_path / "fixture.fifo"
+    os.mkfifo(fifo)
+
+    with pytest.raises(OSError, match="must reference one regular file"):
+        read_bounded_utf8(
+            fifo,
+            max_bytes=10,
             description="fixture",
         )

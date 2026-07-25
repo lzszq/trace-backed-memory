@@ -14,7 +14,7 @@ raw trace -> failure case -> verified lesson -> gated runtime memory
 
 `SQLiteMemoryRepository` 持久化与本地 Store 相同的受门控记录，不改变检索或注入资格。它使用 Python 标准库 `sqlite3`，不需要额外依赖，并要求规范或包内 `schemas/sqlite.sql` 的 schema 版本 1。`connect(..., initialize=True)` 是初始化新文件数据库的便捷路径。
 
-同步是增量且原子的。顶层操作使用 `BEGIN IMMEDIATE`；已有 caller-owned transaction 时使用 savepoint，不拥有外层 commit/rollback。sync 保留只存在于数据库的记录，只允许文档定义的 Trace、usage outcome、Failure Case、Lesson 与 Project Policy 前向转换，执行 Failure Case 到 Lesson 的 obsolete 级联，并在冲突时回滚完整操作。
+同步是增量且原子的。顶层操作使用 `BEGIN IMMEDIATE`；已有 caller-owned transaction 时使用 savepoint，不拥有外层 commit/rollback。sync 保留只存在于数据库的记录，只允许文档定义的 Trace、usage outcome、Failure Case、Lesson 与 Project Policy 前向转换，执行 Failure Case 到 Lesson 的 obsolete 级联，并在冲突时回滚完整操作。同一个 Repository 实例用 `RLock` 串行化 `sync()`、`load()` 与 `close()`；顶层回滚清理必须保留主异常并重试，再次失败则即使连接由调用方传入也会关闭，防止之后提交部分事务。
 
 load 在一个读事务内检查 schema 版本 1；每集合超过 100,000 条、总计超过 250,000 条、最大单条或累计规范 JSON payload 超过 64 MiB 时拒绝。精确边界有效；只有完成 `TraceBackedMemoryStore` 重建与校验后才返回，失败后连接仍可复用。
 
@@ -22,19 +22,21 @@ SQLite 行保存稳定 ID 与规范 JSON payload envelope。领域和跨记录�
 
 ## PostgreSQL 持久化边界
 
-可选的同步 PostgreSQL Repository 持久化与本地 Store 相同的受门控记录；它不会让 raw Trace 自动具备注入资格，也不能绕过 System Gate 或 LLM Gate。安装 `trace-backed-memory[postgres]`，把规范 `schemas/postgres.sql` 应用到新的 `public` schema，并使用 schema 版本 1。PostgreSQL 必须为 12+。
+可选的同步 PostgreSQL Repository 持久化与本地 Store 相同的受门控记录；它不会让 raw Trace 自动具备注入资格，也不能绕过 System Gate 或 LLM Gate。安装 `trace-backed-memory[postgres]`，把规范 `schemas/postgres.sql` 应用到新的 `public` schema，并使用 schema 版本 2。既有版本 1 安装必须先应用包内 `schemas/postgres-v1-to-v2.sql`。PostgreSQL 必须为 12+。
 
 同步必须是增量且原子的：保留提交 Store 中不存在的数据库记录，只允许支持的前向生命周期更新，并在不可变冲突时回滚完整事务。pending Trace 只能从 `unknown` 前进到已测量结果；usage decision 只能从 `NULL`/`unknown` 前进到一个测量 outcome pair。其他受保护字段不可变。
 
 加载必须先按序对五张持久化表获取 `SHARE` 锁，使一次 Store 不会混合不同提交时刻。锁持有期间先执行 count 预检：每集合不超过 100,000 条，总计不超过 250,000 条；然后执行 loaded-row UTF-8 JSON payload 预检：最大单行与五表合计都不超过 64 MiB。Failure Case、Lesson 和 Project Policy projection 只排除 selector 不读取的 `updated_at`；Trace 和 usage decision 保留全部物理列。
 
-同步在规范比较前对所有已有目标行使用 `FOR UPDATE`。缺失主键不能预锁，因此每个 absent-row INSERT 必须位于 nested savepoint；并发同主键 `23505` 或 registry 精确 `P0001` 信号触发重新选择并锁定。精确重放是 `unchanged`，合法前向转换是 `updated`，保护字段差异是 `PostgresConflictError`。没有目标行的碰撞和其他 driver 错误保持 `PostgresPersistenceError`。
+同步在规范比较前对所有已有目标行使用 `FOR UPDATE`。缺失主键不能预锁，因此每个 absent-row INSERT 必须位于 nested savepoint；并发同主键 `23505` 或 registry 精确 `P0001` 信号触发重新选择并锁定。精确重放是 `unchanged`，合法前向转换是 `updated`，保护字段差异是 `PostgresConflictError`。Failure Case 的 source Trace/commit 与 Lesson 的 source Case 即使通过直接 SQL 也不可改绑。没有目标行的碰撞和其他 driver 错误保持 `PostgresPersistenceError`。
 
 count/payload 预检只限制运行时 load。payload 是紧凑 PostgreSQL loaded-row JSON，不是缩进快照文件大小。边界值有效；超限必须返回已净化的 `PostgresPersistenceError`，不构造部分 Store，并保持连接可复用。
 
 持久化前，身份、linkage、必需 failure 文本、Lesson/Policy scope、Memory Context 字符串和 usage-audit mapping 键值都必须至少包含一个非空白字符。接受值保持原字节，不 trim 或 normalize。规范与包内 Schema 使用相同 `pattern: "\\S"`。
 
-PostgreSQL schema 版本 1 的 `btrim` 只覆盖普通空格，比 Python/JSON Schema 规则窄。Repository sync 总是接收已经过 Store 验证的数据；直接 SQL 写入其他空白字符组成的值不属于支持写入契约，可能导致 load 失败。
+PostgreSQL schema 版本 2 的 `btrim` 只覆盖普通空格，比 Python/JSON Schema 规则窄。Repository sync 总是接收已经过 Store 验证的数据；直接 SQL 写入其他空白字符组成的值不属于支持写入契约，可能导致 load 失败。
+
+持久化时间戳必须采用带显式 `Z` 或数字 UTC offset 的严格 RFC 3339；小数秒最多六位。生命周期 API、snapshot import、SQLite、PostgreSQL 和规范 JSON Schema 都必须拒绝亚微秒精度，不能静默截断。
 
 显式 `SHARE` 锁要求 schema owner 或具备 `UPDATE`、`DELETE`、`TRUNCATE` 表级权限的角色。在调用方事务中，Repository 使用 savepoint，成功锁会持续到外层 commit/rollback；没有外层事务时正常提交。
 
@@ -48,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-19 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。
+20 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2 和独立原子 `schemas/postgres-v1-to-v2.sql` operator migration。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -122,6 +124,8 @@ Python 写入方必须用公开 `snapshot_write_lock(snapshot_path, timeout_seco
 运行时 context 应先通过 `parse_memory_context()`。它要求 `mode`、`repo`、`commit_sha`，验证支持模式，并只保留已知的非空白字符串字段。直接 helper 调用必须遵循相同边界：候选和注入输入是唯一 `MemoryItem` 列表，block reason 是字符串 mapping，task 非空，summary 是字符串，query 为字符串或 `None`。
 
 Memory 必须满足 active/verified 状态、受支持 memory type、已知且匹配的 scope、合法 repo/branch/tenant、非 obsolete、非 sensitive、非 eval-leaking，并且存在 source case、Trace 或 policy。
+
+context 指定工具时，Failure Case memory 的 source Trace 还必须包含该同名工具；缺少工具证据不是通配条件。
 
 draft、obsolete、缺少 scope/source、包含 sensitive raw Trace、跨 tenant、同 benchmark expected output 的 memory 必须立即拒绝。
 
@@ -238,9 +242,9 @@ Lesson/Failure Case 在候选构造时临时获得 source identity，并在 LLM 
 
 metadata 与关键词检索使用 Unicode-aware tokenization；非 ASCII 词还会生成双字符 gram，使 CJK 查询子串可以筛选更长文本，同时不改变两层门控。
 
-生产部署必须把 declared-scope matching 视为适用性判断，而不是授权。省略 `repo` 或 `tenant` 的 memory 不会自动获得该字段的隔离。canonical repository identity、显式 scope kind、durable Gate request、可重放审计、结构化 regression evidence 与 required ancestry 仍属于 schema v3 / PostgreSQL schema v2。
+生产部署必须把 declared-scope matching 视为适用性判断，而不是授权。省略 `repo` 或 `tenant` 的 memory 不会自动获得该字段的隔离。canonical repository identity、显式 scope kind、durable Gate request、可重放审计、结构化 regression evidence 与 required ancestry 仍属于 schema v3 / PostgreSQL schema v3。
 
-Phase 71 的校验加固没有改变这些版本号。加载既有 version-2 snapshot 前必须补齐 verified-but-unreviewed case 的 review 证据；同步前应将既有 PostgreSQL schema-version-1 安装迁移到更新后的 fresh-install 约束。
+加载既有 version-2 snapshot 前必须补齐 verified-but-unreviewed case 的 review 证据；同步前必须对既有 PostgreSQL schema-version-1 安装应用包内 `schemas/postgres-v1-to-v2.sql`。
 
 推荐格式：
 

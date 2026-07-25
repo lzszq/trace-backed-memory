@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 19 个规范 Schema、SQL、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 20 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -137,13 +137,13 @@ System Gate 是确定性的，检查来源、状态、scope、tenant、confidenc
 
 动态 task、context summary 和候选文本都以 JSON 字符串编码并受长度限制。注入模式 `none` 不输出内容，`pointer_only` 只输出 ID/source/scope，`short_summary` 输出最多 500 字符的规则，`full_case_summary` 输出最多 2,000 字符的 Lesson 与经过 review 的 failure/fix provenance。
 
-固定预算包括 128 字符 ID、512 字符 metadata、50 个候选、32,000 字符 gate prompt、65,536 bytes decision response、1,000 个 response nodes、response 深度 20、2,000 字符 reason、20 条注入 memory 和 12,000 字符 snippet。
+固定预算包括 128 字符 ID、512 字符 metadata、每个 request 最多 1,000 个审计候选、所有进程内 pending request 合计最多 100,000 个候选引用、最多 50 个 LLM Gate 候选、32,000 字符 gate prompt、65,536 bytes decision response、1,000 个 response nodes、response 深度 20、2,000 字符 reason、20 条注入 memory 和 12,000 字符 snippet。
 
 候选检索 metadata-first。Lesson 与 Project Policy 要求所有已声明 scope 精确匹配；debug/repair 模式还能从 source Trace 派生 verified Failure Case memory。关键词解析支持 Unicode，并为非 ASCII 词生成双字符 gram，使 CJK 子串能够匹配。关键词或调用方 semantic score 只能帮助检索，不能替代两层门控。
 
 Semantic 模式要求 `max_candidates` 为 1 到 50，验证完整 score mapping 后使用有界 heap top-k，结果按 score 降序、同分按 memory ID 升序，复杂度为 `O(K log k)` 时间与 `O(k)` 排名存储。score 与 embedding 不持久化。
 
-安全主流程是 `prepare_memory()` 后接 `finalize_memory()`：准备阶段检索并运行 System Gate；若系统允许候选超过 50 个，则按确定性候选顺序保留前 50 个，并把其余项以 `LLM gate candidate limit exceeded` 记录为系统阻止。最终化重新验证状态、收窄 LLM decision、渲染 snippet 并原子记录 Trace-linked 证据。
+安全主流程是 `prepare_memory()` 后接 `finalize_memory()`：准备阶段检索并运行 System Gate；context 指定工具时，episodic Failure Case 的 source Trace 必须包含同名工具，无工具证据按 fail-closed 处理而不是通配；若系统允许候选超过 50 个，则按确定性候选顺序保留前 50 个，并把其余项以 `LLM gate candidate limit exceeded` 记录为系统阻止。最终化重新验证状态、收窄 LLM decision、渲染 snippet 并原子记录 Trace-linked 证据。
 
 ### 同步 Memory Run 执行
 
@@ -177,9 +177,9 @@ usage log 保存 Trace ID、序列化 context、候选与状态、System Gate �
 
 完整身份相同会在所有模式下以 `memory originates from current benchmark example` 自动阻止。`sensitive` 与 `eval_leaking` 检查优先。身份不完整时不会猜测匹配；不同 hash 或不同 suite 不触发规则。finalization 在状态变更前绑定当前 context 与 Trace 身份。
 
-Trace 嵌套 JSON 只接受字符串键与有限数，拒绝环、超深结构、预算溢出和 lone surrogate。持久化身份、linkage、必需文本、scope、Memory Context 与 audit mapping 键值都必须至少包含一个非空白字符；六组 JSON Schema 使用 `pattern: "\\S"` 发布同一规则。
+Trace 嵌套 JSON 只接受字符串键与有限数，拒绝环、超深结构、预算溢出和 lone surrogate。持久化身份、linkage、必需文本、scope、Memory Context 与 audit mapping 键值都必须至少包含一个非空白字符；六组 JSON Schema 使用 `pattern: "\\S"` 发布同一规则。持久化生命周期时间戳统一使用严格 RFC 3339，必须带 `Z` 或数字 UTC offset，小数秒最多六位，避免 Python、SQLite 与 PostgreSQL 静默丢失精度。
 
-PostgreSQL 使用 composite provenance、confidence、JSONB shape、runtime memory ID registry、前向状态 trigger 和行锁保持跨层约束。fresh-install DDL 在一个事务中执行，函数固定 `pg_catalog` search path，并要求 PostgreSQL 12+。Schema 版本 1 的普通空格检查比 Python 规则窄，因此受支持写入始终先经过 Store 验证。
+PostgreSQL 使用 composite provenance、confidence、JSONB shape、runtime memory ID registry、前向状态 trigger 和行锁保持跨层约束。Failure Case 的 source Trace/commit 与 Lesson 的 source Case 在 INSERT 后不可改绑，直接 SQL 同样受 trigger 保护。fresh-install DDL 在一个事务中执行，函数固定 `pg_catalog` search path，并要求 PostgreSQL 12+。Schema 版本 2 的普通空格检查比 Python 规则窄，因此受支持写入始终先经过 Store 验证。
 
 PostgreSQL 集成测试在普通本地环境可跳过；CI 的 `TBM_REQUIRE_POSTGRES=1` 将缺少工具或非法 initdb 用户转换为失败。独立 Ubuntu job 运行真实集群测试，Windows job 运行完整 Python 套件。
 
@@ -189,17 +189,17 @@ PostgreSQL 集成测试在普通本地环境可跳过；CI 的 `TBM_REQUIRE_POST
 
 Repository 要求规范 `schemas/sqlite.sql` 的 schema 版本 1。`connect(..., initialize=True)` 应用包内 fresh-install schema；运维也可以通过 `tbm resource export schemas/sqlite.sql sqlite.sql` 导出相同字节。五张表保存稳定 ID 与规范 JSON payload envelope；领域及跨记录不变量仍由 Store 最终验证。直接 SQL 修改 payload 不属于支持契约，会在 `load()` 或 `sync()` 重建 Store 时被拒绝。
 
-`sync(store)` 是增量原子同步。顶层写入用 `BEGIN IMMEDIATE` 提前取得 writer reservation，并按与 PostgreSQL adapter 相同的 Trace、usage outcome、Failure Case、Lesson 和 Project Policy 规则，把记录分类为精确重放、受支持前向转换或不可变冲突。Failure Case 淘汰会级联 active Lesson；任何冲突或最终 Store 验证失败都回滚完整同步。
+`sync(store)` 是增量原子同步。顶层写入用 `BEGIN IMMEDIATE` 提前取得 writer reservation，并按与 PostgreSQL adapter 相同的 Trace、usage outcome、Failure Case、Lesson 和 Project Policy 规则，把记录分类为精确重放、受支持前向转换或不可变冲突。Failure Case 淘汰会级联 active Lesson；任何冲突或最终 Store 验证失败都回滚完整同步。同一个实例用 `RLock` 串行化 `sync()`、`load()`、`close()` 与 context entry；顶层回滚失败时保留主异常并重试，重试仍失败则即使连接由调用方传入也会关闭，防止之后提交部分事务。
 
 `load()` 在一个读事务内检查 schema 版本 1，并执行每集合 100,000 条、总计 250,000 条、最大单条与累计 UTF-8 payload 各 64 MiB 的限制，再返回完整验证的 Store。传入既有连接时 Repository 借用连接；`connect()` 创建并拥有连接。已有调用方事务时，每次操作使用 savepoint，最终 commit/rollback 仍由调用方负责。
 
-SQLite 是嵌入式选择，不替代 PostgreSQL 的数据库侧 JSONB、trigger、row lock、共享 ID registry 和多客户端约束。两个适配器共享公开 sync/load 生命周期语义与 schema 版本 1，但 DDL 和并发保证独立。
+SQLite 是嵌入式选择，不替代 PostgreSQL 的数据库侧 JSONB、trigger、row lock、共享 ID registry 和多客户端约束。两个适配器共享公开 sync/load 生命周期语义；SQLite 使用 schema 版本 1，PostgreSQL 使用 schema 版本 2，DDL 和并发保证独立。
 
 ## PostgreSQL 运行时存储库
 
 `PostgresMemoryRepository` 是完整 `TraceBackedMemoryStore` 的同步持久化边界。`psycopg` 是可选、延迟导入的 extra；核心包导入不加载驱动。
 
-存储库只操作由规范 `schemas/postgres.sql` 安装的新 `public` schema，并锁定 metadata 行要求 schema 版本 1。它不是在线迁移机制。
+存储库只操作由规范 `schemas/postgres.sql` 安装的新 `public` schema，并锁定 metadata 行要求 schema 版本 2。既有版本 1 安装必须先执行包内原子 `schemas/postgres-v1-to-v2.sql`；适配器不会自动执行迁移。
 
 `sync(store)` 先获取内存快照，再在一个数据库事务中增量同步。它插入缺失记录，保留数据库中额外记录，不执行破坏性 reconciliation。已有记录在写前按规范形式比较；不可变冲突回滚整个事务。
 
@@ -233,14 +233,14 @@ Lesson anchor 是 source case 的 fix commit，Failure Case anchor 是 source co
 
 ## 非目标
 
-当前 scope 是“仅匹配 memory 已声明字段”的语义，不是多租户授权模型；省略 `repo` 或 `tenant` 的 memory 不会自动获得对应硬边界。生产隔离需要未来的 canonical `repository_id`、显式 global/repository/tenant scope kind 和 global policy 权限。snapshot version 2 也不会持久化 Gate request、retriever/gate/renderer 版本与 hash 或结构化 regression run 证据，Git ancestry 仍为 opt-in。这些属于 schema v3 / PostgreSQL schema v2，而不是当前 Alpha 契约。
+当前 scope 是“仅匹配 memory 已声明字段”的语义，不是多租户授权模型；省略 `repo` 或 `tenant` 的 memory 不会自动获得对应硬边界。生产隔离需要未来的 canonical `repository_id`、显式 global/repository/tenant scope kind 和 global policy 权限。snapshot version 2 也不会持久化 Gate request、retriever/gate/renderer 版本与 hash 或结构化 regression run 证据，Git ancestry 仍为 opt-in。这些属于 schema v3 / PostgreSQL schema v3，而不是当前 Alpha 契约。
 
-Phase 71 保持现有版本号，但收紧了可接受状态。version-2 snapshot 中 verified 但未 review 的 case 必须先补齐 review 证据；既有 PostgreSQL schema-version-1 安装需要 operator migration，才能与当前 fresh-install DDL 约束一致。
+version-2 snapshot 中 verified 但未 review 的 case 必须先补齐 review 证据；既有 PostgreSQL schema-version-1 安装必须先应用包内 `schemas/postgres-v1-to-v2.sql`，再进行同步。
 
 - 不优先构建通用个性化记忆。
 - 不把原始 Trace 直接注入 prompt。
 - 不把向量相似度视为相关性的充分证明。
 - 不允许 LLM 在未验证时激活记忆。
-- 不提供已部署 schema 版本之间的原地迁移。
+- 除明确的 PostgreSQL v1→v2 operator 脚本外，不提供自动在线迁移框架。
 - 不提供 connection pool 或其生命周期管理。
 - 不提供异步 PostgreSQL repository。

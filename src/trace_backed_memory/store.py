@@ -6,12 +6,11 @@ import math
 import os
 import re
 import tempfile
-from collections import ChainMap, Counter
+from collections import ChainMap, Counter, deque
 from collections.abc import Collection, Iterable, Mapping
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import asdict, replace
-from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 from threading import RLock
@@ -30,8 +29,10 @@ from ._ingestion import (
     validate_snapshot_record_count,
     validate_snapshot_total_record_count,
 )
+from ._timestamps import parse_rfc3339, utc_timestamp
 from .lifecycle import (
     memory_item_from_failure_case,
+    memory_item_from_failure_case_for_audit,
     memory_item_from_lesson,
     memory_item_from_project_policy,
     obsolete_failure_case as transition_failure_case_to_obsolete,
@@ -74,6 +75,7 @@ from .policy import (
     LLM_GATE_MAX_CANDIDATES,
     MEMORY_ID_MAX_CHARS,
     MEMORY_DECISION_REASON_MAX_CHARS,
+    MEMORY_TEXT_MAX_CHARS,
     METADATA_VALUE_MAX_CHARS,
     apply_llm_gate_decision,
     build_injection_snippet,
@@ -140,6 +142,13 @@ TRACE_JSON_MAX_DEPTH = 100
 TRACE_JSON_MAX_NODES = 100_000
 TRACE_JSON_MAX_TEXT_BYTES = 8 * 1024 * 1024
 TRACE_LATENCY_MAX_MS = 2_147_483_647
+RETRIEVAL_QUERY_MAX_CHARS = 32_000
+SEMANTIC_SCORES_MAX_ITEMS = 100_000
+MEMORY_RUN_BATCH_MAX_ITEMS = 10_000
+PENDING_GATE_REQUEST_MAX_ITEMS = 1_000
+GATE_REQUEST_MAX_CANDIDATES = 1_000
+PENDING_GATE_REQUEST_MAX_CANDIDATE_IDS = 100_000
+FINALIZED_GATE_REQUEST_MAX_ITEMS = 10_000
 SNAPSHOT_COLLECTION_NAMES = (
     "traces",
     "failure_cases",
@@ -176,6 +185,7 @@ class TraceBackedMemoryStore:
         self._next_decision_number: int = 1
         self._pending_gate_requests: dict[str, MemoryGateRequest] = {}
         self._finalized_gate_request_ids: set[str] = set()
+        self._finalized_gate_request_order: deque[str] = deque()
         self._store_token = object()
         self._next_gate_request_number = 1
 
@@ -1090,6 +1100,10 @@ class TraceBackedMemoryStore:
         validate_memory_context(context)
         if query is not None and not isinstance(query, str):
             raise ValueError("query must be a string or None")
+        if query is not None and len(query) > RETRIEVAL_QUERY_MAX_CHARS:
+            raise ValueError(
+                f"query must be at most {RETRIEVAL_QUERY_MAX_CHARS} characters"
+            )
         validated_semantic_scores = _validated_semantic_scores(
             semantic_scores,
             query=query,
@@ -1159,7 +1173,7 @@ class TraceBackedMemoryStore:
                     continue
                 memory = memory_item_from_failure_case(case, trace)
                 trace_tools = _trace_tool_names(trace)
-                if context.tool is not None and trace_tools and context.tool not in trace_tools:
+                if context.tool is not None and context.tool not in trace_tools:
                     continue
                 if _has_metadata_match(memory.scope, context_values):
                     candidates.append(memory)
@@ -1217,6 +1231,7 @@ class TraceBackedMemoryStore:
         context: MemoryContext,
         *,
         task: str,
+        trace_id: str | None = None,
         query: str | None = None,
         semantic_scores: Mapping[str, float] | None = None,
         max_candidates: int | None = None,
@@ -1225,6 +1240,23 @@ class TraceBackedMemoryStore:
         commit_ancestry: CommitAncestryEvidence | None = None,
     ) -> MemoryGateRequest:
         validate_memory_context(context)
+        if len(self._pending_gate_requests) >= PENDING_GATE_REQUEST_MAX_ITEMS:
+            raise ValueError(
+                "store has reached the pending gate request limit of "
+                f"{PENDING_GATE_REQUEST_MAX_ITEMS}"
+            )
+        trace: Trace | None = None
+        if trace_id is not None:
+            _validate_required_string(
+                trace_id,
+                "trace_id",
+                "memory preparation requires",
+                max_chars=MEMORY_ID_MAX_CHARS,
+            )
+            trace = self._traces.get(trace_id)
+            if trace is None:
+                raise ValueError(f"unknown trace_id: {trace_id}")
+            _validate_trace_context(trace, context)
         candidates = self.candidate_memories(
             context,
             query=query,
@@ -1233,6 +1265,23 @@ class TraceBackedMemoryStore:
             minimum_score=minimum_score,
             commit_ancestry=commit_ancestry,
         )
+        if len(candidates) > GATE_REQUEST_MAX_CANDIDATES:
+            raise ValueError(
+                "gate request candidate limit exceeded: "
+                f"{len(candidates)} > {GATE_REQUEST_MAX_CANDIDATES}"
+            )
+        pending_candidate_ids = sum(
+            len(pending.candidate_memory_ids)
+            for pending in self._pending_gate_requests.values()
+        )
+        if (
+            pending_candidate_ids + len(candidates)
+            > PENDING_GATE_REQUEST_MAX_CANDIDATE_IDS
+        ):
+            raise ValueError(
+                "store has reached the pending gate candidate budget of "
+                f"{PENDING_GATE_REQUEST_MAX_CANDIDATE_IDS}"
+            )
         system_allowed, system_blocked = _bounded_system_gate(context, candidates)
         request = MemoryGateRequest(
             request_id=f"gate_request_{self._next_gate_request_number:06d}",
@@ -1249,6 +1298,8 @@ class TraceBackedMemoryStore:
                 context_summary=context_summary,
             ),
             _store_token=self._store_token,
+            trace_id=trace.trace_id if trace is not None else None,
+            run_id=trace.run_id if trace is not None else None,
         )
         self._next_gate_request_number += 1
         self._pending_gate_requests[request.request_id] = deepcopy(
@@ -1287,10 +1338,20 @@ class TraceBackedMemoryStore:
         pending = self._pending_gate_requests.get(request.request_id)
         if pending is None or request != pending:
             raise ValueError("gate request does not belong to this store")
+        if request.trace_id is not None and request.trace_id != trace_id:
+            raise ValueError(
+                "gate request is bound to trace_id "
+                f"{request.trace_id}, not {trace_id}"
+            )
 
         trace = self._traces.get(trace_id)
         if trace is None:
             raise ValueError(f"unknown trace_id: {trace_id}")
+        if request.run_id is not None and request.run_id != trace.run_id:
+            raise ValueError(
+                "gate request run_id does not match its bound trace: "
+                f"{request.run_id}"
+            )
         _validate_trace_context(trace, request.context)
 
         candidates = self._memory_items(request.candidate_memory_ids)
@@ -1314,11 +1375,19 @@ class TraceBackedMemoryStore:
             system_blocked=system_blocked,
             eval_result=eval_result,
             memory_caused_failure=memory_caused_failure,
+            request_id=request.request_id,
         )
 
         self._append_usage_log(log)
         self._pending_gate_requests.pop(request.request_id)
         self._finalized_gate_request_ids.add(request.request_id)
+        self._finalized_gate_request_order.append(request.request_id)
+        while (
+            len(self._finalized_gate_request_order)
+            > FINALIZED_GATE_REQUEST_MAX_ITEMS
+        ):
+            expired_request_id = self._finalized_gate_request_order.popleft()
+            self._finalized_gate_request_ids.discard(expired_request_id)
         return GatedMemoryResult(
             request_id=request.request_id,
             trace_id=trace.trace_id,
@@ -1331,6 +1400,26 @@ class TraceBackedMemoryStore:
             recommended_injection=final_decision.recommended_injection,
             snippet=snippet,
         )
+
+    @_synchronized
+    def cancel_memory_request(self, request: MemoryGateRequest) -> None:
+        if (
+            not isinstance(request, MemoryGateRequest)
+            or request._store_token is not self._store_token
+        ):
+            raise ValueError("gate request does not belong to this store")
+        _validate_required_string(
+            request.request_id,
+            "request_id",
+            "gate request records require",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+        if request.request_id in self._finalized_gate_request_ids:
+            raise ValueError(f"gate request already finalized: {request.request_id}")
+        pending = self._pending_gate_requests.get(request.request_id)
+        if pending is None or request != pending:
+            raise ValueError("gate request does not belong to this store")
+        self._pending_gate_requests.pop(request.request_id)
 
     @_synchronized
     def log_decision(
@@ -1380,6 +1469,7 @@ class TraceBackedMemoryStore:
             system_blocked=system_blocked,
             eval_result=eval_result,
             memory_caused_failure=memory_caused_failure,
+            request_id=None,
         )
         self._append_usage_log(log)
         return deepcopy(log)
@@ -1466,10 +1556,9 @@ class TraceBackedMemoryStore:
             elif memory_id in self._failure_cases:
                 case = self._failure_cases[memory_id]
                 trace = self._traces[case.source_trace_id]
-                memory = memory_item_from_failure_case(
-                    replace(case, status="verified", regression_passed=True), trace
+                items.append(
+                    memory_item_from_failure_case_for_audit(case, trace)
                 )
-                items.append(replace(memory, status=case.status))
             else:
                 unknown_ids.append(memory_id)
         if unknown_ids:
@@ -1497,6 +1586,7 @@ class TraceBackedMemoryStore:
         system_blocked: dict[str, str],
         eval_result: EvalResult | None,
         memory_caused_failure: bool,
+        request_id: str | None,
     ) -> MemoryUsageLog:
         candidate_memory_ids = [memory.memory_id for memory in candidates]
         log = MemoryUsageLog(
@@ -1520,6 +1610,7 @@ class TraceBackedMemoryStore:
             },
             system_blocked_reasons=dict(system_blocked),
             created_at=_utc_timestamp(),
+            request_id=request_id,
         )
         _validate_usage_log(log)
         self._validate_usage_log_memory_ids(log)
@@ -2434,6 +2525,11 @@ def _validate_lesson_record(lesson: Lesson) -> None:
         )
     if not isinstance(lesson.lesson_text, str) or not lesson.lesson_text.strip():
         raise ValueError("lesson records require lesson_text")
+    if len(lesson.lesson_text) > MEMORY_TEXT_MAX_CHARS:
+        raise ValueError(
+            f"lesson records require lesson_text of at most "
+            f"{MEMORY_TEXT_MAX_CHARS} characters"
+        )
     if not isinstance(lesson.memory_type, str) or lesson.memory_type not in MEMORY_TYPES:
         raise ValueError("lesson memory_type must be one of: episodic, policy, procedural, semantic")
     if not isinstance(lesson.status, str) or lesson.status not in LESSON_STATUSES:
@@ -2454,6 +2550,11 @@ def _validate_project_policy(policy: ProjectPolicy) -> None:
     )
     if not isinstance(policy.policy_text, str) or not policy.policy_text.strip():
         raise ValueError("project policy records require policy_text")
+    if len(policy.policy_text) > MEMORY_TEXT_MAX_CHARS:
+        raise ValueError(
+            f"project policy records require policy_text of at most "
+            f"{MEMORY_TEXT_MAX_CHARS} characters"
+        )
     if not isinstance(policy.status, str) or policy.status not in LESSON_STATUSES:
         raise ValueError("project policy status must be one of: active, obsolete")
     if type(policy.sensitive) is not bool:
@@ -2468,6 +2569,13 @@ def _validate_usage_log(log: MemoryUsageLog) -> None:
         _validate_required_string(
             getattr(log, field_name),
             field_name,
+            "usage log records require",
+            max_chars=MEMORY_ID_MAX_CHARS,
+        )
+    if log.request_id is not None:
+        _validate_required_string(
+            log.request_id,
+            "request_id",
             "usage log records require",
             max_chars=MEMORY_ID_MAX_CHARS,
         )
@@ -2690,6 +2798,11 @@ def _validated_memory_run_results(
             "memory run batch completion requires a non-empty "
             "MemoryRunResult tuple"
         )
+    if len(results) > MEMORY_RUN_BATCH_MAX_ITEMS:
+        raise ValueError(
+            "memory run batch completion accepts at most "
+            f"{MEMORY_RUN_BATCH_MAX_ITEMS} results"
+        )
 
     decision_ids: list[str] = []
     for result in results:
@@ -2741,6 +2854,11 @@ def _validated_batch_recovery_decision_ids(
     if type(decision_ids) is not tuple or not decision_ids:
         raise ValueError(
             "memory run batch recovery requires a non-empty decision_id tuple"
+        )
+    if len(decision_ids) > MEMORY_RUN_BATCH_MAX_ITEMS:
+        raise ValueError(
+            "memory run batch recovery accepts at most "
+            f"{MEMORY_RUN_BATCH_MAX_ITEMS} decision IDs"
         )
     for decision_id in decision_ids:
         _validate_required_string(
@@ -3000,23 +3118,12 @@ def _validate_optional_rfc3339(
 ) -> None:
     if value is None:
         return
-    if not isinstance(value, str) or re.fullmatch(
-        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})",
-        value,
-    ) is None:
-        raise ValueError(
-            f"{record_label} {field_name} must be None or a timezone-aware RFC 3339 date-time string"
-        )
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parse_rfc3339(value)
     except ValueError as exc:
         raise ValueError(
             f"{record_label} {field_name} must be None or a timezone-aware RFC 3339 date-time string"
         ) from exc
-    if parsed.utcoffset() is None:
-        raise ValueError(
-            f"{record_label} {field_name} must be None or a timezone-aware RFC 3339 date-time string"
-        )
 
 
 def _reject_json_constant(value: str) -> Any:
@@ -3226,9 +3333,7 @@ def _validate_status_mapping(
 
 
 def _utc_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
-        "+00:00", "Z"
-    )
+    return utc_timestamp()
 
 
 def _sync_parent_directory(directory: Path) -> None:
@@ -3471,6 +3576,11 @@ def _validated_semantic_scores(
         return None
     if not isinstance(semantic_scores, Mapping):
         raise ValueError("semantic_scores must be a mapping or None")
+    if len(semantic_scores) > SEMANTIC_SCORES_MAX_ITEMS:
+        raise ValueError(
+            "semantic_scores accepts at most "
+            f"{SEMANTIC_SCORES_MAX_ITEMS} items"
+        )
     if query is not None:
         raise ValueError("query and semantic_scores are mutually exclusive")
     if max_candidates is None:
@@ -3484,7 +3594,15 @@ def _validated_semantic_scores(
         raise ValueError("minimum_score must be a finite number")
 
     validated: dict[str, int | float] = {}
-    for memory_id, score in semantic_scores.items():
+    for item_number, (memory_id, score) in enumerate(
+        semantic_scores.items(),
+        start=1,
+    ):
+        if item_number > SEMANTIC_SCORES_MAX_ITEMS:
+            raise ValueError(
+                "semantic_scores accepts at most "
+                f"{SEMANTIC_SCORES_MAX_ITEMS} items"
+            )
         if not isinstance(memory_id, str) or not memory_id:
             raise ValueError("semantic score memory IDs must be non-empty strings")
         if len(memory_id) > MEMORY_ID_MAX_CHARS:
@@ -3586,7 +3704,7 @@ def _case_matches_context(
 
 
 def _trace_tool_names(trace: Trace) -> set[str]:
-    return {str(call["name"]) for call in trace.tool_calls if call.get("name")}
+    return _trace_change_set_tool_names(trace)
 
 
 def _trace_change_set_tool_names(trace: Trace) -> set[str]:

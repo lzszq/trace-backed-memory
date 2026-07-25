@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from dataclasses import replace
 from typing import get_args
 
+from ._timestamps import parse_rfc3339, utc_timestamp
 from .models import FailureCase, Lesson, LessonStatus, MemoryItem, MemoryType, ProjectPolicy, Trace
-from .policy import METADATA_VALUE_MAX_CHARS, is_finite_number
+from .policy import MEMORY_TEXT_MAX_CHARS, METADATA_VALUE_MAX_CHARS, is_finite_number
 
 SCOPE_FIELDS = {
     "repo",
@@ -35,6 +35,16 @@ def _require_supported_value(value: str, field_name: str, supported_values: set[
         raise ValueError(f"{field_name} is not supported: {value}")
 
 
+def _require_rfc3339_timestamp(value: str, field_name: str) -> None:
+    _require_non_empty_string(value, field_name)
+    try:
+        parse_rfc3339(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"{field_name} must be a timezone-aware RFC 3339 date-time string"
+        ) from exc
+
+
 def _require_completed_review(case: FailureCase) -> None:
     if any(
         not isinstance(value, str) or not value.strip()
@@ -44,6 +54,7 @@ def _require_completed_review(case: FailureCase) -> None:
             "verified failure cases require a completed review with "
             "reviewed_by, root_cause, and reviewed_at"
         )
+    _require_rfc3339_timestamp(case.reviewed_at, "reviewed_at")
 
 
 def validate_lesson_contract(*, lesson_text: str, scope: dict[str, str], confidence: float) -> None:
@@ -61,6 +72,10 @@ def validate_lesson_contract(*, lesson_text: str, scope: dict[str, str], confide
             )
     if not isinstance(lesson_text, str) or not lesson_text.strip():
         raise ValueError("lessons require lesson_text")
+    if len(lesson_text) > MEMORY_TEXT_MAX_CHARS:
+        raise ValueError(
+            f"lesson_text must be at most {MEMORY_TEXT_MAX_CHARS} characters"
+        )
     if not is_finite_number(confidence):
         raise ValueError("lesson confidence must be a number between 0 and 1")
     if confidence < 0.0 or confidence > 1.0:
@@ -133,7 +148,7 @@ def review_failure_case(
     _require_non_empty_string(reviewed_by, "reviewed_by")
     _require_non_empty_string(root_cause, "root_cause")
     if reviewed_at is not None:
-        _require_non_empty_string(reviewed_at, "reviewed_at")
+        _require_rfc3339_timestamp(reviewed_at, "reviewed_at")
 
     return replace(
         case,
@@ -219,6 +234,17 @@ def memory_item_from_failure_case(case: FailureCase, trace: Trace) -> MemoryItem
     if case.commit_sha != trace.commit_sha:
         raise ValueError("failure case commit_sha must match trace")
     _require_completed_review(case)
+    return memory_item_from_failure_case_for_audit(case, trace)
+
+
+def memory_item_from_failure_case_for_audit(
+    case: FailureCase,
+    trace: Trace,
+) -> MemoryItem:
+    if case.source_trace_id != trace.trace_id:
+        raise ValueError("failure case source_trace_id must match trace")
+    if case.commit_sha != trace.commit_sha:
+        raise ValueError("failure case commit_sha must match trace")
     source_eval_suite, source_input_hash = _complete_trace_source_identity(trace)
 
     return MemoryItem(
@@ -266,7 +292,7 @@ def obsolete_project_policy(policy: ProjectPolicy) -> ProjectPolicy:
 
 
 def _utc_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return utc_timestamp()
 
 
 def _complete_trace_source_identity(trace: Trace | None) -> tuple[str | None, str | None]:
@@ -303,7 +329,11 @@ def _failure_case_scope(case: FailureCase, trace: Trace) -> dict[str, str]:
         if value:
             scope[key] = value
 
-    tool_names = {str(call["name"]) for call in trace.tool_calls if call.get("name")}
+    tool_names = {
+        name
+        for call in trace.tool_calls
+        if type(name := call.get("name")) is str and name
+    }
     if len(tool_names) == 1:
         scope["tool"] = next(iter(tool_names))
 

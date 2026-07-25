@@ -526,6 +526,58 @@ def test_prepare_memory_caps_and_audits_excess_llm_candidates():
     }
 
 
+def test_prepare_memory_rejects_request_candidate_budget_before_storing_request(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(store_module, "GATE_REQUEST_MAX_CANDIDATES", 2)
+    store = TraceBackedMemoryStore()
+    for index in range(3):
+        store.add_project_policy(
+            ProjectPolicy(
+                policy_id=f"policy_budget_{index}",
+                policy_text=f"Policy {index}",
+                scope={"repo": "repo"},
+            )
+        )
+
+    with pytest.raises(ValueError, match="gate request candidate limit"):
+        store.prepare_memory(
+            MemoryContext(mode="repair", repo="repo", commit_sha="abc123"),
+            task="repair the current failure",
+        )
+
+    assert store._pending_gate_requests == {}
+
+
+def test_prepare_memory_enforces_aggregate_pending_candidate_budget(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(store_module, "GATE_REQUEST_MAX_CANDIDATES", 2)
+    monkeypatch.setattr(
+        store_module,
+        "PENDING_GATE_REQUEST_MAX_CANDIDATE_IDS",
+        3,
+    )
+    store = TraceBackedMemoryStore()
+    for index in range(2):
+        store.add_project_policy(
+            ProjectPolicy(
+                policy_id=f"policy_pending_budget_{index}",
+                policy_text=f"Policy {index}",
+                scope={"repo": "repo"},
+            )
+        )
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc123")
+
+    first = store.prepare_memory(context, task="repair the first failure")
+    with pytest.raises(ValueError, match="pending gate candidate budget"):
+        store.prepare_memory(context, task="repair the second failure")
+
+    store.cancel_memory_request(first)
+    second = store.prepare_memory(context, task="repair the second failure")
+    assert len(second.candidate_memory_ids) == 2
+
+
 BENCHMARK_BLOCK_REASON = "memory originates from current benchmark example"
 
 
@@ -1478,6 +1530,106 @@ def test_gate_request_cannot_cross_stores_or_be_replayed():
         first.finalize_memory(request, payload, trace_id=trace.trace_id)
 
 
+def test_trace_bound_gate_request_cannot_be_finalized_for_same_context_trace():
+    store, trace, _case, lesson = store_with_active_lesson()
+    other = store.record_trace(
+        replace(
+            trace,
+            trace_id="trace_same_context",
+            run_id="run_same_context",
+        )
+    )
+    context = matching_context(trace)
+    request = store.prepare_memory(
+        context,
+        task="repair",
+        trace_id=trace.trace_id,
+    )
+
+    assert request.trace_id == trace.trace_id
+    assert request.run_id == trace.run_id
+    with pytest.raises(ValueError, match="bound to trace_id"):
+        store.finalize_memory(
+            request,
+            allow_decision(lesson.lesson_id),
+            trace_id=other.trace_id,
+        )
+
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=trace.trace_id,
+    )
+    assert store.usage_logs[-1].request_id == request.request_id
+    assert result.trace_id == trace.trace_id
+
+
+def test_legacy_unbound_gate_request_remains_supported():
+    store, trace, _case, lesson = store_with_active_lesson()
+    request = store.prepare_memory(matching_context(trace), task="repair")
+
+    assert request.trace_id is None
+    assert request.run_id is None
+    result = store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=trace.trace_id,
+    )
+
+    assert result.trace_id == trace.trace_id
+    assert store.usage_logs[-1].request_id == request.request_id
+
+
+def test_cancel_memory_request_releases_pending_capacity(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(store_module, "PENDING_GATE_REQUEST_MAX_ITEMS", 1)
+    store = TraceBackedMemoryStore()
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+    first = store.prepare_memory(context, task="repair")
+
+    with pytest.raises(ValueError, match="pending gate request limit"):
+        store.prepare_memory(context, task="repair")
+
+    store.cancel_memory_request(first)
+    second = store.prepare_memory(context, task="repair")
+    assert second.request_id == "gate_request_000002"
+    with pytest.raises(ValueError, match="does not belong"):
+        store.cancel_memory_request(first)
+
+
+def test_cancel_memory_request_rejects_malformed_request_id():
+    store = TraceBackedMemoryStore()
+    request = store.prepare_memory(
+        MemoryContext(mode="repair", repo="repo", commit_sha="abc"),
+        task="repair",
+    )
+
+    with pytest.raises(ValueError, match="request_id"):
+        store.cancel_memory_request(replace(request, request_id=[]))  # type: ignore[arg-type]
+
+
+def test_v2_snapshot_without_request_id_remains_compatible():
+    store, trace, _case, lesson = store_with_active_lesson()
+    request = store.prepare_memory(
+        matching_context(trace),
+        task="repair",
+        trace_id=trace.trace_id,
+    )
+    store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=trace.trace_id,
+    )
+    snapshot = store.to_snapshot()
+    snapshot["usage_logs"][0].pop("request_id")
+
+    restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+
+    assert restored.usage_logs[0].request_id is None
+    assert restored.to_snapshot()["usage_logs"][0]["request_id"] is None
+
+
 def test_finalize_rechecks_memory_obsoleted_after_prepare():
     store, trace, _case, lesson = store_with_active_lesson()
     request = store.prepare_memory(matching_context(trace), task="repair")
@@ -1673,6 +1825,46 @@ def test_store_can_review_and_verify_a_persisted_draft():
     assert reviewed.reviewed_by == "reviewer"
     assert verified.status == "verified"
     assert store.failure_cases["case_001"] == verified
+
+
+def test_obsolete_unreviewed_failure_case_can_be_recorded_as_blocked_audit():
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_obsolete_draft",
+            run_id="run_obsolete_draft",
+            commit_sha="abc",
+            repo="repo",
+            eval_result="fail",
+            tool_calls=[{"name": "search_docs"}],
+        )
+    )
+    case = store.add_failure_case(
+        draft_failure_case(
+            trace,
+            case_id="case_obsolete_draft",
+            failure_type="bad_tool",
+            symptom="bad call",
+        )
+    )
+    store.obsolete_failure_case(case.case_id)
+
+    log = store.log_decision(
+        trace.run_id,
+        matching_context(trace),
+        [case.case_id],
+        MemoryDecision(
+            use_memory=False,
+            allowed_memory_ids=[],
+            blocked_memory_ids=[],
+            reason="obsolete draft is not applicable",
+            risk="none",
+            recommended_injection="none",
+        ),
+    )
+
+    assert log.candidate_memory_statuses == {case.case_id: "obsolete"}
+    assert log.blocked_memory_ids == [case.case_id]
 
 
 @pytest.mark.parametrize(
@@ -4550,6 +4742,7 @@ def test_v2_snapshot_preserves_nonblank_surrounding_whitespace():
         ("lesson", "source_case_id"),
         ("project_policy", "policy_id"),
         ("usage_log", "decision_id"),
+        ("usage_log", "request_id"),
         ("usage_log", "run_id"),
         ("usage_log", "trace_id"),
     ],
@@ -5085,7 +5278,7 @@ def test_v2_snapshot_accepts_rfc3339_z_and_offset_timestamps():
     _snapshot_record(snapshot, "traces")["created_at"] = "2026-07-10T12:00:00Z"
     failure_case = _snapshot_record(snapshot, "failure_cases")
     failure_case["reviewed_at"] = "2026-07-10T20:00:00+08:00"
-    failure_case["created_at"] = "2026-07-10T12:00:00.123Z"
+    failure_case["created_at"] = "2026-07-10T12:00:00.123456Z"
     _snapshot_record(snapshot, "lessons")["created_at"] = (
         "2026-07-10T20:00:00+08:00"
     )
@@ -5099,6 +5292,30 @@ def test_v2_snapshot_accepts_rfc3339_z_and_offset_timestamps():
     restored = TraceBackedMemoryStore.from_snapshot(snapshot)
 
     assert restored.to_snapshot()["usage_logs"]
+
+
+@pytest.mark.parametrize(
+    ("collection_name", "field_name"),
+    [
+        ("traces", "created_at"),
+        ("failure_cases", "reviewed_at"),
+        ("failure_cases", "created_at"),
+        ("lessons", "created_at"),
+        ("project_policies", "created_at"),
+        ("usage_logs", "created_at"),
+    ],
+)
+def test_v2_snapshot_rejects_submicrosecond_timestamp_precision(
+    collection_name: str,
+    field_name: str,
+):
+    snapshot = fully_populated_snapshot()
+    _snapshot_record(snapshot, collection_name)[field_name] = (
+        "2026-07-10T12:00:00.1234567Z"
+    )
+
+    with pytest.raises(ValueError, match=field_name):
+        TraceBackedMemoryStore.from_snapshot(snapshot)
 
 
 def test_snapshot_v2_has_exact_versioned_envelope():
@@ -6575,7 +6792,7 @@ def test_pr_change_set_tool_endpoint_does_not_coerce_raw_non_string_names():
     assert store.pr_memory_report(context, change_set=change_set).related_case_ids == []
 
 
-def test_pr_change_set_unchanged_tool_context_does_not_coerce_raw_names():
+def test_pr_tool_context_never_coerces_raw_tool_names():
     store = store_with_pr_tool_name_case(7, model="new")
     context = MemoryContext(
         mode="regression",
@@ -6594,7 +6811,7 @@ def test_pr_change_set_unchanged_tool_context_does_not_coerce_raw_names():
     legacy_report = store.pr_memory_report(context, changed_fields=["model"])
 
     assert change_set_report.related_case_ids == []
-    assert legacy_report.related_case_ids == ["case_tool_name"]
+    assert legacy_report.related_case_ids == []
 
 
 def test_pr_change_set_exact_string_tool_names_still_match():
@@ -7933,6 +8150,54 @@ def test_candidate_memories_do_not_match_multi_tool_failure_cases_to_unseen_tool
     )
 
     assert store.candidate_memories(context) == []
+
+
+def test_candidate_memories_do_not_match_tool_context_without_source_tool_evidence():
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_001",
+            run_id="run_001",
+            commit_sha="abc123",
+            repo="agent-harness",
+            eval_result="fail",
+            tool_calls=[],
+        )
+    )
+    store.add_failure_case(
+        verify_failure_case(
+            draft_failure_case(
+                trace,
+                case_id="case_001",
+                failure_type="invalid_tool_argument",
+                symptom="the operation failed without tool-call evidence",
+            ),
+            fix="record the failing tool identity",
+            fix_commit_sha="def456",
+            regression_passed=True,
+        )
+    )
+    tool_context = MemoryContext(
+        mode="debug",
+        repo="agent-harness",
+        commit_sha="new123",
+        tool="search_docs",
+        failure_type="invalid_tool_argument",
+    )
+    general_context = MemoryContext(
+        mode="debug",
+        repo="agent-harness",
+        commit_sha="new123",
+        failure_type="invalid_tool_argument",
+    )
+
+    assert store.candidate_memories(tool_context) == []
+    assert store.prepare_memory(
+        tool_context, task="repair search_docs"
+    ).candidate_memory_ids == ()
+    assert [
+        memory.memory_id for memory in store.candidate_memories(general_context)
+    ] == ["case_001"]
 
 
 def test_store_metrics_summarize_usage_logs_and_lesson_confidence():
@@ -11433,6 +11698,61 @@ def test_candidate_memories_requires_string_or_none_query(invalid_query: object)
             context,
             query=invalid_query,  # type: ignore[arg-type]
         )
+
+
+def test_candidate_memories_rejects_oversized_query(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(store_module, "RETRIEVAL_QUERY_MAX_CHARS", 3)
+    store = TraceBackedMemoryStore()
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(ValueError, match="query must be at most 3 characters"):
+        store.candidate_memories(context, query="four")
+
+
+def test_candidate_memories_rejects_oversized_semantic_score_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(store_module, "SEMANTIC_SCORES_MAX_ITEMS", 1)
+    store = TraceBackedMemoryStore()
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+
+    with pytest.raises(ValueError, match="semantic_scores accepts at most 1 items"):
+        store.candidate_memories(
+            context,
+            semantic_scores={"memory_a": 1.0, "memory_b": 0.5},
+            max_candidates=1,
+        )
+
+
+def test_store_rejects_oversized_project_policy_text():
+    store = TraceBackedMemoryStore()
+
+    with pytest.raises(ValueError, match="policy_text of at most"):
+        store.add_project_policy(
+            ProjectPolicy(
+                policy_id="policy_oversized",
+                policy_text="x" * (tbm.MEMORY_TEXT_MAX_CHARS + 1),
+                scope={"repo": "repo"},
+            )
+        )
+
+
+def test_store_batch_apis_reject_oversized_direct_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(store_module, "MEMORY_RUN_BATCH_MAX_ITEMS", 1)
+    store = TraceBackedMemoryStore()
+    results = (
+        tbm.MemoryRunResult("decision_a", "pass"),
+        tbm.MemoryRunResult("decision_b", "pass"),
+    )
+
+    with pytest.raises(ValueError, match="completion accepts at most 1 results"):
+        store.complete_memory_runs(results)
+    with pytest.raises(ValueError, match="recovery accepts at most 1 decision IDs"):
+        store.recover_memory_runs(("decision_a", "decision_b"))
 
 
 @pytest.mark.parametrize(

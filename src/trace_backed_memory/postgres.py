@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from decimal import Decimal
 import math
 from typing import Any, Literal
@@ -15,10 +14,11 @@ from ._ingestion import (
     validate_snapshot_record_count,
     validate_snapshot_total_record_count,
 )
+from ._timestamps import aware_datetime_to_rfc3339, canonical_rfc3339
 from .store import SNAPSHOT_COLLECTION_NAMES, TraceBackedMemoryStore
 
 
-POSTGRES_SCHEMA_VERSION = 1
+POSTGRES_SCHEMA_VERSION = 2
 _POSTGRES_LOAD_MAX_RECORD_BYTES = SNAPSHOT_FILE_MAX_BYTES
 _POSTGRES_LOAD_MAX_TOTAL_PAYLOAD_BYTES = SNAPSHOT_FILE_MAX_BYTES
 _MEASURED_EVAL_RESULTS = frozenset({"pass", "fail", "error"})
@@ -173,7 +173,7 @@ ORDER BY policy_id
 """
 
 _SELECT_USAGE_LOGS = """
-SELECT decision_id, run_id, mode, candidate_memory_ids, used_memory_ids,
+SELECT decision_id, request_id, run_id, mode, candidate_memory_ids, used_memory_ids,
        blocked_memory_ids, reason, risk, recommended_injection, eval_result,
        memory_caused_failure, trace_id, context, candidate_memory_statuses,
        system_blocked_reasons, created_at
@@ -217,7 +217,7 @@ FOR UPDATE
 """
 
 _SELECT_USAGE_LOG_BY_ID = """
-SELECT decision_id, run_id, mode, candidate_memory_ids, used_memory_ids,
+SELECT decision_id, request_id, run_id, mode, candidate_memory_ids, used_memory_ids,
        blocked_memory_ids, reason, risk, recommended_injection, eval_result,
        memory_caused_failure, trace_id, context, candidate_memory_statuses,
        system_blocked_reasons, created_at
@@ -302,12 +302,12 @@ WHERE policy_id = %s
 
 _INSERT_USAGE_LOG = """
 INSERT INTO public.memory_usage_decisions (
-    decision_id, run_id, mode, candidate_memory_ids, used_memory_ids,
+    decision_id, request_id, run_id, mode, candidate_memory_ids, used_memory_ids,
     blocked_memory_ids, reason, risk, recommended_injection, eval_result,
     memory_caused_failure, trace_id, context, candidate_memory_statuses,
     system_blocked_reasons, created_at
 ) VALUES (
-    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
 )
 """
 
@@ -429,9 +429,10 @@ def _load_psycopg() -> tuple[Any, Any, Any]:
 def _rfc3339(value: object, field_name: str) -> str | None:
     if value is None:
         return None
-    if not isinstance(value, datetime) or value.utcoffset() is None:
-        raise ValueError(f"{field_name} must be an aware datetime or None")
-    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    try:
+        return aware_datetime_to_rfc3339(value)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an aware datetime or None") from exc
 
 
 def _numeric_cost(value: object) -> int | float | None:
@@ -548,6 +549,7 @@ def _decode_project_policy(row: dict[str, object]) -> dict[str, object]:
 def _decode_usage_log(row: dict[str, object]) -> dict[str, object]:
     return {
         "decision_id": row["decision_id"],
+        "request_id": row["request_id"],
         "run_id": row["run_id"],
         "mode": row["mode"],
         "candidate_memory_ids": _json_value(
@@ -661,6 +663,7 @@ def _encode_project_policy(
 def _encode_usage_log(record: dict[str, object], Jsonb: Any) -> tuple[object, ...]:
     return (
         record["decision_id"],
+        record.get("request_id"),
         record["run_id"],
         record["mode"],
         Jsonb(deepcopy(record["candidate_memory_ids"])),
@@ -696,13 +699,10 @@ _TIMESTAMP_FIELDS = {
 def _canonical_rfc3339(value: object, field_name: str) -> str | None:
     if value is None:
         return None
-    if not isinstance(value, str):
-        raise ValueError(f"{field_name} must be an RFC 3339 string or None")
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return canonical_rfc3339(value)
     except ValueError as exc:
         raise ValueError(f"{field_name} must be an RFC 3339 string or None") from exc
-    return _rfc3339(parsed, field_name)
 
 
 def _canonical_numeric_cost(value: object) -> int | float | None:
@@ -1117,7 +1117,8 @@ class PostgresMemoryRepository:
         version = rows[0]["schema_version"]
         if version != POSTGRES_SCHEMA_VERSION:
             raise PostgresSchemaError(
-                f"PostgreSQL schema version mismatch: expected 1, found {version}"
+                "PostgreSQL schema version mismatch: expected "
+                f"{POSTGRES_SCHEMA_VERSION}, found {version}"
             )
 
     def _lock_snapshot_tables(self, cursor: object) -> None:

@@ -70,6 +70,7 @@ def run_memory_execution(
     request = store.prepare_memory(
         context,
         task=task,
+        trace_id=trace_id,
         query=query,
         semantic_scores=semantic_scores,
         max_candidates=max_candidates,

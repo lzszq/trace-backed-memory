@@ -77,7 +77,7 @@ commit/branch/repository name above 512 characters fails at that same boundary
 without echoing the malformed value. Blank branch output remains detached HEAD,
 blank status remains clean, and a filesystem-root repository has no basename
 and therefore reports `repo=None`. Snapshot version 2 and PostgreSQL schema
-version 1 remain unchanged.
+version 2 are the current persistence contracts.
 
 The in-memory store can persist a dependency-free JSON snapshot of traces,
 failure cases, lessons, project policies, and usage logs. Loading a snapshot
@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 19 canonical Schema, SQL, memory-support, and example files. Its
+the repository's 20 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -600,10 +600,17 @@ metadata and ancestry filtering, bounded semantic top-k streams eligible
 records through a heap instead of materializing a full sort, while retaining
 score-descending and memory-ID-ascending output. For `K` eligible candidates and
 `k <= 50` results, ranking is `O(K log k)` time with `O(k)` ranking storage.
-This changes no snapshot version 2 or PostgreSQL schema version 1 contract.
+This changes no snapshot version 2 or PostgreSQL schema version 2 contract.
 
 The safe store workflow is `prepare_memory()` followed by `finalize_memory()`.
 Preparation performs retrieval, System Gate, and bounded LLM prompt creation.
+Each prepared request may retain at most 1,000 audited candidate IDs, and all
+process-local pending requests may retain at most 100,000 candidate references
+in aggregate. These limits are enforced before the request enters pending
+state.
+When context names a tool, an episodic Failure Case is eligible only if its
+source Trace contains that exact named tool; missing tool evidence fails
+closed rather than becoming a wildcard.
 If more than 50 candidates pass System Gate, it deterministically keeps the
 first 50 in candidate order and records every overflow candidate as System
 blocked with `LLM gate candidate limit exceeded`. Finalization rechecks current
@@ -942,18 +949,26 @@ accepted strings. Six canonical/package JSON Schema pairs publish the same
 narrative fields, and candidate/used/blocked memory-ID arrays retain their
 existing behavior.
 
+All persisted lifecycle timestamps use one strict RFC 3339 parser. A timestamp
+must carry `Z` or a numeric UTC offset, and fractional seconds are limited to
+six digits. This prevents Python, SQLite, and PostgreSQL adapters from silently
+normalizing different source precision.
+
 PostgreSQL rejects ordinary-space-only required identifiers and text, uses composite
 `(source_trace_id, commit_sha)` provenance to bind cases to their source trace,
 requires non-null lesson and policy confidence, and checks audit JSONB objects
-and values. Failure-case, lesson, and project-policy IDs are immutable and their
-records cannot be deleted. The shared runtime ID registry rejects direct DML;
+and values. Failure-case, lesson, and project-policy IDs are immutable;
+Failure Case source Trace/commit bindings and Lesson source Case bindings are
+also immutable after insert, including for direct SQL callers. Those records
+cannot be deleted. The shared runtime ID registry rejects direct DML;
 only schema-qualified source-table triggers can register IDs, and usage evidence
 must resolve both a registry entry and its concrete source row.
 The fresh-install DDL runs in one transaction with a local
 `public, pg_catalog` search path. Statement triggers reject `TRUNCATE` on the
 registry and all three runtime-memory source tables, and `TRUNCATE` is revoked
 from `PUBLIC`, preserving registry/source parity. The file is a fresh-install
-schema, not an in-place migration for an already deployed database.
+schema; the separate packaged `schemas/postgres-v1-to-v2.sql` resource is the
+atomic operator migration for an already deployed version-1 database.
 The schema requires PostgreSQL 12+ because its hardened JSONB shape constraints
 use `jsonb_path_exists`.
 
@@ -1026,6 +1041,13 @@ Policy rules as the PostgreSQL adapter. Obsoleting a Failure Case cascades its
 active Lessons. Any conflict or final Store validation failure rolls back the
 whole synchronization.
 
+The repository serializes `sync()`, `load()`, `close()`, and context entry per
+instance with an `RLock`, preventing one `sqlite3.Connection` from being used
+concurrently by its public operations. Top-level rollback cleanup preserves
+the primary exception and retries once. If the retry also fails, the repository
+closes the connection even when it was caller-supplied, preventing a partial
+transaction from being committed later.
+
 `load()` opens one read transaction, checks schema version 1, then enforces the
 snapshot defaults of 100,000 records per collection, 250,000 records overall,
 and 64 MiB for both the largest UTF-8 payload and the aggregate payload before
@@ -1036,8 +1058,9 @@ rollback to the caller.
 
 SQLite is the embedded choice, not a substitute for PostgreSQL's database-side
 JSONB, trigger, row-lock, registry, and multi-client enforcement. Both adapters
-share public sync/load lifecycle semantics and schema version 1, but their DDL
-and operational concurrency guarantees are intentionally separate.
+share public sync/load lifecycle semantics, while SQLite uses schema version 1
+and PostgreSQL uses schema version 2; their DDL and operational concurrency
+guarantees are intentionally separate.
 
 ## PostgreSQL Runtime Repository
 
@@ -1051,22 +1074,22 @@ The repository operates only on a fresh `public` schema installed from the
 canonical `schemas/postgres.sql` bytes. Checkout users may use that path
 directly; installed-package users export the same bytes with `tbm resource
 export schemas/postgres.sql postgres.sql`. It locks the one schema metadata row
-and requires schema version 1. This schema is not an in-place migration
-mechanism.
+and requires schema version 2. Existing version-1 installations must first
+apply the packaged `schemas/postgres-v1-to-v2.sql` migration. The adapter does
+not run migrations automatically. This is the current PostgreSQL schema
+version 2 contract.
 
 The fresh-install Trace table uses the named
 `traces_latency_ms_non_negative` CHECK, matching `minimum: 0` in the canonical
 and packaged Trace JSON Schema. Its signed `INTEGER` column matches the Schema's
-`maximum: 2147483647`. Existing schema-version-1 databases already enforce the
-upper bound and need no migration; databases missing the earlier CHECK do not
-gain it from a package upgrade, so direct-SQL operators still own that lower
-constraint migration. Store construction and repository `load()` reject either
-out-of-range direction. `sync()` accepts only a validated Store and therefore
-never writes an out-of-range value, but its additive semantics do not inspect
-unrelated database-only rows. The canonical and packaged Trace Schema bytes
-change in Phase 47; PostgreSQL DDL bytes and the 18-name packaged allowlist do
-not. Snapshot version 2 and PostgreSQL schema version 1 remain unchanged because
-neither stored shape changes.
+`maximum: 2147483647`. Version-1 databases already enforce the physical upper
+bound; the v1-to-v2 migration preserves it while installing the current lower
+bound and audit protections. Store construction and repository `load()` reject
+either out-of-range direction. `sync()` accepts only a validated Store and
+therefore never writes an out-of-range value, but its additive semantics do not
+inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
+the current PostgreSQL contract is schema version 2 and the packaged allowlist
+contains 20 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1312,17 +1335,17 @@ that boundary implicitly. Production isolation requires a future canonical
 global-policy creation. Snapshot version 2 also does not persist Gate requests,
 retrieval/gate/renderer versions or hashes, or structured regression-run
 evidence. Git ancestry remains opt-in. These are schema v3 / PostgreSQL schema
-v2 requirements, not properties of the current Alpha contract.
+v3 requirements, not properties of the current Alpha contract.
 
-Phase 71 keeps the existing version numbers while tightening accepted state.
 Version-2 snapshots with verified but unreviewed cases require review evidence
-before loading. Existing PostgreSQL schema-version-1 installations require an
-operator migration to match the current fresh-install DDL constraints.
+before loading. PostgreSQL schema-version-1 installations require the packaged
+`schemas/postgres-v1-to-v2.sql` operator migration before synchronization.
 
 - Do not build generic personalization memory first.
 - Do not inject raw traces directly into prompts.
 - Do not treat vector similarity as sufficient proof of relevance.
 - Do not allow the LLM to mark memory active without verification.
-- Do not provide in-place migration between deployed schema versions.
+- Do not provide an automatic online migration framework beyond the explicit
+  PostgreSQL v1-to-v2 operator script.
 - Do not provide connection pooling or pool lifecycle management.
 - Do not provide `async` PostgreSQL repository support.

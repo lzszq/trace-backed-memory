@@ -107,6 +107,8 @@ def test_run_memory_execution_orders_callbacks_and_completes_store_records():
     def decide(request):
         events.append(("decision", request))
         assert isinstance(request, tbm.MemoryGateRequest)
+        assert request.trace_id == current.trace_id
+        assert request.run_id == current.run_id
         assert request.candidate_memory_ids == (lesson.lesson_id,)
         assert lesson.lesson_id in request.prompt
         return _allow(lesson.lesson_id)
@@ -147,6 +149,7 @@ def test_run_memory_execution_orders_callbacks_and_completes_store_records():
     assert completion.trace.cost_usd == 0.0
     assert completion.trace.trace_uri == "memory://trace/execution"
     assert completion.usage_log.decision_id == gated.decision_id
+    assert completion.usage_log.request_id == request.request_id
     assert completion.usage_log.trace_id == current.trace_id
     assert completion.usage_log.used_memory_ids == [lesson.lesson_id]
     assert completion.usage_log.eval_result == "pass"

@@ -16,13 +16,21 @@
     "regression_passed": {"type": "boolean", "default": false},
     "reviewed_by": {"type": ["string", "null"], "pattern": "\\S", "minLength": 1, "maxLength": 512},
     "review_notes": {"type": ["string", "null"], "pattern": "\\S", "minLength": 1},
-    "reviewed_at": {"type": ["string", "null"], "format": "date-time"},
+    "reviewed_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
     "status": {
       "type": "string",
       "enum": ["draft", "verified", "obsolete"],
       "default": "draft"
     },
-    "created_at": {"type": ["string", "null"], "format": "date-time"}
+    "created_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$"
+    }
   },
   "allOf": [
     {
@@ -38,7 +46,11 @@
           "fix_commit_sha": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512},
           "regression_passed": {"const": true},
           "reviewed_by": {"type": "string", "pattern": "\\S", "minLength": 1, "maxLength": 512},
-          "reviewed_at": {"type": "string", "format": "date-time"}
+          "reviewed_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$"
+          }
         }
       }
     }

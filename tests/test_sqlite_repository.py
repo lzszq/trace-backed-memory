@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+import json
 import sqlite3
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -376,6 +380,108 @@ def test_sqlite_repository_rejects_malformed_payload_and_remains_reusable(
         assert repository.load().to_snapshot()["traces"] == []
 
 
+def test_sqlite_repository_rejects_excessively_nested_json_payload(
+    tmp_path: Path,
+):
+    database = tmp_path / "deep-payload.sqlite3"
+    payload = "[" * 5_000 + "0" + "]" * 5_000
+    with SQLiteMemoryRepository.connect(database, initialize=True) as repository:
+        repository._connection.execute(
+            "INSERT INTO traces(trace_id, payload) VALUES (?, ?)",
+            ("deep_trace", payload),
+        )
+        repository._connection.commit()
+
+        with pytest.raises(
+            sqlite_adapter.SQLitePersistenceError,
+            match="failed to load memory store",
+        ):
+            repository.load()
+
+        assert repository._connection.execute("SELECT 1").fetchone() == (1,)
+
+
+def test_sqlite_repository_rejects_noncanonical_rfc3339_payload(
+    tmp_path: Path,
+):
+    database = tmp_path / "timestamp-payload.sqlite3"
+    record = _pending_store().to_snapshot()["traces"][0]
+    record["created_at"] = "2026-07-23 03:00:00+00:00"
+    with SQLiteMemoryRepository.connect(database, initialize=True) as repository:
+        repository._connection.execute(
+            "INSERT INTO traces(trace_id, payload) VALUES (?, ?)",
+            (record["trace_id"], json.dumps(record)),
+        )
+        repository._connection.commit()
+
+        with pytest.raises(
+            sqlite_adapter.SQLitePersistenceError,
+            match="failed to load memory store",
+        ):
+            repository.load()
+
+
+def test_sqlite_repository_round_trips_gate_request_id(tmp_path: Path):
+    store = _pending_store()
+    trace = store.traces["trace_pending_sqlite"]
+    context = MemoryContext(
+        mode="repair",
+        repo="repo_sqlite",
+        tenant="tenant_sqlite",
+        commit_sha="commit_pending_sqlite",
+    )
+    request = store.prepare_memory(
+        context,
+        task="repair",
+        trace_id=trace.trace_id,
+    )
+    store.finalize_memory(
+        request,
+        {
+            "use_memory": True,
+            "allowed_memory_ids": ["policy_pending_sqlite"],
+            "blocked_memory_ids": [],
+            "reason": "The policy applies.",
+            "risk": "low",
+            "recommended_injection": "short_summary",
+        },
+        trace_id=trace.trace_id,
+    )
+
+    with SQLiteMemoryRepository.connect(
+        tmp_path / "request-id.sqlite3",
+        initialize=True,
+    ) as repository:
+        repository.sync(store)
+        loaded = repository.load()
+
+    assert loaded.usage_logs[-1].request_id == request.request_id
+
+
+def test_sqlite_repository_loads_legacy_usage_payload_without_request_id(
+    tmp_path: Path,
+):
+    database = tmp_path / "legacy-request-id.sqlite3"
+    with SQLiteMemoryRepository.connect(database, initialize=True) as repository:
+        repository.sync(_complete_store())
+        decision_id, payload = repository._connection.execute(
+            "SELECT decision_id, payload FROM memory_usage_decisions"
+        ).fetchone()
+        legacy_payload = json.loads(payload)
+        legacy_payload.pop("request_id")
+        repository._connection.execute(
+            "UPDATE memory_usage_decisions SET payload = ? WHERE decision_id = ?",
+            (json.dumps(legacy_payload), decision_id),
+        )
+        repository._connection.commit()
+
+        loaded = repository.load()
+        result = repository.sync(loaded)
+
+    assert loaded.usage_logs[0].request_id is None
+    assert result.usage_logs.unchanged == 1
+
+
 def test_sqlite_repository_enforces_payload_budget_before_loading(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -497,6 +603,202 @@ def test_sqlite_repository_savepoint_conflict_preserves_outer_transaction(
     connection.close()
 
 
+def test_sqlite_repository_release_failure_rolls_back_nested_writes(
+    tmp_path: Path,
+):
+    class FailingReleaseConnection(sqlite3.Connection):
+        fail_next_release = False
+
+        def execute(self, sql, parameters=(), /):
+            if (
+                self.fail_next_release
+                and sql.upper().startswith("RELEASE SAVEPOINT")
+            ):
+                self.fail_next_release = False
+                raise sqlite3.OperationalError("simulated release failure")
+            return super().execute(sql, parameters)
+
+    connection = sqlite3.connect(
+        tmp_path / "release-failure.sqlite3",
+        isolation_level=None,
+        factory=FailingReleaseConnection,
+    )
+    _apply_schema(connection)
+    connection.execute("CREATE TABLE caller_state(value TEXT NOT NULL)")
+    repository = SQLiteMemoryRepository(connection)
+    connection.execute("BEGIN")
+    connection.execute("INSERT INTO caller_state(value) VALUES ('kept')")
+    connection.fail_next_release = True
+
+    with pytest.raises(
+        sqlite_adapter.SQLitePersistenceError,
+        match="failed to sync memory store",
+    ):
+        repository.sync(_pending_store())
+
+    assert connection.in_transaction
+    assert connection.execute("SELECT value FROM caller_state").fetchall() == [
+        ("kept",)
+    ]
+    assert connection.execute("SELECT count(*) FROM traces").fetchone() == (0,)
+    connection.execute("INSERT INTO caller_state(value) VALUES ('still-usable')")
+    connection.execute("ROLLBACK")
+    assert repository.load().to_snapshot()["traces"] == []
+    repository.close()
+    connection.close()
+
+
+def test_sqlite_repository_cleanup_release_failure_preserves_primary_conflict(
+    tmp_path: Path,
+):
+    class FailingReleaseConnection(sqlite3.Connection):
+        fail_next_release = False
+
+        def execute(self, sql, parameters=(), /):
+            if (
+                self.fail_next_release
+                and sql.upper().startswith("RELEASE SAVEPOINT")
+            ):
+                self.fail_next_release = False
+                raise sqlite3.OperationalError("simulated release failure")
+            return super().execute(sql, parameters)
+
+    connection = sqlite3.connect(
+        tmp_path / "cleanup-release-failure.sqlite3",
+        isolation_level=None,
+        factory=FailingReleaseConnection,
+    )
+    _apply_schema(connection)
+    connection.execute("CREATE TABLE caller_state(value TEXT NOT NULL)")
+    repository = SQLiteMemoryRepository(connection)
+    repository.sync(_complete_store())
+    conflicting = TraceBackedMemoryStore()
+    conflicting.record_trace(
+        Trace(
+            trace_id="trace_sqlite",
+            run_id="run_sqlite",
+            commit_sha="different_commit",
+            eval_result="fail",
+        )
+    )
+    connection.execute("BEGIN")
+    connection.execute("INSERT INTO caller_state(value) VALUES ('kept')")
+    connection.fail_next_release = True
+
+    with pytest.raises(SQLiteConflictError, match="immutable conflict"):
+        repository.sync(conflicting)
+
+    assert connection.in_transaction
+    assert connection.execute("SELECT value FROM caller_state").fetchall() == [
+        ("kept",)
+    ]
+    connection.execute("INSERT INTO caller_state(value) VALUES ('still-usable')")
+    connection.execute("ROLLBACK")
+    assert repository.load().to_snapshot() == _complete_store().to_snapshot()
+    repository.close()
+    connection.close()
+
+
+def test_sqlite_repository_savepoint_rollback_failure_aborts_outer_transaction(
+    tmp_path: Path,
+):
+    class FailingSavepointCleanupConnection(sqlite3.Connection):
+        fail_next_release = False
+        fail_next_savepoint_rollback = False
+
+        def execute(self, sql, parameters=(), /):
+            normalized = sql.upper()
+            if self.fail_next_release and normalized.startswith("RELEASE SAVEPOINT"):
+                self.fail_next_release = False
+                raise sqlite3.OperationalError("simulated release failure")
+            if (
+                self.fail_next_savepoint_rollback
+                and normalized.startswith("ROLLBACK TO SAVEPOINT")
+            ):
+                self.fail_next_savepoint_rollback = False
+                raise sqlite3.OperationalError("simulated savepoint rollback failure")
+            return super().execute(sql, parameters)
+
+    connection = sqlite3.connect(
+        tmp_path / "savepoint-rollback-failure.sqlite3",
+        isolation_level=None,
+        factory=FailingSavepointCleanupConnection,
+    )
+    _apply_schema(connection)
+    connection.execute("CREATE TABLE caller_state(value TEXT NOT NULL)")
+    repository = SQLiteMemoryRepository(connection)
+    connection.execute("BEGIN")
+    connection.execute("INSERT INTO caller_state(value) VALUES ('must-roll-back')")
+    connection.fail_next_release = True
+    connection.fail_next_savepoint_rollback = True
+
+    with pytest.raises(
+        sqlite_adapter.SQLitePersistenceError,
+        match="failed to sync memory store",
+    ):
+        repository.sync(_pending_store())
+
+    assert not connection.in_transaction
+    assert connection.execute("SELECT value FROM caller_state").fetchall() == []
+    assert connection.execute("SELECT count(*) FROM traces").fetchone() == (0,)
+    repository.close()
+    connection.close()
+
+
+def test_sqlite_repository_closes_borrowed_connection_when_nested_rollback_cannot_recover(
+    tmp_path: Path,
+):
+    class UnrecoverableRollbackConnection(sqlite3.Connection):
+        fail_next_release = False
+        fail_next_savepoint_rollback = False
+        rollback_failures_remaining = 0
+
+        def execute(self, sql, parameters=(), /):
+            normalized = sql.upper()
+            if self.fail_next_release and normalized.startswith("RELEASE SAVEPOINT"):
+                self.fail_next_release = False
+                raise sqlite3.OperationalError("simulated release failure")
+            if (
+                self.fail_next_savepoint_rollback
+                and normalized.startswith("ROLLBACK TO SAVEPOINT")
+            ):
+                self.fail_next_savepoint_rollback = False
+                raise sqlite3.OperationalError(
+                    "simulated savepoint rollback failure"
+                )
+            return super().execute(sql, parameters)
+
+        def rollback(self) -> None:
+            if self.rollback_failures_remaining:
+                self.rollback_failures_remaining -= 1
+                raise sqlite3.OperationalError("simulated outer rollback failure")
+            super().rollback()
+
+    connection = sqlite3.connect(
+        tmp_path / "unrecoverable-nested-rollback.sqlite3",
+        isolation_level=None,
+        factory=UnrecoverableRollbackConnection,
+    )
+    _apply_schema(connection)
+    repository = SQLiteMemoryRepository(connection)
+    connection.execute("BEGIN")
+    connection.fail_next_release = True
+    connection.fail_next_savepoint_rollback = True
+    connection.rollback_failures_remaining = 2
+
+    with pytest.raises(
+        sqlite_adapter.SQLitePersistenceError,
+        match="failed to sync memory store",
+    ) as exc_info:
+        repository.sync(_pending_store())
+
+    notes = getattr(exc_info.value.__cause__, "__notes__", ())
+    assert any("retry failed" in note for note in notes)
+    assert repository._closed is True
+    with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+        connection.commit()
+
+
 def test_sqlite_repository_rolls_back_after_commit_failure(tmp_path: Path):
     class FailingCommitConnection(sqlite3.Connection):
         fail_next_commit = False
@@ -525,6 +827,132 @@ def test_sqlite_repository_rolls_back_after_commit_failure(tmp_path: Path):
     assert repository.load().to_snapshot()["traces"] == []
     repository.close()
     connection.close()
+
+
+def test_sqlite_repository_top_level_rollback_failure_preserves_primary_error(
+    tmp_path: Path,
+):
+    class FailingRollbackConnection(sqlite3.Connection):
+        fail_next_rollback = False
+
+        def rollback(self) -> None:
+            if self.fail_next_rollback:
+                self.fail_next_rollback = False
+                raise sqlite3.OperationalError("simulated rollback failure")
+            super().rollback()
+
+    connection = sqlite3.connect(
+        tmp_path / "rollback-failure.sqlite3",
+        factory=FailingRollbackConnection,
+    )
+    _apply_schema(connection)
+    repository = SQLiteMemoryRepository(connection)
+    repository.sync(_complete_store())
+    conflicting = TraceBackedMemoryStore()
+    conflicting.record_trace(
+        Trace(
+            trace_id="trace_sqlite",
+            run_id="run_sqlite",
+            commit_sha="different_commit",
+            eval_result="fail",
+        )
+    )
+    connection.fail_next_rollback = True
+
+    with pytest.raises(SQLiteConflictError, match="immutable conflict") as exc_info:
+        repository.sync(conflicting)
+
+    assert any(
+        "simulated rollback failure" in note
+        for note in getattr(exc_info.value, "__notes__", ())
+    )
+    assert not connection.in_transaction
+    assert repository.load().to_snapshot() == _complete_store().to_snapshot()
+    repository.close()
+    connection.close()
+
+
+def test_sqlite_repository_serializes_same_instance_sync_and_load(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = SQLiteMemoryRepository.connect(
+        tmp_path / "same-instance.sqlite3",
+        initialize=True,
+        check_same_thread=False,
+    )
+    entered = threading.Event()
+    release = threading.Event()
+    original_sync_collection = repository._sync_collection
+
+    def blocking_sync_collection(*args, **kwargs):
+        if kwargs["collection"] == "traces" and not entered.is_set():
+            entered.set()
+            assert release.wait(timeout=5)
+        return original_sync_collection(*args, **kwargs)
+
+    monkeypatch.setattr(repository, "_sync_collection", blocking_sync_collection)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        sync_future = pool.submit(repository.sync, _pending_store())
+        assert entered.wait(timeout=5)
+        load_future = pool.submit(repository.load)
+        time.sleep(0.05)
+        assert not load_future.done()
+        release.set()
+        sync_future.result(timeout=5)
+        loaded = load_future.result(timeout=5)
+
+    assert len(loaded.traces) == 1
+    repository.close()
+
+
+def test_sqlite_repository_close_waits_for_inflight_sync(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    repository = SQLiteMemoryRepository.connect(
+        tmp_path / "close-wait.sqlite3",
+        initialize=True,
+        check_same_thread=False,
+    )
+    entered = threading.Event()
+    release = threading.Event()
+    original_sync_collection = repository._sync_collection
+
+    def blocking_sync_collection(*args, **kwargs):
+        if kwargs["collection"] == "traces" and not entered.is_set():
+            entered.set()
+            assert release.wait(timeout=5)
+        return original_sync_collection(*args, **kwargs)
+
+    monkeypatch.setattr(repository, "_sync_collection", blocking_sync_collection)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        sync_future = pool.submit(repository.sync, _pending_store())
+        assert entered.wait(timeout=5)
+        close_future = pool.submit(repository.close)
+        time.sleep(0.05)
+        assert not close_future.done()
+        release.set()
+        sync_future.result(timeout=5)
+        close_future.result(timeout=5)
+
+    with pytest.raises(SQLiteAdapterError, match="closed"):
+        repository.load()
+
+
+def test_sqlite_timestamp_canonicalizer_rejects_submicrosecond_precision():
+    assert sqlite_adapter._canonical_rfc3339(
+        "2026-07-23T09:00:00.123456+08:00",
+        "created_at",
+    ) == "2026-07-23T01:00:00.123456Z"
+
+    with pytest.raises(ValueError, match="created_at"):
+        sqlite_adapter._canonical_rfc3339(
+            "2026-07-23T01:00:00.1234567Z",
+            "created_at",
+        )
 
 
 def test_sqlite_repository_serializes_top_level_writers(tmp_path: Path):

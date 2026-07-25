@@ -77,7 +77,8 @@ python -m pip install -e .
 
 Install a built wheel or source-distribution artifact with `pip`. The
 distribution is marked as typed with `py.typed`. For one-off local commands from
-a checkout, setting `PYTHONPATH=src` also works.
+a checkout, use `$env:PYTHONPATH = "src"` in PowerShell or
+`PYTHONPATH=src` in a POSIX shell.
 
 ## Packaged Resources
 
@@ -91,6 +92,7 @@ input:
 tbm resource list
 tbm resource read schemas/trace.schema.json
 tbm resource export schemas/sqlite.sql sqlite.sql
+tbm resource export schemas/postgres-v1-to-v2.sql postgres-v1-to-v2.sql
 tbm resource export schemas/postgres.sql postgres.sql
 tbm resource export schemas/postgres.sql postgres.sql --overwrite
 ```
@@ -114,12 +116,14 @@ from trace_backed_memory import (
 
 resources = packaged_resources()
 sqlite_sql = read_packaged_resource("schemas/sqlite.sql")
+postgres_migration_sql = read_packaged_resource("schemas/postgres-v1-to-v2.sql")
 postgres_sql = read_packaged_resource("schemas/postgres.sql")
 export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-`PackagedResource` descriptions include kind, media type, byte size, and
+The allowlist currently contains 20 resources. `PackagedResource` descriptions
+include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
 
@@ -489,7 +493,9 @@ extra package. It is the embedded SQL choice for local harnesses, CI jobs, and
 single-host tools:
 
 ```python
-from trace_backed_memory import SQLiteMemoryRepository
+from trace_backed_memory import SQLiteMemoryRepository, TraceBackedMemoryStore
+
+store = TraceBackedMemoryStore()
 
 with SQLiteMemoryRepository.connect(
     "memory.sqlite3",
@@ -507,12 +513,20 @@ tbm resource export schemas/sqlite.sql sqlite.sql
 sqlite3 memory.sqlite3 ".read sqlite.sql"
 ```
 
+The second command requires the separately installed `sqlite3` command-line
+program; Python's standard-library module does not install that executable.
+
 `sync(store)` is additive and atomic. It uses `BEGIN IMMEDIATE` to serialize
 writers, preserves supported Trace, Failure Case, Lesson, Project Policy, and
 usage-outcome forward transitions, cascades obsolete Failure Cases to active
 Lessons, and rolls the entire operation back on immutable conflicts. When a
 borrowed connection already has an outer transaction, the repository uses a
 savepoint and leaves the final commit or rollback to the caller.
+One repository instance serializes `sync()`, `load()`, and `close()` with an
+`RLock`, so closing waits for an in-flight operation. A top-level rollback
+failure cannot replace the primary error: cleanup is retried, and a connection
+that still cannot roll back is closed even when it was supplied by the caller,
+because its partial transaction can no longer be trusted.
 
 `load()` reads one SQLite transaction, checks schema version 1, enforces the
 same 100,000-per-collection, 250,000-total, and 64 MiB record/aggregate payload
@@ -545,8 +559,20 @@ tbm resource export schemas/postgres.sql postgres.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f postgres.sql
 ```
 
-The adapter requires the schema metadata row at `schema_version` 1. The SQL
-file is a fresh-install schema, not a migration for an existing database.
+The adapter requires the schema metadata row at `schema_version` 2. The SQL
+file is a fresh-install schema. Upgrade an existing version-1 installation with
+the separately packaged, atomic migration:
+
+```powershell
+tbm resource export schemas/postgres-v1-to-v2.sql postgres-v1-to-v2.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f postgres-v1-to-v2.sql
+```
+
+The migration adds final Gate `request_id` linkage; immutable Trace, usage
+audit, Failure Case source, and Lesson source triggers; guarded forward outcome
+transitions; and row-lock protection, then advances the metadata row. It
+rejects missing metadata, any starting version other than 1, and replay after a
+successful migration.
 
 PostgreSQL remains optional for local test runs: the database-backed tests skip
 when `initdb`, `pg_ctl`, or `psql` is unavailable. CI sets
@@ -619,7 +645,7 @@ overflow is a sanitized `PostgresPersistenceError`, performs no partial load,
 and leaves the connection reusable. `sync()` behavior is unchanged because its
 Store is already caller-owned client memory. This changes no public API,
 snapshot version 2, JSON Schema, active-lessons YAML, packaged resource,
-PostgreSQL DDL, or schema version 1.
+PostgreSQL DDL, or schema version 2.
 
 Persisted identities, linkage, required failure text, lesson/policy scope,
 Memory Context values, and usage-audit mapping keys and values must contain at
@@ -631,7 +657,12 @@ Failure Case narrative fields, and candidate/used/blocked memory-ID arrays keep
 their existing non-empty behavior. Snapshot CLI reads classify a rejected
 record as an `input` error with exit code 2 and never rewrite the source file.
 
-PostgreSQL schema version 1 already rejects ordinary-space-only values in these
+Persisted timestamps use strict RFC 3339 with an explicit `Z` or numeric UTC
+offset. Fractional seconds, when present, contain at most six digits; values
+with sub-microsecond precision are rejected consistently by lifecycle APIs,
+snapshots, SQLite, PostgreSQL, and the canonical JSON Schemas.
+
+PostgreSQL schema version 2 rejects ordinary-space-only values in these
 persisted positions. Its default `btrim(text)` is narrower than Python/JSON
 Schema whitespace classification, so direct SQL can still create some tab- or
 Unicode-whitespace-only rows that repository load will reject. The supported
@@ -1054,8 +1085,8 @@ signed `INTEGER` column supplies the identical upper boundary. Existing
 schema-version-1 databases already enforce that physical maximum and need no
 Phase 47 migration; operators missing the earlier lower-bound CHECK still own
 that constraint migration. Only the canonical and packaged Trace Schema bytes
-change in Phase 47; PostgreSQL DDL bytes, the 18-resource allowlist, snapshot
-version 2, and PostgreSQL schema version 1 remain current.
+change in Phase 47. The current distribution uses the 20-resource allowlist;
+snapshot version 2 and PostgreSQL schema version 2 are current.
 
 ### Deferred decision outcome sealing
 
@@ -1716,7 +1747,11 @@ manual_case = draft_failure_case(
     failure_type="invalid_tool_argument",
     symptom="planner called search_docs with null query",
 )
-lesson_memory = memory_item_from_lesson(lesson)
+lesson_memory = memory_item_from_lesson(
+    lesson,
+    source_trace=trace,
+    source_case=verified,
+)
 case_memory = memory_item_from_failure_case(verified, trace)
 policy = ProjectPolicy(
     policy_id="project_policy_001",
@@ -1799,7 +1834,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 19 canonical Schemas, examples, and memory
+  explicit atomic export for all 20 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -1808,6 +1843,9 @@ Implemented pieces:
 - Store-level checks that reject project policies with empty identity/text fields, invalid status, invalid scope, unbounded confidence, or IDs that collide with failure case, lesson, or project policy memory IDs.
 - JSON schemas for stored records and full memory-store snapshots.
 - Postgres schema parity checks for model defaults, an atomic fresh-install transaction pinned to `public`, invariant functions pinned to `pg_catalog`, a trigger-owned shared runtime memory ID registry that rejects direct DML, `TRUNCATE`, helper-shadow bypasses, and ghost usage, non-empty required text, composite case/trace commit provenance, forward-only status updates, `FOR SHARE` parent/lesson lifecycle serialization and cascades, JSONB object/array and element-type checks, required usage-decision audit evidence, and context example parsing.
+- Store preparation bounds each request to 1,000 audited candidates and all
+  process-local pending requests to 100,000 candidate references; only the
+  deterministic first 50 System-Gate-approved items reach the LLM Gate.
 - PostgreSQL load preflights for per-collection/total counts plus largest-row and aggregate UTF-8 payload bytes, including exact boundaries, malformed scalar results, pre-fetch rejection, sanitized errors, and connection reuse.
 - PostgreSQL payload accounting over actual loaded-row projections, excluding
   only the unfetched `updated_at` metadata in failure cases, lessons, and
@@ -1826,11 +1864,14 @@ Implemented pieces:
 This release closes the review findings that can be enforced without replacing
 the persisted domain model. It does not claim that snapshot version 2 is a
 multi-tenant production service contract. The following remain explicit schema
-v3 / PostgreSQL schema v2 work:
+v3 / PostgreSQL schema v3 work:
 
 - replace `regression_passed` with structured regression Trace/run/evaluator evidence and commit relationships;
 - add a canonical `repository_id`, explicit global/repository/tenant scope kind, and authorization for global policy;
-- persist or cryptographically sign `MemoryGateRequest` state with idempotency, expiry, cancellation, and crash recovery;
+- persist or cryptographically sign `MemoryGateRequest` state with idempotency,
+  expiry, and crash recovery; process-local requests already support bounded
+  retention, explicit cancellation, Trace/run binding, and persisted final
+  `request_id` audit linkage;
 - persist retriever, index, gate model/prompt, ancestry, renderer, response, and snippet hashes for reproducible audit;
 - replace opt-in ancestry with an explicit required/disabled policy whose bypass is itself audited.
 
@@ -1838,10 +1879,11 @@ Until those contracts exist, use this package as a single-process harness
 component or reference implementation, not as an untrusted shared multi-tenant
 memory service.
 
-This Alpha hardening keeps the version numbers stable but tightens validation.
-Existing version-2 snapshots whose verified cases lack review evidence must be
-repaired before loading. Existing PostgreSQL schema-version-1 installations
-need an operator migration to match the updated fresh-install constraints.
+This Alpha hardening keeps snapshot version 2 stable while advancing the
+PostgreSQL schema to version 2. Existing version-2 snapshots whose verified
+cases lack review evidence must be repaired before loading. Existing
+PostgreSQL schema-version-1 installations must apply the packaged
+`schemas/postgres-v1-to-v2.sql` migration before synchronization.
 
 ## Repository layout
 
@@ -1868,6 +1910,7 @@ need an operator migration to match the updated fresh-install constraints.
 |   |-- lessons.example.yaml
 |   `-- failure_taxonomy.yaml
 |-- schemas/
+|   |-- postgres-v1-to-v2.sql
 |   |-- postgres.sql
 |   |-- sqlite.sql
 |   |-- trace.schema.json

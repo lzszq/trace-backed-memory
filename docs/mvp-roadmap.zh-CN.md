@@ -463,11 +463,22 @@
 - 双语 README、架构、产品和使用策略文档将 SQLite 与 PostgreSQL 分别说明为嵌入式和服务端 SQL 选择。
 - snapshot version 2 与 PostgreSQL schema version 1 保持不变；SQLite 使用独立 schema version 1。
 
-## Phase 73：可部署信任边界与可重放审计（计划）
+## Phase 73：Review 驱动的运行时与持久化加固（已实现）
+
+- 限制 query 文本、semantic score mapping、批量操作、进程内 pending request/finalized tombstone、单个 request 候选与 pending request 聚合候选引用，以及持久化 lesson/policy 文本。
+- 增加显式 Gate request 取消；高层请求绑定 Trace/run；usage audit 持久化最终 `request_id`。
+- 有界本地摄取拒绝特殊文件；SQLite savepoint 回滚本身失败时中止外层事务，同实例操作串行化，顶层回滚清理保留主异常。
+- PostgreSQL 使用不可变与前向 trigger 保护 Trace/usage audit，并保证 Failure Case 与 Lesson 来源不可改绑；锁定 usage Trace context 读取，并将契约推进到 schema version 2。
+- 生命周期 API、snapshot、JSON Schema、SQLite 与 PostgreSQL 统一使用最多六位小数的严格 RFC 3339 时间戳契约。
+- CI 在隔离质量环境中增加 Ruff、mypy、分支覆盖率和依赖审计门禁。
+- 将原子 `schemas/postgres-v1-to-v2.sql` operator migration 作为第 20 项打包资源，覆盖 fresh install、迁移、重放拒绝、wheel、sdist、Windows、SQLite 与真实 PostgreSQL 测试。
+- 保持 snapshot version 2 与 SQLite schema version 1。
+
+## Phase 74：可部署信任边界与可重放审计（计划）
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 canonical repository ID、显式 global/repository/tenant scope kind 与 global policy 权限，使 scope 成为可执行的授权边界。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
 - 记录可重放 decision 所需的 retriever/index、gate model/prompt、ancestry、policy、renderer、response 与 snippet version/hash。
 - 用显式 `required`/`disabled` policy 替代可选 ancestry，并审计 bypass reason。
-- 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 2 发布，并提供迁移文档。
+- 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 3 发布，并提供迁移文档。

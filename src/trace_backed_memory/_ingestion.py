@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import errno
+import os
 from pathlib import Path
+import stat
 from typing import Any
 
 
@@ -41,8 +44,38 @@ def read_bounded_utf8(
 ) -> str:
     _validate_positive_limit(max_bytes, "max_bytes")
     target = Path(path)
-    with target.open("rb") as source:
-        data = source.read() if max_bytes is None else source.read(max_bytes + 1)
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_NOINHERIT", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    if os.name == "posix":
+        flags |= os.O_NONBLOCK
+    descriptor = os.open(target, flags)
+    try:
+        descriptor_stat = os.fstat(descriptor)
+        path_stat = os.stat(target, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(descriptor_stat.st_mode)
+            or not stat.S_ISREG(path_stat.st_mode)
+            or not os.path.samestat(descriptor_stat, path_stat)
+        ):
+            raise OSError(
+                errno.EINVAL,
+                f"{description} path must reference one regular file",
+                str(target),
+            )
+        with os.fdopen(descriptor, "rb") as source:
+            descriptor = -1
+            data = (
+                source.read()
+                if max_bytes is None
+                else source.read(max_bytes + 1)
+            )
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
     return decode_bounded_utf8(
         data,
         max_bytes=max_bytes,

@@ -171,6 +171,8 @@ class MemoryGateRequest:
     system_blocked: tuple[tuple[str, str], ...]
     prompt: str
     _store_token: object = field(repr=False, compare=False)
+    trace_id: str | None = None
+    run_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -205,6 +207,7 @@ class MemoryUsageLog:
     candidate_memory_statuses: dict[str, Status] = field(default_factory=dict)
     system_blocked_reasons: dict[str, str] = field(default_factory=dict)
     created_at: str | None = None
+    request_id: str | None = None
 
 
 @dataclass(frozen=True)

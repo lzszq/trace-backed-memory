@@ -70,6 +70,7 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/schema+json",
     ),
+    ("schemas/postgres-v1-to-v2.sql", "schema", "application/sql"),
     ("schemas/postgres.sql", "schema", "application/sql"),
     ("schemas/project_policy.schema.json", "schema", "application/schema+json"),
     ("schemas/sqlite.sql", "schema", "application/sql"),

@@ -3,12 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
 import sys
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, fields
 from pathlib import Path
-from typing import Any, Iterator, Sequence, TextIO
+from typing import Any, Iterator, NoReturn, Sequence, TextIO
 
 from ._ingestion import (
     CLI_JSON_FILE_MAX_BYTES,
@@ -73,7 +72,7 @@ def _snapshot_write_lock(snapshot_path: str | Path) -> Iterator[None]:
 
 
 class _JSONArgumentParser(argparse.ArgumentParser):
-    def error(self, message: str) -> None:
+    def error(self, message: str) -> NoReturn:
         raise CLIUsageError(message)
 
 

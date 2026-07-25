@@ -295,6 +295,57 @@ def _seed_verified_case(cluster: PostgresCluster, suffix: str) -> None:
     )
 
 
+def test_postgres_source_provenance_cannot_be_rebound_by_direct_sql(
+    postgres_cluster: PostgresCluster,
+):
+    cluster = postgres_cluster
+    cluster.load_schema()
+    _seed_verified_case(cluster, "source_a")
+    _seed_verified_case(cluster, "source_b")
+    assert_sql_succeeds(
+        cluster,
+        """
+        INSERT INTO lessons(
+          lesson_id, source_case_id, lesson_text, memory_type, scope_json, status
+        ) VALUES (
+          'lesson_source_a', 'case_source_a', 'rule', 'procedural',
+          '{"repo":"repo"}', 'active'
+        )
+        """,
+    )
+
+    assert_sql_fails(
+        cluster,
+        """
+        UPDATE failure_cases
+        SET source_trace_id = 'trace_source_b', commit_sha = 'commit_source_b'
+        WHERE case_id = 'case_source_a'
+        """,
+        "failure case source provenance is immutable",
+    )
+    assert_sql_fails(
+        cluster,
+        """
+        UPDATE lessons
+        SET source_case_id = 'case_source_b'
+        WHERE lesson_id = 'lesson_source_a'
+        """,
+        "lesson source provenance is immutable",
+    )
+    assert assert_sql_succeeds(
+        cluster,
+        """
+        SELECT source_trace_id || ':' || commit_sha
+        FROM failure_cases
+        WHERE case_id = 'case_source_a'
+        """,
+    ) == "trace_source_a:commit_source_a"
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT source_case_id FROM lessons WHERE lesson_id = 'lesson_source_a'",
+    ) == "case_source_a"
+
+
 def test_postgres_cluster_meets_documented_version_floor(
     postgres_cluster: PostgresCluster,
 ):
@@ -399,12 +450,154 @@ def test_postgres_schema_install_is_atomic_and_public(
     ) == "7"
     assert assert_sql_succeeds(
         cluster,
-        "SELECT count(*) FROM public.trace_backed_memory_schema WHERE schema_version = 1",
+        "SELECT count(*) FROM public.trace_backed_memory_schema WHERE schema_version = 2",
     ) == "1"
     assert assert_sql_succeeds(
         cluster,
         "SELECT to_regclass('pg_catalog.traces') IS NULL",
     ) == "t"
+
+
+def _downgrade_postgres_v2_fixture_to_v1(cluster: PostgresCluster) -> None:
+    assert_sql_succeeds(
+        cluster,
+        """
+        BEGIN;
+        DROP TRIGGER memory_usage_decisions_protect_record
+          ON public.memory_usage_decisions;
+        DROP FUNCTION public.protect_usage_decision_record();
+        DROP TRIGGER memory_usage_decisions_reject_truncate
+          ON public.memory_usage_decisions;
+        DROP TRIGGER traces_protect_record ON public.traces;
+        DROP FUNCTION public.protect_trace_record();
+        DROP TRIGGER traces_reject_truncate ON public.traces;
+        DROP TRIGGER failure_cases_protect_source_provenance
+          ON public.failure_cases;
+        DROP FUNCTION public.protect_failure_case_source();
+        DROP TRIGGER lessons_protect_source_provenance ON public.lessons;
+        DROP FUNCTION public.protect_lesson_source();
+        ALTER TABLE public.memory_usage_decisions DROP COLUMN request_id;
+        UPDATE public.trace_backed_memory_schema
+        SET schema_version = 1
+        WHERE singleton;
+        COMMIT;
+        """,
+    )
+
+
+def test_postgres_v1_to_v2_migration_is_atomic_and_rejects_replay(
+    postgres_cluster: PostgresCluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    from trace_backed_memory.postgres import (
+        PostgresMemoryRepository,
+        PostgresSchemaError,
+    )
+
+    cluster = postgres_cluster
+    cluster.load_schema()
+    _downgrade_postgres_v2_fixture_to_v1(cluster)
+
+    with psycopg.connect(**cluster.connection_kwargs()) as connection:
+        repository = PostgresMemoryRepository(connection)
+        with pytest.raises(PostgresSchemaError, match="expected 2, found 1"):
+            repository.load()
+
+    migration = ROOT / "schemas" / "postgres-v1-to-v2.sql"
+    migrated = cluster.run_script(migration)
+    assert migrated.returncode == 0, migrated.stderr
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT schema_version FROM public.trace_backed_memory_schema",
+    ) == "2"
+    assert assert_sql_succeeds(
+        cluster,
+        """
+        SELECT count(*)
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'memory_usage_decisions'
+          AND column_name = 'request_id'
+        """,
+    ) == "1"
+    assert assert_sql_succeeds(
+        cluster,
+        """
+        SELECT count(*)
+        FROM pg_trigger
+        WHERE NOT tgisinternal
+          AND tgname IN (
+            'traces_protect_record',
+             'traces_reject_truncate',
+             'memory_usage_decisions_protect_record',
+             'memory_usage_decisions_reject_truncate',
+             'failure_cases_protect_source_provenance',
+             'lessons_protect_source_provenance'
+           )
+        """,
+    ) == "6"
+
+    replay = cluster.run_script(migration)
+    assert replay.returncode != 0
+    assert "migration requires schema version 1, found 2" in replay.stderr
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT schema_version FROM public.trace_backed_memory_schema",
+    ) == "2"
+
+
+def test_postgres_v1_to_v2_migration_failure_rolls_back_every_change(
+    postgres_cluster: PostgresCluster,
+):
+    cluster = postgres_cluster
+    cluster.load_schema()
+    _downgrade_postgres_v2_fixture_to_v1(cluster)
+
+    migration = (ROOT / "schemas" / "postgres-v1-to-v2.sql").read_text(
+        encoding="utf-8"
+    )
+    broken_migration = migration.replace(
+        "UPDATE public.trace_backed_memory_schema",
+        "SELECT migration_failure_after_schema_changes();\n\n"
+        "UPDATE public.trace_backed_memory_schema",
+        1,
+    )
+    broken_path = cluster.root / "broken-postgres-v1-to-v2.sql"
+    broken_path.write_text(broken_migration, encoding="utf-8")
+
+    result = cluster.run_script(broken_path)
+    assert result.returncode != 0
+    assert "migration_failure_after_schema_changes" in result.stderr
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT schema_version FROM public.trace_backed_memory_schema",
+    ) == "1"
+    assert assert_sql_succeeds(
+        cluster,
+        """
+        SELECT count(*)
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'memory_usage_decisions'
+          AND column_name = 'request_id'
+        """,
+    ) == "0"
+    assert assert_sql_succeeds(
+        cluster,
+        """
+        SELECT count(*)
+        FROM pg_trigger
+        WHERE NOT tgisinternal
+          AND tgname IN (
+            'traces_protect_record',
+             'traces_reject_truncate',
+             'memory_usage_decisions_protect_record',
+             'memory_usage_decisions_reject_truncate',
+             'failure_cases_protect_source_provenance',
+             'lessons_protect_source_provenance'
+           )
+        """,
+    ) == "0"
 
 
 def test_postgres_cluster_cleanup_terminates_unfinished_clients(
@@ -1134,12 +1327,14 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
 
     for table_name in [
         "memory_ids",
+        "traces",
         "failure_cases",
         "lessons",
         "project_policies",
+        "memory_usage_decisions",
     ]:
         truncate_sql = f"TRUNCATE TABLE {table_name}"
-        if table_name == "failure_cases":
+        if table_name in {"traces", "failure_cases"}:
             truncate_sql += " CASCADE"
         assert_sql_fails(
             cluster,
@@ -1166,12 +1361,13 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
           ',' ORDER BY table_name
         )
         FROM unnest(ARRAY[
-          'memory_ids', 'failure_cases', 'lessons', 'project_policies'
+          'memory_ids', 'traces', 'failure_cases', 'lessons',
+          'project_policies', 'memory_usage_decisions'
         ]) AS tables(table_name)
         """,
     ) == (
         "failure_cases:false,lessons:false,memory_ids:false,"
-        "project_policies:false"
+        "memory_usage_decisions:false,project_policies:false,traces:false"
     )
 
     assert_sql_succeeds(
@@ -1254,6 +1450,49 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         cluster,
         "SELECT count(*) FROM memory_usage_decisions WHERE decision_id = 'decision_valid'",
     ) == "1"
+    assert_sql_succeeds(
+        cluster,
+        """
+        INSERT INTO memory_usage_decisions(
+          decision_id, run_id, trace_id, mode, candidate_memory_ids,
+          used_memory_ids, blocked_memory_ids, risk, reason,
+          recommended_injection, eval_result, context,
+          candidate_memory_statuses, system_blocked_reasons
+        ) VALUES (
+          'decision_transition', 'run_app', 'trace_app', 'repair',
+          '["policy_app"]', '[]', '["policy_app"]', 'none',
+          'outcome transition coverage', 'none', 'unknown',
+          '{"mode":"repair","repo":"repo","commit_sha":"commit_app"}',
+          '{"policy_app":"active"}', '{"policy_app":"not selected"}'
+        )
+        """,
+    )
+    assert_sql_fails(
+        cluster,
+        """
+        UPDATE memory_usage_decisions
+        SET eval_result = NULL
+        WHERE decision_id = 'decision_transition'
+        """,
+        "usage decision outcome must move forward exactly once",
+    )
+    assert_sql_succeeds(
+        cluster,
+        """
+        UPDATE memory_usage_decisions
+        SET eval_result = 'pass'
+        WHERE decision_id = 'decision_transition'
+        """,
+    )
+    assert_sql_fails(
+        cluster,
+        """
+        UPDATE memory_usage_decisions
+        SET eval_result = 'fail'
+        WHERE decision_id = 'decision_transition'
+        """,
+        "usage decision outcome must move forward exactly once",
+    )
 
     assert_sql_succeeds(
         cluster,

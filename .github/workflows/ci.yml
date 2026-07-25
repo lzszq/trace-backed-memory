@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -12,19 +15,45 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
+      - run: python -m compileall -q src tests
       - run: python -m pytest
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+      - run: python -m venv .quality
+      - run: .quality/bin/python -m pip install --upgrade pip
+      - run: .quality/bin/python -m pip install ".[dev]"
+      - name: Lint package sources
+        run: .quality/bin/python -m ruff check src
+      - name: Type-check package sources
+        run: .quality/bin/python -m mypy src/trace_backed_memory
+      - name: Enforce branch coverage
+        run: |
+          .quality/bin/python -m coverage run -m pytest
+          .quality/bin/python -m coverage report
+      - name: Audit installed dependencies
+        run: |
+          .quality/bin/python -m pip freeze \
+            --exclude trace-backed-memory > .quality/audit-requirements.txt
+          .quality/bin/python -m pip_audit \
+            --strict --no-deps -r .quality/audit-requirements.txt
 
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
       - run: python -m pip install --upgrade pip
@@ -36,8 +65,8 @@ jobs:
     env:
       TBM_REQUIRE_POSTGRES: "1"
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
       - name: Install PostgreSQL server tools
@@ -64,8 +93,8 @@ jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
       - run: python -m pip install --upgrade pip "build>=1.2,<2"
@@ -78,7 +107,7 @@ jobs:
           .package-smoke/bin/python -c "from pathlib import Path; import subprocess, sys; wheel = next(Path('dist').glob('*.whl')); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--no-deps', str(wheel)])"
       - name: Smoke-test installed CLI entry points
         run: |
-          .package-smoke/bin/python -c "from importlib.resources import files; from trace_backed_memory import load_failure_taxonomy, packaged_resources; assert len(packaged_resources()) == 18; assert 'invalid_tool_argument' in load_failure_taxonomy(); assert files('trace_backed_memory').joinpath('py.typed').is_file()"
+          .package-smoke/bin/python -c "from importlib.resources import files; from trace_backed_memory import load_failure_taxonomy, packaged_resources; assert len(packaged_resources()) == 20; assert 'invalid_tool_argument' in load_failure_taxonomy(); assert files('trace_backed_memory').joinpath('py.typed').is_file()"
           .package-smoke/bin/python -c "import trace_backed_memory as tbm; from trace_backed_memory import lifecycle, obsolete_project_policy; assert obsolete_project_policy is lifecycle.obsolete_project_policy; assert 'obsolete_project_policy' in tbm.__all__"
           .package-smoke/bin/tbm resource list
           .package-smoke/bin/tbm resource export schemas/postgres.sql dist/postgres.wheel.sql
@@ -91,7 +120,7 @@ jobs:
 
           store = TraceBackedMemoryStore()
           trace = store.record_trace(Trace(trace_id="trace_lessons_smoke", run_id="run_lessons_smoke", commit_sha="commit_package_smoke", repo="repo_package_smoke", eval_result="fail"))
-          case = store.add_failure_case(FailureCase(case_id="case_lessons_smoke", source_trace_id=trace.trace_id, commit_sha=trace.commit_sha, failure_type="executor_failure", symptom="executor timed out", fix="bound executor runtime", fix_commit_sha="fix_package_smoke", regression_passed=True, status="verified"))
+          case = store.add_failure_case(FailureCase(case_id="case_lessons_smoke", source_trace_id=trace.trace_id, commit_sha=trace.commit_sha, failure_type="executor_failure", symptom="executor timed out", root_cause="executor runtime was unbounded", reviewed_by="package-smoke", reviewed_at="2026-07-25T00:00:00Z", fix="bound executor runtime", fix_commit_sha="fix_package_smoke", regression_passed=True, status="verified"))
           store.save_json("dist/lessons-target-wheel.snapshot.json")
           store.save_json("dist/lessons-target-sdist.snapshot.json")
           store.add_lesson(Lesson(lesson_id="lesson_package_smoke", source_case_id=case.case_id, lesson_text="Bound executor runtime before retrying.", memory_type="procedural", scope={"repo": trace.repo}))
@@ -160,7 +189,7 @@ jobs:
         run: |
           python -m venv .sdist-smoke
           .sdist-smoke/bin/python -c "from pathlib import Path; import subprocess, sys; sdist = next(Path('dist').glob('*.tar.gz')); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--no-deps', str(sdist)])"
-          .sdist-smoke/bin/python -c "from importlib.resources import files; from trace_backed_memory import load_failure_taxonomy, packaged_resources; assert len(packaged_resources()) == 18; assert 'invalid_tool_argument' in load_failure_taxonomy(); assert files('trace_backed_memory').joinpath('py.typed').is_file()"
+          .sdist-smoke/bin/python -c "from importlib.resources import files; from trace_backed_memory import load_failure_taxonomy, packaged_resources; assert len(packaged_resources()) == 20; assert 'invalid_tool_argument' in load_failure_taxonomy(); assert files('trace_backed_memory').joinpath('py.typed').is_file()"
           .sdist-smoke/bin/python -c "import trace_backed_memory as tbm; from trace_backed_memory import lifecycle, obsolete_project_policy; assert obsolete_project_policy is lifecycle.obsolete_project_policy; assert 'obsolete_project_policy' in tbm.__all__"
           .sdist-smoke/bin/tbm resource export schemas/postgres.sql dist/postgres.sdist.sql
           cmp schemas/postgres.sql dist/postgres.sdist.sql
@@ -175,7 +204,7 @@ jobs:
 
           store = TraceBackedMemoryStore()
           trace = store.record_trace(Trace(trace_id="trace_sdist_smoke", run_id="run_sdist_smoke", commit_sha="commit_sdist_smoke", repo="repo_sdist_smoke", eval_result="fail"))
-          case = store.add_failure_case(FailureCase(case_id="case_sdist_smoke", source_trace_id=trace.trace_id, commit_sha=trace.commit_sha, failure_type="executor_failure", symptom="executor timed out", fix="bound executor runtime", fix_commit_sha="fix_sdist_smoke", regression_passed=True, status="verified"))
+          case = store.add_failure_case(FailureCase(case_id="case_sdist_smoke", source_trace_id=trace.trace_id, commit_sha=trace.commit_sha, failure_type="executor_failure", symptom="executor timed out", root_cause="executor runtime was unbounded", reviewed_by="package-smoke", reviewed_at="2026-07-25T00:00:00Z", fix="bound executor runtime", fix_commit_sha="fix_sdist_smoke", regression_passed=True, status="verified"))
           store.save_json(root / "lessons-target.snapshot.json")
           store.add_lesson(Lesson(lesson_id="lesson_sdist_smoke", source_case_id=case.case_id, lesson_text="Bound executor runtime before retrying.", memory_type="procedural", scope={"repo": trace.repo}))
           store.add_lesson(Lesson(lesson_id="lesson_sdist_obsolete", source_case_id=case.case_id, lesson_text="Retry immediately.", memory_type="procedural", scope={"repo": trace.repo}, status="obsolete"))

@@ -739,10 +739,19 @@ def test_readme_additional_public_helpers_still_work():
     )
     context = MemoryContext(mode="repair", repo="agent-harness", commit_sha="abc123", tool="search_docs")
 
-    prompt = build_llm_gate_prompt(context, [memory_item_from_lesson(lesson)], task="repair failed tool call")
+    lesson_memory = memory_item_from_lesson(
+        lesson,
+        source_trace=trace,
+        source_case=verified,
+    )
+    prompt = build_llm_gate_prompt(
+        context,
+        [lesson_memory],
+        task="repair failed tool call",
+    )
 
     assert memory_item_from_failure_case(verified, trace).memory_id == "case_001"
-    assert memory_item_from_lesson(lesson).memory_id == "lesson_001"
+    assert lesson_memory.memory_id == "lesson_001"
     assert memory_item_from_project_policy(policy).source_policy_id == "project_policy_001"
     assert obsolete_failure_case(verified).status == "obsolete"
     assert obsolete_lesson(lesson).status == "obsolete"
@@ -952,7 +961,7 @@ def test_readme_publishes_and_executes_packaged_resource_contract(tmp_path):
         assert contract in normalized
 
     descriptions = packaged_resources()
-    assert len(descriptions) == 19
+    assert len(descriptions) == 20
     sqlite_expected = read_packaged_resource("schemas/sqlite.sql")
     sqlite_destination = tmp_path / "sqlite.sql"
     assert export_packaged_resource(

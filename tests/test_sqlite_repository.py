@@ -576,7 +576,8 @@ def test_sqlite_repository_savepoint_conflict_preserves_outer_transaction(
     _apply_schema(connection)
     connection.execute("CREATE TABLE caller_state(value TEXT NOT NULL)")
     repository = SQLiteMemoryRepository(connection)
-    repository.sync(_complete_store())
+    baseline = _complete_store()
+    repository.sync(baseline)
 
     conflicting = TraceBackedMemoryStore()
     conflicting.record_trace(
@@ -598,7 +599,7 @@ def test_sqlite_repository_savepoint_conflict_preserves_outer_transaction(
         ("kept",)
     ]
     connection.execute("ROLLBACK")
-    assert repository.load().to_snapshot() == _complete_store().to_snapshot()
+    assert repository.load().to_snapshot() == baseline.to_snapshot()
     repository.close()
     connection.close()
 
@@ -671,7 +672,8 @@ def test_sqlite_repository_cleanup_release_failure_preserves_primary_conflict(
     _apply_schema(connection)
     connection.execute("CREATE TABLE caller_state(value TEXT NOT NULL)")
     repository = SQLiteMemoryRepository(connection)
-    repository.sync(_complete_store())
+    baseline = _complete_store()
+    repository.sync(baseline)
     conflicting = TraceBackedMemoryStore()
     conflicting.record_trace(
         Trace(
@@ -694,7 +696,7 @@ def test_sqlite_repository_cleanup_release_failure_preserves_primary_conflict(
     ]
     connection.execute("INSERT INTO caller_state(value) VALUES ('still-usable')")
     connection.execute("ROLLBACK")
-    assert repository.load().to_snapshot() == _complete_store().to_snapshot()
+    assert repository.load().to_snapshot() == baseline.to_snapshot()
     repository.close()
     connection.close()
 
@@ -847,7 +849,8 @@ def test_sqlite_repository_top_level_rollback_failure_preserves_primary_error(
     )
     _apply_schema(connection)
     repository = SQLiteMemoryRepository(connection)
-    repository.sync(_complete_store())
+    baseline = _complete_store()
+    repository.sync(baseline)
     conflicting = TraceBackedMemoryStore()
     conflicting.record_trace(
         Trace(
@@ -867,7 +870,7 @@ def test_sqlite_repository_top_level_rollback_failure_preserves_primary_error(
         for note in getattr(exc_info.value, "__notes__", ())
     )
     assert not connection.in_transaction
-    assert repository.load().to_snapshot() == _complete_store().to_snapshot()
+    assert repository.load().to_snapshot() == baseline.to_snapshot()
     repository.close()
     connection.close()
 

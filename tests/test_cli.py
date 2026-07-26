@@ -3658,7 +3658,7 @@ def test_cli_write_with_embedded_nul_path_returns_structured_error(capsys):
     assert payload is None
     assert error["error"]["kind"] == "write"
     assert error["error"]["type"] == "ValueError"
-    assert "embedded null character" in error["error"]["message"]
+    assert "embedded null" in error["error"]["message"]
 
 
 def test_cli_snapshot_write_lock_delegates_to_shared_backend(

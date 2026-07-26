@@ -61,6 +61,22 @@ def test_snapshot_write_lock_zero_timeout_succeeds_without_contention(tmp_path):
     assert (tmp_path / "snapshot.json.tbm.lock").read_bytes() == b"0"
 
 
+def test_snapshot_write_lock_rejects_hard_link_snapshot_alias(tmp_path):
+    snapshot_path = tmp_path / "snapshot.json"
+    alias_path = tmp_path / "snapshot-alias.json"
+    snapshot_path.write_text("{}", encoding="utf-8")
+    os.link(snapshot_path, alias_path)
+
+    with pytest.raises(
+        OSError,
+        match="snapshot write target must be a single-link regular file",
+    ):
+        with tbm.snapshot_write_lock(alias_path, timeout_seconds=0):
+            raise AssertionError("a hard-link snapshot alias acquired a write lock")
+
+    assert not (tmp_path / "snapshot-alias.json.tbm.lock").exists()
+
+
 def test_snapshot_write_lock_rejects_symbolic_link_sidecar_without_writing(
     tmp_path,
 ):

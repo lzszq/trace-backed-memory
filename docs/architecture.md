@@ -253,12 +253,12 @@ and trailing LF characters, and intra-line spaces instead of globally trimming
 block content. It retains the adapter's historical literal-line interpretation
 of `>` rather than implementing general YAML folding or chomping. This changes
 no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
-1 remain unchanged.
+2 remain unchanged.
 
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 20 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 21 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -285,7 +285,7 @@ list/read/export` is a thin JSON CLI adapter over the same public resource
 interface. Export refuses replacement unless `--overwrite` is explicit and
 uses same-directory temporary bytes before atomic publication. Resource files
 are distribution artifacts, not Store records; snapshot version 2 and
-PostgreSQL schema version 1 remain unchanged.
+PostgreSQL schema version 2 remain unchanged.
 
 ### Bounded Local Document Ingestion
 
@@ -303,7 +303,7 @@ expose keyword-only controls such as `max_bytes`; an explicit `None` disables
 only that limit for trusted offline migrations. CLI adapters always use fixed
 safe defaults. These are runtime ingestion controls, not stored configuration:
 snapshot version 2, JSON Schemas, active-lessons YAML, packaged resource bytes,
-and PostgreSQL schema version 1 remain unchanged.
+and PostgreSQL schema version 2 remain unchanged.
 
 Usage-log reconstruction is average O(n) in snapshot records and nested
 ID/tool evidence. One `from_snapshot()` call owns temporary indexes for seen
@@ -320,7 +320,7 @@ changing IDs. Allocation, duplicate detection, and single lookup are average
 O(1), and a requested batch resolves in average O(k). Failed candidates do not
 advance the counter. The derived index is rebuilt by validated snapshot import,
 never serialized, and does not replace canonical output sorting, snapshot
-version 2, or PostgreSQL schema version 1.
+version 2, or PostgreSQL schema version 2.
 
 The live Store also owns a private derived index from each `run_id` to its
 ordered `trace_id` values. `record_trace()` is the only insertion boundary and
@@ -330,7 +330,7 @@ unique, and ambiguous run IDs in average O(1) without scanning `_traces`.
 Duplicate run IDs remain valid and ambiguous, while the index stores IDs so
 Trace completion resolves the current replacement record. Snapshot loading
 rebuilds this nonserialized state through `record_trace()`. Canonical output,
-legacy migration, snapshot version 2, and PostgreSQL schema version 1 remain
+legacy migration, snapshot version 2, and PostgreSQL schema version 2 remain
 unchanged.
 
 Live usage-log memory existence checks are bounded by the referenced IDs. If
@@ -340,7 +340,7 @@ validator checks every distinct reference directly against `_failure_cases`,
 number of referenced IDs, and allocates no full catalog copy. Snapshot loading
 continues to reuse one `known_memory_ids` set across all imported logs. No new
 derived index is introduced; deduplication, sorted unknown-ID errors,
-validation order, snapshot version 2, and PostgreSQL schema version 1 remain
+validation order, snapshot version 2, and PostgreSQL schema version 2 remain
 unchanged.
 
 The Store's `metrics()` view performs one usage-log pass with O(1)
@@ -351,7 +351,7 @@ rates preserve `None` for an empty cohort and `0.0` for a nonempty cohort with
 no passes. Lesson confidence still traverses the separate lesson map.
 `memory_outcome_metrics()`, decision-sorted memory-run views, and the CLI's
 independent public API calls retain their existing lock and ordering behavior.
-Snapshot version 2 and PostgreSQL schema version 1 remain unchanged.
+Snapshot version 2 and PostgreSQL schema version 2 remain unchanged.
 
 The `recover-batch` argv surface separately caps submitted values at 10,000
 decision IDs and 10,000 attribution options. A preload cardinality check runs
@@ -420,7 +420,7 @@ The shared ordered-pairs parser is used by
 `parse_memory_decision()`, while CLI file parsing preserves its structured
 input-error boundary. Every nesting level rejects duplicate object keys rather
 than applying last-key-wins. Valid mappings and canonical package output are
-unchanged, as are snapshot version 2 and PostgreSQL schema version 1.
+unchanged, as are snapshot version 2 and PostgreSQL schema version 2.
 
 `lessons export SNAPSHOT DESTINATION [--overwrite]` delegates active-only
 selection and canonical YAML serialization to `save_lessons_yaml()`. The CLI
@@ -470,7 +470,7 @@ store. Single-record obsolescence and atomic batch obsolescence, including every
 case-to-lesson cascade, share the same rule. The CLI does not stage lifecycle
 records, parse YAML, or classify records independently, and it never synthesizes
 a batch by looping over single-record transitions. Snapshot version 2 and
-PostgreSQL schema version 1 remain unchanged because the manifest is ephemeral.
+PostgreSQL schema version 2 remain unchanged because the manifest is ephemeral.
 
 Each snapshot `--write` command also acquires a sibling `.tbm.lock` exclusive
 advisory lock before snapshot load and holds it across the complete
@@ -488,7 +488,7 @@ Both platforms retry contention for at most 30 seconds; timeout fails before
 snapshot load as a write error with exit code 4. Dry runs, read-only commands,
 lessons export, and resource export remain lock-free. This coordinates
 cooperating local CLI processes without adding snapshot or PostgreSQL state;
-snapshot version 2 and PostgreSQL schema version 1 remain unchanged.
+snapshot version 2 and PostgreSQL schema version 2 remain unchanged.
 
 The root-package `snapshot_write_lock()` context manager exposes that same
 canonical `.tbm.lock` protocol to Python callers. It accepts a finite
@@ -497,7 +497,7 @@ and `save_json()` read-modify-write transaction. The lock is cross-process,
 advisory, and non-reentrant; it complements rather than replaces the Store's
 per-instance `RLock` and is unrelated to PostgreSQL transactions. CLI and
 Python writers using the helper therefore converge on one persistent sidecar
-without changing snapshot version 2 or PostgreSQL schema version 1.
+without changing snapshot version 2 or PostgreSQL schema version 2.
 
 Successful commands emit one deterministic JSON value plus a newline. Failures
 emit one structured JSON object to stderr without a traceback. Exit codes are
@@ -512,7 +512,7 @@ argparse text path.
 
 The adapter persists no command, audit, metrics, or remediation record. It
 leaves snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL
-schema version 1 unchanged.
+schema version 2 unchanged.
 
 ## Layer 4: Memory Gate
 
@@ -652,7 +652,7 @@ retry and recovery policy. The execution module does not access private Store
 state, persist records, synchronize PostgreSQL, or create another completion
 state machine. `MemoryRunMeasurement`, callback types, and execution errors are
 ephemeral; snapshot version 2, JSON Schemas, active-lessons YAML, and
-PostgreSQL schema version 1 remain unchanged.
+PostgreSQL schema version 2 remain unchanged.
 
 Execution normally finishes after the decision is logged. The chronological
 runtime path registers an `unknown` current Trace, finalizes memory, executes,
@@ -690,7 +690,7 @@ results, so recovery cannot introduce a caller-selected outcome. Single
 
 `MemoryRunResult` is ephemeral and not persisted. Existing PostgreSQL
 transactions synchronize the resulting Trace and usage rows. Snapshot version
-2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain
+2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 2 remain
 unchanged.
 
 An unevaluated usage log supports its low-level store-owned transition through
@@ -714,7 +714,7 @@ store will never auto-repair it or silently prefer one historical result.
 Traces without usage decisions are excluded, while multiple decisions linked
 to one Trace remain independent rows. The view is derived and not persisted;
 snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
-version 1 remain unchanged.
+version 2 remain unchanged.
 
 `memory_run_remediations()` maps each audit under the same lock to a frozen
 `MemoryRunRemediation`. Its `MemoryRunRemediationAction` is `measure` for
@@ -736,7 +736,7 @@ so a returned action grants no mutation authority. Per-decision `recover`
 actions on one shared Trace can resolve to different outcomes; the batch write
 still rejects that group as incompatible. `MemoryRunRemediation` is derived
 and not persisted; snapshot version 2, JSON Schemas, active-lessons YAML, and
-PostgreSQL schema version 1 remain unchanged.
+PostgreSQL schema version 2 remain unchanged.
 
 `recover_ready_memory_runs()` closes the plan-to-write race for automatic
 recovery. While holding one reentrant lock in the store, it derives remediations,
@@ -753,7 +753,7 @@ explicit attribution remains caller-owned through the existing recovery APIs.
 
 The sweep selection is not persisted and adds no queue or marker. PostgreSQL
 synchronizes only the existing Trace and usage changes. Snapshot version 2,
-JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1 remain
+JSON Schemas, active-lessons YAML, and PostgreSQL schema version 2 remain
 unchanged.
 
 `memory_run_metrics()` aggregates that same locked view into a frozen
@@ -776,7 +776,7 @@ This health summary deliberately remains separate from the outcome-oriented
 `metrics()` and per-memory observations. It is derived and not persisted, so
 snapshot and PostgreSQL reconstruction use existing Trace and usage rows.
 Snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
-version 1 remain unchanged.
+version 2 remain unchanged.
 
 `recover_memory_run()` consumes a `decision_id` from that view and does not
 accept `trace_id` or `eval_result`. Under the store lock it reclassifies current
@@ -792,7 +792,7 @@ explicit mismatch is rejected. `complete` replays exactly. Recovery rejects
 `pending` and `conflict` and never guesses a missing result or chooses between
 incompatible results. Only existing Trace and decision fields change, so
 snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
-version 1 remain unchanged.
+version 2 remain unchanged.
 
 `recover_memory_runs()` extends the same resolver to a non-empty tuple of
 unique decision IDs and an optional `memory_caused_failures` mapping. It
@@ -812,7 +812,7 @@ completion evidence parameters. Call `recover_memory_run()` when one recovery
 must attach output hash, tool output, latency, cost, error, or Trace URI. The
 batch wrapper is not persisted; existing PostgreSQL transactions synchronize
 the resulting Trace and usage rows. Snapshot version 2, JSON Schemas,
-active-lessons YAML, and PostgreSQL schema version 1 remain unchanged.
+active-lessons YAML, and PostgreSQL schema version 2 remain unchanged.
 
 At finalization and low-level logging, `repo`, `commit_sha`, and `tenant` always
 match the linked Trace. `branch`, `prompt_version`, `prompt_family`,
@@ -826,7 +826,7 @@ stored fields.
 These checks run before pending request consumption or usage-log append.
 Imported version-2 and supplied legacy context evidence is validated by the
 same declared-only rules. This adds no record or column: snapshot version 2 and
-PostgreSQL schema version 1 remain unchanged.
+PostgreSQL schema version 2 remain unchanged.
 
 Usage logs persist a nonblank trace ID, serialized context, candidate IDs,
 candidate status snapshots, System Gate blocked reasons, used IDs, blocked IDs,
@@ -859,7 +859,7 @@ fields at their zero defaults.
 These are decision counts, not per-memory causal attribution. The existing
 with/without split is determined by whether a usage record has non-empty
 `used_memory_ids`. Metrics remain derived and are not persisted; snapshot
-version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 1
+version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema version 2
 remain unchanged.
 
 Sealing a deferred outcome moves the decision from the unevaluated count to an
@@ -875,7 +875,7 @@ previous/current result and attribution, `changed`, and `written`; usage-log
 context, memory ID collections, Trace fields, and tool evidence remain private.
 Serialization precedes optional same-path atomic publication. The command adds
 no persisted wrapper, so snapshot version 2, JSON Schemas, active-lessons YAML,
-and PostgreSQL schema version 1 remain unchanged.
+and PostgreSQL schema version 2 remain unchanged.
 
 `memory_outcome_metrics()` returns a memory-ID-sorted tuple for every stored
 failure case, lesson, and project policy, including IDs with no observations.
@@ -927,7 +927,7 @@ match both values before request consumption. Existing usage evidence records
 the current pair, candidate IDs/statuses, and the automatic block reason.
 `input_hash` is identity evidence, not memory scope; metadata retrieval does not
 filter or scope lessons and policies by this field. Persistence remains
-snapshot version 2 and PostgreSQL schema version 1 with no new persisted memory
+snapshot version 2 and PostgreSQL schema version 2 with no new persisted memory
 fields: trace identity uses existing trace columns, current identity and the
 block reason use existing usage JSON/JSONB, and source identity is rebuilt from
 the trace/case/lesson graph.
@@ -1076,7 +1076,10 @@ directly; installed-package users export the same bytes with `tbm resource
 export schemas/postgres.sql postgres.sql`. It locks the one schema metadata row
 and requires schema version 2. Existing version-1 installations must first
 apply the packaged `schemas/postgres-v1-to-v2.sql` migration. The adapter does
-not run migrations automatically. This is the current PostgreSQL schema
+not run migrations automatically. Existing version-2 databases created before
+the lesson/source-case lock-order fix should apply the idempotent, version-gated
+`schemas/postgres-v2-lock-order-hotfix.sql` operator script. Fresh installs and
+the current v1-to-v2 migration already contain the fix. This is the current PostgreSQL schema
 version 2 contract.
 
 The fresh-install Trace table uses the named
@@ -1089,7 +1092,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 20 resources.
+contains 21 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1133,7 +1136,7 @@ the linked `trace_id` and `decision_id` updates in its existing transaction, so
 an atomic synchronization either commits both forward transitions or rolls the
 Trace update back when the usage row conflicts. This also supports persistence
 after partial recovery. Snapshot version 2, JSON Schemas, active-lessons YAML,
-and PostgreSQL schema version 1 remain unchanged.
+and PostgreSQL schema version 2 remain unchanged.
 
 Database triggers still enforce forward-only status transitions. Failure cases
 may move from `draft` to `verified` or `obsolete`, and from `verified` to
@@ -1174,7 +1177,7 @@ sanitized persistence error, rolls back the operation, and returns no partial
 Store. `sync()` is unchanged: its input is already caller-owned client memory.
 These preflights change no public API, snapshot version 2, JSON Schema,
 active-lessons YAML, packaged resource, PostgreSQL DDL, or PostgreSQL schema
-version 1.
+version 2.
 
 The repository uses the schema owner or an equivalent write-capable role. On
 PostgreSQL 12, explicit `SHARE` table locks require table-level `UPDATE`,
@@ -1271,11 +1274,11 @@ silently unfiltered reports. The CLI does not expose broad `changed_fields`,
 accept supplied ancestry evidence, infer a repository, or compare with `HEAD`.
 Input documents retain the bounded CLI JSON contract. This adapter adds no
 record or schema: snapshot version 2, JSON Schemas, active-lessons YAML,
-packaged resource bytes, and PostgreSQL schema version 1 remain unchanged.
+packaged resource bytes, and PostgreSQL schema version 2 remain unchanged.
 
 Change sets and endpoint tags are ephemeral report-boundary values. They are
 not serialized or stored: snapshot version remains 2, JSON Schemas and
-active-lessons YAML remain unchanged, and PostgreSQL schema version remains 1.
+active-lessons YAML remain unchanged, and PostgreSQL schema version remains 2.
 
 ## Git Ancestry Applicability
 
@@ -1302,7 +1305,7 @@ only the first byte of `git status --porcelain` and drains the rest, preserving
 dirty semantics without caller-sized memory. Injected runner APIs and command
 order are unchanged. Malformed injected results are validated after each
 command, before the next command or Trace construction. The runner is ephemeral
-infrastructure: snapshot version 2 and PostgreSQL schema version 1 remain
+infrastructure: snapshot version 2 and PostgreSQL schema version 2 remain
 unchanged.
 
 Runtime anchor meaning is exact: lesson memory uses its source failure case's

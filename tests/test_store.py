@@ -6144,6 +6144,101 @@ def test_store_retrieves_by_metadata_then_logs_usage_decision():
     assert store.usage_logs == [log]
 
 
+def test_low_level_logging_rejects_candidate_limit_before_memory_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(store_module, "GATE_REQUEST_MAX_CANDIDATES", 2)
+    store = TraceBackedMemoryStore()
+    trace = store.record_trace(
+        Trace(
+            trace_id="trace_candidate_limit",
+            run_id="run_candidate_limit",
+            commit_sha="abc",
+            repo="repo",
+        )
+    )
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="abc")
+    validation_called = False
+
+    def reject_late_validation(_value, _field_name):
+        nonlocal validation_called
+        validation_called = True
+        raise AssertionError("candidate validation ran after an oversized preflight")
+
+    monkeypatch.setattr(
+        store_module,
+        "_validate_memory_id_list",
+        reject_late_validation,
+    )
+
+    with pytest.raises(ValueError, match="candidate limit exceeded"):
+        store.log_decision(
+            trace.run_id,
+            context,
+            ["missing_1", "missing_2", "missing_3"],
+            MemoryDecision(
+                use_memory=False,
+                allowed_memory_ids=[],
+                blocked_memory_ids=[],
+                reason="no memory should be used",
+                risk="none",
+                recommended_injection="none",
+            ),
+        )
+    assert validation_called is False
+
+
+def test_prepare_memory_stops_keyword_work_at_candidate_limit_plus_one(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(store_module, "GATE_REQUEST_MAX_CANDIDATES", 2)
+    store = TraceBackedMemoryStore()
+    for index in range(10):
+        store.add_project_policy(
+            ProjectPolicy(
+                policy_id=f"policy_limit_{index}",
+                policy_text="matching keyword",
+                scope={"repo": "repo"},
+            )
+        )
+    original_memory_tokens = store_module._memory_tokens
+    calls = 0
+
+    def counted_memory_tokens(memory):
+        nonlocal calls
+        calls += 1
+        return original_memory_tokens(memory)
+
+    monkeypatch.setattr(store_module, "_memory_tokens", counted_memory_tokens)
+
+    with pytest.raises(ValueError, match="candidate limit exceeded"):
+        store.prepare_memory(
+            MemoryContext(mode="repair", repo="repo", commit_sha="abc"),
+            task="bounded retrieval",
+            query="matching",
+        )
+
+    assert calls == 3
+
+
+def test_store_rejects_oversized_direct_commit_ancestry_evidence():
+    store = TraceBackedMemoryStore()
+    context = MemoryContext(mode="repair", repo="repo", commit_sha="head")
+    evidence = CommitAncestryEvidence(
+        current_commit_sha="head",
+        commit_relations=tuple(
+            (f"anchor_{index}", True)
+            for index in range(tbm.COMMIT_ANCESTRY_MAX_ANCHORS + 1)
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="commit ancestry accepts at most 1000 relations",
+    ):
+        store.candidate_memories(context, commit_ancestry=evidence)
+
+
 def test_low_level_logging_reapplies_system_gate_before_persisting_usage():
     store, trace, case = store_with_verified_case()
     lesson = store.add_lesson(

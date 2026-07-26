@@ -65,7 +65,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 运行编排 | `run_memory_execution()` 同步串联 decision callback、execution callback 与原子完成；`MemoryRunMeasurement` 无需调用方复制 decision ID |
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
 | 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、active lessons 原子导出与 dry-run 导入、failure case/lesson/project policy forward-only 淘汰预览与显式写入、audit/metrics/remediation、只读 PR report、单项与清单式批量 measured completion、dry-run 恢复与显式 `--write` 原子替换 |
-| 分发资源 | wheel/sdist/editable 内置 20 份 byte-identical Schema、SQL/迁移、taxonomy 与示例；支持发现、读取、校验元数据和原子导出 |
+| 分发资源 | wheel/sdist/editable 内置 21 份 byte-identical Schema、SQL/迁移、taxonomy 与示例；支持发现、读取、校验元数据和原子导出 |
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类；bounded local document ingestion 对本地 JSON/YAML 先限额再校验，并以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
 | PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配，以及可直接接入流水线的 `pr-report` JSON 输出 |
@@ -174,13 +174,13 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 Phase 71 强化可信提升与运行时边界：Failure Case 只能来自 `fail`/`error` Trace，verify 前必须具备 reviewer、root cause 与 review timestamp，dirty source 不能激活 Lesson；LLM response 限制为 64 KiB、1,000 nodes、depth 20，reason 最多 2,000 字符；所有未被 LLM 选中的系统候选都会进入 blocked 审计，超过 50 项时确定性保留前 50 项并记录其余项；`short_summary` 与 `full_case_summary` 使用不同 renderer，关键词检索支持 Unicode。
 
-Phase 72 增加标准库 `SQLiteMemoryRepository`：增量原子同步使用 `BEGIN IMMEDIATE`，caller transaction 使用 savepoint，load 在 Store 重建前执行记录数与 UTF-8 payload 限制。SQLite 使用 schema 版本 1，PostgreSQL 使用 schema 版本 2；资源总数为 20。
+Phase 72 增加标准库 `SQLiteMemoryRepository`：增量原子同步使用 `BEGIN IMMEDIATE`，caller transaction 使用 savepoint，load 在 Store 重建前执行记录数与 UTF-8 payload 限制。SQLite 使用 schema 版本 1，PostgreSQL 当时仍使用 schema 版本 1；资源总数为 19。
 
 Phase 73 收敛 review 指出的运行边界：限制 query、semantic mapping、batch、pending/finalized Gate 状态和 lesson/policy 文本；高层 Gate request 绑定 Trace/run，usage log 持久化 `request_id`；每个 request 与 pending request 聚合候选都有硬上限；本地摄取拒绝特殊文件，SQLite 同实例操作串行化并在顶层回滚失败时保留主异常；PostgreSQL v2 通过原子迁移增加 request audit、不可变 Trace/usage/source trigger 和前向 outcome 保护；持久化时间戳统一为最多六位小数的严格 RFC 3339；CI 增加 lint、类型、覆盖率和依赖审计门禁。
 
 当前仍有明确的生产边界：snapshot version 2 没有 canonical `repository_id` 或显式 global/repository/tenant scope kind；`regression_passed` 仍不是结构化 run/evaluator 证据；Gate request 与 finalized tombstone 仍只存在于进程内，但 pending request 已有容量限制和显式取消，finalized tombstone 已有容量限制，高层请求会绑定 Trace/run，最终 usage log 会持久化 `request_id`；usage log 仍不足以精确重放 retriever、gate、ancestry 与 renderer；Git ancestry 仍是 opt-in。持久化幂等、TTL 与崩溃恢复仍属于后续 schema 工作。既有 version-2 snapshot 中 verified 但未 review 的 case 必须补齐证据后才能加载。
 
-以下 Phase 49–70 段落保留各功能落地时的版本与资源基线，属于历史兼容记录；当前发布契约以本节上方的 Phase 73、PostgreSQL schema version 2 和 20 项资源说明为准。
+以下 Phase 49–70 段落保留各功能落地时的版本与资源基线，属于历史兼容记录；当前发布契约以 PostgreSQL schema version 2 和 21 项资源说明为准。第 21 项资源是面向既有 version-2 数据库、可重复运行且带版本门禁的 `schemas/postgres-v2-lock-order-hotfix.sql`；全新安装与当前 v1→v2 迁移已包含同一修复。
 
 Phase 49 将持久化 identity、linkage、必填 failure 文本、lesson/policy scope、Memory Context 与 usage-audit mapping 的键值统一为“至少包含一个 non-whitespace 字符”，但不会 trim 已接受的值。可选 Trace metadata、无关 Failure Case narrative 字段和 candidate/used/blocked memory-ID arrays 保持既有契约。PostgreSQL schema version 1 的默认 `btrim` 已拒绝全普通空格，但比 Python/JSON Schema 边界更窄；受支持的 Store→Repository 写入路径使用更严格的 portable validation，直接 SQL 写入的其他 whitespace-only 数据需由 operator 清理。
 
@@ -257,7 +257,7 @@ Phase 70 修复 `recover-batch --attribution` 对合法 decision ID 的分隔歧
 - 不把向量相似度视为安全或适用性的充分证明。
 - 不允许 LLM 自行激活、验证或重新放行 memory。
 - SQLite 使用规范 JSON payload envelope，不支持直接 SQL 领域修改、原地迁移、异步访问或跨主机共享 writer 协调。
-- PostgreSQL 仅提供明确的 v1→v2 operator migration，不提供自动在线迁移框架、connection pool 或 async repository。
+- PostgreSQL 提供明确的 v1→v2 与 version-2 锁序 operator 脚本，不提供自动在线迁移框架、connection pool 或 async repository。
 - Outcome metrics 是观测关联，不是单个 memory 的因果效果估计。
 - 冲突运行只提供调查入口，不自动覆盖任一已封存结果。
 

@@ -1196,7 +1196,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 snapshot_transaction.enter_context(
                     _snapshot_write_lock(args.snapshot)
                 )
-            except OSError as error:
+            except (OSError, ValueError) as error:
                 return _emit_error("write", error, 4)
 
         try:

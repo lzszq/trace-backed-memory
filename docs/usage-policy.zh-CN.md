@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-20 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2 和独立原子 `schemas/postgres-v1-to-v2.sql` operator migration。
+21 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration 和可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -244,7 +244,7 @@ metadata 与关键词检索使用 Unicode-aware tokenization；非 ASCII 词还�
 
 生产部署必须把 declared-scope matching 视为适用性判断，而不是授权。省略 `repo` 或 `tenant` 的 memory 不会自动获得该字段的隔离。canonical repository identity、显式 scope kind、durable Gate request、可重放审计、结构化 regression evidence 与 required ancestry 仍属于 schema v3 / PostgreSQL schema v3。
 
-加载既有 version-2 snapshot 前必须补齐 verified-but-unreviewed case 的 review 证据；同步前必须对既有 PostgreSQL schema-version-1 安装应用包内 `schemas/postgres-v1-to-v2.sql`。
+加载既有 version-2 snapshot 前必须补齐 verified-but-unreviewed case 的 review 证据；同步前必须对既有 PostgreSQL schema-version-1 安装应用包内 `schemas/postgres-v1-to-v2.sql`。在 Lesson/source-case 锁序修复前创建的 schema-version-2 数据库必须应用可重复运行且带版本门禁的 `schemas/postgres-v2-lock-order-hotfix.sql`；全新安装与当前 v1→v2 迁移已包含该修复。
 
 推荐格式：
 

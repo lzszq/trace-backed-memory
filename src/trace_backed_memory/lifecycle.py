@@ -5,7 +5,12 @@ from typing import get_args
 
 from ._timestamps import parse_rfc3339, utc_timestamp
 from .models import FailureCase, Lesson, LessonStatus, MemoryItem, MemoryType, ProjectPolicy, Trace
-from .policy import MEMORY_TEXT_MAX_CHARS, METADATA_VALUE_MAX_CHARS, is_finite_number
+from .policy import (
+    MEMORY_ID_MAX_CHARS,
+    MEMORY_TEXT_MAX_CHARS,
+    METADATA_VALUE_MAX_CHARS,
+    is_finite_number,
+)
 
 SCOPE_FIELDS = {
     "repo",
@@ -25,9 +30,26 @@ _SUPPORTED_MEMORY_TYPES = set(get_args(MemoryType))
 _SUPPORTED_POLICY_STATUSES = set(get_args(LessonStatus))
 
 
-def _require_non_empty_string(value: str, field_name: str) -> None:
+def _require_non_empty_string(
+    value: object,
+    field_name: str,
+    *,
+    max_chars: int | None = None,
+) -> None:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field_name} must be a non-empty string")
+    if max_chars is not None and len(value) > max_chars:
+        raise ValueError(f"{field_name} must be at most {max_chars} characters")
+
+
+def _require_optional_non_empty_string(
+    value: object | None,
+    field_name: str,
+    *,
+    max_chars: int | None = None,
+) -> None:
+    if value is not None:
+        _require_non_empty_string(value, field_name, max_chars=max_chars)
 
 
 def _require_supported_value(value: str, field_name: str, supported_values: set[str]) -> None:
@@ -55,6 +77,55 @@ def _require_completed_review(case: FailureCase) -> None:
             "reviewed_by, root_cause, and reviewed_at"
         )
     _require_rfc3339_timestamp(case.reviewed_at, "reviewed_at")
+    _require_non_empty_string(
+        case.reviewed_by,
+        "reviewed_by",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
+    _require_non_empty_string(case.root_cause, "root_cause")
+
+
+def _require_failure_case_identity(case: FailureCase) -> None:
+    _require_non_empty_string(
+        case.case_id,
+        "case_id",
+        max_chars=MEMORY_ID_MAX_CHARS,
+    )
+    _require_non_empty_string(
+        case.source_trace_id,
+        "source_trace_id",
+        max_chars=MEMORY_ID_MAX_CHARS,
+    )
+    _require_non_empty_string(
+        case.commit_sha,
+        "commit_sha",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
+
+
+def _require_failure_case_core(case: FailureCase) -> None:
+    _require_failure_case_identity(case)
+    _require_non_empty_string(
+        case.failure_type,
+        "failure_type",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
+    _require_non_empty_string(case.symptom, "symptom")
+
+
+def _require_verified_failure_case(case: FailureCase) -> None:
+    if case.status != "verified":
+        raise ValueError("active memory requires a verified failure case")
+    if type(case.regression_passed) is not bool or not case.regression_passed:
+        raise ValueError("active memory requires a regression-backed failure case")
+    _require_failure_case_core(case)
+    _require_completed_review(case)
+    _require_non_empty_string(case.fix, "fix")
+    _require_non_empty_string(
+        case.fix_commit_sha,
+        "fix_commit_sha",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
 
 
 def validate_lesson_contract(*, lesson_text: str, scope: dict[str, str], confidence: float) -> None:
@@ -93,9 +164,25 @@ def draft_failure_case(
 ) -> FailureCase:
     if trace.eval_result not in {"fail", "error"}:
         raise ValueError("failure cases can only be drafted from failed or errored traces")
-    _require_non_empty_string(case_id, "case_id")
-    _require_non_empty_string(failure_type, "failure_type")
+    _require_non_empty_string(
+        trace.trace_id,
+        "source_trace_id",
+        max_chars=MEMORY_ID_MAX_CHARS,
+    )
+    _require_non_empty_string(
+        trace.commit_sha,
+        "commit_sha",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
+    _require_non_empty_string(case_id, "case_id", max_chars=MEMORY_ID_MAX_CHARS)
+    _require_non_empty_string(
+        failure_type,
+        "failure_type",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
     _require_non_empty_string(symptom, "symptom")
+    _require_optional_non_empty_string(root_cause, "root_cause")
+    _require_optional_non_empty_string(fix, "fix")
 
     return FailureCase(
         case_id=case_id,
@@ -118,8 +205,13 @@ def verify_failure_case(
 ) -> FailureCase:
     if case.status != "draft":
         raise ValueError("only draft failure cases can be verified")
+    _require_failure_case_core(case)
     _require_non_empty_string(fix, "fix")
-    _require_non_empty_string(fix_commit_sha, "fix_commit_sha")
+    _require_non_empty_string(
+        fix_commit_sha,
+        "fix_commit_sha",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
     if type(regression_passed) is not bool or not regression_passed:
         raise ValueError("verified failure cases require a passing regression")
     _require_completed_review(case)
@@ -145,19 +237,42 @@ def review_failure_case(
 ) -> FailureCase:
     if case.status != "draft":
         raise ValueError("only draft failure cases can be manually reviewed")
-    _require_non_empty_string(reviewed_by, "reviewed_by")
+    _require_failure_case_identity(case)
+    _require_non_empty_string(
+        reviewed_by,
+        "reviewed_by",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
     _require_non_empty_string(root_cause, "root_cause")
+    _require_optional_non_empty_string(
+        failure_type,
+        "failure_type",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
+    _require_optional_non_empty_string(symptom, "symptom")
+    _require_optional_non_empty_string(review_notes, "review_notes")
+    _require_non_empty_string(
+        failure_type if failure_type is not None else case.failure_type,
+        "failure_type",
+        max_chars=METADATA_VALUE_MAX_CHARS,
+    )
+    _require_non_empty_string(
+        symptom if symptom is not None else case.symptom,
+        "symptom",
+    )
     if reviewed_at is not None:
         _require_rfc3339_timestamp(reviewed_at, "reviewed_at")
 
     return replace(
         case,
-        failure_type=failure_type or case.failure_type,
-        symptom=symptom or case.symptom,
+        failure_type=(
+            failure_type if failure_type is not None else case.failure_type
+        ),
+        symptom=symptom if symptom is not None else case.symptom,
         root_cause=root_cause,
         reviewed_by=reviewed_by,
         review_notes=review_notes,
-        reviewed_at=reviewed_at or _utc_timestamp(),
+        reviewed_at=reviewed_at if reviewed_at is not None else _utc_timestamp(),
     )
 
 
@@ -178,10 +293,14 @@ def lesson_from_failure_case(
         raise ValueError("active lessons require a verified failure case")
     if not case.regression_passed:
         raise ValueError("active lessons require a regression-backed failure case")
-    _require_non_empty_string(lesson_id, "lesson_id")
+    _require_non_empty_string(
+        lesson_id,
+        "lesson_id",
+        max_chars=MEMORY_ID_MAX_CHARS,
+    )
     _require_supported_value(memory_type, "memory_type", _SUPPORTED_MEMORY_TYPES)
     validate_lesson_contract(lesson_text=lesson_text, scope=scope, confidence=confidence)
-    _require_completed_review(case)
+    _require_verified_failure_case(case)
 
     return Lesson(
         lesson_id=lesson_id,
@@ -233,7 +352,7 @@ def memory_item_from_failure_case(case: FailureCase, trace: Trace) -> MemoryItem
         raise ValueError("failure case source_trace_id must match trace")
     if case.commit_sha != trace.commit_sha:
         raise ValueError("failure case commit_sha must match trace")
-    _require_completed_review(case)
+    _require_verified_failure_case(case)
     return memory_item_from_failure_case_for_audit(case, trace)
 
 

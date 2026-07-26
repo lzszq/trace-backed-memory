@@ -111,6 +111,59 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         assert ignored_secret_pattern in gitignore
 
 
+def test_current_docs_publish_postgres_v2_and_21_resource_contracts():
+    current_english_documents = {
+        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "docs/architecture.md": _doc("architecture.md"),
+        "docs/usage-policy.md": _doc("usage-policy.md"),
+        "docs/product.en.md": _doc("product.en.md"),
+        "docs/product.md": _doc("product.md"),
+        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+    }
+    for name, document in current_english_documents.items():
+        normalized = " ".join(document.split()).lower()
+        assert (
+            "postgresql schema version 2" in normalized
+        ), f"{name} must publish the current PostgreSQL schema version"
+
+    for name in ("README.md", "docs/architecture.md", "docs/usage-policy.md"):
+        normalized = " ".join(
+            current_english_documents[name].split()
+        ).lower()
+        assert "postgresql schema version 1" not in normalized
+
+    bilingual_documents = {
+        **{
+            name: document
+            for name, document in current_english_documents.items()
+            if name != "docs/mvp-roadmap.md"
+        },
+        "README.zh-CN.md": (ROOT / "README.zh-CN.md").read_text(
+            encoding="utf-8"
+        ),
+        "docs/architecture.zh-CN.md": _doc("architecture.zh-CN.md"),
+        "docs/usage-policy.zh-CN.md": _doc("usage-policy.zh-CN.md"),
+    }
+    for name, document in bilingual_documents.items():
+        assert (
+            "schemas/postgres-v2-lock-order-hotfix.sql" in document
+        ), f"{name} must publish the version-2 hotfix resource"
+
+    assert "contains 21 resources" in current_english_documents["README.md"]
+    assert (
+        "contains 21 resources"
+        in current_english_documents["docs/architecture.md"]
+    )
+    assert (
+        "21 installed resource copies"
+        in current_english_documents["docs/usage-policy.md"]
+    )
+    assert (
+        "Distribution resources | 21"
+        in current_english_documents["docs/product.en.md"]
+    )
+
+
 def test_readme_language_versions_stay_linked_and_structurally_aligned():
     english_path = ROOT / "README.md"
     chinese_path = ROOT / "README.zh-CN.md"
@@ -323,7 +376,7 @@ def test_docs_publish_pr_change_set_ephemeral_persistence_contract():
         in usage_policy_contract
     )
     assert "snapshot version remains 2" in architecture
-    assert "PostgreSQL schema version remains 1" in architecture
+    assert "PostgreSQL schema version remains 2" in architecture
 
 
 def test_docs_publish_exact_postgres_transaction_ownership_contract():
@@ -1305,7 +1358,7 @@ def test_docs_publish_benchmark_leakage_contract_and_persistence_boundaries():
         "automatic block reason",
         "`input_hash` is identity evidence, not memory scope",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
         "no new persisted memory fields",
     ]
     for name, document in documents.items():
@@ -1433,7 +1486,7 @@ def test_docs_publish_declared_trace_provenance_binding_and_compatibility():
         "before pending request consumption or usage-log append",
         "Imported version-2 and supplied legacy context evidence",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1472,7 +1525,7 @@ def test_docs_publish_deferred_outcome_sealing_and_compatibility():
         "every other usage",
         "immutable",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1518,7 +1571,7 @@ def test_docs_publish_deferred_trace_completion_and_compatibility():
         "exact replay",
         "`record_decision_outcome()`",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1569,7 +1622,7 @@ def test_docs_publish_atomic_memory_run_completion_and_compatibility():
         "partial recovery",
         "atomic",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1617,7 +1670,7 @@ def test_docs_publish_memory_run_audits_and_compatibility():
         "derived",
         "not persisted",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1664,7 +1717,7 @@ def test_docs_publish_memory_run_recovery_and_compatibility():
         "`complete_memory_run()`",
         "atomic",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1711,7 +1764,7 @@ def test_docs_publish_memory_run_metrics_and_compatibility():
         "derived",
         "not persisted",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1761,7 +1814,7 @@ def test_docs_publish_atomic_batch_memory_run_recovery_and_compatibility():
         "`recover_memory_run()`",
         "not persisted",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1810,7 +1863,7 @@ def test_docs_publish_atomic_batch_memory_run_completion_and_compatibility():
         "`recover_memory_runs()`",
         "not persisted",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1861,7 +1914,7 @@ def test_docs_publish_memory_run_remediation_plan_and_compatibility():
         "`recover_memory_runs()`",
         "derived and not persisted",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1909,7 +1962,7 @@ def test_docs_publish_ready_memory_run_recovery_and_compatibility():
         "explicit",
         "selection is not persisted",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -1956,7 +2009,7 @@ def test_docs_publish_snapshot_operations_cli_and_compatibility():
         "structured JSON",
         "exit codes",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -2014,7 +2067,7 @@ def test_docs_publish_memory_run_execution_and_compatibility():
         "callback",
         "advanced",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -2095,7 +2148,7 @@ def test_docs_publish_evidence_ingestion_integrity_and_compatibility():
         "duplicate",
         "all-or-nothing",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split())
@@ -2153,7 +2206,7 @@ def test_docs_publish_conservative_failure_extraction_accuracy():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_linear_snapshot_usage_log_validation():
@@ -2172,7 +2225,7 @@ def test_docs_publish_linear_snapshot_usage_log_validation():
         "`run_id`",
         "candidate/used/blocked",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2191,7 +2244,7 @@ def test_docs_publish_linear_snapshot_usage_log_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_indexed_usage_log_operations():
@@ -2210,7 +2263,7 @@ def test_docs_publish_indexed_usage_log_operations():
         "numeric suffix",
         "derived index",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2229,7 +2282,7 @@ def test_docs_publish_indexed_usage_log_operations():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_indexed_run_to_trace_lookup():
@@ -2249,7 +2302,7 @@ def test_docs_publish_indexed_run_to_trace_lookup():
         "derived index",
         "ambiguous",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2268,7 +2321,7 @@ def test_docs_publish_indexed_run_to_trace_lookup():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_referenced_live_memory_id_validation():
@@ -2287,7 +2340,7 @@ def test_docs_publish_referenced_live_memory_id_validation():
         "`known_memory_ids`",
         "no new derived index",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2306,7 +2359,7 @@ def test_docs_publish_referenced_live_memory_id_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_single_pass_store_metrics():
@@ -2325,7 +2378,7 @@ def test_docs_publish_single_pass_store_metrics():
         "`metrics()`",
         "`memory_outcome_metrics()`",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2344,7 +2397,7 @@ def test_docs_publish_single_pass_store_metrics():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_single_pass_memory_run_metrics():
@@ -2365,7 +2418,7 @@ def test_docs_publish_single_pass_memory_run_metrics():
         "`memory_run_audits()`",
         "decision-id order",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2384,7 +2437,7 @@ def test_docs_publish_single_pass_memory_run_metrics():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_serialized_snapshot_cli_writes():
@@ -2407,7 +2460,7 @@ def test_docs_publish_serialized_snapshot_cli_writes():
         "30 seconds",
         "exit code 4",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2426,7 +2479,7 @@ def test_docs_publish_serialized_snapshot_cli_writes():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_active_only_lesson_imports():
@@ -2449,7 +2502,7 @@ def test_docs_publish_active_only_lesson_imports():
         "input error",
         "exit code 2",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2468,7 +2521,7 @@ def test_docs_publish_active_only_lesson_imports():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_bounded_pr_change_sets():
@@ -2489,7 +2542,7 @@ def test_docs_publish_bounded_pr_change_sets():
         "exit code 2",
         "without git",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2508,7 +2561,7 @@ def test_docs_publish_bounded_pr_change_sets():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_linear_legacy_pr_warnings():
@@ -2530,7 +2583,7 @@ def test_docs_publish_linear_legacy_pr_warnings():
         "unknown",
         "o(w + c)",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2549,7 +2602,7 @@ def test_docs_publish_linear_legacy_pr_warnings():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_bounded_git_capture():
@@ -2575,7 +2628,7 @@ def test_docs_publish_bounded_git_capture():
         "first byte",
         "injected runner",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2596,7 +2649,7 @@ def test_docs_publish_bounded_git_capture():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_durable_atomic_publish():
@@ -2616,7 +2669,7 @@ def test_docs_publish_durable_atomic_publish():
         "post-publication",
         "indeterminate durability",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2635,7 +2688,7 @@ def test_docs_publish_durable_atomic_publish():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_bounded_semantic_top_k():
@@ -2655,7 +2708,7 @@ def test_docs_publish_bounded_semantic_top_k():
         "score-descending",
         "memory-id-ascending",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2674,7 +2727,7 @@ def test_docs_publish_bounded_semantic_top_k():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_public_snapshot_write_lock():
@@ -2695,7 +2748,7 @@ def test_docs_publish_public_snapshot_write_lock():
         "advisory",
         "non-reentrant",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2715,7 +2768,7 @@ def test_docs_publish_public_snapshot_write_lock():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_bounded_runtime_trace_json():
@@ -2738,7 +2791,7 @@ def test_docs_publish_bounded_runtime_trace_json():
         "utf-8",
         "depth 100",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = (
@@ -2764,7 +2817,7 @@ def test_docs_publish_bounded_runtime_trace_json():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_postgres_loaded_row_payloads():
@@ -2787,7 +2840,7 @@ def test_docs_publish_postgres_loaded_row_payloads():
         "compact",
         "64 mib",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower().replace(
@@ -2817,7 +2870,7 @@ def test_docs_publish_postgres_loaded_row_payloads():
     postgres_schema = _postgres_schema()
     assert postgres_schema.count("updated_at TIMESTAMPTZ DEFAULT now()") == 3
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_snapshot_lock_sidecar_safety():
@@ -2850,7 +2903,7 @@ def test_docs_publish_snapshot_lock_sidecar_safety():
         "placeholder",
         "exit code 4",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2869,7 +2922,7 @@ def test_docs_publish_snapshot_lock_sidecar_safety():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_git_metadata_output_validation():
@@ -2898,7 +2951,7 @@ def test_docs_publish_git_metadata_output_validation():
         "detached head",
         "tracemetadatacaptureerror",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower().replace(
@@ -2921,7 +2974,7 @@ def test_docs_publish_git_metadata_output_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_explicit_failure_text_classification():
@@ -2948,7 +3001,7 @@ def test_docs_publish_explicit_failure_text_classification():
         "error",
         "symptom",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -2969,7 +3022,7 @@ def test_docs_publish_explicit_failure_text_classification():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_measured_completion_cli_and_compatibility():
@@ -2989,7 +3042,7 @@ def test_docs_publish_measured_completion_cli_and_compatibility():
         "--write",
         "does not infer",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3029,7 +3082,7 @@ def test_docs_publish_lesson_yaml_persistence_integrity_and_compatibility():
         "blank lines",
         "canonical lf",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3071,7 +3124,7 @@ def test_docs_publish_batch_measured_completion_cli_and_compatibility():
         "dry-run",
         "--write",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3109,7 +3162,7 @@ def test_docs_publish_bounded_local_document_ingestion_and_compatibility():
         "max_bytes",
         "none",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3149,7 +3202,7 @@ def test_docs_publish_pr_report_cli_and_compatibility():
         "pr_memory_report",
         "read-only",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3200,7 +3253,7 @@ def test_docs_publish_active_lessons_cli_and_compatibility():
         "load_lessons_yaml",
         "all-or-nothing",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3257,7 +3310,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         "--write",
         "all-or-nothing",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3358,7 +3411,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
         "changed",
         "written",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     ]
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3407,7 +3460,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
             "for update",
             "external",
             "snapshot version 2",
-            "postgresql schema version 1",
+            "postgresql schema version",
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
@@ -3464,7 +3517,7 @@ def test_docs_publish_postgres_bounded_load_before_materialization():
             "100,000",
             "250,000",
             "snapshot version 2",
-            "postgresql schema version 1",
+            "postgresql schema version",
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
@@ -3515,7 +3568,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
             "commit_ancestry_max_anchors",
             "1,000",
             "snapshot version 2",
-            "postgresql schema version 1",
+            "postgresql schema version",
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
@@ -3539,7 +3592,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
         / "memory_decision.schema.json"
     ).read_bytes()
     assert packaged_schema == canonical_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3574,7 +3627,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
             "postgresconflicterror",
             "postgrespersistenceerror",
             "snapshot version 2",
-            "postgresql schema version 1",
+            "postgresql schema version",
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
@@ -3606,7 +3659,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
         / "postgres.sql"
     ).read_bytes()
     assert packaged_postgres == canonical_postgres
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3635,7 +3688,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
             "parse_memory_context()",
             "parse_memory_decision()",
             "snapshot version 2",
-            "postgresql schema version 1",
+            "postgresql schema version",
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
@@ -3656,7 +3709,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
         assert "unique_json_object_pairs" in runtime_files[name]
         assert "object_pairs_hook" in runtime_files[name]
 
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
         "type": "integer",
@@ -3681,7 +3734,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
             "recover-batch",
             "10,000",
             "snapshot version 2",
-            "postgresql schema version 1",
+            "postgresql schema version",
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
@@ -3721,7 +3774,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
         "_validate_recover_batch_cardinality(args)"
     ) < main_source.index("TraceBackedMemoryStore.load_json(args.snapshot)")
 
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
         "type": "integer",
@@ -3757,7 +3810,7 @@ def test_docs_publish_recover_attribution_final_delimiter():
         "final `=`",
         "exit code 2",
         "snapshot version 2",
-        "postgresql schema version 1",
+        "postgresql schema version",
     )
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3782,7 +3835,7 @@ def test_docs_publish_recover_attribution_final_delimiter():
         "const": 2,
     }
     assert "VALUES (true, 2)" in _postgres_schema()
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_non_negative_trace_latency_contract():
@@ -3801,7 +3854,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
             "latency_ms",
             "minimum",
             "snapshot version 2",
-            "postgresql schema version 1",
+            "postgresql schema version",
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
@@ -3860,7 +3913,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
     ).read_bytes()
     assert packaged_postgres == canonical_postgres
     assert b"traces_latency_ms_non_negative" in canonical_postgres
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3896,7 +3949,7 @@ def test_docs_publish_public_project_policy_obsolescence_export():
 
     assert tbm.obsolete_project_policy is lifecycle.obsolete_project_policy
     assert "obsolete_project_policy" in tbm.__all__
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3922,7 +3975,7 @@ def test_docs_publish_postgres_compatible_trace_latency_range():
             "latency_ms",
             "2,147,483,647",
             "snapshot version 2",
-            "postgresql schema version 1",
+            "postgresql schema version",
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
@@ -3974,7 +4027,7 @@ def test_docs_publish_postgres_compatible_trace_latency_range():
     assert packaged_postgres == canonical_postgres
     assert b"latency_ms INTEGER" in canonical_postgres
     assert b"traces_latency_ms_non_negative" in canonical_postgres
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -4000,7 +4053,7 @@ def test_docs_publish_postgres_bounded_load_payloads():
             "64 mib",
             "utf-8",
             "snapshot version 2",
-            "postgresql schema version 1",
+            "postgresql schema version",
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
@@ -4039,7 +4092,7 @@ def test_docs_publish_postgres_bounded_load_payloads():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
     assert "snapshot_payload_bytes" not in postgres_schema
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_docs_publish_portable_nonblank_persisted_strings():
@@ -4057,7 +4110,7 @@ def test_docs_publish_portable_nonblank_persisted_strings():
         for contract in (
             "non-whitespace",
             "snapshot version 2",
-            "postgresql schema version 1",
+            "postgresql schema version",
         ):
             assert contract in normalized, f"{name} should publish: {contract}"
 
@@ -4092,7 +4145,7 @@ def test_docs_publish_portable_nonblank_persisted_strings():
         "type": "integer",
         "const": 2,
     }
-    assert len(packaged_resources()) == 20
+    assert len(packaged_resources()) == 21
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

@@ -49,6 +49,29 @@ def _unsafe_lock_sidecar_error(lock_path: Path) -> OSError:
     )
 
 
+def _unsafe_snapshot_target_error(snapshot_path: Path) -> OSError:
+    return OSError(
+        "snapshot write target must be a single-link regular file: "
+        f"{snapshot_path}"
+    )
+
+
+def _validate_snapshot_write_target(snapshot_path: str | Path) -> None:
+    target_path = Path(snapshot_path)
+    try:
+        target_stat = os.lstat(target_path)
+    except FileNotFoundError:
+        return
+    reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    file_attributes = getattr(target_stat, "st_file_attributes", 0)
+    if (
+        not stat.S_ISREG(target_stat.st_mode)
+        or target_stat.st_nlink != 1
+        or bool(file_attributes & reparse_attribute)
+    ):
+        raise _unsafe_snapshot_target_error(target_path)
+
+
 def _validate_lock_sidecar_stat(
     lock_path: Path,
     file_stat: os.stat_result,
@@ -203,12 +226,14 @@ def snapshot_write_lock(
     The lock is advisory and independent acquisitions are non-reentrant.
     """
     validated_timeout = _validated_timeout_seconds(timeout_seconds)
+    _validate_snapshot_write_target(snapshot_path)
     lock_path = _snapshot_lock_path(snapshot_path)
     with _open_lock_file(lock_path) as lock_file:
         _initialize_lock_file(lock_file)
         _acquire_file_lock(lock_file, lock_path, validated_timeout)
         try:
             _validate_acquired_lock_identity(lock_file, lock_path)
+            _validate_snapshot_write_target(snapshot_path)
             yield
         finally:
             _release_file_lock(lock_file)

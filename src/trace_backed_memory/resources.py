@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Literal
 
 
+_POSIX_DIRECTORY_SYNC_SUPPORTED = os.name == "posix"
+
+
 @dataclass(frozen=True)
 class PackagedResource:
     name: str
@@ -71,6 +74,11 @@ _RESOURCE_SPECS: tuple[
         "application/schema+json",
     ),
     ("schemas/postgres-v1-to-v2.sql", "schema", "application/sql"),
+    (
+        "schemas/postgres-v2-lock-order-hotfix.sql",
+        "schema",
+        "application/sql",
+    ),
     ("schemas/postgres.sql", "schema", "application/sql"),
     ("schemas/project_policy.schema.json", "schema", "application/schema+json"),
     ("schemas/sqlite.sql", "schema", "application/sql"),
@@ -140,6 +148,7 @@ def export_packaged_resource(
             os.replace(temporary_path, destination_path)
         else:
             os.link(temporary_path, destination_path)
+        _sync_parent_directory(destination_path.parent)
         return destination_path
     except (OSError, ValueError) as error:
         raise PackagedResourceError(
@@ -154,6 +163,26 @@ def export_packaged_resource(
                 temporary_path.unlink(missing_ok=True)
             except OSError:
                 pass
+
+
+def _sync_parent_directory(directory: Path) -> None:
+    if not _POSIX_DIRECTORY_SYNC_SUPPORTED:
+        return
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    directory_descriptor = os.open(directory, flags)
+    try:
+        os.fsync(directory_descriptor)
+    except BaseException as sync_error:
+        try:
+            os.close(directory_descriptor)
+        except BaseException as close_error:
+            sync_error.add_note(
+                "also failed to close parent directory descriptor: "
+                f"{close_error}"
+            )
+        raise
+    else:
+        os.close(directory_descriptor)
 
 
 def _resource_spec(

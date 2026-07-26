@@ -30,6 +30,7 @@ from ._ingestion import (
     validate_snapshot_total_record_count,
 )
 from ._timestamps import parse_rfc3339, utc_timestamp
+from .capture import COMMIT_ANCESTRY_MAX_ANCHORS
 from .lifecycle import (
     memory_item_from_failure_case,
     memory_item_from_failure_case_for_audit,
@@ -1097,6 +1098,27 @@ class TraceBackedMemoryStore:
         minimum_score: float | None = None,
         commit_ancestry: CommitAncestryEvidence | None = None,
     ) -> list[MemoryItem]:
+        return self._candidate_memories(
+            context,
+            query=query,
+            semantic_scores=semantic_scores,
+            max_candidates=max_candidates,
+            minimum_score=minimum_score,
+            commit_ancestry=commit_ancestry,
+            result_limit=None,
+        )
+
+    def _candidate_memories(
+        self,
+        context: MemoryContext,
+        *,
+        query: str | None,
+        semantic_scores: Mapping[str, float] | None,
+        max_candidates: int | None,
+        minimum_score: float | None,
+        commit_ancestry: CommitAncestryEvidence | None,
+        result_limit: int | None,
+    ) -> list[MemoryItem]:
         validate_memory_context(context)
         if query is not None and not isinstance(query, str):
             raise ValueError("query must be a string or None")
@@ -1120,11 +1142,19 @@ class TraceBackedMemoryStore:
             ),
         )
         commit_relations = _validated_commit_ancestry(context, commit_ancestry)
-        candidates = self._metadata_candidates(context)
-        if commit_relations is not None:
-            candidates = self._filter_candidates_by_ancestry(
-                candidates, commit_relations
-            )
+        if result_limit is None:
+            candidates: Iterable[MemoryItem] = self._metadata_candidates(context)
+            if commit_relations is not None:
+                candidates = self._filter_candidates_by_ancestry(
+                    list(candidates), commit_relations
+                )
+        else:
+            candidates = self._iter_metadata_candidates(context)
+            if commit_relations is not None:
+                candidates = self._iter_candidates_by_ancestry(
+                    candidates,
+                    commit_relations,
+                )
 
         if validated_semantic_scores is not None:
             candidate_limit = cast(int, max_candidates)
@@ -1147,25 +1177,36 @@ class TraceBackedMemoryStore:
             )
 
         query_tokens = _tokens(query or "")
-        if query_tokens:
-            candidates = [
-                memory
-                for memory in candidates
-                if query_tokens.intersection(_memory_tokens(memory))
-            ]
+        selected: list[MemoryItem] = []
+        for memory in candidates:
+            if query_tokens and not query_tokens.intersection(
+                _memory_tokens(memory)
+            ):
+                continue
+            selected.append(memory)
+            if result_limit is not None and len(selected) > result_limit:
+                raise ValueError(
+                    "gate request candidate limit exceeded: "
+                    f"{len(selected)} > {result_limit}"
+                )
 
-        return sorted(candidates, key=lambda memory: memory.memory_id)
+        return sorted(selected, key=lambda memory: memory.memory_id)
 
     def _metadata_candidates(self, context: MemoryContext) -> list[MemoryItem]:
+        return list(self._iter_metadata_candidates(context))
+
+    def _iter_metadata_candidates(
+        self,
+        context: MemoryContext,
+    ) -> Iterator[MemoryItem]:
         context_values = _context_values(context)
-        candidates: list[MemoryItem] = []
 
         for lesson in self._lessons.values():
             if _has_metadata_match(lesson.scope, context_values):
-                candidates.append(self._memory_item_from_lesson(lesson))
+                yield self._memory_item_from_lesson(lesson)
         for policy in self._project_policies.values():
             if _has_metadata_match(policy.scope, context_values):
-                candidates.append(memory_item_from_project_policy(policy))
+                yield memory_item_from_project_policy(policy)
         if context.mode in {"debug", "repair"}:
             for case in self._failure_cases.values():
                 trace = self._traces.get(case.source_trace_id)
@@ -1176,8 +1217,7 @@ class TraceBackedMemoryStore:
                 if context.tool is not None and context.tool not in trace_tools:
                     continue
                 if _has_metadata_match(memory.scope, context_values):
-                    candidates.append(memory)
-        return candidates
+                    yield memory
 
     @_synchronized
     def candidate_commit_anchors(
@@ -1225,6 +1265,20 @@ class TraceBackedMemoryStore:
             or relations[anchors[memory.memory_id]]
         ]
 
+    def _iter_candidates_by_ancestry(
+        self,
+        candidates: Iterable[MemoryItem],
+        relations: Mapping[str, bool],
+    ) -> Iterator[MemoryItem]:
+        for memory in candidates:
+            anchor = self._commit_anchor(memory.memory_id)
+            if anchor is not None and anchor not in relations:
+                raise ValueError(
+                    "commit ancestry evidence is missing anchors: " + anchor
+                )
+            if anchor is None or relations[anchor]:
+                yield memory
+
     @_synchronized
     def prepare_memory(
         self,
@@ -1257,19 +1311,15 @@ class TraceBackedMemoryStore:
             if trace is None:
                 raise ValueError(f"unknown trace_id: {trace_id}")
             _validate_trace_context(trace, context)
-        candidates = self.candidate_memories(
+        candidates = self._candidate_memories(
             context,
             query=query,
             semantic_scores=semantic_scores,
             max_candidates=max_candidates,
             minimum_score=minimum_score,
             commit_ancestry=commit_ancestry,
+            result_limit=GATE_REQUEST_MAX_CANDIDATES,
         )
-        if len(candidates) > GATE_REQUEST_MAX_CANDIDATES:
-            raise ValueError(
-                "gate request candidate limit exceeded: "
-                f"{len(candidates)} > {GATE_REQUEST_MAX_CANDIDATES}"
-            )
         pending_candidate_ids = sum(
             len(pending.candidate_memory_ids)
             for pending in self._pending_gate_requests.values()
@@ -1439,6 +1489,15 @@ class TraceBackedMemoryStore:
             max_chars=MEMORY_ID_MAX_CHARS,
         )
         validate_memory_context(context)
+        if (
+            isinstance(candidate_memory_ids, list)
+            and len(candidate_memory_ids) > GATE_REQUEST_MAX_CANDIDATES
+        ):
+            raise ValueError(
+                "usage log candidate limit exceeded: "
+                f"{len(candidate_memory_ids)} > "
+                f"{GATE_REQUEST_MAX_CANDIDATES}"
+            )
         _validate_memory_id_list(candidate_memory_ids, "candidate_memory_ids")
         if not isinstance(decision, MemoryDecision):
             raise ValueError("decision must be a MemoryDecision")
@@ -3053,6 +3112,11 @@ def _validated_commit_ancestry(
         )
     if not isinstance(evidence.commit_relations, tuple):
         raise ValueError("commit ancestry commit_relations must be a tuple")
+    if len(evidence.commit_relations) > COMMIT_ANCESTRY_MAX_ANCHORS:
+        raise ValueError(
+            "commit ancestry accepts at most "
+            f"{COMMIT_ANCESTRY_MAX_ANCHORS} relations"
+        )
 
     relations: dict[str, bool] = {}
     for relation in evidence.commit_relations:

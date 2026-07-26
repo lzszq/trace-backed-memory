@@ -85,6 +85,7 @@ tbm resource list
 tbm resource read schemas/trace.schema.json
 tbm resource export schemas/sqlite.sql sqlite.sql
 tbm resource export schemas/postgres-v1-to-v2.sql postgres-v1-to-v2.sql
+tbm resource export schemas/postgres-v2-lock-order-hotfix.sql postgres-v2-lock-order-hotfix.sql
 tbm resource export schemas/postgres.sql postgres.sql
 tbm resource export schemas/postgres.sql postgres.sql --overwrite
 ```
@@ -103,12 +104,13 @@ from trace_backed_memory import (
 resources = packaged_resources()
 sqlite_sql = read_packaged_resource("schemas/sqlite.sql")
 postgres_migration_sql = read_packaged_resource("schemas/postgres-v1-to-v2.sql")
+postgres_hotfix_sql = read_packaged_resource("schemas/postgres-v2-lock-order-hotfix.sql")
 postgres_sql = read_packaged_resource("schemas/postgres.sql")
 export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 20 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 21 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -122,7 +124,7 @@ export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 
 序列化、临时文件同步、链接或替换失败会保留原目标并清理临时文件。发布后的父目录同步失败会向调用方传播，但此时目标可能已经可见，必须把结果视为“持久性状态不确定”并在重试前检查。lesson 导出使用规范的 `lesson_text: |` 字面块；导入兼容 `|` 和历史 `>` 形式，并保留空行、首尾 LF 与行内空格。
 
-这些强化不增加持久化字段，不改变快照版本 `2`、JSON Schema 或 PostgreSQL schema 版本 `1`。
+这些强化不增加持久化字段，不改变快照版本 `2`、JSON Schema 或 PostgreSQL schema 版本 `2`。
 
 ## 有界本地文档摄取
 
@@ -252,6 +254,15 @@ psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f postgres.sql
 tbm resource export schemas/postgres-v1-to-v2.sql postgres-v1-to-v2.sql
 psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f postgres-v1-to-v2.sql
 ```
+
+在 Lesson/source-case 锁序修复之前创建的 schema version 2 数据库，应执行可重复运行且带版本门禁的热修复：
+
+```powershell
+tbm resource export schemas/postgres-v2-lock-order-hotfix.sql postgres-v2-lock-order-hotfix.sql
+psql "$env:DATABASE_URL" -v ON_ERROR_STOP=1 -f postgres-v2-lock-order-hotfix.sql
+```
+
+全新安装脚本和当前 v1→v2 迁移已包含该修复。
 
 迁移会增加最终 Gate `request_id` 关联、不可变 Trace/usage 审计/Failure Case 来源/Lesson 来源 trigger、受保护的 outcome 前向转换和行锁，然后推进 metadata 版本。metadata 缺失、起始版本不是 1 或成功后重放都会被拒绝。数据库测试在缺少 `initdb`、`pg_ctl` 或 `psql` 时会跳过；CI 中独立的 Ubuntu 任务会对真实私有集群执行两个 PostgreSQL 测试模块，Windows 任务则运行完整 Python 测试套件。
 
@@ -761,7 +772,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、20 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、21 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -823,6 +834,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   `-- failure_taxonomy.yaml
 |-- schemas/
 |   |-- postgres-v1-to-v2.sql
+|   |-- postgres-v2-lock-order-hotfix.sql
 |   |-- postgres.sql
 |   |-- sqlite.sql
 |   |-- trace.schema.json

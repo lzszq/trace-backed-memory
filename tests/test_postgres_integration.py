@@ -536,6 +536,14 @@ def test_postgres_v1_to_v2_migration_is_atomic_and_rejects_replay(
            )
         """,
     ) == "6"
+    assert assert_sql_succeeds(
+        cluster,
+        """
+        SELECT pg_get_functiondef(
+          'public.require_verified_lesson_source_case()'::regprocedure
+        ) LIKE '%TG_OP = ''UPDATE''%'
+        """,
+    ) == "t"
 
     replay = cluster.run_script(migration)
     assert replay.returncode != 0
@@ -544,6 +552,40 @@ def test_postgres_v1_to_v2_migration_is_atomic_and_rejects_replay(
         cluster,
         "SELECT schema_version FROM public.trace_backed_memory_schema",
     ) == "2"
+
+
+def test_postgres_v2_lock_order_hotfix_is_idempotent_and_version_gated(
+    postgres_cluster: PostgresCluster,
+):
+    cluster = postgres_cluster
+    cluster.load_schema()
+    hotfix = ROOT / "schemas" / "postgres-v2-lock-order-hotfix.sql"
+
+    first = cluster.run_script(hotfix)
+    second = cluster.run_script(hotfix)
+
+    assert first.returncode == 0, first.stderr
+    assert second.returncode == 0, second.stderr
+    assert assert_sql_succeeds(
+        cluster,
+        """
+        SELECT pg_get_functiondef(
+          'public.require_verified_lesson_source_case()'::regprocedure
+        ) LIKE '%TG_OP = ''UPDATE''%'
+        """,
+    ) == "t"
+
+    _downgrade_postgres_v2_fixture_to_v1(cluster)
+    rejected = cluster.run_script(hotfix)
+    assert rejected.returncode != 0
+    assert (
+        "lock-order hotfix requires schema version 2, found 1"
+        in rejected.stderr
+    )
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT schema_version FROM public.trace_backed_memory_schema",
+    ) == "1"
 
 
 def test_postgres_v1_to_v2_migration_failure_rolls_back_every_change(
@@ -1658,3 +1700,60 @@ def test_postgres_registry_lifecycle_and_two_session_serialization(
         cluster,
         "SELECT count(*) FROM lessons WHERE lesson_id = 'lesson_parent_first' AND status = 'active'",
     ) == "0"
+
+
+def test_postgres_noop_lesson_update_does_not_reverse_parent_lock_order(
+    postgres_cluster: PostgresCluster,
+):
+    cluster = postgres_cluster
+    cluster.load_schema()
+    _seed_verified_case(cluster, "noop_lesson_update")
+    assert_sql_succeeds(
+        cluster,
+        """
+        INSERT INTO lessons(
+          lesson_id, source_case_id, lesson_text, memory_type, scope_json
+        ) VALUES (
+          'lesson_noop_lesson_update', 'case_noop_lesson_update',
+          'rule', 'procedural', '{"repo":"repo"}'
+        )
+        """,
+    )
+
+    parent_latch = cluster.acquire_latch("noop_parent_latch", 91_003)
+    parent = cluster.spawn(
+        "noop_parent_holder",
+        """
+        BEGIN;
+        SELECT 1 FROM failure_cases
+        WHERE case_id = 'case_noop_lesson_update'
+        FOR UPDATE;
+        SELECT pg_advisory_lock(91003);
+        SELECT pg_advisory_unlock(91003);
+        UPDATE failure_cases
+        SET status = 'obsolete'
+        WHERE case_id = 'case_noop_lesson_update';
+        COMMIT;
+        """,
+    )
+    try:
+        _wait_for_activity(cluster, "noop_parent_holder", "Lock", parent.process)
+        lesson = cluster.spawn(
+            "noop_lesson_updater",
+            """
+            SET lock_timeout = '2s';
+            UPDATE lessons
+            SET source_case_id = source_case_id
+            WHERE lesson_id = 'lesson_noop_lesson_update';
+            """,
+        )
+        _wait_process(lesson, expected_returncode=0)
+    finally:
+        cluster.release_latch(parent_latch)
+        _wait_process(parent, expected_returncode=0)
+
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT status FROM lessons "
+        "WHERE lesson_id = 'lesson_noop_lesson_update'",
+    ) == "obsolete"

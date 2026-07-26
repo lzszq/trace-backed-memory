@@ -849,6 +849,148 @@ def test_draft_failure_case_rejects_empty_required_fields():
             raise AssertionError(f"draft failure cases must reject empty {expected_field}")
 
 
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("root_cause", "   "),
+        ("root_cause", object()),
+        ("fix", "\t"),
+        ("fix", object()),
+    ],
+)
+def test_draft_failure_case_rejects_invalid_optional_evidence(
+    field_name: str,
+    value: object,
+):
+    trace = Trace(
+        trace_id="trace_optional_evidence",
+        run_id="run_optional_evidence",
+        commit_sha="abc123",
+        eval_result="fail",
+    )
+
+    with pytest.raises(ValueError, match=field_name):
+        draft_failure_case(
+            trace,
+            case_id="case_optional_evidence",
+            failure_type="invalid_tool_argument",
+            symptom="search query was missing",
+            **{field_name: value},  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("failure_type", "   "),
+        ("failure_type", object()),
+        ("symptom", "\t"),
+        ("symptom", object()),
+        ("review_notes", "\n"),
+        ("review_notes", object()),
+    ],
+)
+def test_review_failure_case_rejects_invalid_optional_overrides(
+    field_name: str,
+    value: object,
+):
+    case = FailureCase(
+        case_id="case_review_override",
+        source_trace_id="trace_review_override",
+        commit_sha="abc123",
+        failure_type="invalid_tool_argument",
+        symptom="search query was missing",
+    )
+
+    with pytest.raises(ValueError, match=field_name):
+        review_failure_case(
+            case,
+            reviewed_by="reviewer",
+            root_cause="prompt omitted the tool contract",
+            **{field_name: value},  # type: ignore[arg-type]
+        )
+
+
+def test_verified_memory_builders_require_fix_evidence():
+    trace = Trace(
+        trace_id="trace_missing_fix",
+        run_id="run_missing_fix",
+        commit_sha="abc123",
+        eval_result="fail",
+    )
+    malformed = FailureCase(
+        case_id="case_missing_fix",
+        source_trace_id=trace.trace_id,
+        commit_sha=trace.commit_sha,
+        failure_type="invalid_tool_argument",
+        symptom="search query was missing",
+        root_cause="prompt omitted the tool contract",
+        reviewed_by="reviewer",
+        reviewed_at="2026-07-26T00:00:00Z",
+        regression_passed=True,
+        status="verified",
+    )
+
+    with pytest.raises(ValueError, match="fix"):
+        lesson_from_failure_case(
+            malformed,
+            lesson_id="lesson_missing_fix",
+            lesson_text="Always pass a search query.",
+            memory_type="procedural",
+            scope={"repo": "repo"},
+        )
+    with pytest.raises(ValueError, match="fix"):
+        memory_item_from_failure_case(malformed, trace)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("case_id", "c" * 129),
+        ("source_trace_id", "t" * 129),
+        ("commit_sha", "a" * 513),
+        ("failure_type", "f" * 513),
+    ],
+)
+def test_verified_memory_builders_reject_malformed_case_core_fields(
+    field_name: str,
+    value: str,
+):
+    trace = Trace(
+        trace_id="trace_malformed_verified",
+        run_id="run_malformed_verified",
+        commit_sha="abc123",
+        eval_result="fail",
+    )
+    values = {
+        "case_id": "case_malformed_verified",
+        "source_trace_id": trace.trace_id,
+        "commit_sha": trace.commit_sha,
+        "failure_type": "invalid_tool_argument",
+        "symptom": "search query was missing",
+        "root_cause": "prompt omitted the tool contract",
+        "fix": "require a non-empty query",
+        "fix_commit_sha": "def456",
+        "reviewed_by": "reviewer",
+        "reviewed_at": "2026-07-26T00:00:00Z",
+        "regression_passed": True,
+        "status": "verified",
+    }
+    values[field_name] = value
+    malformed = FailureCase(**values)
+
+    with pytest.raises(ValueError, match=field_name):
+        lesson_from_failure_case(
+            malformed,
+            lesson_id="lesson_malformed_verified",
+            lesson_text="Always pass a search query.",
+            memory_type="procedural",
+            scope={"repo": "repo"},
+        )
+    with pytest.raises(ValueError, match=field_name):
+        memory_item_from_failure_case(malformed, trace)
+
+
 def test_lesson_from_failure_case_rejects_invalid_public_fields():
     case = FailureCase(
         case_id="case_001",

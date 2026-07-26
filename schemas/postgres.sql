@@ -341,6 +341,12 @@ SET search_path = pg_catalog;
 
 CREATE FUNCTION require_verified_lesson_source_case() RETURNS trigger AS $$
 BEGIN
+  IF TG_OP = 'UPDATE'
+    AND NEW.source_case_id IS NOT DISTINCT FROM OLD.source_case_id
+    AND NEW.status IS NOT DISTINCT FROM OLD.status THEN
+    RETURN NEW;
+  END IF;
+
   IF NEW.status = 'active' THEN
     PERFORM 1
     FROM public.failure_cases AS source_case

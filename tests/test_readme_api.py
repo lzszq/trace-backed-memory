@@ -814,7 +814,7 @@ def test_readme_publishes_deferred_outcome_cli_contract():
         "previous/current outcome pair",
         "candidate/used/blocked memory IDs",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]:
         assert contract in normalized
 
@@ -838,7 +838,7 @@ def test_readme_publishes_active_lessons_cli_contract():
         "hard link",
         "`load_lessons_yaml()`",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]:
         assert contract in normalized
 
@@ -862,7 +862,7 @@ def test_readme_publishes_memory_obsolescence_cli_contract():
         "cannot reactivate",
         "single-item command",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]:
         assert contract in normalized
 
@@ -886,7 +886,7 @@ def test_readme_publishes_atomic_batch_obsolescence_contract():
         "all-or-nothing",
         "dry-run",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]:
         assert contract in normalized
 
@@ -908,7 +908,7 @@ def test_readme_publishes_measured_completion_cli_contract():
         "dry-run",
         "`--write`",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]:
         assert contract in normalized
 
@@ -930,7 +930,7 @@ def test_readme_publishes_batch_measured_completion_cli_contract():
         "all-or-nothing",
         "dry-run",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]:
         assert contract in normalized
 
@@ -961,7 +961,7 @@ def test_readme_publishes_and_executes_packaged_resource_contract(tmp_path):
         assert contract in normalized
 
     descriptions = packaged_resources()
-    assert len(descriptions) == 20
+    assert len(descriptions) == 21
     sqlite_expected = read_packaged_resource("schemas/sqlite.sql")
     sqlite_destination = tmp_path / "sqlite.sql"
     assert export_packaged_resource(
@@ -997,7 +997,7 @@ def test_readme_publishes_callback_memory_run_execution_contract():
         "does not infer",
         "advanced callers",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]:
         assert contract in normalized
 
@@ -1026,7 +1026,7 @@ def test_readme_publishes_atomic_lesson_yaml_persistence_contract():
         "blank lines",
         "canonical LF",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]:
         assert contract in normalized
 
@@ -1053,7 +1053,7 @@ def test_readme_publishes_bounded_local_document_ingestion_contract():
         "`None`",
         "trusted offline migrations",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]:
         assert contract.lower() in normalized.lower()
 
@@ -1083,6 +1083,6 @@ def test_readme_publishes_pr_report_cli_contract():
         "`GIT_NO_LAZY_FETCH=1`",
         "option terminator",
         "snapshot version 2",
-        "PostgreSQL schema version 1",
+        "PostgreSQL schema version 2",
     ]:
         assert contract.lower() in normalized.lower()

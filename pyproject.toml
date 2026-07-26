@@ -60,6 +60,7 @@ trace_backed_memory = [
     "_resources/schemas/memory_store_snapshot.schema.json",
     "_resources/schemas/memory_usage_log.schema.json",
     "_resources/schemas/postgres-v1-to-v2.sql",
+    "_resources/schemas/postgres-v2-lock-order-hotfix.sql",
     "_resources/schemas/postgres.sql",
     "_resources/schemas/project_policy.schema.json",
     "_resources/schemas/sqlite.sql",

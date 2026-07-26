@@ -435,7 +435,7 @@ def test_cli_resource_commands_list_read_and_export(tmp_path, capsys):
 
     assert code == 0
     assert error is None
-    assert len(payload["resources"]) == 20
+    assert len(payload["resources"]) == 21
     names = [item["name"] for item in payload["resources"]]
     assert names == sorted(names)
     assert "schemas/postgres.sql" in names
@@ -3642,6 +3642,23 @@ def test_cli_rejects_hard_link_lock_sidecar_before_snapshot_loading(
     }
     assert path.read_bytes() == original
     assert target_path.read_bytes() == b""
+
+
+def test_cli_write_with_embedded_nul_path_returns_structured_error(capsys):
+    code, payload, error = _run(
+        capsys,
+        "obsolete",
+        "invalid\x00snapshot",
+        "lesson",
+        "lesson_001",
+        "--write",
+    )
+
+    assert code == 4
+    assert payload is None
+    assert error["error"]["kind"] == "write"
+    assert error["error"]["type"] == "ValueError"
+    assert "embedded null character" in error["error"]["message"]
 
 
 def test_cli_snapshot_write_lock_delegates_to_shared_backend(

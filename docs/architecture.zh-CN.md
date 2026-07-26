@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 20 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 21 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -199,7 +199,7 @@ SQLite 是嵌入式选择，不替代 PostgreSQL 的数据库侧 JSONB、trigger
 
 `PostgresMemoryRepository` 是完整 `TraceBackedMemoryStore` 的同步持久化边界。`psycopg` 是可选、延迟导入的 extra；核心包导入不加载驱动。
 
-存储库只操作由规范 `schemas/postgres.sql` 安装的新 `public` schema，并锁定 metadata 行要求 schema 版本 2。既有版本 1 安装必须先执行包内原子 `schemas/postgres-v1-to-v2.sql`；适配器不会自动执行迁移。
+存储库只操作由规范 `schemas/postgres.sql` 安装的新 `public` schema，并锁定 metadata 行要求 schema 版本 2。既有版本 1 安装必须先执行包内原子 `schemas/postgres-v1-to-v2.sql`；在 Lesson/source-case 锁序修复前创建的版本 2 数据库应执行可重复运行且带版本门禁的 `schemas/postgres-v2-lock-order-hotfix.sql`。全新安装与当前 v1→v2 迁移已包含该修复；适配器不会自动执行迁移。
 
 `sync(store)` 先获取内存快照，再在一个数据库事务中增量同步。它插入缺失记录，保留数据库中额外记录，不执行破坏性 reconciliation。已有记录在写前按规范形式比较；不可变冲突回滚整个事务。
 

@@ -27,7 +27,7 @@ def test_packaged_resources_match_every_canonical_file_byte_for_byte():
     descriptions = tbm.packaged_resources()
 
     assert tuple(item.name for item in descriptions) == CANONICAL_RESOURCE_NAMES
-    assert len(descriptions) == 20
+    assert len(descriptions) == 21
     for item in descriptions:
         canonical = (ROOT / item.name).read_bytes()
         assert tbm.read_packaged_resource(item.name) == canonical
@@ -50,6 +50,10 @@ def test_resource_media_types_are_deterministic():
     assert by_name["schemas/postgres.sql"].media_type == "application/sql"
     assert (
         by_name["schemas/postgres-v1-to-v2.sql"].media_type
+        == "application/sql"
+    )
+    assert (
+        by_name["schemas/postgres-v2-lock-order-hotfix.sql"].media_type
         == "application/sql"
     )
     assert by_name["schemas/sqlite.sql"].media_type == "application/sql"
@@ -182,6 +186,54 @@ def test_export_does_not_report_false_failure_after_atomic_publication(
     ).read_bytes()
     for temporary_path in tmp_path.glob(".postgres.sql.*.tmp"):
         temporary_path.unlink()
+
+
+def test_export_syncs_parent_directory_after_publication(
+    tmp_path,
+    monkeypatch,
+):
+    destination = tmp_path / "postgres.sql"
+    directory_descriptor = 987654
+    original_open = resource_module.os.open
+    original_fsync = resource_module.os.fsync
+    original_close = resource_module.os.close
+    calls = []
+
+    def tracking_open(path, flags, *args, **kwargs):
+        if Path(path) == tmp_path:
+            calls.append(("open-directory", Path(path)))
+            return directory_descriptor
+        return original_open(path, flags, *args, **kwargs)
+
+    def tracking_fsync(descriptor):
+        if descriptor == directory_descriptor:
+            calls.append(("fsync-directory", descriptor))
+            return None
+        calls.append(("fsync-file", descriptor))
+        return original_fsync(descriptor)
+
+    def tracking_close(descriptor):
+        if descriptor == directory_descriptor:
+            calls.append(("close-directory", descriptor))
+            return None
+        return original_close(descriptor)
+
+    monkeypatch.setattr(
+        resource_module,
+        "_POSIX_DIRECTORY_SYNC_SUPPORTED",
+        True,
+    )
+    monkeypatch.setattr(resource_module.os, "open", tracking_open)
+    monkeypatch.setattr(resource_module.os, "fsync", tracking_fsync)
+    monkeypatch.setattr(resource_module.os, "close", tracking_close)
+
+    tbm.export_packaged_resource("schemas/postgres.sql", destination)
+
+    assert calls[-3:] == [
+        ("open-directory", tmp_path),
+        ("fsync-directory", directory_descriptor),
+        ("close-directory", directory_descriptor),
+    ]
 
 
 def test_missing_installed_resource_has_structured_read_error(monkeypatch):

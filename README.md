@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 73 resources. `PackagedResource` descriptions
+The allowlist currently contains 75 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -402,10 +402,14 @@ manifest. Complete manifests bind their own canonical hash and every replay
 component; legacy partial manifests must name exactly what is absent. The
 opt-in `SQLiteReplayV3Repository` stores exact bytes, injection descriptors,
 and manifests in an isolated immutable ledger with atomic bundle writes and
-fail-closed load verification. The current Store, active SQL adapters, local
-agent, and MCP do not use it, and it provides no access control, encryption,
-retention, or GateSession authority, so this remains preparation rather than a
-claim of exact replay today. See
+fail-closed load verification. Isolated PostgreSQL install/rollback resources
+now establish the matching immutable relational boundary and verify its exact
+catalog membership on fail-closed removal; canonical descriptor and byte-digest
+verification remain responsibilities of the outstanding PostgreSQL repository.
+The current Store, active SQL adapters, local agent, and MCP do not use these
+resources, and they provide no access control, encryption, retention, or
+GateSession authority, so this remains preparation rather than a claim of
+exact replay today. See
 [the replay contract](docs/protocols/replay-v3.md).
 
 The storage-neutral authorization-v3 contract defines canonical repositories,
@@ -2035,7 +2039,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 73 canonical Schemas, examples, and memory
+  explicit atomic export for all 75 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2174,6 +2178,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- postgres-v1-to-v2.sql
 |   |-- postgres-v2-lock-order-hotfix.sql
 |   |-- postgres-v3-gate-session*.sql
+|   |-- postgres-v3-replay*.sql
 |   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
 |   |-- snapshot_v3_migration_*.schema.json

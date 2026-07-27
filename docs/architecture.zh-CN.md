@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 73 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 75 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -352,10 +352,18 @@ injection 与 manifest。每个 bundle 在一个事务中保存；manifest-to-in
 foreign key；load 时复验 canonical schema object、重复 column、descriptor、边界
 和精确字节。调用方 transaction 通过 savepoint 保留 ownership。
 
-active v2 Store 与 persistence adapter 尚不输出这些契约。该账本提供原子 artifact
-storage，但不提供 GateSession linkage、access control、encryption、retention 或
-runtime authority；统一 version-3 runtime 仍需交付这些边界和 cross-adapter
-conformance。
+`schemas/postgres-v3-replay.sql` 与 fail-closed rollback 在不改变 active schema
+version 2 的前提下建立匹配的隔离 PostgreSQL 关系边界。安装先锁定 active metadata，
+再原子创建有界 artifact bytes、injection descriptor、manifest、foreign key、index
+与固定 `search_path` immutability trigger；rollback 锁定两份 metadata，并在
+`RESTRICT` 删除前核对预期 catalog membership。SQL 强制 derived ID、精确关系
+linkage 与 injection shape；canonical descriptor 和 content-digest 验证仍由可信
+PostgreSQL repository 负责。该 repository 与跨记录 service transaction 仍待完成。
+
+active v2 Store 与 persistence adapter 尚不输出这些契约。SQLite 账本提供原子
+artifact storage，PostgreSQL 资源当前只提供 schema lifecycle；两者都不提供
+GateSession linkage、access control、encryption、retention 或 runtime authority。
+统一 version-3 runtime 仍需交付这些边界和 cross-adapter conformance。
 
 ## 授权 version-3 契约
 

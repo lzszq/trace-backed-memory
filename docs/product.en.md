@@ -74,7 +74,7 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Immutable revision preparation | Content-derived MemoryRevision proposals bind stable memory identity, exact parent, artifact, canonical scope, case/fix/evidence references, and independent proposer context; approval/activation remain separate service work |
 | Replayable retrieval preparation | Content-derived RetrievalSnapshot records authorized context/query digests, retriever/index versions, ordered immutable revision hits, candidate hashes, finite stage/fusion scores, bounds, and truncation reasons; active retrieval does not emit it yet |
 | Replayable gate preparation | Content-derived System Gate evaluations and Semantic Gate attempts bind deterministic rule outcomes and provider/model/prompt/response provenance while enforcing that a model can only narrow; active policy does not emit them yet |
-| Distribution resources | 73 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Distribution resources | 75 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |
@@ -236,9 +236,11 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
   authenticated service context, and service integration remain out of scope.
 - Storage-neutral replay descriptors now define the required retriever/index,
   Gate prompt/response, ancestry, policy, renderer, and exact snippet hashes,
-  and the opt-in SQLite replay ledger stores exact bytes/descriptors. Usage
-  logs and active adapters do not use it, and access control, retention,
-  encryption, GateSession linkage, and PostgreSQL parity remain outstanding.
+  and the opt-in SQLite replay ledger stores exact bytes/descriptors. Isolated
+  PostgreSQL install/rollback resources establish the immutable schema
+  lifecycle, but usage logs and active adapters do not use it; access control,
+  retention, encryption, GateSession linkage, and the PostgreSQL repository
+  remain outstanding.
 - Git ancestry filtering is opt-in rather than an explicit required/disabled production policy.
 - Existing version-2 snapshots with verified but unreviewed cases must be repaired with review evidence before loading; existing PostgreSQL schema-version-1 installations must apply packaged `schemas/postgres-v1-to-v2.sql`. Version-2 databases created before the lesson/source-case lock-order fix must apply the idempotent, version-gated `schemas/postgres-v2-lock-order-hotfix.sql`; fresh installs and the current v1-to-v2 migration already include the fix.
 - SQLite uses canonical JSON payload envelopes and does not provide direct-SQL domain mutation, in-place migration, async access, or shared multi-host writer coordination.

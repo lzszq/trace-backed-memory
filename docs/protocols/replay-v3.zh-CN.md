@@ -4,9 +4,10 @@
 
 `tbm.replay.v3` 定义与存储实现无关的记录，用来描述 memory decision finalize
 之后实际注入的精确字节，以及重放该 decision 所需的固定证据集合。契约模块本身
-不提供 artifact repository、不激活 memory，也不会把当前进程内 Gate 变成 durable
-Gate。现已提供 opt-in 的隔离 SQLite repository 持久化这些记录，但它不是 active
-runtime state。
+不激活 memory，也不会把当前进程内 Gate 变成 durable Gate。现有 opt-in 隔离
+SQLite repository 可持久化这些记录；隔离 PostgreSQL 安装与 fail-closed rollback
+schema 建立相同的不可变关系边界，但尚未连接 Python repository 或 active runtime
+state。
 
 ## 内容身份
 
@@ -69,6 +70,25 @@ immutable trigger、foreign key 和调用方 savepoint ownership 都会 fail clo
 不连接 durable GateSession。该 repository 拒绝 confidential/restricted artifact，
 直到透明加密 provider 能够在加密的同时保留精确内容身份。
 
+## 隔离 PostgreSQL 重放 schema
+
+`schemas/postgres-v3-replay.sql` 仅在 active PostgreSQL schema version 2 时安装
+隔离的 `trace_backed_memory_v3_replay` schema。它保存有界字节与不可变
+injection/manifest descriptor，从声明 digest 派生 artifact ID，强制精确的
+manifest-to-injection identity linkage 以及 injection byte/media bound，并用固定
+`search_path` trigger 拒绝 update、delete 与 truncate；active v2 表保持不变。
+与 SQLite DDL 相同，在 encryption 实现前它会拒绝 confidential/restricted 字节。
+安装在单一事务内完成，并在创建对象前锁定 active schema metadata。
+
+`schemas/postgres-v3-replay-rollback.sql` 会锁定两份 metadata 与全部 ledger table，
+核对预期 relation、function、trigger、constraint 与 column catalog membership，
+再使用 `RESTRICT`
+仅删除隔离 schema。额外对象、外部依赖、metadata drift 或 active version 不是 2
+都会让整个 rollback 失败。这两份 SQL 只建立 migration boundary；当前尚不提供
+content SHA-256 重算或 canonical descriptor parsing，也不提供 PostgreSQL
+repository、访问授权、加密、保留或 service 事务。可信 repository 必须在每次
+insert 前和 load 后验证 descriptor 与精确字节。
+
 ## 解析与信任边界
 
 外部 JSON 上限为 1 MiB、depth 32、10,000 nodes。parser 拒绝 duplicate key、非法
@@ -80,6 +100,7 @@ self-hash 与内容派生 ID 的关系属于 value-level 规则，必须在 Sche
 Python parser 检查。
 
 当前 v2 Store、active SQLite v1 adapter、PostgreSQL v2 adapter、本地 Agent 与
-STDIO MCP 均不会持久化或输出这些记录。opt-in SQLite 账本只提供原子字节/descriptor
-存储。未来 runtime 只有在授权读取、执行 retention/encryption，并链接 finalized
-GateSession 后，才能声称支持完整 decision replay。
+STDIO MCP 均不会持久化或输出这些记录。opt-in SQLite 账本提供原子字节/descriptor
+存储；隔离 PostgreSQL 资源目前只提供 schema lifecycle。未来 runtime 只有在授权
+读取、执行 retention/encryption，并链接 finalized GateSession 后，才能声称支持
+完整 decision replay。

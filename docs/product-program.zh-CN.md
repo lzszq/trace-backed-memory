@@ -540,7 +540,12 @@
   descriptor 与 decision manifest，提供原子 bundle 写入、immutable row、精确
   idempotency/conflict、foreign-key linkage、canonical schema drift 检查、有界
   defensive load、字节 rehash、调用方 savepoint 与并发 replay 测试。access
-  control、encryption、retention、GateSession linkage、PostgreSQL parity 和
+  control、encryption、retention、GateSession linkage 和 active integration
+  仍待完成。
+- 增加带版本门禁的隔离 PostgreSQL replay-ledger install 与 fail-closed rollback
+  资源：提供有界精确字节、不可变 injection/manifest descriptor、关系链接、固定
+  `search_path` mutation guard、active metadata 锁与精确 catalog 校验。PostgreSQL
+  repository adapter、authorization/encryption/retention、GateSession 事务链接和
   active integration 仍待完成。
 - 发布 `tbm.regression-evidence.v3` storage-neutral、content-addressed 验证记录，
   要求不同的 submitter/verifier principal、精确 source/fix/verification commit

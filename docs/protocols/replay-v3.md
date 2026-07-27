@@ -4,9 +4,11 @@
 
 `tbm.replay.v3` defines storage-neutral records for the exact bytes injected
 after a finalized memory decision and for the fixed evidence set needed to
-replay that decision. It does not provide an artifact repository, activate
-memory, or make the current process-local Gate durable. An opt-in isolated
-SQLite repository now persists these records; it is not active runtime state.
+replay that decision. It does not activate memory or make the current
+process-local Gate durable. An opt-in isolated SQLite repository persists
+these records; isolated PostgreSQL install and fail-closed rollback schemas
+establish the same immutable relational boundary but are not yet connected to
+a Python repository or active runtime state.
 
 ## Content identity
 
@@ -81,6 +83,29 @@ or link to a durable GateSession. The repository rejects
 confidential/restricted artifacts until a transparent encryption provider can
 preserve exact content identity.
 
+## Isolated PostgreSQL replay schema
+
+`schemas/postgres-v3-replay.sql` installs an isolated
+`trace_backed_memory_v3_replay` schema only when the active PostgreSQL schema
+is version 2. It stores bounded bytes plus immutable injection and manifest
+descriptors, derives artifact IDs from declared digests, enforces exact
+manifest-to-injection identity linkage and injection byte/media bounds, denies
+update, delete, and truncate through fixed-search-path triggers, and leaves
+the active v2 tables unchanged. Like the SQLite DDL, it intentionally rejects
+confidential/restricted bytes until encryption is implemented. Installation
+is one transaction and locks active schema metadata before creating any object.
+
+`schemas/postgres-v3-replay-rollback.sql` locks both metadata records and all
+ledger tables, verifies the expected relation, function, trigger, constraint,
+and column catalog membership, and
+drops only the isolated schema with `RESTRICT`. Unexpected objects, external
+dependencies, metadata drift, or an active version other than 2 abort the
+entire rollback. These SQL resources establish a migration boundary; they do
+not recompute content SHA-256, parse canonical descriptors, or provide the
+PostgreSQL repository, access authorization, encryption, retention, or service
+transactions. The trusted repository must verify descriptors and exact bytes
+before every insert and after every load.
+
 ## Parsing and trust boundary
 
 External JSON is limited to 1 MiB, depth 32, and 10,000 nodes. Parsers reject
@@ -94,6 +119,7 @@ by the Python parser and must be checked after Schema validation.
 
 The current v2 Store, active SQLite v1 adapter, PostgreSQL v2 adapter, local
 agent, and STDIO MCP do not persist or emit these records. The opt-in SQLite
-ledger provides atomic byte/descriptor storage only. A future runtime must
+ledger provides atomic byte/descriptor storage, while the isolated PostgreSQL
+resources currently provide schema lifecycle only. A future runtime must
 authorize reads, apply retention/encryption, and link the finalized
 GateSession before it can claim complete decision replay.

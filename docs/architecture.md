@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 73 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 75 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 73 resources.
+contains 75 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1479,10 +1479,22 @@ foreign keys for manifest-to-injection linkage, verifies canonical schema
 objects, and revalidates duplicated columns, descriptors, bounds, and exact
 bytes on load. Caller transactions retain ownership through savepoints.
 
+`schemas/postgres-v3-replay.sql` and its fail-closed rollback establish the
+matching isolated PostgreSQL relation boundary without changing active schema
+version 2. Installation locks active metadata and creates bounded artifact
+bytes, injection descriptors, manifests, foreign keys, indexes, and
+fixed-search-path immutability triggers atomically. Rollback locks both
+metadata rows and ledger tables, then verifies expected catalog membership
+before `RESTRICT` removal. SQL enforces derived IDs, exact relational linkage,
+and injection shape, but canonical descriptor and content-digest verification
+remain the trusted PostgreSQL repository's responsibility. That repository and
+the cross-record service transaction remain outstanding.
+
 The active v2 Store and persistence adapters do not emit these contracts. The
-ledger supplies atomic artifact storage, not GateSession linkage, access
-control, encryption, retention, or runtime authority. Those boundaries and
-cross-adapter conformance remain required in the coordinated version-3
+SQLite ledger supplies atomic artifact storage, while the PostgreSQL resources
+currently supply schema lifecycle only. Neither supplies GateSession linkage,
+access control, encryption, retention, or runtime authority. Those boundaries
+and cross-adapter conformance remain required in the coordinated version-3
 runtime.
 
 ## Authorization version-3 contract

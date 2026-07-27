@@ -1328,8 +1328,13 @@ Track:
   immutable rows, exact idempotency/conflicts, foreign-key linkage, canonical
   schema drift checks, bounded defensive loads, byte rehashing, caller
   savepoints, and concurrent replay tests. Keep access control, encryption,
-  retention, GateSession linkage, PostgreSQL parity, and active integration
-  outstanding.
+  retention, GateSession linkage, and active integration outstanding.
+- Add version-gated isolated PostgreSQL replay-ledger install and fail-closed
+  rollback resources with bounded exact bytes, immutable injection/manifest
+  descriptors, relational linkage, fixed-search-path mutation guards, active
+  metadata locking, and exact catalog verification. Keep the PostgreSQL
+  repository adapter, authorization/encryption/retention, GateSession
+  transaction linkage, and active integration outstanding.
 - Publish `tbm.regression-evidence.v3` as a storage-neutral, content-addressed
   verification record with distinct submitter/verifier principals, exact
   source/fix/verification commit relationships, evaluator and environment

@@ -98,6 +98,11 @@ _RESOURCE_SPECS: tuple[
         "example",
         "application/json",
     ),
+    (
+        "examples/structured_regression_evidence_v3.example.json",
+        "example",
+        "application/json",
+    ),
     ("examples/trace.example.json", "example", "application/json"),
     ("memory/failure_taxonomy.yaml", "memory", "application/yaml"),
     ("memory/lessons.example.yaml", "memory", "application/yaml"),
@@ -200,6 +205,11 @@ _RESOURCE_SPECS: tuple[
     ("schemas/sqlite-v3-migration.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-replay.sql", "schema", "application/sql"),
     ("schemas/sqlite.sql", "schema", "application/sql"),
+    (
+        "schemas/structured_regression_evidence_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     ("schemas/trace.schema.json", "schema", "application/schema+json"),
 )
 _RESOURCE_SPEC_BY_NAME = {

@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-55 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权 contract 资源、隔离 SQLite GateSession/replay ledger DDL 和隔离 PostgreSQL GateSession install/rollback。
+57 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence contract 资源、隔离 SQLite GateSession/replay ledger DDL 和隔离 PostgreSQL GateSession install/rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -302,6 +302,18 @@ decision 和 policy hash 只提供内容关联，不提供真实性。不得把�
 签名或长期 capability；必须针对精确信任 request 与 policy 验证，并在 policy
 变化、撤销或过期后重新求值。active Store、Agent、MCP 与 GateSession repository
 尚未调用该求值器，不得宣称具备多租户授权。
+
+## Version-3 结构化 evidence 策略
+
+只能从经过 review 的 Failure Case、关联 fix 与不同的 verification Trace/run 创建
+结构化 regression evidence。必须记录 evaluator/version、suite/case、
+expected/observed outcome、有界 environment、精确 source/fix/verification commit
+关系与 artifact hash。submitter 和 verifier 必须是不同的认证 principal；所属
+service 必须验证 attestation，不能把其 hash 当作签名。
+
+`pass` 不授予激活权限。发布仍需独立 lifecycle/authorization 检查与 immutable
+MemoryRevision。migration-only `RegressionEvidence` 和 active v2
+`regression_passed` boolean 只是兼容输入，不是该契约的替代品。
 
 ## Version-3 重放 artifact 策略
 

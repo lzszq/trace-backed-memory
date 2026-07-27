@@ -1,0 +1,44 @@
+{
+  "artifact_hashes": [
+    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "attestation_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "case_id": "case_001",
+  "contract_version": "tbm.regression-evidence.v3",
+  "environment": {
+    "os": "linux",
+    "python": "3.11"
+  },
+  "evaluation_case_id": "case_no_repeat_failure",
+  "evaluation_suite": "memory_regressions",
+  "evaluator_id": "evaluator_regression",
+  "evaluator_version": "1.2.0",
+  "evidence_id": "regression_sha256_8eb80913cc62cbacc101368266e9a171ed8d9fa4d11f3218626ad1a91c012ef4",
+  "expected_outcome": "The fixed workflow completes without the source failure.",
+  "fix_commit_sha": "def456",
+  "fix_to_verification": {
+    "from_commit_sha": "def456",
+    "relation": "ancestor",
+    "to_commit_sha": "fedcba",
+    "verified_at": "2026-07-27T00:02:00Z",
+    "verified_by": "git_verifier"
+  },
+  "observed_outcome": "The fixed workflow completed and all assertions passed.",
+  "result": "pass",
+  "source_commit_sha": "abc123",
+  "source_to_fix": {
+    "from_commit_sha": "abc123",
+    "relation": "ancestor",
+    "to_commit_sha": "def456",
+    "verified_at": "2026-07-27T00:01:00Z",
+    "verified_by": "git_verifier"
+  },
+  "source_trace_id": "trace_source_001",
+  "submitted_at": "2026-07-27T00:03:00Z",
+  "submitter_id": "engineer_001",
+  "verification_commit_sha": "fedcba",
+  "verification_run_id": "run_verify_001",
+  "verification_trace_id": "trace_verify_001",
+  "verified_at": "2026-07-27T00:04:00Z",
+  "verifier_id": "reviewer_001"
+}

@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 55 resources.
+contains 57 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1505,6 +1505,15 @@ The hashes are content identities, not signatures. The contract does not
 authenticate callers, persist policy, issue reusable capabilities, or connect
 to the active Store, Agent, MCP, or GateSession repositories. See
 [Authorization v3 contract](protocols/authorization-v3.md).
+
+The storage-neutral `tbm.regression-evidence.v3` record is the first
+production-oriented evidence boundary beyond the migration mapping. Its
+content-derived identity binds distinct source and verification traces,
+expected/observed outcomes, evaluator/environment provenance, exact
+source-to-fix-to-verification commit relationships, artifacts, independent
+submitter/verifier principals, and an attestation hash. It does not activate a
+memory, verify signatures, or replace the active v2 boolean. See
+[Structured regression evidence v3](protocols/evidence-v3.md).
 
 ## Non-goals
 

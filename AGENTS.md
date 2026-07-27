@@ -43,6 +43,8 @@ Start with:
 - `contracts_v3.py`: strict version-3 identities, mappings, and preflight plans.
 - `authorization_v3.py`: storage-neutral identity, role-binding, repository
   alias, and linked authorization-decision contracts; not active enforcement.
+- `evidence_v3.py`: storage-neutral content-addressed structured regression
+  evidence with independent submitter/verifier provenance.
 - `gate_session_v3.py`: persistence-neutral durable-session contract and
   explicit lifecycle transitions; not an active repository.
 - `sqlite_gate_session_v3.py`: opt-in side-by-side append-only GateSession

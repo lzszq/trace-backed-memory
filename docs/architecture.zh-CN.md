@@ -374,6 +374,13 @@ evaluator。policy 把 principal 和 agent client 绑定到精确 canonical repo
 重用 capability，也不连接 active Store、Agent、MCP 或 GateSession repository。
 详见[授权 v3 契约](protocols/authorization-v3.zh-CN.md)。
 
+storage-neutral `tbm.regression-evidence.v3` 是 migration mapping 之外第一层面向
+生产的 evidence boundary。其内容派生 identity 绑定不同的 source/verification
+Trace、expected/observed outcome、evaluator/environment provenance、精确
+source→fix→verification commit 关系、artifact、相互独立的 submitter/verifier
+principal 与 attestation hash。它不会激活 memory、验证签名或替代 active v2
+boolean。详见[结构化 regression evidence v3](protocols/evidence-v3.zh-CN.md)。
+
 ## 非目标
 
 当前 scope 是“仅匹配 memory 已声明字段”的语义，不是多租户授权模型；省略 `repo` 或 `tenant` 的 memory 不会自动获得对应硬边界。已发布的授权 v3 契约准备了 canonical repository 与 global/repository/tenant role boundary，但生产隔离仍需要认证 service integration 和 durable policy enforcement。snapshot version 2 也不会持久化 Gate request、retriever/gate/renderer 版本与 hash 或结构化 regression run 证据，Git ancestry 仍为 opt-in。这些属于 schema v3 / PostgreSQL schema v3，而不是当前 Alpha 契约。

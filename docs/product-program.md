@@ -1330,6 +1330,12 @@ Track:
   savepoints, and concurrent replay tests. Keep access control, encryption,
   retention, GateSession linkage, PostgreSQL parity, and active integration
   outstanding.
+- Publish `tbm.regression-evidence.v3` as a storage-neutral, content-addressed
+  verification record with distinct submitter/verifier principals, exact
+  source/fix/verification commit relationships, evaluator and environment
+  provenance, expected/observed outcomes, artifact hashes, and attestation.
+  This does not replace the active v2 boolean or authorize publication; the
+  immutable MemoryRevision and service integration remain later work.
 - Add an opt-in side-by-side SQLite GateSession repository with append-only
   canonical revisions, a scoped atomic idempotency index, trusted-clock CAS
   transitions and lease renewal, schema-drift detection, caller savepoints,

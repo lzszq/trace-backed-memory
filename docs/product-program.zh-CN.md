@@ -542,6 +542,11 @@
   defensive load、字节 rehash、调用方 savepoint 与并发 replay 测试。access
   control、encryption、retention、GateSession linkage、PostgreSQL parity 和
   active integration 仍待完成。
+- 发布 `tbm.regression-evidence.v3` storage-neutral、content-addressed 验证记录，
+  要求不同的 submitter/verifier principal、精确 source/fix/verification commit
+  关系、evaluator/environment provenance、expected/observed outcome、artifact hash
+  与 attestation。它不替代 active v2 boolean，也不授予发布权限；immutable
+  MemoryRevision 与 service integration 仍是后续工作。
 - 增加 opt-in、side-by-side SQLite GateSession repository，提供 append-only
   canonical revision、scoped 原子 idempotency index、可信时钟 CAS transition 与
   lease renewal、schema-drift 检测、调用方 savepoint、并发测试和有界 due

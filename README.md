@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 55 resources. `PackagedResource` descriptions
+The allowlist currently contains 57 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -417,6 +417,15 @@ decision hashes are content identities, not signatures or reusable
 capabilities. The active Store, Agent, MCP, and GateSession repositories do not
 invoke this evaluator yet. See
 [the authorization contract](docs/protocols/authorization-v3.md).
+
+The storage-neutral `tbm.regression-evidence.v3` contract replaces no active
+field; it adds the strict target record needed before immutable memory
+revisions can be published. It binds separate source and verification traces,
+expected and observed outcomes, evaluator/environment provenance, exact commit
+relationships, artifacts, independent submitter/verifier principals, and an
+attestation hash under a content-derived evidence ID. A passing record is
+evidence, not publication authority. See
+[the evidence contract](docs/protocols/evidence-v3.md).
 
 For opt-in local durability of the version-3 lifecycle itself,
 `SQLiteGateSessionRepository` uses the separate
@@ -2061,6 +2070,10 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- protocols/
 |   |   |-- agent-v1.md
 |   |   |-- agent-v1.zh-CN.md
+|   |   |-- authorization-v3.md
+|   |   |-- authorization-v3.zh-CN.md
+|   |   |-- evidence-v3.md
+|   |   |-- evidence-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
 |   |   |-- gate-session-v3.zh-CN.md
 |   |   |-- replay-v3.md
@@ -2075,6 +2088,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- agent_*.example.json
 |   |-- authorization_*_v3.example.json
 |   |-- decision_replay_manifest_v3.example.json
+|   |-- structured_regression_evidence_v3.example.json
 |   |-- gate_session_v3.example.json
 |   |-- injection_artifact_v3.example.json
 |   |-- quickstart.py
@@ -2095,6 +2109,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- decision_replay_manifest_v3.schema.json
 |   |-- gate_session_v3.schema.json
 |   |-- injection_artifact_v3.schema.json
+|   |-- structured_regression_evidence_v3.schema.json
 |   |-- postgres-v1-to-v2.sql
 |   |-- postgres-v2-lock-order-hotfix.sql
 |   |-- postgres-v3-gate-session*.sql
@@ -2126,6 +2141,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- execution.py
 |   |-- extraction.py
 |   |-- authorization_v3.py
+|   |-- evidence_v3.py
 |   |-- gate_session_v3.py
 |   |-- lifecycle.py
 |   |-- locking.py
@@ -2147,6 +2163,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 `-- tests/
     |-- test_agent.py
     |-- test_authorization_v3.py
+    |-- test_evidence_v3.py
     |-- test_contracts_v3.py
     |-- test_gate_session_v3.py
     |-- test_mcp_server.py

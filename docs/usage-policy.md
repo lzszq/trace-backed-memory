@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 55 installed resource copies must remain byte-identical to the top-level
+The 57 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1117,6 +1117,21 @@ decision against the exact trusted request and policy, and reevaluate after
 policy change, revocation, or expiry. The active Store, Agent, MCP, and
 GateSession repositories do not yet invoke this evaluator and must not claim
 multi-tenant authorization.
+
+## Version-3 structured evidence policy
+
+Create structured regression evidence only from a reviewed Failure Case, a
+linked fix, and a distinct verification Trace/run. Record the evaluator and
+version, suite/case, expected and observed outcomes, bounded environment,
+exact source/fix/verification commit relationships, and artifact hashes. The
+submitter and verifier must be different authenticated principals, and the
+owning service must validate the attestation rather than treating its hash as
+a signature.
+
+A `pass` result does not authorize activation. Publication still requires the
+independent lifecycle and authorization checks and an immutable MemoryRevision.
+The migration-only `RegressionEvidence` and active v2 `regression_passed`
+boolean are compatibility inputs, not substitutes for this contract.
 
 ## Version-3 replay artifact policy
 

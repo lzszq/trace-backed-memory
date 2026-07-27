@@ -14,6 +14,7 @@
 ## Agent 集成
 
 - [本地 Agent 协议 `tbm.agent.v1`](protocols/agent-v1.zh-CN.md)
+- [授权 v3 契约](protocols/authorization-v3.zh-CN.md)
 - [Durable GateSession v3 领域契约](protocols/gate-session-v3.zh-CN.md)
 - [内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)
 - [Codex 集成](integrations/codex.zh-CN.md)
@@ -35,10 +36,12 @@
 version 2 和 Agent 协议 `tbm.agent.v1`。可选 `tbm-mcp` 命令是该协议的长驻
 本地 STDIO transport，不是新的持久化版本。pending gate request 仍为进程内
 状态。与持久化实现无关的 `tbm.gate-session.v3` 生命周期契约及 opt-in、
-side-by-side SQLite revision repository 已经发布，但 active Store/MCP、
-PostgreSQL repository、worker 与 service integration 尚未使用它。
-canonical repository 授权与结构化 regression evidence 属于统一推进的 schema
-version 3 计划。与存储实现无关的 `tbm.replay.v3` artifact 与 replay manifest
+side-by-side SQLite 和隔离 PostgreSQL revision repository 已经发布，但 active
+Store/MCP、worker 与 service integration 尚未使用它们。与存储实现无关的授权
+v3 policy/evaluator 契约已定义 canonical repository、精确租户别名、认证身份
+位置、role binding 与关联 decision，但尚未接入 active adapter。结构化
+regression evidence 仍属于统一推进的 schema version 3 计划。与存储实现无关的
+`tbm.replay.v3` artifact 与 replay manifest
 契约已经发布，但 active adapter 尚不存储其字节或 manifest。只读 v3 迁移预检和不可激活的 staging
 bundle 已经实现，但它们不能激活 memory，也不能作为 version-3 runtime state
 加载。

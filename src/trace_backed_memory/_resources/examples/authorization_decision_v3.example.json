@@ -1,0 +1,18 @@
+{
+  "agent_client_id": "agent_client_001",
+  "allowed": true,
+  "authorization_event_id": "authz_sha256_b93bbade0e09f43b380d5fbca3edfc15237b33ed1dfb4d40fbeddf7636f10817",
+  "contract_version": "tbm.authorization-decision.v3",
+  "decided_at": "2026-07-27T00:01:00Z",
+  "matched_binding_ids": [
+    "binding_001"
+  ],
+  "permission": "memory:retrieve",
+  "policy_sha256": "sha256:7b89b9ca2cdccf163b57e0edf814a9079635b94907838f5be0f12c36417681ef",
+  "principal_id": "principal_tenant_001",
+  "reason": "allowed",
+  "repository_id": "repository_001",
+  "request_id": "request_001",
+  "request_sha256": "sha256:83d7a2d3dc7ba094d3a12183ce31ae7e6447689df178cc8e4cc17293cfc9fa5b",
+  "tenant_id": "tenant_001"
+}

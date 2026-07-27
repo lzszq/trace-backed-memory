@@ -176,7 +176,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 50 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 54 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -257,6 +257,13 @@ injection，以及固定八项 component 的 decision replay manifest。complete
 列出缺失项。当前 Store、SQL adapter、本地 Agent 与 MCP 均不持久化这些记录，因此
 它是统一 version-3 runtime 的准备工作，而不是当前已支持精确重放的声明。详见
 [重放契约](docs/protocols/replay-v3.zh-CN.md)。
+
+与存储实现无关的授权 v3 契约定义 canonical repository、精确的租户作用域别名、
+principal、agent client、role binding 与内容关联的允许/拒绝 decision。求值器把
+授权与适用性分开，并设计为先于任何检索运行。身份与目标字段必须来自服务端认证
+上下文；decision hash 只是内容身份，不是签名或可重用 capability。active Store、
+Agent、MCP 与 GateSession repository 尚未调用该求值器。详见
+[授权契约](docs/protocols/authorization-v3.zh-CN.md)。
 
 如需 opt-in 的 version-3 lifecycle 本地持久化，可使用独立
 `schemas/sqlite-v3-gate-session.sql` 契约与
@@ -872,7 +879,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、50 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、54 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -946,6 +953,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   `-- usage-policy.zh-CN.md
 |-- examples/
 |   |-- agent_*.example.json
+|   |-- authorization_*_v3.example.json
 |   |-- decision_replay_manifest_v3.example.json
 |   |-- gate_session_v3.example.json
 |   |-- injection_artifact_v3.example.json
@@ -963,6 +971,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   `-- failure_taxonomy.yaml
 |-- schemas/
 |   |-- agent_*.schema.json
+|   |-- authorization_*_v3.schema.json
 |   |-- decision_replay_manifest_v3.schema.json
 |   |-- gate_session_v3.schema.json
 |   |-- injection_artifact_v3.schema.json
@@ -995,6 +1004,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- contracts_v3.py
 |   |-- execution.py
 |   |-- extraction.py
+|   |-- authorization_v3.py
 |   |-- gate_session_v3.py
 |   |-- lifecycle.py
 |   |-- locking.py
@@ -1014,6 +1024,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   `-- store.py
 `-- tests/
     |-- test_agent.py
+    |-- test_authorization_v3.py
     |-- test_contracts_v3.py
     |-- test_gate_session_v3.py
     |-- test_mcp_server.py

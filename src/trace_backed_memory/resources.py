@@ -56,6 +56,16 @@ _RESOURCE_SPECS: tuple[
     ("examples/agent_finalized.example.json", "example", "application/json"),
     ("examples/agent_prepared.example.json", "example", "application/json"),
     (
+        "examples/authorization_decision_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/authorization_policy_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/decision_replay_manifest_v3.example.json",
         "example",
         "application/json",
@@ -109,6 +119,16 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/agent_prepared.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/authorization_decision_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/authorization_policy_v3.schema.json",
         "schema",
         "application/schema+json",
     ),

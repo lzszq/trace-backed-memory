@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 50 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 54 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -351,9 +351,26 @@ active v2 Store 与 persistence adapter 尚不输出这些契约。只有在统�
 runtime 中交付原子 artifact storage、GateSession linkage、访问控制、retention 与
 adapter conformance 后，它们才能成为 authority。
 
+## 授权 version-3 契约
+
+`authorization_v3.py` 为未来 service boundary 发布与存储实现无关的 policy 与
+evaluator。policy 把 principal 和 agent client 绑定到精确 canonical repository、
+租户作用域 alias、显式 permission，以及 global/tenant/repository role scope。
+策略构造会在任何请求求值前校验注册表唯一性与全部跨记录目标。
+
+求值器有意先于检索运行：先取得服务端认证 identity context，再检查状态与租户、
+精确解析 repository，最后求值 active binding。scope attribute 复用有界适用性
+词汇，但授权求值器会忽略它们；它们可以在后续缩小检索，不能授予访问权。decision
+绑定精确 canonical request 与 policy hash，并可通过
+`verify_authorization_decision` 重新计算核验。
+
+这些 hash 是内容身份，不是签名。该契约不认证调用方、不持久化 policy、不签发可
+重用 capability，也不连接 active Store、Agent、MCP 或 GateSession repository。
+详见[授权 v3 契约](protocols/authorization-v3.zh-CN.md)。
+
 ## 非目标
 
-当前 scope 是“仅匹配 memory 已声明字段”的语义，不是多租户授权模型；省略 `repo` 或 `tenant` 的 memory 不会自动获得对应硬边界。生产隔离需要未来的 canonical `repository_id`、显式 global/repository/tenant scope kind 和 global policy 权限。snapshot version 2 也不会持久化 Gate request、retriever/gate/renderer 版本与 hash 或结构化 regression run 证据，Git ancestry 仍为 opt-in。这些属于 schema v3 / PostgreSQL schema v3，而不是当前 Alpha 契约。
+当前 scope 是“仅匹配 memory 已声明字段”的语义，不是多租户授权模型；省略 `repo` 或 `tenant` 的 memory 不会自动获得对应硬边界。已发布的授权 v3 契约准备了 canonical repository 与 global/repository/tenant role boundary，但生产隔离仍需要认证 service integration 和 durable policy enforcement。snapshot version 2 也不会持久化 Gate request、retriever/gate/renderer 版本与 hash 或结构化 regression run 证据，Git ancestry 仍为 opt-in。这些属于 schema v3 / PostgreSQL schema v3，而不是当前 Alpha 契约。
 
 version-2 snapshot 中 verified 但未 review 的 case 必须先补齐 review 证据；既有 PostgreSQL schema-version-1 安装必须先应用包内 `schemas/postgres-v1-to-v2.sql`，再进行同步。
 

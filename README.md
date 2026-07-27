@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 50 resources. `PackagedResource` descriptions
+The allowlist currently contains 54 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -404,6 +404,16 @@ current Store, SQL adapters, local agent, and MCP do not persist these records,
 so this contract is preparation for the coordinated version-3 runtime rather
 than a claim of exact replay today. See
 [the replay contract](docs/protocols/replay-v3.md).
+
+The storage-neutral authorization-v3 contract defines canonical repositories,
+exact tenant-scoped aliases, principals, agent clients, role bindings, and
+content-linked allow/deny decisions. Its evaluator keeps authorization
+separate from applicability and is intended to run before any retrieval.
+Identity and target fields must come from authenticated server-owned context;
+decision hashes are content identities, not signatures or reusable
+capabilities. The active Store, Agent, MCP, and GateSession repositories do not
+invoke this evaluator yet. See
+[the authorization contract](docs/protocols/authorization-v3.md).
 
 For opt-in local durability of the version-3 lifecycle itself,
 `SQLiteGateSessionRepository` uses the separate
@@ -1222,7 +1232,7 @@ signed `INTEGER` column supplies the identical upper boundary. Existing
 schema-version-1 databases already enforce that physical maximum and need no
 Phase 47 migration; operators missing the earlier lower-bound CHECK still own
 that constraint migration. Only the canonical and packaged Trace Schema bytes
-change in Phase 47. The current distribution uses the 50-resource allowlist;
+change in Phase 47. The current distribution uses the 54-resource allowlist;
 snapshot version 2 and PostgreSQL schema version 2 are current.
 
 ### Deferred decision outcome sealing
@@ -1971,7 +1981,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 50 canonical Schemas, examples, and memory
+  explicit atomic export for all 54 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2060,6 +2070,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   `-- usage-policy.zh-CN.md
 |-- examples/
 |   |-- agent_*.example.json
+|   |-- authorization_*_v3.example.json
 |   |-- decision_replay_manifest_v3.example.json
 |   |-- gate_session_v3.example.json
 |   |-- injection_artifact_v3.example.json
@@ -2077,6 +2088,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   `-- failure_taxonomy.yaml
 |-- schemas/
 |   |-- agent_*.schema.json
+|   |-- authorization_*_v3.schema.json
 |   |-- decision_replay_manifest_v3.schema.json
 |   |-- gate_session_v3.schema.json
 |   |-- injection_artifact_v3.schema.json
@@ -2109,6 +2121,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- contracts_v3.py
 |   |-- execution.py
 |   |-- extraction.py
+|   |-- authorization_v3.py
 |   |-- gate_session_v3.py
 |   |-- lifecycle.py
 |   |-- locking.py
@@ -2128,6 +2141,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   `-- store.py
 `-- tests/
     |-- test_agent.py
+    |-- test_authorization_v3.py
     |-- test_contracts_v3.py
     |-- test_gate_session_v3.py
     |-- test_mcp_server.py

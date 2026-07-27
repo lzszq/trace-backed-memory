@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 50 installed resource copies must remain byte-identical to the top-level
+The 54 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -821,7 +821,7 @@ so Phase 47 is not a database migration; operators missing the earlier CHECK
 still own the lower-bound migration. Only the canonical and packaged Trace
 Schema bytes changed in Phase 47; that baseline had 18 packaged resource names
 and PostgreSQL schema version 2. The current contract is snapshot version 2,
-50 packaged resources, and PostgreSQL schema version 2.
+54 packaged resources, and PostgreSQL schema version 2.
 
 Trace completion never seals a usage decision automatically, and decision
 outcome sealing never changes a Trace. Use the same evaluator result for both
@@ -1096,6 +1096,27 @@ Treat `clock_timestamp()` as authoritative and keep the metadata-to-head lock
 order. A borrowed connection retains outer-transaction ownership; repository
 failure rolls back only its savepoint. This adapter remains disconnected from
 the active Agent/MCP lifecycle and does not provide workers or authorization.
+
+## Version-3 authorization contract policy
+
+Authorization must run before retrieval. Identity, client, tenant, and target
+values must be derived from authenticated server-owned context; never authorize
+from caller-asserted IDs alone. Resolve only exact canonical repository IDs or
+explicit tenant aliases. Legacy migration aliases, scope omission, and
+applicability attributes never grant access.
+
+Evaluate the current policy for each protected operation. Disabled identities,
+cross-tenant targets, revoked bindings, and bindings outside their inclusive
+`valid_from` / exclusive `expires_at` interval fail closed. Treat
+`platform:admin` as a global superuser permission and audit its assignment and
+use.
+
+Decision and policy hashes provide content linkage, not authenticity. Never
+accept an isolated decision as a signature or durable capability. Verify the
+decision against the exact trusted request and policy, and reevaluate after
+policy change, revocation, or expiry. The active Store, Agent, MCP, and
+GateSession repositories do not yet invoke this evaluator and must not claim
+multi-tenant authorization.
 
 ## Version-3 replay artifact policy
 

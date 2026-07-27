@@ -1,0 +1,529 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lzszq/trace-backed-memory/schemas/authorization_policy_v3.schema.json",
+  "title": "Trace-backed Memory authorization policy version 3 contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "policy_version",
+    "principals",
+    "agent_clients",
+    "repositories",
+    "repository_tenants",
+    "repository_aliases",
+    "role_bindings"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.authorization-policy.v3"
+    },
+    "policy_version": {
+      "$ref": "#/$defs/metadata"
+    },
+    "principals": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/principal"
+      }
+    },
+    "agent_clients": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/agentClient"
+      }
+    },
+    "repositories": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/repository"
+      }
+    },
+    "repository_tenants": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/repositoryTenant"
+      }
+    },
+    "repository_aliases": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/repositoryAlias"
+      }
+    },
+    "role_bindings": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/roleBinding"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": ".*\\S.*"
+    },
+    "metadata": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": ".*\\S.*"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?(?:Z|[+-](?:0[0-9]|1[0-4]):[0-5][0-9])$"
+    },
+    "nullableIdentifier": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/identifier"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "principal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "principal_id",
+        "issuer",
+        "subject_hash",
+        "tenant_id",
+        "status"
+      ],
+      "properties": {
+        "principal_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "issuer": {
+          "$ref": "#/$defs/metadata"
+        },
+        "subject_hash": {
+          "$ref": "#/$defs/digest"
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/nullableIdentifier"
+        },
+        "status": {
+          "enum": [
+            "active",
+            "disabled"
+          ]
+        }
+      }
+    },
+    "agentClient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_client_id",
+        "tenant_id",
+        "client_kind",
+        "status"
+      ],
+      "properties": {
+        "agent_client_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/nullableIdentifier"
+        },
+        "client_kind": {
+          "enum": [
+            "local_agent",
+            "service",
+            "sdk",
+            "mcp",
+            "worker"
+          ]
+        },
+        "status": {
+          "enum": [
+            "active",
+            "disabled"
+          ]
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_id",
+        "provider",
+        "provider_repository_id",
+        "canonical_locator_hash",
+        "display_name",
+        "legacy_aliases"
+      ],
+      "properties": {
+        "repository_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "provider": {
+          "enum": [
+            "local",
+            "github",
+            "gitlab",
+            "bitbucket",
+            "azure_devops",
+            "other"
+          ]
+        },
+        "provider_repository_id": {
+          "$ref": "#/$defs/metadata"
+        },
+        "canonical_locator_hash": {
+          "$ref": "#/$defs/digest"
+        },
+        "display_name": {
+          "$ref": "#/$defs/metadata"
+        },
+        "legacy_aliases": {
+          "type": "array",
+          "maxItems": 10000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/metadata"
+          }
+        }
+      }
+    },
+    "repositoryTenant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_id",
+        "tenant_id"
+      ],
+      "properties": {
+        "repository_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "repositoryAlias": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alias",
+        "repository_id",
+        "tenant_id",
+        "source"
+      ],
+      "properties": {
+        "alias": {
+          "$ref": "#/$defs/metadata"
+        },
+        "repository_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "source": {
+          "$ref": "#/$defs/metadata"
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "tenant_id",
+        "repository_id",
+        "attributes"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "global",
+            "tenant",
+            "repository"
+          ]
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/nullableIdentifier"
+        },
+        "repository_id": {
+          "$ref": "#/$defs/nullableIdentifier"
+        },
+        "attributes": {
+          "type": "object",
+          "maxProperties": 10,
+          "propertyNames": {
+            "enum": [
+              "branch",
+              "prompt_version",
+              "prompt_family",
+              "tool",
+              "tool_schema_version",
+              "model",
+              "model_family",
+              "eval_suite",
+              "task_type",
+              "failure_type"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/metadata"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "global"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tenant_id": {
+                "type": "null"
+              },
+              "repository_id": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "tenant"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tenant_id": {
+                "$ref": "#/$defs/identifier"
+              },
+              "repository_id": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "repository"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tenant_id": {
+                "$ref": "#/$defs/identifier"
+              },
+              "repository_id": {
+                "$ref": "#/$defs/identifier"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "permission": {
+      "enum": [
+        "artifact:read",
+        "artifact:write",
+        "gate_session:create",
+        "gate_session:transition",
+        "memory:activate",
+        "memory:create",
+        "memory:inject",
+        "memory:retrieve",
+        "memory:review",
+        "memory:verify",
+        "platform:admin",
+        "platform:audit_read",
+        "policy:approve_global",
+        "policy:create_global",
+        "tenant:audit_read"
+      ]
+    },
+    "repositoryPermission": {
+      "enum": [
+        "artifact:read",
+        "artifact:write",
+        "gate_session:create",
+        "gate_session:transition",
+        "memory:activate",
+        "memory:create",
+        "memory:inject",
+        "memory:retrieve",
+        "memory:review",
+        "memory:verify"
+      ]
+    },
+    "tenantPermission": {
+      "enum": [
+        "artifact:read",
+        "artifact:write",
+        "gate_session:create",
+        "gate_session:transition",
+        "memory:activate",
+        "memory:create",
+        "memory:inject",
+        "memory:retrieve",
+        "memory:review",
+        "memory:verify",
+        "tenant:audit_read"
+      ]
+    },
+    "roleBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_id",
+        "principal_id",
+        "agent_client_id",
+        "role_name",
+        "scope",
+        "permissions",
+        "status",
+        "valid_from",
+        "expires_at"
+      ],
+      "properties": {
+        "binding_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "principal_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "agent_client_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "role_name": {
+          "$ref": "#/$defs/metadata"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "permissions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/permission"
+          }
+        },
+        "status": {
+          "enum": [
+            "active",
+            "revoked"
+          ]
+        },
+        "valid_from": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "expires_at": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "properties": {
+                  "kind": {
+                    "const": "repository"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "permissions": {
+                "items": {
+                  "$ref": "#/$defs/repositoryPermission"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "properties": {
+                  "kind": {
+                    "const": "tenant"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "permissions": {
+                "items": {
+                  "$ref": "#/$defs/tenantPermission"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "permissions": {
+                "contains": {
+                  "const": "platform:admin"
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "scope": {
+                "properties": {
+                  "kind": {
+                    "const": "global"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

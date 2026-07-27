@@ -546,9 +546,14 @@
   database time、append-only trigger、exact-version CAS、catalog drift 检查、
   调用方 savepoint 与并发 idempotency 测试。保持 active PostgreSQL schema
   version 2 与 Agent/MCP lifecycle 不变。
+- 发布与存储实现无关的授权 v3 policy 与 decision 契约，包含 canonical
+  repository/tenant binding、精确 alias、principal/client registry、显式
+  global/tenant/repository role binding、时点评估、精确 policy/request 核验、
+  有界严格 JSON 和打包 Schema/示例。认证 identity context、持久化与 active
+  adapter enforcement 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
-- 增加 canonical repository ID、显式 global/repository/tenant scope kind 与 global policy 权限，使 scope 成为可执行的授权边界。
+- 在 retrieval 前集成服务端认证 identity 与已发布授权契约，使 scope 成为可执行的 runtime boundary。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
 - 记录可重放 decision 所需的 retriever/index、gate model/prompt、ancestry、policy、renderer、response 与 snippet version/hash。
 - 用显式 `required`/`disabled` policy 替代可选 ancestry，并审计 bypass reason。

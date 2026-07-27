@@ -1334,12 +1334,18 @@ Track:
   trigger enforcement, exact-version CAS, catalog drift checks, caller
   savepoints, and concurrent idempotency tests. Keep active PostgreSQL schema
   version 2 and the Agent/MCP lifecycle unchanged.
+- Publish storage-neutral authorization-v3 policy and decision contracts with
+  canonical repository/tenant bindings, exact aliases, principal/client
+  registries, explicit global/tenant/repository role bindings, point-in-time
+  evaluation, exact policy/request verification, strict bounded JSON, and
+  packaged Schemas/examples. Keep authenticated identity context, persistence,
+  and active adapter enforcement outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
-- Add a canonical repository ID, explicit global/repository/tenant scope kind,
-  and privileged creation for global policy so scope becomes an enforceable
-  authorization boundary.
+- Integrate authenticated service-owned identities and the published
+  authorization contract before retrieval so scope becomes an enforceable
+  runtime boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
 - Record retriever/index, gate model/prompt, ancestry, policy, renderer,

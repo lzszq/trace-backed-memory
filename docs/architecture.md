@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 50 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 54 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 50 resources.
+contains 54 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1478,13 +1478,35 @@ They become authoritative only with atomic artifact storage, GateSession
 linkage, access control, retention, and adapter conformance in the coordinated
 version-3 runtime.
 
+## Authorization version-3 contract
+
+`authorization_v3.py` publishes a storage-neutral policy and evaluator for the
+future service boundary. A policy binds principals and agent clients to exact
+canonical repositories, tenant-scoped aliases, explicit permissions, and
+global/tenant/repository role scopes. Policy construction validates registry
+uniqueness and every cross-record target before a request can be evaluated.
+
+The evaluator is deliberately ordered before retrieval: authenticated
+server-owned identity context, status and tenant checks, exact repository
+resolution, then active binding evaluation. Scope attributes reuse the bounded
+applicability vocabulary but are ignored by authorization. They may narrow
+later retrieval; they cannot grant access. Decisions bind the exact canonical
+request and policy hashes and can be recomputed with
+`verify_authorization_decision`.
+
+The hashes are content identities, not signatures. The contract does not
+authenticate callers, persist policy, issue reusable capabilities, or connect
+to the active Store, Agent, MCP, or GateSession repositories. See
+[Authorization v3 contract](protocols/authorization-v3.md).
+
 ## Non-goals
 
 The current scope matcher is declared-scope matching, not a multi-tenant
 authorization model: a memory that omits `repo` or `tenant` does not acquire
-that boundary implicitly. Production isolation requires a future canonical
-`repository_id`, explicit global/repository/tenant scope kind, and privileged
-global-policy creation. Snapshot version 2 also does not persist Gate requests,
+that boundary implicitly. The published authorization-v3 contract prepares
+canonical repository and global/repository/tenant role boundaries, but
+production isolation still requires authenticated service integration and
+durable policy enforcement. Snapshot version 2 also does not persist Gate requests,
 retrieval/gate/renderer versions or hashes, or structured regression-run
 evidence. Git ancestry remains opt-in. These are schema v3 / PostgreSQL schema
 v3 requirements, not properties of the current Alpha contract.

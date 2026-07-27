@@ -1,0 +1,40 @@
+{
+  "confidence": 1.0,
+  "content_artifact": {
+    "artifact_id": "artifact_sha256_a8c40ad3235b5b71d16f5f04d56935988c1847cd2da0693326da7ffa080408ce",
+    "classification": "internal",
+    "content_sha256": "sha256:a8c40ad3235b5b71d16f5f04d56935988c1847cd2da0693326da7ffa080408ce",
+    "created_at": "2026-07-27T00:05:00Z",
+    "encryption_key_id": null,
+    "media_type": "application/vnd.trace-backed-memory.revision+json",
+    "redaction_policy_id": null,
+    "size_bytes": 47
+  },
+  "contract_version": "tbm.memory-revision.v3",
+  "eval_leaking": false,
+  "fix_evidence_id": "fix_evidence_001",
+  "memory_id": "memory_001",
+  "memory_kind": "lesson",
+  "memory_type": "procedural",
+  "previous_revision_id": null,
+  "proposal_attestation_sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "proposed_at": "2026-07-27T00:06:00Z",
+  "proposed_by": "revision_proposer",
+  "proposed_via_client_id": "agent_client_001",
+  "regression_evidence_ids": [
+    "regression_sha256_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "revision_id": "memory_revision_sha256_aea6a6b339608f0235ae849c197c444528dbc750bcfefc603d16a975c3f6be3b",
+  "revision_number": 1,
+  "scope": {
+    "attributes": {
+      "branch": "main"
+    },
+    "kind": "repository",
+    "repository_id": "repository_001",
+    "tenant_id": "tenant_001"
+  },
+  "sensitive": false,
+  "source_case_id": "case_001",
+  "source_case_revision_id": "case_revision_001"
+}

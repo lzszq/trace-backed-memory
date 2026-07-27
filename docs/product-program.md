@@ -1336,6 +1336,12 @@ Track:
   provenance, expected/observed outcomes, artifact hashes, and attestation.
   This does not replace the active v2 boolean or authorize publication; the
   immutable MemoryRevision and service integration remain later work.
+- Publish proposal-only `tbm.memory-revision.v3` as a storage-neutral,
+  content-derived immutable revision with exact parent, content artifact,
+  canonical scope, case/fix/structured-evidence references, and server-owned
+  proposer/client attestation context. Keep approval and activation out of the
+  contract until authenticated authorization and audit service operations are
+  delivered.
 - Add an opt-in side-by-side SQLite GateSession repository with append-only
   canonical revisions, a scoped atomic idempotency index, trusted-clock CAS
   transitions and lease renewal, schema-drift detection, caller savepoints,

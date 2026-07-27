@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 57 resources. `PackagedResource` descriptions
+The allowlist currently contains 59 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -426,6 +426,14 @@ relationships, artifacts, independent submitter/verifier principals, and an
 attestation hash under a content-derived evidence ID. A passing record is
 evidence, not publication authority. See
 [the evidence contract](docs/protocols/evidence-v3.md).
+
+The proposal-only `tbm.memory-revision.v3` contract adds immutable,
+content-derived revisions with exact parent, content artifact, canonical
+scope, case/fix/evidence references, and server-owned proposer context.
+Evidence preflight rejects missing, non-passing, cross-case, or
+self-conflicted provenance. It does not approve or activate memory; those
+remain separate authenticated service operations. See
+[the revision contract](docs/protocols/memory-revision-v3.md).
 
 For opt-in local durability of the version-3 lifecycle itself,
 `SQLiteGateSessionRepository` uses the separate
@@ -1244,7 +1252,7 @@ signed `INTEGER` column supplies the identical upper boundary. Existing
 schema-version-1 databases already enforce that physical maximum and need no
 Phase 47 migration; operators missing the earlier lower-bound CHECK still own
 that constraint migration. Only the canonical and packaged Trace Schema bytes
-change in Phase 47. The current distribution uses the 55-resource allowlist;
+change in Phase 47. The current distribution uses the 59-resource allowlist;
 snapshot version 2 and PostgreSQL schema version 2 are current.
 
 ### Deferred decision outcome sealing
@@ -1993,7 +2001,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 55 canonical Schemas, examples, and memory
+  explicit atomic export for all 59 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2074,6 +2082,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- authorization-v3.zh-CN.md
 |   |   |-- evidence-v3.md
 |   |   |-- evidence-v3.zh-CN.md
+|   |   |-- memory-revision-v3.md
+|   |   |-- memory-revision-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
 |   |   |-- gate-session-v3.zh-CN.md
 |   |   |-- replay-v3.md
@@ -2097,6 +2107,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- failure_case.example.json
 |   |-- lesson.example.json
 |   |-- memory_context.example.json
+|   |-- memory_revision_v3.example.json
 |   |-- project_policy.example.json
 |   |-- memory_usage_log.example.json
 |   `-- memory_decision.example.json
@@ -2127,6 +2138,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- memory_usage_log.schema.json
 |   |-- memory_store_snapshot.schema.json
 |   |-- memory_context.schema.json
+|   |-- memory_revision_v3.schema.json
 |   `-- memory_decision.schema.json
 |-- src/trace_backed_memory/
 |   |-- _resources/
@@ -2149,6 +2161,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- mcp_server.py
 |   |-- migration_v3.py
 |   |-- models.py
+|   |-- memory_revision_v3.py
 |   |-- policy.py
 |   |-- postgres.py
 |   |-- postgres_gate_session_v3.py
@@ -2168,6 +2181,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_gate_session_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py
+    |-- test_memory_revision_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py

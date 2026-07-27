@@ -547,6 +547,11 @@
   关系、evaluator/environment provenance、expected/observed outcome、artifact hash
   与 attestation。它不替代 active v2 boolean，也不授予发布权限；immutable
   MemoryRevision 与 service integration 仍是后续工作。
+- 发布 proposal-only `tbm.memory-revision.v3` storage-neutral、内容派生 immutable
+  revision，绑定精确 parent、content artifact、canonical scope、case/fix/structured
+  evidence 引用与 server-owned proposer/client attestation context。在认证
+  authorization 与 audit service operation 交付前，不把 approval/activation 放入
+  该契约。
 - 增加 opt-in、side-by-side SQLite GateSession repository，提供 append-only
   canonical revision、scoped 原子 idempotency index、可信时钟 CAS transition 与
   lease renewal、schema-drift 检测、调用方 savepoint、并发测试和有界 due

@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 57 installed resource copies must remain byte-identical to the top-level
+The 59 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1132,6 +1132,21 @@ A `pass` result does not authorize activation. Publication still requires the
 independent lifecycle and authorization checks and an immutable MemoryRevision.
 The migration-only `RegressionEvidence` and active v2 `regression_passed`
 boolean are compatibility inputs, not substitutes for this contract.
+
+## Version-3 immutable revision policy
+
+Create a `MemoryRevision` only as a proposal after case review, fix evidence,
+and structured regression evidence exist. Verify the exact content artifact,
+canonical authorization scope, parent revision, and server-owned proposer and
+client context. For lessons, resolve every evidence ID and require the same
+Failure Case, a passing result, and a proposer distinct from the evidence
+submitter and verifier.
+
+Do not interpret a valid revision hash as approval or activation. The active
+runtime exposes no revision publication operation. Approval and activation
+must be separate authenticated, authorized, append-only service events with
+transactional parent/sequence and current-policy checks. Corrections create a
+new revision; they never mutate an existing one.
 
 ## Version-3 replay artifact policy
 

@@ -16,6 +16,7 @@
 - [本地 Agent 协议 `tbm.agent.v1`](protocols/agent-v1.zh-CN.md)
 - [授权 v3 契约](protocols/authorization-v3.zh-CN.md)
 - [结构化 regression evidence v3](protocols/evidence-v3.zh-CN.md)
+- [不可变 MemoryRevision v3](protocols/memory-revision-v3.zh-CN.md)
 - [Durable GateSession v3 领域契约](protocols/gate-session-v3.zh-CN.md)
 - [内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)
 - [Codex 集成](integrations/codex.zh-CN.md)
@@ -42,8 +43,9 @@ Store/MCP、worker 与 service integration 尚未使用它们。与存储实现�
 v3 policy/evaluator 契约已定义 canonical repository、精确租户别名、认证身份
 位置、role binding 与关联 decision，但尚未接入 active adapter。storage-neutral、
 content-addressed 结构化 regression evidence 契约已经发布，但 active v2
-record/adapter 尚未使用它，immutable MemoryRevision integration 仍属于统一推进的
-schema version 3 计划。与存储实现无关的
+record/adapter 尚未使用它；proposal-only immutable MemoryRevision 契约也已发布。
+approval、activation、persistence 与 active integration 仍属于统一推进的 schema
+version 3 计划。与存储实现无关的
 `tbm.replay.v3` artifact 与 replay manifest 契约及 opt-in 隔离 SQLite immutable
 字节/descriptor 账本已经发布，但 active adapter 尚不使用它，且它不提供授权、
 retention、encryption 或 GateSession authority。只读 v3 迁移预检和不可激活的 staging

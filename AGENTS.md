@@ -45,6 +45,8 @@ Start with:
   alias, and linked authorization-decision contracts; not active enforcement.
 - `evidence_v3.py`: storage-neutral content-addressed structured regression
   evidence with independent submitter/verifier provenance.
+- `memory_revision_v3.py`: proposal-only immutable memory revision contract
+  with content artifact, scope, lineage, and structured-evidence preflight.
 - `gate_session_v3.py`: persistence-neutral durable-session contract and
   explicit lifecycle transitions; not an active repository.
 - `sqlite_gate_session_v3.py`: opt-in side-by-side append-only GateSession

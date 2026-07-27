@@ -71,7 +71,8 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Replay persistence preparation | Storage-neutral content-addressed artifact, exact injection, and fixed-component decision-manifest v3 contracts plus an opt-in isolated SQLite immutable byte/descriptor ledger; active adapters do not use it |
 | Authorization contract preparation | Storage-neutral canonical repository, exact alias, principal/client, role-binding, and linked-decision v3 contracts; active adapters do not yet enforce them |
 | Structured evidence preparation | Content-addressed source/fix/verification evidence with evaluator, environment, expected/observed outcome, artifact, independent verifier, and attestation provenance; active v2 records do not use it |
-| Distribution resources | 57 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Immutable revision preparation | Content-derived MemoryRevision proposals bind stable memory identity, exact parent, artifact, canonical scope, case/fix/evidence references, and independent proposer context; approval/activation remain separate service work |
+| Distribution resources | 59 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |

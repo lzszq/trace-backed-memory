@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-backed-memory.local/schemas/memory_revision_v3.schema.json",
+  "title": "Trace-backed Memory Revision v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "revision_id",
+    "memory_id",
+    "memory_kind",
+    "revision_number",
+    "previous_revision_id",
+    "memory_type",
+    "content_artifact",
+    "scope",
+    "confidence",
+    "sensitive",
+    "eval_leaking",
+    "source_case_id",
+    "source_case_revision_id",
+    "fix_evidence_id",
+    "regression_evidence_ids",
+    "proposed_by",
+    "proposed_via_client_id",
+    "proposed_at",
+    "proposal_attestation_sha256"
+  ],
+  "properties": {
+    "contract_version": { "const": "tbm.memory-revision.v3" },
+    "revision_id": {
+      "type": "string",
+      "pattern": "^memory_revision_sha256_[0-9a-f]{64}$"
+    },
+    "memory_id": { "$ref": "#/$defs/identifier" },
+    "memory_kind": { "enum": ["lesson", "project_policy"] },
+    "revision_number": { "type": "integer", "minimum": 1 },
+    "previous_revision_id": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^memory_revision_sha256_[0-9a-f]{64}$"
+        },
+        { "type": "null" }
+      ]
+    },
+    "memory_type": {
+      "enum": ["procedural", "semantic", "episodic", "policy"]
+    },
+    "content_artifact": { "$ref": "#/$defs/contentArtifact" },
+    "scope": { "$ref": "#/$defs/authorizationScope" },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "sensitive": { "type": "boolean" },
+    "eval_leaking": { "type": "boolean" },
+    "source_case_id": { "$ref": "#/$defs/optionalIdentifier" },
+    "source_case_revision_id": { "$ref": "#/$defs/optionalIdentifier" },
+    "fix_evidence_id": { "$ref": "#/$defs/optionalIdentifier" },
+    "regression_evidence_ids": {
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^regression_sha256_[0-9a-f]{64}$"
+      }
+    },
+    "proposed_by": { "$ref": "#/$defs/identifier" },
+    "proposed_via_client_id": { "$ref": "#/$defs/identifier" },
+    "proposed_at": { "$ref": "#/$defs/timestamp" },
+    "proposal_attestation_sha256": { "$ref": "#/$defs/digest" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "revision_number": { "const": 1 } },
+        "required": ["revision_number"]
+      },
+      "then": {
+        "properties": { "previous_revision_id": { "type": "null" } }
+      },
+      "else": {
+        "properties": {
+          "previous_revision_id": {
+            "type": "string",
+            "pattern": "^memory_revision_sha256_[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "memory_kind": { "const": "lesson" } },
+        "required": ["memory_kind"]
+      },
+      "then": {
+        "properties": {
+          "source_case_id": { "$ref": "#/$defs/identifier" },
+          "source_case_revision_id": { "$ref": "#/$defs/identifier" },
+          "fix_evidence_id": { "$ref": "#/$defs/identifier" },
+          "regression_evidence_ids": { "minItems": 1 }
+        }
+      },
+      "else": {
+        "properties": {
+          "memory_type": { "const": "policy" },
+          "source_case_id": { "type": "null" },
+          "source_case_revision_id": { "type": "null" },
+          "fix_evidence_id": { "type": "null" },
+          "regression_evidence_ids": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "sensitive": { "const": true } },
+        "required": ["sensitive"]
+      },
+      "then": {
+        "properties": {
+          "content_artifact": {
+            "properties": {
+              "classification": {
+                "enum": ["confidential", "restricted"]
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "content_artifact": {
+            "properties": {
+              "classification": { "enum": ["public", "internal"] }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": ".*\\S.*"
+    },
+    "optionalIdentifier": {
+      "oneOf": [
+        { "$ref": "#/$defs/identifier" },
+        { "type": "null" }
+      ]
+    },
+    "metadata": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": ".*\\S.*"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?(?:Z|[+-](?:0[0-9]|1[0-4]):[0-5][0-9])$"
+    },
+    "contentArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "content_sha256",
+        "size_bytes",
+        "media_type",
+        "classification",
+        "created_at",
+        "encryption_key_id",
+        "redaction_policy_id"
+      ],
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "pattern": "^artifact_sha256_[0-9a-f]{64}$"
+        },
+        "content_sha256": { "$ref": "#/$defs/digest" },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        },
+        "media_type": { "$ref": "#/$defs/metadata" },
+        "classification": {
+          "enum": ["public", "internal", "confidential", "restricted"]
+        },
+        "created_at": { "$ref": "#/$defs/timestamp" },
+        "encryption_key_id": { "$ref": "#/$defs/optionalIdentifier" },
+        "redaction_policy_id": { "$ref": "#/$defs/optionalIdentifier" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "enum": ["confidential", "restricted"]
+              }
+            },
+            "required": ["classification"]
+          },
+          "then": {
+            "properties": {
+              "encryption_key_id": { "$ref": "#/$defs/identifier" }
+            }
+          }
+        }
+      ]
+    },
+    "authorizationScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "tenant_id", "repository_id", "attributes"],
+      "properties": {
+        "kind": { "enum": ["global", "tenant", "repository"] },
+        "tenant_id": { "$ref": "#/$defs/optionalIdentifier" },
+        "repository_id": { "$ref": "#/$defs/optionalIdentifier" },
+        "attributes": {
+          "type": "object",
+          "maxProperties": 100,
+          "propertyNames": {
+            "enum": [
+              "branch",
+              "prompt_version",
+              "prompt_family",
+              "tool",
+              "tool_schema_version",
+              "model",
+              "model_family",
+              "eval_suite",
+              "task_type",
+              "failure_type"
+            ]
+          },
+          "additionalProperties": { "$ref": "#/$defs/metadata" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "global" } } },
+          "then": {
+            "properties": {
+              "tenant_id": { "type": "null" },
+              "repository_id": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "tenant" } } },
+          "then": {
+            "properties": {
+              "tenant_id": { "$ref": "#/$defs/identifier" },
+              "repository_id": { "type": "null" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "repository" } } },
+          "then": {
+            "properties": {
+              "tenant_id": { "$ref": "#/$defs/identifier" },
+              "repository_id": { "$ref": "#/$defs/identifier" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

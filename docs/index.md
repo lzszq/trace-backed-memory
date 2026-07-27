@@ -17,6 +17,7 @@ orientation; these documents define the engineering contracts.
 - [Local agent protocol `tbm.agent.v1`](protocols/agent-v1.md)
 - [Authorization v3 contract](protocols/authorization-v3.md)
 - [Structured regression evidence v3](protocols/evidence-v3.md)
+- [Immutable MemoryRevision v3](protocols/memory-revision-v3.md)
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Content-addressed replay contract v3](protocols/replay-v3.md)
 - [Codex integration](integrations/codex.md)
@@ -47,8 +48,9 @@ defines canonical repositories, exact tenant aliases, authenticated identity
 slots, role bindings, and linked decisions, but is not wired into active
 adapters. The storage-neutral, content-addressed structured regression
 evidence contract is published, but active v2 records/adapters do not use it
-and immutable MemoryRevision integration remains part of the coordinated
-schema-version-3 program. The
+and the proposal-only immutable MemoryRevision contract is also published.
+Approval, activation, persistence, and active integration remain part of the
+coordinated schema-version-3 program. The
 storage-neutral `tbm.replay.v3` artifact and replay-manifest contract is
 published with an opt-in isolated SQLite immutable byte/descriptor ledger, but
 no active adapter uses it and it provides no authorization, retention,

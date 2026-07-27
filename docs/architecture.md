@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 55 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 59 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 57 resources.
+contains 59 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1514,6 +1514,15 @@ source-to-fix-to-verification commit relationships, artifacts, independent
 submitter/verifier principals, and an attestation hash. It does not activate a
 memory, verify signatures, or replace the active v2 boolean. See
 [Structured regression evidence v3](protocols/evidence-v3.md).
+
+The proposal-only `tbm.memory-revision.v3` contract then binds a stable memory
+identity to an immutable, content-derived revision, exact parent revision,
+content artifact, canonical authorization scope, case/fix/evidence references,
+and server-owned proposer context. Its evidence preflight rejects missing,
+non-passing, cross-case, or proposer-conflicted evidence. It deliberately has
+no approval or activation state: those require authenticated authorization,
+transactional parent/sequence checks, and append-only audit service operations.
+See [Immutable MemoryRevision v3](protocols/memory-revision-v3.md).
 
 ## Non-goals
 

@@ -9,6 +9,7 @@
 | Agent application façade | `agent.py` | package exports, CLI capabilities, agent schemas |
 | Authorization v3 contract | `authorization_v3.py` | policy/decision Schemas and examples, evaluator rejection tests, protocol docs |
 | Structured regression evidence v3 | `evidence_v3.py` | evidence Schema/example, content/linkage/self-verification rejection tests, protocol docs |
+| Immutable MemoryRevision v3 | `memory_revision_v3.py` | revision Schema/example, lineage/artifact/evidence rejection tests, protocol docs |
 | Durable-session v3 contract | `gate_session_v3.py` | GateSession Schema/example, transition tests, protocol docs |
 | SQLite GateSession v3 repository | `sqlite_gate_session_v3.py`, `schemas/sqlite-v3-gate-session.sql` | append-only/CAS/idempotency/concurrency tests, protocol docs |
 | PostgreSQL GateSession v3 repository | `postgres_gate_session_v3.py`, `schemas/postgres-v3-gate-session*.sql` | row-lock/database-time/CAS/idempotency/catalog/rollback tests, protocol docs |

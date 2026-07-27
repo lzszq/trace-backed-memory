@@ -80,6 +80,11 @@ _RESOURCE_SPECS: tuple[
     ("examples/lesson.example.json", "example", "application/json"),
     ("examples/memory_context.example.json", "example", "application/json"),
     ("examples/memory_decision.example.json", "example", "application/json"),
+    (
+        "examples/memory_revision_v3.example.json",
+        "example",
+        "application/json",
+    ),
     ("examples/memory_usage_log.example.json", "example", "application/json"),
     ("examples/project_policy.example.json", "example", "application/json"),
     ("examples/quickstart.py", "example", "text/x-python"),
@@ -152,6 +157,11 @@ _RESOURCE_SPECS: tuple[
     ("schemas/lesson.schema.json", "schema", "application/schema+json"),
     ("schemas/memory_context.schema.json", "schema", "application/schema+json"),
     ("schemas/memory_decision.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/memory_revision_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/memory_store_snapshot.schema.json",
         "schema",

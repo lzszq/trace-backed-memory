@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-59 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision contract 资源、隔离 SQLite GateSession/replay ledger DDL 和隔离 PostgreSQL GateSession install/rollback。
+61 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision contract 资源、隔离 SQLite GateSession/replay ledger DDL 和隔离 PostgreSQL GateSession install/rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -327,6 +327,18 @@ evidence submitter/verifier。
 publication operation。approval/activation 必须是独立的认证、授权、append-only
 service event，并以事务检查 parent/sequence 与当前 policy。修正必须创建新 revision，
 不能修改既有 revision。
+
+## Version-3 retrieval snapshot 策略
+
+在检索前先授权经过认证的 tenant/repository/principal/client 请求，然后把精确
+的已授权结果记录为内容寻址 `RetrievalSnapshot`：context/query 摘要、retriever
+与 index 身份、有序 memory revision、候选哈希、有限 stage/fusion 分数、边界
+和全部截断原因。不得把 raw query、候选内容、secret 或无限 evidence 放进快照。
+不得把语义相似度、融合分数或索引存在性当成授权、适用性、验证或门禁证据。
+System Gate evaluation 与 Semantic Gate attempt 保持独立不可变记录。精确回放
+消费已记录结果，不得从已变化的 catalog/index 静默重算。active Store/adapter
+尚不产生此契约；未来服务必须验证全部引用身份与字节、授权快照读取、应用保留
+策略，并在同一 GateSession 事务中挂接快照。
 
 ## Version-3 重放 artifact 策略
 

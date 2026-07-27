@@ -1,0 +1,61 @@
+{
+  "authorization_event_id": "authz_sha256_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "context_sha256": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "contract_version": "tbm.retrieval-snapshot.v3",
+  "created_at": "2026-07-27T08:00:00Z",
+  "hits": [
+    {
+      "candidate_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "evidence_graph_score": null,
+      "fused_score": 0.84,
+      "lexical_score": 0.75,
+      "memory_id": "memory_001",
+      "memory_revision_id": "memory_revision_sha256_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "metadata_score": 1.0,
+      "rank": 1,
+      "selected_stages": [
+        "metadata",
+        "lexical",
+        "semantic",
+        "fusion"
+      ],
+      "semantic_score": 0.9
+    }
+  ],
+  "index_versions": [
+    {
+      "content_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "index_id": "memory_catalog",
+      "index_kind": "metadata",
+      "index_version": "catalog_v11"
+    },
+    {
+      "content_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "index_id": "lexical_main",
+      "index_kind": "lexical",
+      "index_version": "fts_v4"
+    },
+    {
+      "content_sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "index_id": "semantic_main",
+      "index_kind": "semantic",
+      "index_version": "embeddings_v7"
+    }
+  ],
+  "query_sha256": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "request_id": "request_001",
+  "retrieval_mode": "hybrid",
+  "retriever_id": "hybrid_retriever",
+  "retriever_version": "1.0",
+  "run_id": "run_001",
+  "session_id": "session_001",
+  "snapshot_id": "retrieval_snapshot_sha256_02558908c6d8f0b062688ad385d757c24d7b61936249af4d25cbc26745626bca",
+  "top_k": 10,
+  "total_candidates": 3,
+  "trace_id": "trace_001",
+  "truncated": true,
+  "truncation_reasons": [
+    "minimum_score",
+    "top_k"
+  ]
+}

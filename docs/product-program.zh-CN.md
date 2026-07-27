@@ -552,6 +552,10 @@
   evidence 引用与 server-owned proposer/client attestation context。在认证
   authorization 与 audit service operation 交付前，不把 approval/activation 放入
   该契约。
+- 发布内容寻址 `tbm.retrieval-snapshot.v3` 以及嵌套 RetrievalHit/IndexVersion，
+  绑定精确 authorization/context/query、有序 revision 命中、候选哈希、有限的
+  stage/fusion 分数、retriever/index 版本、边界与截断原因。System/Semantic
+  Gate 结果保持独立，active Store/GateSession 接入仍是后续工作。
 - 增加 opt-in、side-by-side SQLite GateSession repository，提供 append-only
   canonical revision、scoped 原子 idempotency index、可信时钟 CAS transition 与
   lease renewal、schema-drift 检测、调用方 savepoint、并发测试和有界 due
@@ -571,6 +575,6 @@
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 在 retrieval 前集成服务端认证 identity 与已发布授权契约，使 scope 成为可执行的 runtime boundary。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
-- 记录可重放 decision 所需的 retriever/index、gate model/prompt、ancestry、policy、renderer、response 与 snippet version/hash。
+- 集成已发布的 retriever/index snapshot，并记录可重放 decision 所需的 gate model/prompt、ancestry、policy、renderer、response 与 snippet version/hash。
 - 用显式 `required`/`disabled` policy 替代可选 ancestry，并审计 bypass reason。
 - 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 3 发布，并提供迁移文档。

@@ -47,6 +47,8 @@ Start with:
   evidence with independent submitter/verifier provenance.
 - `memory_revision_v3.py`: proposal-only immutable memory revision contract
   with content artifact, scope, lineage, and structured-evidence preflight.
+- `retrieval_v3.py`: content-addressed RetrievalSnapshot/Hit and index-version
+  contracts for explainable replay; ranking evidence is never authorization.
 - `gate_session_v3.py`: persistence-neutral durable-session contract and
   explicit lifecycle transitions; not an active repository.
 - `sqlite_gate_session_v3.py`: opt-in side-by-side append-only GateSession

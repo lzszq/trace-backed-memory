@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 59 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 61 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -388,6 +388,14 @@ evidence preflight 会拒绝缺失、未通过、跨 case 或 proposer 冲突的
 不包含 approval/activation state；这些需要认证 authorization、事务化 parent/sequence
 检查与 append-only audit service operation。详见
 [不可变 MemoryRevision v3](protocols/memory-revision-v3.zh-CN.md)。
+
+storage-neutral `tbm.retrieval-snapshot.v3` 契约记录 prepared GateSession
+引用的精确已授权检索结果。它在内容派生身份下绑定授权事件、context/query 摘要、
+retriever 与不可变 index 版本、有序 memory-revision 命中、候选哈希、有限的
+逐阶段/融合分数、top-K 上限及显式截断原因。它不记录 System Gate 或 Semantic
+Gate 结果，不能授予访问权或重新打开 block。active retrieval 仍只返回
+`MemoryItem`，不会产生该快照。详见
+[可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)。
 
 ## 非目标
 

@@ -89,6 +89,11 @@ _RESOURCE_SPECS: tuple[
     ("examples/project_policy.example.json", "example", "application/json"),
     ("examples/quickstart.py", "example", "text/x-python"),
     (
+        "examples/retrieval_snapshot_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/snapshot_v3_migration_bundle.example.json",
         "example",
         "application/json",
@@ -196,6 +201,11 @@ _RESOURCE_SPECS: tuple[
     ("schemas/postgres-v3-staging.sql", "schema", "application/sql"),
     ("schemas/postgres.sql", "schema", "application/sql"),
     ("schemas/project_policy.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/retrieval_snapshot_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/snapshot_v3_migration_bundle.schema.json",
         "schema",

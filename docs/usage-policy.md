@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 59 installed resource copies must remain byte-identical to the top-level
+The 61 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1147,6 +1147,25 @@ runtime exposes no revision publication operation. Approval and activation
 must be separate authenticated, authorized, append-only service events with
 transactional parent/sequence and current-policy checks. Corrections create a
 new revision; they never mutate an existing one.
+
+## Version-3 retrieval snapshot policy
+
+Authorize the authenticated tenant/repository/principal/client request before
+retrieval. Then record the exact authorized result as a content-addressed
+`RetrievalSnapshot`: context and query digests, retriever and index identities,
+ordered memory revisions, candidate hashes, finite stage/fusion scores, bounds,
+and every truncation reason.
+
+Do not put raw queries, candidate content, secrets, or unrestricted evidence in
+the snapshot. Do not treat semantic similarity, fused scores, or index presence
+as authorization, applicability, verification, or gate evidence. System Gate
+evaluations and Semantic Gate attempts remain separate immutable records. Exact
+replay consumes the recorded result; it must not silently recompute from a
+changed catalog or index.
+
+The active Store and adapters do not emit this contract. A future service must
+verify all referenced identities and bytes, authorize snapshot reads, apply
+retention, and attach the snapshot to the same GateSession transaction.
 
 ## Version-3 replay artifact policy
 

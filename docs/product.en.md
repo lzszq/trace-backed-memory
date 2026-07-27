@@ -72,7 +72,8 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Authorization contract preparation | Storage-neutral canonical repository, exact alias, principal/client, role-binding, and linked-decision v3 contracts; active adapters do not yet enforce them |
 | Structured evidence preparation | Content-addressed source/fix/verification evidence with evaluator, environment, expected/observed outcome, artifact, independent verifier, and attestation provenance; active v2 records do not use it |
 | Immutable revision preparation | Content-derived MemoryRevision proposals bind stable memory identity, exact parent, artifact, canonical scope, case/fix/evidence references, and independent proposer context; approval/activation remain separate service work |
-| Distribution resources | 59 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Replayable retrieval preparation | Content-derived RetrievalSnapshot records authorized context/query digests, retriever/index versions, ordered immutable revision hits, candidate hashes, finite stage/fusion scores, bounds, and truncation reasons; active retrieval does not emit it yet |
+| Distribution resources | 61 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |

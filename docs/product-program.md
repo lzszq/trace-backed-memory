@@ -1342,6 +1342,12 @@ Track:
   proposer/client attestation context. Keep approval and activation out of the
   contract until authenticated authorization and audit service operations are
   delivered.
+- Publish content-addressed `tbm.retrieval-snapshot.v3` and nested
+  RetrievalHit/IndexVersion records with exact authorization/context/query
+  linkage, ordered revision hits, candidate hashes, finite stage/fusion scores,
+  retriever/index versions, bounds, and truncation reasons. Keep System and
+  Semantic Gate outcomes separate and active Store/GateSession integration
+  outstanding.
 - Add an opt-in side-by-side SQLite GateSession repository with append-only
   canonical revisions, a scoped atomic idempotency index, trusted-clock CAS
   transitions and lease renewal, schema-drift detection, caller savepoints,
@@ -1367,8 +1373,9 @@ Track:
   runtime boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
-- Record retriever/index, gate model/prompt, ancestry, policy, renderer,
-  response, and snippet versions or hashes needed to replay a decision.
+- Integrate the published retriever/index snapshot and record gate
+  model/prompt, ancestry, policy, renderer, response, and snippet versions or
+  hashes needed to replay a decision.
 - Replace optional ancestry with an explicit `required`/`disabled` policy and
   auditable bypass reason.
 - Deliver these breaking contracts together as snapshot schema version 3 and

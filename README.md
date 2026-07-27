@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 59 resources. `PackagedResource` descriptions
+The allowlist currently contains 61 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -434,6 +434,15 @@ Evidence preflight rejects missing, non-passing, cross-case, or
 self-conflicted provenance. It does not approve or activate memory; those
 remain separate authenticated service operations. See
 [the revision contract](docs/protocols/memory-revision-v3.md).
+
+The storage-neutral `tbm.retrieval-snapshot.v3` contract records one exact
+authorized retrieval result under a content-derived ID. It binds session,
+request, trace, authorization, context/query digests, retriever/index versions,
+ordered memory-revision hits, candidate hashes, per-stage scores, deterministic
+fusion, and explicit truncation reasons. Similarity remains ranking evidence,
+never permission or gate evidence. Active Store/Agent/MCP paths do not emit it
+yet. See
+[the retrieval snapshot contract](docs/protocols/retrieval-snapshot-v3.md).
 
 For opt-in local durability of the version-3 lifecycle itself,
 `SQLiteGateSessionRepository` uses the separate
@@ -1252,7 +1261,7 @@ signed `INTEGER` column supplies the identical upper boundary. Existing
 schema-version-1 databases already enforce that physical maximum and need no
 Phase 47 migration; operators missing the earlier lower-bound CHECK still own
 that constraint migration. Only the canonical and packaged Trace Schema bytes
-change in Phase 47. The current distribution uses the 59-resource allowlist;
+change in Phase 47. The current distribution uses the 61-resource allowlist;
 snapshot version 2 and PostgreSQL schema version 2 are current.
 
 ### Deferred decision outcome sealing
@@ -2001,7 +2010,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 59 canonical Schemas, examples, and memory
+  explicit atomic export for all 61 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2084,6 +2093,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- evidence-v3.zh-CN.md
 |   |   |-- memory-revision-v3.md
 |   |   |-- memory-revision-v3.zh-CN.md
+|   |   |-- retrieval-snapshot-v3.md
+|   |   |-- retrieval-snapshot-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
 |   |   |-- gate-session-v3.zh-CN.md
 |   |   |-- replay-v3.md
@@ -2108,6 +2119,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- lesson.example.json
 |   |-- memory_context.example.json
 |   |-- memory_revision_v3.example.json
+|   |-- retrieval_snapshot_v3.example.json
 |   |-- project_policy.example.json
 |   |-- memory_usage_log.example.json
 |   `-- memory_decision.example.json
@@ -2139,6 +2151,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- memory_store_snapshot.schema.json
 |   |-- memory_context.schema.json
 |   |-- memory_revision_v3.schema.json
+|   |-- retrieval_snapshot_v3.schema.json
 |   `-- memory_decision.schema.json
 |-- src/trace_backed_memory/
 |   |-- _resources/
@@ -2162,6 +2175,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- migration_v3.py
 |   |-- models.py
 |   |-- memory_revision_v3.py
+|   |-- retrieval_v3.py
 |   |-- policy.py
 |   |-- postgres.py
 |   |-- postgres_gate_session_v3.py
@@ -2182,6 +2196,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_mcp_server.py
     |-- test_migration_v3.py
     |-- test_memory_revision_v3.py
+    |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py

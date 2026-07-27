@@ -176,7 +176,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 61 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 65 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -287,6 +287,13 @@ retriever/index 版本、有序 memory-revision 命中、候选哈希、逐阶�
 确定性融合与显式截断原因。相似度始终只是排序证据，不是权限或门禁证据。
 active Store/Agent/MCP 尚不产生它。详见
 [检索快照契约](docs/protocols/retrieval-snapshot-v3.zh-CN.md)。
+
+配套 `tbm.system-gate-evaluation.v3` 与 `tbm.semantic-gate-attempt.v3`
+契约记录逐候选确定性 rule 和完整模型 attempt provenance，不包含 raw
+prompt/response 内容。跨记录核验要求精确 snapshot 覆盖，并强制模型只能缩小
+System Gate 结果；失败调用仍是 immutable、仅 provenance 的 attempt。active
+Store/Agent/MCP 尚不产生这些记录。详见
+[门禁评估契约](docs/protocols/gate-evaluation-v3.zh-CN.md)。
 
 如需 opt-in 的 version-3 lifecycle 本地持久化，可使用独立
 `schemas/sqlite-v3-gate-session.sql` 契约与
@@ -902,7 +909,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、61 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、65 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -970,6 +977,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |   |-- evidence-v3.zh-CN.md
 |   |   |-- memory-revision-v3.md
 |   |   |-- memory-revision-v3.zh-CN.md
+|   |   |-- gate-evaluation-v3.md
+|   |   |-- gate-evaluation-v3.zh-CN.md
 |   |   |-- retrieval-snapshot-v3.md
 |   |   |-- retrieval-snapshot-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
@@ -997,6 +1006,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- memory_context.example.json
 |   |-- memory_revision_v3.example.json
 |   |-- retrieval_snapshot_v3.example.json
+|   |-- semantic_gate_attempt_v3.example.json
+|   |-- system_gate_evaluation_v3.example.json
 |   |-- project_policy.example.json
 |   |-- memory_usage_log.example.json
 |   `-- memory_decision.example.json
@@ -1029,6 +1040,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- memory_context.schema.json
 |   |-- memory_revision_v3.schema.json
 |   |-- retrieval_snapshot_v3.schema.json
+|   |-- semantic_gate_attempt_v3.schema.json
+|   |-- system_gate_evaluation_v3.schema.json
 |   `-- memory_decision.schema.json
 |-- src/trace_backed_memory/
 |   |-- _resources/
@@ -1045,6 +1058,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- authorization_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
+|   |-- gate_evaluation_v3.py
 |   |-- lifecycle.py
 |   |-- locking.py
 |   |-- mcp_entry.py
@@ -1070,6 +1084,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py
     |-- test_gate_session_v3.py
+    |-- test_gate_evaluation_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py
     |-- test_memory_revision_v3.py

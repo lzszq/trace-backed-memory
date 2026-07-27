@@ -49,6 +49,8 @@ Start with:
   with content artifact, scope, lineage, and structured-evidence preflight.
 - `retrieval_v3.py`: content-addressed RetrievalSnapshot/Hit and index-version
   contracts for explainable replay; ranking evidence is never authorization.
+- `gate_evaluation_v3.py`: immutable deterministic System Gate and monotonic
+  Semantic Gate attempt provenance; models can only narrow.
 - `gate_session_v3.py`: persistence-neutral durable-session contract and
   explicit lifecycle transitions; not an active repository.
 - `sqlite_gate_session_v3.py`: opt-in side-by-side append-only GateSession

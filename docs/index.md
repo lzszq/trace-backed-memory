@@ -19,6 +19,7 @@ orientation; these documents define the engineering contracts.
 - [Structured regression evidence v3](protocols/evidence-v3.md)
 - [Immutable MemoryRevision v3](protocols/memory-revision-v3.md)
 - [Replayable RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.md)
+- [System and Semantic Gate evaluation v3](protocols/gate-evaluation-v3.md)
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Content-addressed replay contract v3](protocols/replay-v3.md)
 - [Codex integration](integrations/codex.md)
@@ -52,7 +53,9 @@ evidence contract is published, but active v2 records/adapters do not use it
 and the proposal-only immutable MemoryRevision contract is also published.
 The content-addressed RetrievalSnapshot contract records exact authorized
 ranking inputs/results, index versions, scores, hashes, and truncation reasons,
-but no active retriever or GateSession repository emits it yet.
+while immutable System/Semantic Gate records bind deterministic policy and
+model-attempt provenance under a monotonic narrowing rule. No active retriever,
+gate, or GateSession repository emits them yet.
 Approval, activation, persistence, and active integration remain part of the
 coordinated schema-version-3 program. The
 storage-neutral `tbm.replay.v3` artifact and replay-manifest contract is

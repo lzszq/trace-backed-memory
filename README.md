@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 61 resources. `PackagedResource` descriptions
+The allowlist currently contains 65 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -443,6 +443,15 @@ fusion, and explicit truncation reasons. Similarity remains ranking evidence,
 never permission or gate evidence. Active Store/Agent/MCP paths do not emit it
 yet. See
 [the retrieval snapshot contract](docs/protocols/retrieval-snapshot-v3.md).
+
+The paired `tbm.system-gate-evaluation.v3` and
+`tbm.semantic-gate-attempt.v3` contracts record deterministic per-candidate
+rules and complete model-attempt provenance without raw prompt/response
+content. Cross-record verification requires exact snapshot coverage and
+enforces the permanent rule that a model may only narrow System Gate results.
+Failed calls remain immutable provenance-only attempts. Active Store/Agent/MCP
+paths do not emit these records yet. See
+[the gate evaluation contract](docs/protocols/gate-evaluation-v3.md).
 
 For opt-in local durability of the version-3 lifecycle itself,
 `SQLiteGateSessionRepository` uses the separate
@@ -1261,7 +1270,7 @@ signed `INTEGER` column supplies the identical upper boundary. Existing
 schema-version-1 databases already enforce that physical maximum and need no
 Phase 47 migration; operators missing the earlier lower-bound CHECK still own
 that constraint migration. Only the canonical and packaged Trace Schema bytes
-change in Phase 47. The current distribution uses the 61-resource allowlist;
+change in Phase 47. The current distribution uses the 65-resource allowlist;
 snapshot version 2 and PostgreSQL schema version 2 are current.
 
 ### Deferred decision outcome sealing
@@ -2010,7 +2019,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 61 canonical Schemas, examples, and memory
+  explicit atomic export for all 65 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2093,6 +2102,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- evidence-v3.zh-CN.md
 |   |   |-- memory-revision-v3.md
 |   |   |-- memory-revision-v3.zh-CN.md
+|   |   |-- gate-evaluation-v3.md
+|   |   |-- gate-evaluation-v3.zh-CN.md
 |   |   |-- retrieval-snapshot-v3.md
 |   |   |-- retrieval-snapshot-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
@@ -2120,6 +2131,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- memory_context.example.json
 |   |-- memory_revision_v3.example.json
 |   |-- retrieval_snapshot_v3.example.json
+|   |-- semantic_gate_attempt_v3.example.json
+|   |-- system_gate_evaluation_v3.example.json
 |   |-- project_policy.example.json
 |   |-- memory_usage_log.example.json
 |   `-- memory_decision.example.json
@@ -2152,6 +2165,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- memory_context.schema.json
 |   |-- memory_revision_v3.schema.json
 |   |-- retrieval_snapshot_v3.schema.json
+|   |-- semantic_gate_attempt_v3.schema.json
+|   |-- system_gate_evaluation_v3.schema.json
 |   `-- memory_decision.schema.json
 |-- src/trace_backed_memory/
 |   |-- _resources/
@@ -2168,6 +2183,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- authorization_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
+|   |-- gate_evaluation_v3.py
 |   |-- lifecycle.py
 |   |-- locking.py
 |   |-- mcp_entry.py
@@ -2193,6 +2209,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py
     |-- test_gate_session_v3.py
+    |-- test_gate_evaluation_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py
     |-- test_memory_revision_v3.py

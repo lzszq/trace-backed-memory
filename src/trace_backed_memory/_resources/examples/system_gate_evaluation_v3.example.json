@@ -1,0 +1,20 @@
+{
+  "authorization_event_id": "authz_sha256_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "contract_version": "tbm.system-gate-evaluation.v3",
+  "decisions": [
+    {
+      "candidate_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "memory_revision_id": "memory_revision_sha256_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "outcome": "allowed",
+      "reason_code": "eligible",
+      "rule_id": "rule_scope_v3"
+    }
+  ],
+  "evaluated_at": "2026-07-27T08:01:00Z",
+  "evaluation_id": "system_gate_sha256_c67ff5d46b0981507946a83ec12d869e893cfae6712b07e27b2d87d2f8aad49d",
+  "evaluator_id": "system_gate",
+  "evaluator_version": "3.0",
+  "policy_bundle_sha256": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "retrieval_snapshot_id": "retrieval_snapshot_sha256_02558908c6d8f0b062688ad385d757c24d7b61936249af4d25cbc26745626bca",
+  "session_id": "session_001"
+}

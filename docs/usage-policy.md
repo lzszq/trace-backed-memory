@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 61 installed resource copies must remain byte-identical to the top-level
+The 65 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1166,6 +1166,23 @@ changed catalog or index.
 The active Store and adapters do not emit this contract. A future service must
 verify all referenced identities and bytes, authorize snapshot reads, apply
 retention, and attach the snapshot to the same GateSession transaction.
+
+## Version-3 gate evaluation policy
+
+Record deterministic System Gate outcomes for every ordered retrieval hit
+before invoking a model. Bind the exact authorization event, policy bundle,
+evaluator version, revision ID, candidate hash, rule, reason, and timestamp.
+
+For each Semantic Gate call, record provider/model/endpoint, prompt template,
+generation configuration, provider request, prompt/response artifact hashes,
+latency/token counts, status, and result. Do not put raw prompt/response content
+or secrets in the attempt record. Failed attempts contain only provenance and a
+bounded error code.
+
+Verify cross-record linkage before finalization. A successful semantic result
+must cover every System Gate candidate, may allow only System-approved
+revisions, and must preserve every System block. A retry is a new immutable
+attempt with the next sequence and exact parent; never overwrite an attempt.
 
 ## Version-3 replay artifact policy
 

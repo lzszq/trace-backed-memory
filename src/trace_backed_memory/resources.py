@@ -94,6 +94,11 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     (
+        "examples/semantic_gate_attempt_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/snapshot_v3_migration_bundle.example.json",
         "example",
         "application/json",
@@ -110,6 +115,11 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "examples/structured_regression_evidence_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/system_gate_evaluation_v3.example.json",
         "example",
         "application/json",
     ),
@@ -207,6 +217,11 @@ _RESOURCE_SPECS: tuple[
         "application/schema+json",
     ),
     (
+        "schemas/semantic_gate_attempt_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
         "schemas/snapshot_v3_migration_bundle.schema.json",
         "schema",
         "application/schema+json",
@@ -227,6 +242,11 @@ _RESOURCE_SPECS: tuple[
     ("schemas/sqlite.sql", "schema", "application/sql"),
     (
         "schemas/structured_regression_evidence_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/system_gate_evaluation_v3.schema.json",
         "schema",
         "application/schema+json",
     ),

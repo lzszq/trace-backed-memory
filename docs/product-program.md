@@ -1348,6 +1348,12 @@ Track:
   retriever/index versions, bounds, and truncation reasons. Keep System and
   Semantic Gate outcomes separate and active Store/GateSession integration
   outstanding.
+- Publish content-addressed System Gate evaluation and Semantic Gate attempt
+  contracts with exact retrieval/policy/provider/model/prompt/response
+  provenance, success/failure shapes, ordered retry parents, bounded metrics,
+  and cross-record verification that semantic decisions can only narrow
+  deterministic System Gate results. Keep artifact validation, persistence,
+  and active runtime integration outstanding.
 - Add an opt-in side-by-side SQLite GateSession repository with append-only
   canonical revisions, a scoped atomic idempotency index, trusted-clock CAS
   transitions and lease renewal, schema-drift detection, caller savepoints,

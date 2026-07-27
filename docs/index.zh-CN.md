@@ -18,6 +18,7 @@
 - [结构化 regression evidence v3](protocols/evidence-v3.zh-CN.md)
 - [不可变 MemoryRevision v3](protocols/memory-revision-v3.zh-CN.md)
 - [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)
+- [System 与 Semantic Gate evaluation v3](protocols/gate-evaluation-v3.zh-CN.md)
 - [Durable GateSession v3 领域契约](protocols/gate-session-v3.zh-CN.md)
 - [内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)
 - [Codex 集成](integrations/codex.zh-CN.md)
@@ -46,7 +47,9 @@ v3 policy/evaluator 契约已定义 canonical repository、精确租户别名、
 content-addressed 结构化 regression evidence 契约已经发布，但 active v2
 record/adapter 尚未使用它；proposal-only immutable MemoryRevision 契约也已发布。
 内容寻址 RetrievalSnapshot 契约会记录精确的已授权排序输入/结果、索引版本、
-分数、哈希与截断原因，但 active retriever/GateSession repository 尚不产生它。
+分数、哈希与截断原因；不可变 System/Semantic Gate 记录以单调缩小规则绑定确定性
+策略与模型 attempt provenance。active retriever/gate/GateSession repository
+尚不产生它们。
 approval、activation、persistence 与 active integration 仍属于统一推进的 schema
 version 3 计划。与存储实现无关的
 `tbm.replay.v3` artifact 与 replay manifest 契约及 opt-in 隔离 SQLite immutable

@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-backed-memory.dev/schemas/system_gate_evaluation_v3.schema.json",
+  "title": "Trace-backed Memory System Gate Evaluation v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "evaluation_id",
+    "session_id",
+    "retrieval_snapshot_id",
+    "authorization_event_id",
+    "policy_bundle_sha256",
+    "evaluator_id",
+    "evaluator_version",
+    "decisions",
+    "evaluated_at"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.system-gate-evaluation.v3"
+    },
+    "evaluation_id": {
+      "type": "string",
+      "pattern": "^system_gate_sha256_[0-9a-f]{64}$"
+    },
+    "session_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "retrieval_snapshot_id": {
+      "type": "string",
+      "pattern": "^retrieval_snapshot_sha256_[0-9a-f]{64}$"
+    },
+    "authorization_event_id": {
+      "type": "string",
+      "pattern": "^authz_sha256_[0-9a-f]{64}$"
+    },
+    "policy_bundle_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "evaluator_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "evaluator_version": {
+      "$ref": "#/$defs/identifier"
+    },
+    "decisions": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
+    },
+    "evaluated_at": {
+      "$ref": "#/$defs/timestamp"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": ".*\\S.*"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?(?:Z|[+-](?:0[0-9]|1[0-4]):[0-5][0-9])$"
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memory_revision_id",
+        "candidate_sha256",
+        "outcome",
+        "reason_code",
+        "rule_id"
+      ],
+      "properties": {
+        "memory_revision_id": {
+          "type": "string",
+          "pattern": "^memory_revision_sha256_[0-9a-f]{64}$"
+        },
+        "candidate_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "outcome": {
+          "enum": [
+            "allowed",
+            "blocked"
+          ]
+        },
+        "reason_code": {
+          "$ref": "#/$defs/identifier"
+        },
+        "rule_id": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    }
+  }
+}

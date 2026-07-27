@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 61 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 65 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -396,6 +396,13 @@ retriever 与不可变 index 版本、有序 memory-revision 命中、候选哈�
 Gate 结果，不能授予访问权或重新打开 block。active retrieval 仍只返回
 `MemoryItem`，不会产生该快照。详见
 [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)。
+
+配套 `tbm.system-gate-evaluation.v3` 与 `tbm.semantic-gate-attempt.v3`
+随后绑定逐候选确定性策略结果及有序模型 attempt provenance。跨记录核验要求精确
+session/snapshot/candidate 覆盖，并强制最终 semantic allow 是 System Gate allow
+的子集、全部 System block 保持 blocked。prompt/response 内容保留在引用 artifact
+中。active policy execution 尚不产生这些记录。详见
+[门禁评估 v3](protocols/gate-evaluation-v3.zh-CN.md)。
 
 ## 非目标
 

@@ -556,6 +556,11 @@
   绑定精确 authorization/context/query、有序 revision 命中、候选哈希、有限的
   stage/fusion 分数、retriever/index 版本、边界与截断原因。System/Semantic
   Gate 结果保持独立，active Store/GateSession 接入仍是后续工作。
+- 发布内容寻址 System Gate evaluation 与 Semantic Gate attempt 契约，绑定精确
+  retrieval/policy/provider/model/prompt/response provenance、success/failure
+  shape、有序 retry parent 与有界 metrics；跨记录核验保证 semantic decision
+  只能缩小确定性 System Gate 结果。artifact 校验、持久化与 active runtime 接入
+  仍是后续工作。
 - 增加 opt-in、side-by-side SQLite GateSession repository，提供 append-only
   canonical revision、scoped 原子 idempotency index、可信时钟 CAS transition 与
   lease renewal、schema-drift 检测、调用方 savepoint、并发测试和有界 due

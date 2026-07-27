@@ -1,0 +1,20 @@
+{
+  "contract_version": "tbm.run-outcome.v3",
+  "run_outcome_id": "run_outcome_sha256_588ab44dd773fa6c88b26f4e00bb863381f69e5baecd7a29b55a03cda4f55167",
+  "session_id": "gate_session_001",
+  "trace_id": "trace_001",
+  "run_id": "run_001",
+  "usage_decision_id": "usage_decision_001",
+  "result": "pass",
+  "evaluator_id": "evaluation_service",
+  "evaluator_version": "1.2.0",
+  "output_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "tool_outputs_sha256": null,
+  "evidence_artifact_sha256s": [
+    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  ],
+  "latency_ms": 125,
+  "cost_usd": 0.0125,
+  "error_code": null,
+  "measured_at": "2026-07-27T00:06:00Z"
+}

@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 65 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 69 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -403,6 +403,14 @@ session/snapshot/candidate 覆盖，并强制最终 semantic allow 是 System Ga
 的子集、全部 System block 保持 blocked。prompt/response 内容保留在引用 artifact
 中。active policy execution 尚不产生这些记录。详见
 [门禁评估 v3](protocols/gate-evaluation-v3.zh-CN.md)。
+
+配套 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3` 补全了
+storage-neutral runtime evidence 链。RunOutcome 把 completed GateSession
+绑定到精确 trace/run/usage decision、evaluator、output/tool-output 摘要、
+artifact evidence 与测量值。OutcomeAttribution 刻意保持独立：runtime
+observation 只能产生 association；causal 结论必须使用非观察性方法并由独立
+verifier 核验。active Store 仍以既有 v2 outcome 字段为准，不能静默升级。
+详见[运行结果与归因 v3](protocols/outcome-v3.zh-CN.md)。
 
 ## 非目标
 

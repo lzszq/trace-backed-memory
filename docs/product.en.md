@@ -74,7 +74,7 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Immutable revision preparation | Content-derived MemoryRevision proposals bind stable memory identity, exact parent, artifact, canonical scope, case/fix/evidence references, and independent proposer context; approval/activation remain separate service work |
 | Replayable retrieval preparation | Content-derived RetrievalSnapshot records authorized context/query digests, retriever/index versions, ordered immutable revision hits, candidate hashes, finite stage/fusion scores, bounds, and truncation reasons; active retrieval does not emit it yet |
 | Replayable gate preparation | Content-derived System Gate evaluations and Semantic Gate attempts bind deterministic rule outcomes and provider/model/prompt/response provenance while enforcing that a model can only narrow; active policy does not emit them yet |
-| Distribution resources | 65 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Distribution resources | 69 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |

@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-backed-memory.dev/schemas/run_outcome_v3.schema.json",
+  "title": "Trace-backed Memory RunOutcome v3",
+  "$comment": "Structural preflight only. Runtime validation must verify canonical numeric normalization, sorted arrays, and the content-derived identifier.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "run_outcome_id",
+    "session_id",
+    "trace_id",
+    "run_id",
+    "usage_decision_id",
+    "result",
+    "evaluator_id",
+    "evaluator_version",
+    "output_sha256",
+    "tool_outputs_sha256",
+    "evidence_artifact_sha256s",
+    "latency_ms",
+    "cost_usd",
+    "error_code",
+    "measured_at"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.run-outcome.v3"
+    },
+    "run_outcome_id": {
+      "type": "string",
+      "pattern": "^run_outcome_sha256_[0-9a-f]{64}$"
+    },
+    "session_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "trace_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "run_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "usage_decision_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "result": {
+      "enum": ["pass", "fail", "error"]
+    },
+    "evaluator_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "evaluator_version": {
+      "$ref": "#/$defs/identifier"
+    },
+    "output_sha256": {
+      "oneOf": [
+        {"$ref": "#/$defs/digest"},
+        {"type": "null"}
+      ]
+    },
+    "tool_outputs_sha256": {
+      "oneOf": [
+        {"$ref": "#/$defs/digest"},
+        {"type": "null"}
+      ]
+    },
+    "evidence_artifact_sha256s": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/digest"
+      }
+    },
+    "latency_ms": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "cost_usd": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "error_code": {
+      "oneOf": [
+        {"$ref": "#/$defs/text"},
+        {"type": "null"}
+      ]
+    },
+    "measured_at": {
+      "$ref": "#/$defs/timestamp"
+    }
+  },
+  "allOf": [
+    {
+      "anyOf": [
+        {"properties": {"output_sha256": {"type": "string"}}},
+        {"properties": {"tool_outputs_sha256": {"type": "string"}}}
+      ]
+    },
+    {
+      "if": {
+        "properties": {"result": {"const": "error"}},
+        "required": ["result"]
+      },
+      "then": {
+        "properties": {"error_code": {"type": "string"}}
+      },
+      "else": {
+        "properties": {"error_code": {"type": "null"}}
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]{1,128}$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    }
+  }
+}

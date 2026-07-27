@@ -561,6 +561,10 @@
   shape、有序 retry parent 与有界 metrics；跨记录核验保证 semantic decision
   只能缩小确定性 System Gate 结果。artifact 校验、持久化与 active runtime 接入
   仍是后续工作。
+- 发布内容寻址 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
+  契约，把 completed GateSession 绑定到显式 evaluator evidence，并严格区分
+  观察关联与独立核验的因果结论。durable persistence 与 active service 接入仍
+  是后续工作。
 - 增加 opt-in、side-by-side SQLite GateSession repository，提供 append-only
   canonical revision、scoped 原子 idempotency index、可信时钟 CAS transition 与
   lease renewal、schema-drift 检测、调用方 savepoint、并发测试和有界 due

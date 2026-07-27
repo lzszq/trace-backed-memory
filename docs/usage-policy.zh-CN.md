@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-65 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision contract 资源、隔离 SQLite GateSession/replay ledger DDL 和隔离 PostgreSQL GateSession install/rollback。
+69 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision contract 资源、隔离 SQLite GateSession/replay ledger DDL 和隔离 PostgreSQL GateSession install/rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -352,6 +352,19 @@ prompt/response 或 secret；失败 attempt 只含 provenance 与有界 error co
 finalize 前必须核验跨记录 linkage。成功 semantic 结果必须覆盖全部 System Gate
 候选，只能 allow System-approved revision，并保留全部 System block。retry 必须创建
 下一 sequence、精确 parent 的新 immutable attempt，不能覆盖既有 attempt。
+
+## Version-3 结果与归因策略
+
+只能从显式 measured result 与 evidence 创建 `RunOutcome`，不得从 callback
+异常推断。它必须绑定 completed GateSession 以及精确 trace、run 与 usage
+decision。raw output 与 secret 保存在受控 artifact 中，outcome record 只保留
+其哈希。
+
+memory 出现在运行中只能记录为采用 `runtime_observation` 的 `association`。
+不得把 association、correlation、score 变化或 legacy
+`memory_caused_failure` 默认值转成因果结论。`causal` attribution 必须来自
+受控实验、人工复核或外部评估，带 evidence artifact 和确定 effect，并由不同于
+evaluator 的 verifier 核验。adapter 写入前必须校验精确 linkage 与时间。
 
 ## Version-3 重放 artifact 策略
 

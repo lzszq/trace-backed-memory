@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 65 resources. `PackagedResource` descriptions
+The allowlist currently contains 69 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -452,6 +452,14 @@ enforces the permanent rule that a model may only narrow System Gate results.
 Failed calls remain immutable provenance-only attempts. Active Store/Agent/MCP
 paths do not emit these records yet. See
 [the gate evaluation contract](docs/protocols/gate-evaluation-v3.md).
+
+The storage-neutral `tbm.run-outcome.v3` and
+`tbm.outcome-attribution.v3` contracts bind completed GateSessions to explicit
+evaluator and artifact evidence while keeping observed association distinct
+from causal claims. Causal attribution requires a non-observational method and
+an independent verifier; no exception or score is promoted automatically.
+Active v2 outcome fields remain unchanged. See
+[the outcome contract](docs/protocols/outcome-v3.md).
 
 For opt-in local durability of the version-3 lifecycle itself,
 `SQLiteGateSessionRepository` uses the separate
@@ -2019,7 +2027,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 65 canonical Schemas, examples, and memory
+  explicit atomic export for all 69 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2104,6 +2112,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- memory-revision-v3.zh-CN.md
 |   |   |-- gate-evaluation-v3.md
 |   |   |-- gate-evaluation-v3.zh-CN.md
+|   |   |-- outcome-v3.md
+|   |   |-- outcome-v3.zh-CN.md
 |   |   |-- retrieval-snapshot-v3.md
 |   |   |-- retrieval-snapshot-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
@@ -2135,6 +2145,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- system_gate_evaluation_v3.example.json
 |   |-- project_policy.example.json
 |   |-- memory_usage_log.example.json
+|   |-- outcome_attribution_v3.example.json
+|   |-- run_outcome_v3.example.json
 |   `-- memory_decision.example.json
 |-- memory/
 |   |-- lessons.example.yaml
@@ -2161,6 +2173,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- lesson.schema.json
 |   |-- project_policy.schema.json
 |   |-- memory_usage_log.schema.json
+|   |-- outcome_attribution_v3.schema.json
+|   |-- run_outcome_v3.schema.json
 |   |-- memory_store_snapshot.schema.json
 |   |-- memory_context.schema.json
 |   |-- memory_revision_v3.schema.json
@@ -2191,6 +2205,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- migration_v3.py
 |   |-- models.py
 |   |-- memory_revision_v3.py
+|   |-- outcome_v3.py
 |   |-- retrieval_v3.py
 |   |-- policy.py
 |   |-- postgres.py
@@ -2213,6 +2228,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_mcp_server.py
     |-- test_migration_v3.py
     |-- test_memory_revision_v3.py
+    |-- test_outcome_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_replay_v3.py

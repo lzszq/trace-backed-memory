@@ -1354,6 +1354,11 @@ Track:
   and cross-record verification that semantic decisions can only narrow
   deterministic System Gate results. Keep artifact validation, persistence,
   and active runtime integration outstanding.
+- Publish content-addressed `tbm.run-outcome.v3` and
+  `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
+  explicit evaluator evidence while keeping observed association separate
+  from independently verified causal claims. Keep durable persistence and
+  active service integration outstanding.
 - Add an opt-in side-by-side SQLite GateSession repository with append-only
   canonical revisions, a scoped atomic idempotency index, trusted-clock CAS
   transitions and lease renewal, schema-drift detection, caller savepoints,

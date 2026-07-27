@@ -176,7 +176,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 65 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 69 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -294,6 +294,12 @@ prompt/response 内容。跨记录核验要求精确 snapshot 覆盖，并强制
 System Gate 结果；失败调用仍是 immutable、仅 provenance 的 attempt。active
 Store/Agent/MCP 尚不产生这些记录。详见
 [门禁评估契约](docs/protocols/gate-evaluation-v3.zh-CN.md)。
+
+storage-neutral `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
+把 completed GateSession 绑定到显式 evaluator 与 artifact evidence，并严格
+区分观察 association 与 causal claim。因果归因必须采用非观察性方法并由独立
+verifier 核验；异常或 score 不能被自动提升为因果。active v2 outcome 字段保持
+不变。详见[结果契约](docs/protocols/outcome-v3.zh-CN.md)。
 
 如需 opt-in 的 version-3 lifecycle 本地持久化，可使用独立
 `schemas/sqlite-v3-gate-session.sql` 契约与
@@ -909,7 +915,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、65 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、69 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -979,6 +985,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |   |-- memory-revision-v3.zh-CN.md
 |   |   |-- gate-evaluation-v3.md
 |   |   |-- gate-evaluation-v3.zh-CN.md
+|   |   |-- outcome-v3.md
+|   |   |-- outcome-v3.zh-CN.md
 |   |   |-- retrieval-snapshot-v3.md
 |   |   |-- retrieval-snapshot-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
@@ -1010,6 +1018,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- system_gate_evaluation_v3.example.json
 |   |-- project_policy.example.json
 |   |-- memory_usage_log.example.json
+|   |-- outcome_attribution_v3.example.json
+|   |-- run_outcome_v3.example.json
 |   `-- memory_decision.example.json
 |-- memory/
 |   |-- lessons.example.yaml
@@ -1036,6 +1046,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- lesson.schema.json
 |   |-- project_policy.schema.json
 |   |-- memory_usage_log.schema.json
+|   |-- outcome_attribution_v3.schema.json
+|   |-- run_outcome_v3.schema.json
 |   |-- memory_store_snapshot.schema.json
 |   |-- memory_context.schema.json
 |   |-- memory_revision_v3.schema.json
@@ -1066,6 +1078,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- migration_v3.py
 |   |-- models.py
 |   |-- memory_revision_v3.py
+|   |-- outcome_v3.py
 |   |-- retrieval_v3.py
 |   |-- policy.py
 |   |-- postgres.py
@@ -1088,6 +1101,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_mcp_server.py
     |-- test_migration_v3.py
     |-- test_memory_revision_v3.py
+    |-- test_outcome_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_replay_v3.py

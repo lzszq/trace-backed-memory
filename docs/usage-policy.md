@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 65 installed resource copies must remain byte-identical to the top-level
+The 69 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1183,6 +1183,21 @@ Verify cross-record linkage before finalization. A successful semantic result
 must cover every System Gate candidate, may allow only System-approved
 revisions, and must preserve every System block. A retry is a new immutable
 attempt with the next sequence and exact parent; never overwrite an attempt.
+
+## Version-3 outcome and attribution policy
+
+Create a `RunOutcome` only from an explicit measured result and evidence; never
+infer it from a callback exception. Bind it to the completed GateSession and
+the exact trace, run, and usage decision. Keep raw output and secrets in
+controlled artifacts and retain only their hashes in the outcome record.
+
+Record memory presence as an `association` with `runtime_observation`. Do not
+convert association, correlation, score changes, or the legacy
+`memory_caused_failure` default into a causal claim. A `causal` attribution
+requires a controlled experiment, manual review, or external evaluation,
+evidence artifacts, a known effect, and a verifier distinct from the
+evaluator. Adapters must validate exact linkage and timestamps before storing
+either record.
 
 ## Version-3 replay artifact policy
 

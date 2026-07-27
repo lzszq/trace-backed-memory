@@ -1,0 +1,21 @@
+{
+  "contract_version": "tbm.outcome-attribution.v3",
+  "attribution_id": "outcome_attribution_sha256_6b8c142d983ced977f7402281d84af58affad66bb9585a93f0bb0c556ee42dbd",
+  "run_outcome_id": "run_outcome_sha256_588ab44dd773fa6c88b26f4e00bb863381f69e5baecd7a29b55a03cda4f55167",
+  "usage_decision_id": "usage_decision_001",
+  "memory_revision_ids": [
+    "memory_revision_sha256_1111111111111111111111111111111111111111111111111111111111111111"
+  ],
+  "claim_strength": "association",
+  "effect": "unknown",
+  "method": "runtime_observation",
+  "evaluator_id": "outcome_observer",
+  "evaluator_version": "1.0.0",
+  "verifier_id": null,
+  "evidence_artifact_sha256s": [
+    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "confidence": 0.5,
+  "reason": "The memory revision was present in the completed run.",
+  "recorded_at": "2026-07-27T00:07:00Z"
+}

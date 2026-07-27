@@ -86,6 +86,11 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     ("examples/memory_usage_log.example.json", "example", "application/json"),
+    (
+        "examples/outcome_attribution_v3.example.json",
+        "example",
+        "application/json",
+    ),
     ("examples/project_policy.example.json", "example", "application/json"),
     ("examples/quickstart.py", "example", "text/x-python"),
     (
@@ -93,6 +98,7 @@ _RESOURCE_SPECS: tuple[
         "example",
         "application/json",
     ),
+    ("examples/run_outcome_v3.example.json", "example", "application/json"),
     (
         "examples/semantic_gate_attempt_v3.example.json",
         "example",
@@ -187,6 +193,11 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/schema+json",
     ),
+    (
+        "schemas/outcome_attribution_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     ("schemas/postgres-v1-to-v2.sql", "schema", "application/sql"),
     (
         "schemas/postgres-v2-lock-order-hotfix.sql",
@@ -213,6 +224,11 @@ _RESOURCE_SPECS: tuple[
     ("schemas/project_policy.schema.json", "schema", "application/schema+json"),
     (
         "schemas/retrieval_snapshot_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/run_outcome_v3.schema.json",
         "schema",
         "application/schema+json",
     ),

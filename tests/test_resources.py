@@ -31,7 +31,7 @@ def test_packaged_resources_match_every_canonical_file_byte_for_byte():
     descriptions = tbm.packaged_resources()
 
     assert tuple(item.name for item in descriptions) == CANONICAL_RESOURCE_NAMES
-    assert len(descriptions) == 41
+    assert len(descriptions) == 43
     for item in descriptions:
         canonical = (ROOT / item.name).read_bytes()
         assert tbm.read_packaged_resource(item.name) == canonical
@@ -82,6 +82,10 @@ def test_resource_media_types_are_deterministic():
         == "application/schema+json"
     )
     assert (
+        by_name["schemas/gate_session_v3.schema.json"].media_type
+        == "application/schema+json"
+    )
+    assert (
         by_name["schemas/snapshot_v3_migration_mapping.schema.json"].media_type
         == "application/schema+json"
     )
@@ -91,6 +95,10 @@ def test_resource_media_types_are_deterministic():
     )
     assert (
         by_name["examples/trace.example.json"].media_type
+        == "application/json"
+    )
+    assert (
+        by_name["examples/gate_session_v3.example.json"].media_type
         == "application/json"
     )
     assert by_name["examples/quickstart.py"].media_type == "text/x-python"

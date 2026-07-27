@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 41 installed resource copies must remain byte-identical to the top-level
+The 43 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -818,7 +818,7 @@ so Phase 47 is not a database migration; operators missing the earlier CHECK
 still own the lower-bound migration. Only the canonical and packaged Trace
 Schema bytes changed in Phase 47; that baseline had 18 packaged resource names
 and PostgreSQL schema version 2. The current contract is snapshot version 2,
-41 packaged resources, and PostgreSQL schema version 2.
+43 packaged resources, and PostgreSQL schema version 2.
 
 Trace completion never seals a usage decision automatically, and decision
 outcome sealing never changes a Trace. Use the same evaluator result for both
@@ -1049,6 +1049,29 @@ instruction-like dynamic text must not be allowed to merge with the gate
 prompt's own rules.
 Runtime snippets require the final parsed `MemoryDecision`; callers should not
 render non-empty memory snippets directly from retrieved candidates.
+
+## Version-3 GateSession contract policy
+
+`tbm.gate-session.v3` records are immutable lifecycle revisions. A caller must
+present the exact current version for a state transition or lease renewal.
+Adapters must reject stale versions atomically; they may not merge caller
+fields into a newer session.
+
+All session and lease timestamps are server-owned. External agents may provide
+an idempotency key, but never a transition time, lease deadline, or expiry.
+The pure contract does not read wall-clock time; a durable repository must
+compare trusted transaction time with the persisted lease and expiry.
+
+Only the published transition graph is valid. Lifecycle evidence accumulates
+forward and cannot be cleared or rebound. Active prepared-through-executing
+states require a lease bounded by the session expiry. Completed, canceled,
+expired, and abandoned states are terminal and cannot be reopened. Terminal
+failure paths retain a bounded reason.
+
+The current Store and local MCP do not persist this contract. Do not serialize
+or reconstruct private `MemoryGateRequest` tokens to simulate durability.
+Future repositories must add atomic idempotency, expiry, recovery, and
+authorization checks before retrieval without weakening the existing Gate.
 
 ## Fixed runtime budgets
 

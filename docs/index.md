@@ -15,6 +15,7 @@ orientation; these documents define the engineering contracts.
 ## Agent integration
 
 - [Local agent protocol `tbm.agent.v1`](protocols/agent-v1.md)
+- [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Codex integration](integrations/codex.md)
 - Repository skills:
   `.agents/skills/maintain-trace-backed-memory/` and
@@ -34,9 +35,11 @@ orientation; these documents define the engineering contracts.
 The current formats are snapshot version 2, SQLite schema version 1,
 PostgreSQL schema version 2, and agent protocol `tbm.agent.v1`. The optional
 `tbm-mcp` command is a long-running local STDIO transport for that protocol,
-not another persistence version. Pending gate requests remain process-local;
-durable gate sessions, canonical repository authorization, structured
-regression evidence, and complete replay manifests belong to the coordinated
+not another persistence version. Pending gate requests remain process-local.
+The persistence-neutral `tbm.gate-session.v3` lifecycle contract is published,
+but its SQLite/PostgreSQL repositories, workers, and service integration are
+not yet active. Canonical repository authorization, structured regression
+evidence, and complete replay manifests belong to the coordinated
 schema-version-3 program. The read-only v3 migration preflight and inert
 staging bundles are implemented, but they cannot activate memory or be loaded
 as version-3 runtime state.

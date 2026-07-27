@@ -67,7 +67,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
 | 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、v3 migration preflight/bundle verification、active lessons 原子导出与 dry-run 导入、failure case/lesson/project policy forward-only 淘汰预览与显式写入、audit/metrics/remediation、只读 PR report、单项与清单式批量 measured completion、dry-run 恢复与显式 `--write` 原子替换 |
 | 迁移准备 | content-addressed、不可激活的 v2→v3 bundle、精确 plan replay、immutable SQLite staging，以及不改变 active runtime version 的 PostgreSQL version-gated staging/rollback |
-| 分发资源 | wheel/sdist/editable 内置 41 份 byte-identical Schema、SQL/迁移、taxonomy 与示例；支持发现、读取、校验元数据和原子导出 |
+| 分发资源 | wheel/sdist/editable 内置 43 份 byte-identical Schema、SQL/迁移、taxonomy 与示例；支持发现、读取、校验元数据和原子导出 |
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类；bounded local document ingestion 对本地 JSON/YAML 先限额再校验，并以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
 | PR/CI | 相关历史失败、source/fix provenance、回归建议、old/new endpoint 匹配，以及可直接接入流水线的 `pr-report` JSON 输出 |
@@ -86,7 +86,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 5. Harness 执行并评估任务。
 6. `complete_memory_run()` 或 `complete_memory_runs()` 原子写入 Trace 与 decision outcome；本地 snapshot 运维也可用 `tbm complete` 或 `tbm complete-batch` 提交显式实测结果。
 
-普通同步调用方可以用 `run_memory_execution()` 把第 2-6 步收敛为一次调用；LLM 与 harness 仍由调用方 callback 提供，Store 继续拥有门控、linkage 和原子完成。不需要直接管理底层 Store 生命周期的应用可以使用 `LocalAgentMemory`，由它同时负责 Trace 注册、Repository 同步、稳定错误与 callback 恢复 ID。可选 `tbm-mcp` 命令只通过有界本地 STDIO 暴露这套 runtime 生命周期，把 provenance 固定到配置的 checkout root，并在检索前捕获完整 Git ancestry。SQLite/PostgreSQL 同步持久阶段；在统一 durable Gate-session schema 交付前，pending request 仍为进程内状态。需要暂停、人工重试或独立生命周期控制的高级调用方继续直接使用底层方法。
+普通同步调用方可以用 `run_memory_execution()` 把第 2-6 步收敛为一次调用；LLM 与 harness 仍由调用方 callback 提供，Store 继续拥有门控、linkage 和原子完成。不需要直接管理底层 Store 生命周期的应用可以使用 `LocalAgentMemory`，由它同时负责 Trace 注册、Repository 同步、稳定错误与 callback 恢复 ID。可选 `tbm-mcp` 命令只通过有界本地 STDIO 暴露这套 runtime 生命周期，把 provenance 固定到配置的 checkout root，并在检索前捕获完整 Git ancestry。SQLite/PostgreSQL 同步持久阶段；pending request 仍为进程内状态。与持久化实现无关的 `tbm.gate-session.v3` 契约已经定义目标 lifecycle、revision、lease 与 expiry 语义，但 durable repository 与 service integration 尚未交付。需要暂停、人工重试或独立生命周期控制的高级调用方继续直接使用底层方法。
 
 ### 5.2 从失败到可复用 Lesson
 
@@ -183,9 +183,9 @@ Phase 72 增加标准库 `SQLiteMemoryRepository`：增量原子同步使用 `BE
 
 Phase 73 收敛 review 指出的运行边界：限制 query、semantic mapping、batch、pending/finalized Gate 状态和 lesson/policy 文本；高层 Gate request 绑定 Trace/run，usage log 持久化 `request_id`；每个 request 与 pending request 聚合候选都有硬上限；本地摄取拒绝特殊文件，SQLite 同实例操作串行化并在顶层回滚失败时保留主异常；PostgreSQL v2 通过原子迁移增加 request audit、不可变 Trace/usage/source trigger 和前向 outcome 保护；持久化时间戳统一为最多六位小数的严格 RFC 3339；CI 增加 lint、类型、覆盖率和依赖审计门禁。
 
-当前仍有明确的生产边界：snapshot version 2 没有 canonical `repository_id` 或显式 global/repository/tenant scope kind；`regression_passed` 仍不是结构化 run/evaluator 证据；Gate request 与 finalized tombstone 仍只存在于进程内，但 pending request 已有容量限制和显式取消，finalized tombstone 已有容量限制，高层请求会绑定 Trace/run，最终 usage log 会持久化 `request_id`；usage log 仍不足以精确重放 retriever、gate、ancestry 与 renderer；Git ancestry 仍是 opt-in。持久化幂等、TTL 与崩溃恢复仍属于后续 schema 工作。既有 version-2 snapshot 中 verified 但未 review 的 case 必须补齐证据后才能加载。
+当前仍有明确的生产边界：snapshot version 2 没有 canonical `repository_id` 或显式 global/repository/tenant scope kind；`regression_passed` 仍不是结构化 run/evaluator 证据；Gate request 与 finalized tombstone 仍只存在于进程内，但 pending request 已有容量限制和显式取消，finalized tombstone 已有容量限制，高层请求会绑定 Trace/run，最终 usage log 会持久化 `request_id`；usage log 仍不足以精确重放 retriever、gate、ancestry 与 renderer；Git ancestry 仍是 opt-in。version-3 GateSession 契约尚不是 active repository；持久化幂等、expiry 与崩溃恢复仍属于后续统一 schema 工作。既有 version-2 snapshot 中 verified 但未 review 的 case 必须补齐证据后才能加载。
 
-以下 Phase 49–70 段落保留各功能落地时的版本与资源基线，属于历史兼容记录；当前发布契约以 PostgreSQL schema version 2 和 41 项资源说明为准。历史上的第 21 项资源是面向既有 version-2 数据库、可重复运行且带版本门禁的 `schemas/postgres-v2-lock-order-hotfix.sql`；新增的十一项资源提供 `tbm.agent.v1` 的五份 Schema、五份 JSON 示例与一份可执行 quickstart；v3 迁移资源包含 mapping/plan preflight、不可激活 bundle、隔离的 SQLite/PostgreSQL staging DDL，以及显式 PostgreSQL staging rollback。全新安装与当前 v1→v2 迁移已包含同一数据库修复。
+以下 Phase 49–70 段落保留各功能落地时的版本与资源基线，属于历史兼容记录；当前发布契约以 PostgreSQL schema version 2 和 43 项资源说明为准。历史上的第 21 项资源是面向既有 version-2 数据库、可重复运行且带版本门禁的 `schemas/postgres-v2-lock-order-hotfix.sql`；新增的十一项资源提供 `tbm.agent.v1` 的五份 Schema、五份 JSON 示例与一份可执行 quickstart；v3 迁移资源包含 mapping/plan preflight、不可激活 bundle、隔离的 SQLite/PostgreSQL staging DDL、显式 PostgreSQL staging rollback，以及 GateSession 契约 Schema/示例。全新安装与当前 v1→v2 迁移已包含同一数据库修复。
 
 Phase 49 将持久化 identity、linkage、必填 failure 文本、lesson/policy scope、Memory Context 与 usage-audit mapping 的键值统一为“至少包含一个 non-whitespace 字符”，但不会 trim 已接受的值。可选 Trace metadata、无关 Failure Case narrative 字段和 candidate/used/blocked memory-ID arrays 保持既有契约。PostgreSQL schema version 1 的默认 `btrim` 已拒绝全普通空格，但比 Python/JSON Schema 边界更窄；受支持的 Store→Repository 写入路径使用更严格的 portable validation，直接 SQL 写入的其他 whitespace-only 数据需由 operator 清理。
 

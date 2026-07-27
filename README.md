@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 41 resources. `PackagedResource` descriptions
+The allowlist currently contains 43 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -1194,7 +1194,7 @@ signed `INTEGER` column supplies the identical upper boundary. Existing
 schema-version-1 databases already enforce that physical maximum and need no
 Phase 47 migration; operators missing the earlier lower-bound CHECK still own
 that constraint migration. Only the canonical and packaged Trace Schema bytes
-change in Phase 47. The current distribution uses the 41-resource allowlist;
+change in Phase 47. The current distribution uses the 43-resource allowlist;
 snapshot version 2 and PostgreSQL schema version 2 are current.
 
 ### Deferred decision outcome sealing
@@ -1943,7 +1943,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 41 canonical Schemas, examples, and memory
+  explicit atomic export for all 43 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2019,7 +2019,9 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   `-- v3-staging-bundles*.md
 |   |-- protocols/
 |   |   |-- agent-v1.md
-|   |   `-- agent-v1.zh-CN.md
+|   |   |-- agent-v1.zh-CN.md
+|   |   |-- gate-session-v3.md
+|   |   `-- gate-session-v3.zh-CN.md
 |   |-- product-program.md
 |   |-- product-program.zh-CN.md
 |   |-- product.en.md
@@ -2028,6 +2030,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   `-- usage-policy.zh-CN.md
 |-- examples/
 |   |-- agent_*.example.json
+|   |-- gate_session_v3.example.json
 |   |-- quickstart.py
 |   |-- snapshot_v3_migration_*.example.json
 |   |-- trace.example.json
@@ -2042,6 +2045,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   `-- failure_taxonomy.yaml
 |-- schemas/
 |   |-- agent_*.schema.json
+|   |-- gate_session_v3.schema.json
 |   |-- postgres-v1-to-v2.sql
 |   |-- postgres-v2-lock-order-hotfix.sql
 |   |-- postgres-v3-staging*.sql
@@ -2069,6 +2073,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- contracts_v3.py
 |   |-- execution.py
 |   |-- extraction.py
+|   |-- gate_session_v3.py
 |   |-- lifecycle.py
 |   |-- locking.py
 |   |-- mcp_entry.py
@@ -2085,6 +2090,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 `-- tests/
     |-- test_agent.py
     |-- test_contracts_v3.py
+    |-- test_gate_session_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py
     |-- test_quickstart.py

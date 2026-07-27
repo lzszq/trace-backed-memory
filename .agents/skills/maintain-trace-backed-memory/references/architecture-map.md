@@ -7,6 +7,7 @@
 | Gate and rendering policy | `policy.py` | Store prepare/finalize, schemas, policy tests |
 | Cross-record invariants | `store.py` | snapshot tests, both repositories |
 | Agent application façade | `agent.py` | package exports, CLI capabilities, agent schemas |
+| Durable-session v3 contract | `gate_session_v3.py` | GateSession Schema/example, transition tests, protocol docs |
 | Callback orchestration | `execution.py` | recovery/error tests |
 | SQLite persistence | `sqlite.py`, `schemas/sqlite.sql` | Store conformance, migration docs |
 | PostgreSQL persistence | `postgres.py`, `schemas/postgres*.sql` | integration, concurrency, migration tests |

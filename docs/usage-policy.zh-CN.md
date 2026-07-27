@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-41 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging 与显式 rollback 资源。
+43 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback 与 GateSession contract 资源。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -249,6 +249,27 @@ Lesson/Failure Case 在候选构造时临时获得 source identity，并在 LLM 
 - `full_case_summary`：注入最多 2,000 字符的 Lesson、经过 review 的 failure/root-cause/fix、commit、regression 与 reviewer 证据。
 
 提供给 LLM Gate 的 task、context summary 和 candidate memory 也必须作为有界、quoted data。运行时 snippet 必须来自最终解析的 `MemoryDecision`，不得直接从检索候选渲染非空内容。
+
+## Version-3 GateSession 契约策略
+
+`tbm.gate-session.v3` 记录是不可变生命周期 revision。调用方执行状态转换或
+lease renewal 时必须提交精确的当前 version。adapter 必须原子拒绝 stale
+version，不能把调用方字段合并进更新的 session。
+
+所有 session 与 lease 时间戳都由服务端拥有。外部 agent 可以提供 idempotency
+key，但不能提供 transition time、lease deadline 或 expiry。纯契约不会读取
+wall-clock time；durable repository 必须使用可信事务时间与已持久化 lease/expiry
+比较。
+
+只允许已发布的转换图。生命周期证据只能向前累积，不能被清除或重新绑定。
+prepared 到 executing 的 active 状态必须持有不超过 session expiry 的 lease。
+completed、canceled、expired 与 abandoned 都是 terminal，不能重新打开。
+terminal failure path 必须保留有界 reason。
+
+当前 Store 与本地 MCP 不持久化该契约。不得通过序列化或重建私有
+`MemoryGateRequest` token 来模拟 durability。未来 repository 必须在不削弱
+现有 Gate 的前提下，实现原子 idempotency、expiry、recovery，以及 retrieval
+前 authorization。
 
 ## 固定运行时预算
 

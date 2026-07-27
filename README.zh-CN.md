@@ -176,7 +176,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 41 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 43 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -848,7 +848,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、41 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、43 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -909,7 +909,9 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |   `-- v3-staging-bundles*.md
 |   |-- protocols/
 |   |   |-- agent-v1.md
-|   |   `-- agent-v1.zh-CN.md
+|   |   |-- agent-v1.zh-CN.md
+|   |   |-- gate-session-v3.md
+|   |   `-- gate-session-v3.zh-CN.md
 |   |-- product-program.md
 |   |-- product-program.zh-CN.md
 |   |-- product.en.md
@@ -918,6 +920,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   `-- usage-policy.zh-CN.md
 |-- examples/
 |   |-- agent_*.example.json
+|   |-- gate_session_v3.example.json
 |   |-- quickstart.py
 |   |-- snapshot_v3_migration_*.example.json
 |   |-- trace.example.json
@@ -932,6 +935,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   `-- failure_taxonomy.yaml
 |-- schemas/
 |   |-- agent_*.schema.json
+|   |-- gate_session_v3.schema.json
 |   |-- postgres-v1-to-v2.sql
 |   |-- postgres-v2-lock-order-hotfix.sql
 |   |-- postgres-v3-staging*.sql
@@ -959,6 +963,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- contracts_v3.py
 |   |-- execution.py
 |   |-- extraction.py
+|   |-- gate_session_v3.py
 |   |-- lifecycle.py
 |   |-- locking.py
 |   |-- mcp_entry.py
@@ -975,6 +980,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 `-- tests/
     |-- test_agent.py
     |-- test_contracts_v3.py
+    |-- test_gate_session_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py
     |-- test_quickstart.py

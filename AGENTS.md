@@ -41,6 +41,8 @@ Start with:
 - `mcp_entry.py` / `mcp_server.py`: optional bounded, runtime-only local STDIO
   MCP profile over the application façade.
 - `contracts_v3.py`: strict version-3 identities, mappings, and preflight plans.
+- `gate_session_v3.py`: persistence-neutral durable-session contract and
+  explicit lifecycle transitions; not an active repository.
 - `migration_v3.py`: inert content-addressed migration bundles and replay.
 - `execution.py`: callback orchestration and recovery context.
 - `sqlite.py` / `postgres.py`: persistence adapters.

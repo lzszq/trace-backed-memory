@@ -1289,7 +1289,7 @@ Track:
 - Publish synchronized Codex project configuration, runtime policy,
   architecture, product, README, and repository-skill guidance.
 - Preserve snapshot version 2, SQLite schema version 1, PostgreSQL schema
-  version 2, and the 41-resource distribution contract.
+  version 2, and the 43-resource distribution contract.
 
 ## Phase 74: Deployable trust boundaries and replayable audit (in progress)
 
@@ -1312,6 +1312,11 @@ Track:
 - Add an immutable, side-by-side SQLite staging repository plus version-gated
   PostgreSQL staging and rollback scripts. Keep all staging invisible to
   runtime v2 adapters and expose no activation operation.
+- Publish the immutable `tbm.gate-session.v3` domain contract, explicit
+  lifecycle transition graph, optimistic revision checks, lease/expiry
+  invariants, bounded strict JSON parser, and packaged Schema/example. Keep
+  the contract persistence-neutral until the coordinated SQLite v2 and
+  PostgreSQL v3 repositories are delivered.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

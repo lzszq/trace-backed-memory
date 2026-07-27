@@ -507,7 +507,7 @@
   handle 在重启后与新 request 碰撞。
 - 同步发布 Codex 项目配置、运行策略、架构、产品、README 与仓库技能指南。
 - 保持 snapshot version 2、SQLite schema version 1、PostgreSQL schema
-  version 2，以及 41 项资源的发行契约。
+  version 2，以及 43 项资源的发行契约。
 
 ## Phase 74：可部署信任边界与可重放审计（进行中）
 
@@ -528,6 +528,10 @@
 - 增加 immutable、side-by-side SQLite staging repository，以及带版本门禁的
   PostgreSQL staging/rollback scripts；所有 staging 对 runtime v2 adapter
   不可见，且不提供 activation operation。
+- 发布不可变的 `tbm.gate-session.v3` 领域契约、显式生命周期转换图、乐观
+  revision 检查、lease/expiry 不变量、有界严格 JSON parser，以及打包
+  Schema/示例。在统一 SQLite v2 与 PostgreSQL v3 repository 交付前，该契约
+  保持 persistence-neutral。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 canonical repository ID、显式 global/repository/tenant scope kind 与 global policy 权限，使 scope 成为可执行的授权边界。

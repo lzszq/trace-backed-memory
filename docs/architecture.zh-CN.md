@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 41 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 43 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -293,6 +293,31 @@ object 并使用 `RESTRICT`，所以意外 object 或外部 dependency 会 fail 
 兼容边界仍是 snapshot version 2、SQLite schema version 1 与 PostgreSQL schema
 version 2。完整契约见
 [Version-3 迁移 bundle 与隔离 staging](migrations/v3-staging-bundles.zh-CN.md)。
+
+## Durable GateSession version-3 契约
+
+`gate_session_v3.py` 发布与持久化实现无关的 `tbm.gate-session.v3` 记录和显式
+转换图，供未来 SQLite v2、PostgreSQL v3、`tbmd`、HTTP、MCP 与 SDK
+实现共同使用。一条不可变记录绑定 tenant、canonical repository、principal、
+agent client、Trace/run identity、request fingerprint、idempotency key、expiry、
+lease 与各阶段证据 ID。每次状态转换都要求当前 revision，并返回 `version + 1`；
+stale revision 与非法转换使用不同的稳定错误码。
+
+生命周期与 lease 时间戳由服务端权威生成。纯领域契约接收显式时间戳以保证 replay
+确定性，但不允许 client 自行选择时间。未来 repository 在提交转换前必须使用事务内
+数据库/service 时间与已持久化 lease/expiry 比较。
+
+记录按生命周期顺序累积引用：retrieval snapshot 与 System Gate evaluation、
+semantic Gate decision attempt、精确 final memory revision、injection artifact 与
+usage decision，最后是 run outcome。cancel、expiry 与 abandon 均为 terminal，
+并保留有界 reason。active 状态必须持有 lease，terminal 状态清除 lease。严格
+外部 parser 有界、拒绝 duplicate key、检查 finite number，并拒绝未知字段。完整
+契约见 [Durable GateSession version-3 契约](protocols/gate-session-v3.zh-CN.md)。
+
+该模块不是 repository，也不会用来重建私有 Store request token。当前本地 Agent
+与 STDIO MCP 仍为进程内状态。只有 durable idempotency index、事务、expiry
+worker、crash recovery 与 adapter conformance 全部实现后，该 session 契约才能
+成为 runtime authority。
 
 ## 非目标
 

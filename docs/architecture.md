@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 41 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 43 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 41 resources.
+contains 43 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1406,6 +1406,38 @@ Snapshot version 2, SQLite schema version 1, and PostgreSQL schema version 2
 therefore remain the runtime compatibility boundary. The complete contract is
 documented in
 [Version-3 migration bundles and isolated staging](migrations/v3-staging-bundles.md).
+
+## Durable GateSession version-3 contract
+
+`gate_session_v3.py` publishes the persistence-neutral
+`tbm.gate-session.v3` record and explicit transition graph required by future
+SQLite v2, PostgreSQL v3, `tbmd`, HTTP, MCP, and SDK implementations. One
+immutable record binds tenant, canonical repository, principal, agent client,
+Trace/run identity, request fingerprint, idempotency key, expiry, lease, and
+the IDs of lifecycle evidence. Every state change requires the current
+revision and returns `version + 1`; stale revisions and illegal transitions
+have separate stable error codes.
+
+Lifecycle and lease timestamps are server-authoritative. The pure domain
+contract accepts explicit timestamps so replay remains deterministic; it does
+not authorize clients to choose time. Future repositories must compare
+transactional database/service time with the persisted lease and expiry before
+committing a transition.
+
+The record accumulates references in lifecycle order: retrieval snapshot and
+System Gate evaluation, semantic Gate decision attempts, exact final memory
+revisions, injection artifact and usage decision, then run outcome.
+Cancellation, expiry, and abandonment are terminal and retain a bounded
+reason. Active states require a lease; terminal states clear it. Strict
+external parsing is bounded, duplicate-key rejecting, finite-number checked,
+and closed to unknown fields. The full contract is documented in
+[Durable GateSession version-3 contract](protocols/gate-session-v3.md).
+
+This module is not a repository and is not used to reconstruct the private
+Store request token. The active local agent and STDIO MCP remain
+process-local. Durable idempotency indexes, transactions, expiry workers,
+crash recovery, and adapter conformance are required before the session
+contract becomes the runtime authority.
 
 ## Non-goals
 

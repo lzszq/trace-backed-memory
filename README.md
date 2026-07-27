@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 75 resources. `PackagedResource` descriptions
+The allowlist currently contains 76 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -470,8 +470,12 @@ The storage-neutral `tbm.audit-event.v3` and `tbm.recovery-action.v3`
 contracts add a content-addressed append-only event chain and explicit
 recovery-attempt evidence. Recovery verification reuses the derived
 `MemoryRunRemediation` and immutable GateSession version; it does not create a
-second lifecycle authority. Active Store/Agent/MCP paths do not persist these
-records yet. See
+second lifecycle authority. `SQLiteAuditV3Repository` adds an opt-in isolated
+ledger with exact stream-head CAS, immutable events, atomic
+RecoveryAction/event append, scoped request-digest uniqueness, bounded reads,
+schema-drift checks, caller savepoints, and concurrent idempotency. It is not
+wired to active Store/Agent/MCP paths and does not perform authorization or the
+underlying GateSession/remediation transition. See
 [the audit and recovery contract](docs/protocols/audit-recovery-v3.md).
 
 For opt-in local durability of the version-3 lifecycle itself,
@@ -2040,7 +2044,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 75 canonical Schemas, examples, and memory
+  explicit atomic export for all 76 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2234,6 +2238,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- postgres_replay_v3.py
 |   |-- replay_v3.py
 |   |-- sqlite.py
+|   |-- sqlite_audit_v3.py
 |   |-- sqlite_gate_session_v3.py
 |   |-- sqlite_replay_v3.py
 |   |-- sqlite_v3.py
@@ -2257,6 +2262,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_postgres_replay_v3.py
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py
+    |-- test_sqlite_audit_v3.py
     |-- test_sqlite_replay_v3.py
     |-- test_quickstart.py
     |-- test_sqlite_v3.py

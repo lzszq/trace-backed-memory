@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 75 installed resource copies must remain byte-identical to the top-level
+The 76 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1213,6 +1213,13 @@ execute it. Before memory-run recovery, recompute and lock the current
 expected revision. Write the underlying transition, RecoveryAction, and
 matching success/failure AuditEvent atomically. A stale plan, request-hash
 collision, missing explicit attribution, or unauthorized actor fails closed.
+
+The opt-in SQLite audit ledger may persist exact event streams and atomically
+append a RecoveryAction with its matching event. Its session-scoped request
+digest uniqueness is replay protection, not authorization. Until a service
+unit of work derives actor identity and includes the underlying GateSession or
+remediation transition in the same transaction, callers must not present a
+successful ledger append as proof that recovery was authorized or executed.
 
 ## Version-3 replay artifact policy
 

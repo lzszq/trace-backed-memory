@@ -24,6 +24,14 @@ state 与精确 resulting revision（失败时状态不变）核验。request fi
 GateSession transition。raw prompt、tool output、secret 与无限 error 应保存在
 受控 artifact 中；event payload 只保存 hash 与 identifier。
 
+opt-in `SQLiteAuditV3Repository` 通过 `schemas/sqlite-v3-audit.sql` 实现隔离的
+本地 evidence ledger。它保留精确 stream identity，通过 CAS head 每次推进一个
+parent-linked event，原子追加一条 RecoveryAction 及其匹配的成功/失败 event，
+拒绝 session-scoped request-digest 碰撞，在读取时重新核验 canonical descriptor，
+并禁止 update 或 delete event/action。该 ledger 不派生 authenticated actor，
+也不包含底层 Store/GateSession transition；service integration 必须补齐这些检查
+和更大的原子 unit of work，才能把 append 视为已授权 recovery。
+
 现有派生 `MemoryRunAudit`、`MemoryRunRemediation`、health metrics 与 version-2
 usage log 保持不变。event ledger 是操作证据，不是另一套 lifecycle/outcome
 authority。
@@ -32,3 +40,4 @@ authority。
 
 - `schemas/audit_event_v3.schema.json`
 - `schemas/recovery_action_v3.schema.json`
+- `schemas/sqlite-v3-audit.sql`

@@ -575,8 +575,12 @@
 - 发布 storage-neutral `tbm.audit-event.v3` 与
   `tbm.recovery-action.v3` 契约，提供内容派生 identity、精确 stream parent、
   authenticated actor slot、typed reference、显式 request digest，以及对照
-  GateSession 与派生 MemoryRunRemediation state 的跨记录核验。durable
-  append-only ledger 与 active service integration 仍是后续工作。
+  GateSession 与派生 MemoryRunRemediation state 的跨记录核验。
+- 增加 opt-in 隔离 SQLite audit ledger，提供 immutable stream event、精确
+  parent/head CAS、RecoveryAction/event 原子追加、session-scoped request-digest
+  唯一性、canonical 读取复核、schema-drift 检测、调用方 savepoint 与并发幂等。
+  authenticated actor 派生、底层 GateSession/remediation transition、
+  PostgreSQL 对等实现与 active service integration 仍是后续工作。
 - 增加 opt-in、side-by-side SQLite GateSession repository，提供 append-only
   canonical revision、scoped 原子 idempotency index、可信时钟 CAS transition 与
   lease renewal、schema-drift 检测、调用方 savepoint、并发测试和有界 due

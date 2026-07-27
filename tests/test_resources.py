@@ -31,7 +31,7 @@ def test_packaged_resources_match_every_canonical_file_byte_for_byte():
     descriptions = tbm.packaged_resources()
 
     assert tuple(item.name for item in descriptions) == CANONICAL_RESOURCE_NAMES
-    assert len(descriptions) == 75
+    assert len(descriptions) == 76
     for item in descriptions:
         canonical = (ROOT / item.name).read_bytes()
         assert tbm.read_packaged_resource(item.name) == canonical
@@ -93,6 +93,10 @@ def test_resource_media_types_are_deterministic():
         == "application/sql"
     )
     assert by_name["schemas/sqlite.sql"].media_type == "application/sql"
+    assert (
+        by_name["schemas/sqlite-v3-audit.sql"].media_type
+        == "application/sql"
+    )
     assert (
         by_name["schemas/sqlite-v3-gate-session.sql"].media_type
         == "application/sql"

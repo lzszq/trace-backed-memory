@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 75 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 76 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -427,8 +427,13 @@ verifier 核验。active Store 仍以既有 v2 outcome 字段为准，不能静�
 `tbm.audit-event.v3` 提供内容寻址 append-only stream，绑定精确 parent
 及 actor/reference provenance。配套 `tbm.recovery-action.v3` 记录一次已完成
 恢复尝试，并对照既有派生 MemoryRunRemediation 或 expected GateSession revision
-核验。这些记录只是 evidence，不替代 Store lifecycle、authorization service
-或 durable ledger。详见
+核验。opt-in `SQLiteAuditV3Repository` 与隔离
+`schemas/sqlite-v3-audit.sql` ledger 保存 immutable stream event 与 CAS head，
+原子追加 RecoveryAction 及其匹配 event，拒绝同一 session 内的 request-digest
+碰撞，读取时重新核验 canonical descriptor，通过 savepoint 保留调用方事务，并在
+schema drift 时 fail closed。该 repository 只是 evidence storage，不替代 Store
+lifecycle、authorization service、authenticated actor boundary 或原子的
+GateSession/remediation transition。详见
 [审计事件与恢复动作 v3](protocols/audit-recovery-v3.zh-CN.md)。
 
 ## 非目标

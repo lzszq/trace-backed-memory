@@ -28,6 +28,16 @@ and atomically write the action, event, and underlying Store or GateSession
 transition. Raw prompts, tool output, secrets, and unbounded errors belong in
 controlled artifacts; event payloads contain hashes and identifiers only.
 
+The opt-in `SQLiteAuditV3Repository` implements an isolated local evidence
+ledger using `schemas/sqlite-v3-audit.sql`. It preserves exact stream identity,
+advances one parent-linked event at a time through a CAS head, atomically
+appends one RecoveryAction with its matching success/failure event, rejects
+session-scoped request-digest collisions, revalidates canonical descriptors on
+read, and prohibits event/action updates or deletion. This ledger does not
+derive authenticated actors or include the underlying Store/GateSession
+transition; service integration must add those checks and the wider atomic
+unit of work before treating an append as authorized recovery.
+
 The existing derived `MemoryRunAudit`, `MemoryRunRemediation`, health metrics,
 and version-2 usage log remain unchanged. An event ledger is evidence about
 operations, not a competing lifecycle or outcome authority.
@@ -36,3 +46,4 @@ Canonical schemas:
 
 - `schemas/audit_event_v3.schema.json`
 - `schemas/recovery_action_v3.schema.json`
+- `schemas/sqlite-v3-audit.sql`

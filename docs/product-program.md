@@ -1371,8 +1371,13 @@ Track:
   `tbm.recovery-action.v3` contracts with content-derived identity, exact
   stream parents, authenticated actor slots, typed references, explicit
   request digests, and cross-record verification against GateSession and
-  derived MemoryRunRemediation state. Keep the durable append-only ledger and
-  active service integration outstanding.
+  derived MemoryRunRemediation state.
+- Add an opt-in isolated SQLite audit ledger with immutable stream events,
+  exact parent/head CAS, atomic RecoveryAction/event append, session-scoped
+  request-digest uniqueness, canonical read revalidation, schema-drift
+  detection, caller savepoints, and concurrent idempotency. Keep authenticated
+  actor derivation, the underlying GateSession/remediation transition,
+  PostgreSQL parity, and active service integration outstanding.
 - Add an opt-in side-by-side SQLite GateSession repository with append-only
   canonical revisions, a scoped atomic idempotency index, trusted-clock CAS
   transitions and lease renewal, schema-drift detection, caller savepoints,

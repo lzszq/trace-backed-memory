@@ -388,6 +388,17 @@ from .sqlite import (
     SQLiteSyncCounts,
     SQLiteSyncResult,
 )
+from .sqlite_audit_v3 import (
+    SQLITE_AUDIT_V3_MAX_PAGE_SIZE,
+    SQLITE_AUDIT_V3_SCHEMA_VERSION,
+    AuditStreamHead,
+    SQLiteAuditV3AppendResult,
+    SQLiteAuditV3ConflictError,
+    SQLiteAuditV3Error,
+    SQLiteAuditV3PersistenceError,
+    SQLiteAuditV3Repository,
+    SQLiteAuditV3SchemaError,
+)
 from .sqlite_gate_session_v3 import (
     SQLITE_GATE_SESSION_SCHEMA_VERSION,
     SQLiteGateSessionConflictError,
@@ -663,6 +674,15 @@ __all__ = [
     "SQLiteSchemaError",
     "SQLiteSyncCounts",
     "SQLiteSyncResult",
+    "SQLITE_AUDIT_V3_MAX_PAGE_SIZE",
+    "SQLITE_AUDIT_V3_SCHEMA_VERSION",
+    "AuditStreamHead",
+    "SQLiteAuditV3AppendResult",
+    "SQLiteAuditV3ConflictError",
+    "SQLiteAuditV3Error",
+    "SQLiteAuditV3PersistenceError",
+    "SQLiteAuditV3Repository",
+    "SQLiteAuditV3SchemaError",
     "SQLITE_GATE_SESSION_SCHEMA_VERSION",
     "SQLiteGateSessionConflictError",
     "SQLiteGateSessionCreateResult",

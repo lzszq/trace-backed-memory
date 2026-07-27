@@ -53,9 +53,11 @@ from .gate_session_v3 import (
     GATE_SESSION_CONTRACT_VERSION,
     GATE_SESSION_MAX_BYTES,
     GATE_SESSION_MAX_DEPTH,
+    GATE_SESSION_MAX_LEASE_SECONDS,
     GATE_SESSION_MAX_MEMORY_REVISIONS,
     GATE_SESSION_MAX_NODES,
     GATE_SESSION_MAX_SEMANTIC_ATTEMPTS,
+    GATE_SESSION_MAX_TTL_SECONDS,
     GateSession,
     GateSessionContractError,
     GateSessionStatus,
@@ -154,6 +156,16 @@ from .postgres import (
     PostgresSyncCounts,
     PostgresSyncResult,
 )
+from .postgres_gate_session_v3 import (
+    POSTGRES_GATE_SESSION_SCHEMA_VERSION,
+    PostgresGateSessionConflictError,
+    PostgresGateSessionCreateResult,
+    PostgresGateSessionError,
+    PostgresGateSessionNotFoundError,
+    PostgresGateSessionPersistenceError,
+    PostgresGateSessionRepository,
+    PostgresGateSessionSchemaError,
+)
 from .replay_v3 import (
     ARTIFACT_MAX_BYTES,
     INJECTION_ARTIFACT_MAX_BYTES,
@@ -200,8 +212,6 @@ from .sqlite import (
     SQLiteSyncResult,
 )
 from .sqlite_gate_session_v3 import (
-    GATE_SESSION_MAX_LEASE_SECONDS,
-    GATE_SESSION_MAX_TTL_SECONDS,
     SQLITE_GATE_SESSION_SCHEMA_VERSION,
     SQLiteGateSessionConflictError,
     SQLiteGateSessionCreateResult,
@@ -326,6 +336,14 @@ __all__ = [
     "PostgresAdapterError",
     "PostgresConflictError",
     "PostgresDependencyError",
+    "POSTGRES_GATE_SESSION_SCHEMA_VERSION",
+    "PostgresGateSessionConflictError",
+    "PostgresGateSessionCreateResult",
+    "PostgresGateSessionError",
+    "PostgresGateSessionNotFoundError",
+    "PostgresGateSessionPersistenceError",
+    "PostgresGateSessionRepository",
+    "PostgresGateSessionSchemaError",
     "PostgresMemoryRepository",
     "PostgresPersistenceError",
     "PostgresSchemaError",

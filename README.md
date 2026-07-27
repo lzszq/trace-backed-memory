@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 48 resources. `PackagedResource` descriptions
+The allowlist currently contains 50 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -413,6 +413,16 @@ leases, and bounded due-session discovery. It can share a database file with
 the active SQLite v1 Store without changing that schema. The current Agent and
 MCP do not use this repository or recover private pending request tokens; see
 [the GateSession contract](docs/protocols/gate-session-v3.md).
+
+For opt-in shared-database durability, `PostgresGateSessionRepository` uses
+the isolated `trace_backed_memory_v3_gate_session` schema installed by
+`schemas/postgres-v3-gate-session.sql`. It samples database time after row
+locking and provides scoped idempotency, append-only revisions, exact-version
+CAS, catalog drift checks, and caller savepoints. The paired
+`schemas/postgres-v3-gate-session-rollback.sql` is fail-closed. Both scripts
+require and preserve active PostgreSQL schema version 2; this adapter is not
+yet active Agent/MCP state or a claim of distributed service readiness.
+
 Completion and recovery commands return the serialized completions, ordered
 decision IDs, and a `written` flag. They are dry-run by default: the input
 bytes change only when `--write` is explicit and the complete operation
@@ -1212,7 +1222,7 @@ signed `INTEGER` column supplies the identical upper boundary. Existing
 schema-version-1 databases already enforce that physical maximum and need no
 Phase 47 migration; operators missing the earlier lower-bound CHECK still own
 that constraint migration. Only the canonical and packaged Trace Schema bytes
-change in Phase 47. The current distribution uses the 48-resource allowlist;
+change in Phase 47. The current distribution uses the 50-resource allowlist;
 snapshot version 2 and PostgreSQL schema version 2 are current.
 
 ### Deferred decision outcome sealing
@@ -1961,7 +1971,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 48 canonical Schemas, examples, and memory
+  explicit atomic export for all 50 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2072,6 +2082,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- injection_artifact_v3.schema.json
 |   |-- postgres-v1-to-v2.sql
 |   |-- postgres-v2-lock-order-hotfix.sql
+|   |-- postgres-v3-gate-session*.sql
 |   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
 |   |-- snapshot_v3_migration_*.schema.json
@@ -2107,6 +2118,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- models.py
 |   |-- policy.py
 |   |-- postgres.py
+|   |-- postgres_gate_session_v3.py
 |   |-- replay_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_gate_session_v3.py
@@ -2120,6 +2132,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_gate_session_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py
+    |-- test_postgres_gate_session_v3.py
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py
     |-- test_quickstart.py

@@ -67,9 +67,9 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Operations recovery | Five-state audits, remediation actions, single/batch recovery, and ready-recovery sweeps |
 | Operations CLI | Dependency-free `tbm` and module entry point for snapshots, v3 migration preflight/bundle verification, lessons, obsolescence, audits, metrics, PR reports, completion, and recovery |
 | Migration preparation | Content-addressed inert v2-to-v3 bundles, exact plan replay, immutable SQLite staging, and version-gated PostgreSQL staging/rollback without changing active runtime versions |
-| GateSession persistence preparation | Opt-in side-by-side SQLite append-only revisions, scoped idempotency, CAS transitions, trusted-clock leases, and bounded due discovery without changing active SQLite v1 |
+| GateSession persistence preparation | Opt-in side-by-side SQLite and isolated PostgreSQL append-only revisions, scoped idempotency, CAS transitions, trusted clocks, bounded due discovery, and fail-closed PostgreSQL rollback without changing active SQLite v1/PostgreSQL v2 |
 | Replay contract preparation | Storage-neutral content-addressed artifact, exact injection, and fixed-component decision-manifest v3 contracts; active adapters do not yet persist them |
-| Distribution resources | 48 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Distribution resources | 50 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |
@@ -224,10 +224,10 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
 - Gate requests and finalized tombstones remain process-local. Pending requests
   are bounded and explicitly cancellable, finalized tombstones are bounded,
   high-level requests bind Trace/run identity, and final usage logs persist the
-  `request_id`. The version-3 GateSession contract has an opt-in SQLite
-  revision repository, but it is not yet active agent/MCP state; PostgreSQL,
-  expiry/recovery workers, authorization, and service integration remain out
-  of scope.
+  `request_id`. The version-3 GateSession contract has opt-in SQLite and
+  isolated PostgreSQL revision repositories, but they are not yet active
+  agent/MCP state; expiry/recovery workers, authorization, and service
+  integration remain out of scope.
 - Storage-neutral replay descriptors now define the required retriever/index,
   Gate prompt/response, ancestry, policy, renderer, and exact snippet hashes,
   but usage logs and active adapters do not yet persist those artifacts.

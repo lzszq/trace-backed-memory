@@ -4,8 +4,8 @@
 
 `tbm.gate-session.v3` defines the durable runtime lifecycle planned for
 SQLite v2, PostgreSQL v3, `tbmd`, HTTP, MCP, and SDK adapters. Its domain
-record remains persistence-neutral. An opt-in, side-by-side SQLite repository
-now persists immutable revisions, but this is not a claim that the current
+record remains persistence-neutral. Opt-in, side-by-side SQLite and isolated
+PostgreSQL repositories now persist immutable revisions, but this is not a claim that the current
 local MCP server persists pending requests. The active runtime remains
 snapshot v2, SQLite v1, PostgreSQL v2, and process-local pending requests.
 
@@ -104,8 +104,29 @@ protect append-only history, revision continuity, the lifecycle graph, and
 immutable head identity even from direct SQL; repository reads still
 revalidate canonical payloads and head identity before returning them.
 
-This repository is an opt-in persistence seam, not active SQLite schema v2.
-It does not reconstruct `MemoryGateRequest._store_token`, alter the current
-Store, or make STDIO MCP restart-resumable. PostgreSQL v3, expiry/recovery
-workers, service integration, authorization, and cross-adapter conformance
-remain required before GateSession is the distributed runtime authority.
+## Isolated PostgreSQL repository
+
+`PostgresGateSessionRepository` exposes the same create/get/history/transition,
+lease-renewal, and bounded due-discovery contract over the separately installed
+`trace_backed_memory_v3_gate_session` schema. The canonical install and
+fail-closed rollback scripts are `schemas/postgres-v3-gate-session.sql` and
+`schemas/postgres-v3-gate-session-rollback.sql`; both require and preserve the
+active PostgreSQL schema version 2.
+
+Every operation locks active and GateSession metadata before session rows.
+Create uses database-enforced C-collated scoped idempotency. Mutations lock the
+head row before sampling `clock_timestamp()`, append one canonical revision,
+and advance the head with an exact-version CAS inside a transaction or caller
+savepoint. Catalog checks reject missing, extra, or reshaped relations,
+constraints, indexes, functions, triggers, and columns. Fixed-search-path
+trigger functions protect immutable identity, history, lifecycle continuity,
+and truncate boundaries. Deferred consistency triggers reject a transaction
+that leaves a head without its exact maximum revision, including an orphan
+direct-SQL append; reads still cross-check every stored payload.
+
+These repositories are opt-in persistence seams, not active SQLite schema v2
+or active PostgreSQL schema v3. They do not reconstruct
+`MemoryGateRequest._store_token`, alter the current Store, or make STDIO MCP
+restart-resumable. Expiry/recovery workers, service integration,
+authorization, and cross-adapter conformance remain required before
+GateSession is the distributed runtime authority.

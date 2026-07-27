@@ -31,7 +31,7 @@ def test_packaged_resources_match_every_canonical_file_byte_for_byte():
     descriptions = tbm.packaged_resources()
 
     assert tuple(item.name for item in descriptions) == CANONICAL_RESOURCE_NAMES
-    assert len(descriptions) == 48
+    assert len(descriptions) == 50
     for item in descriptions:
         canonical = (ROOT / item.name).read_bytes()
         assert tbm.read_packaged_resource(item.name) == canonical
@@ -62,6 +62,16 @@ def test_resource_media_types_are_deterministic():
     )
     assert (
         by_name["schemas/postgres-v2-lock-order-hotfix.sql"].media_type
+        == "application/sql"
+    )
+    assert (
+        by_name["schemas/postgres-v3-gate-session.sql"].media_type
+        == "application/sql"
+    )
+    assert (
+        by_name[
+            "schemas/postgres-v3-gate-session-rollback.sql"
+        ].media_type
         == "application/sql"
     )
     assert (

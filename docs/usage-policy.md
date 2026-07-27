@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 48 installed resource copies must remain byte-identical to the top-level
+The 50 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -172,8 +172,8 @@ The allowlist includes fresh-install PostgreSQL schema version 2, the
 atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 `schemas/postgres-v2-lock-order-hotfix.sql` operator script. It also includes
 the agent protocol, v3 migration staging, GateSession, and content-addressed
-replay contract Schemas and examples, plus the isolated SQLite GateSession
-repository DDL.
+replay contract Schemas and examples, plus isolated SQLite GateSession DDL and
+isolated PostgreSQL GateSession install/rollback.
 
 CLI resource reads emit deterministic JSON rather than unframed raw content.
 Export is the shell integration path. It must refuse an existing destination
@@ -821,7 +821,7 @@ so Phase 47 is not a database migration; operators missing the earlier CHECK
 still own the lower-bound migration. Only the canonical and packaged Trace
 Schema bytes changed in Phase 47; that baseline had 18 packaged resource names
 and PostgreSQL schema version 2. The current contract is snapshot version 2,
-48 packaged resources, and PostgreSQL schema version 2.
+50 packaged resources, and PostgreSQL schema version 2.
 
 Trace completion never seals a usage decision automatically, and decision
 outcome sealing never changes a Trace. Use the same evaluator result for both
@@ -1087,6 +1087,15 @@ enabled on borrowed connections. It is side-by-side with active SQLite v1 and
 is not wired to
 `MemoryGateRequest`; it does not by itself provide expiry workers, recovery,
 authorization, or restart-resumable MCP.
+
+The opt-in `PostgresGateSessionRepository` follows the same API against an
+isolated schema. Install and rollback only with the packaged, version-gated
+scripts. Do not alter its catalog objects, disable triggers, supply client
+timestamps, or change the connection transaction behind an active operation.
+Treat `clock_timestamp()` as authoritative and keep the metadata-to-head lock
+order. A borrowed connection retains outer-transaction ownership; repository
+failure rolls back only its savepoint. This adapter remains disconnected from
+the active Agent/MCP lifecycle and does not provide workers or authorization.
 
 ## Version-3 replay artifact policy
 

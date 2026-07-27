@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 48 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 50 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 48 resources.
+contains 50 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1441,10 +1441,19 @@ canonical DDL drift, and exposes bounded due-session discovery. Its separate
 metadata and `schemas/sqlite-v3-gate-session.sql` leave the active SQLite
 schema version at 1.
 
-This repository is not wired to the private Store request token. The active
-local agent and STDIO MCP remain process-local. PostgreSQL v3, expiry/recovery
-workers, service orchestration, authorization, and cross-adapter conformance
-are required before the session contract becomes the distributed runtime
+`postgres_gate_session_v3.py` adds the matching opt-in PostgreSQL adapter in
+the isolated `trace_backed_memory_v3_gate_session` schema. Its version-gated
+install and fail-closed rollback preserve active PostgreSQL schema version 2.
+Repository operations take metadata locks first, lock a head before sampling
+database time, append a canonical revision, and advance the head by exact CAS.
+Deterministic C-collated identity indexes, fixed-search-path trigger functions,
+catalog-shape verification, caller savepoints, and payload/head cross-checks
+provide database-specific enforcement without activating the schema.
+
+Neither repository is wired to the private Store request token. The active
+local agent and STDIO MCP remain process-local. Expiry/recovery workers,
+service orchestration, authorization, and cross-adapter conformance are
+required before the session contract becomes the distributed runtime
 authority.
 
 ## Content-addressed replay version-3 contract

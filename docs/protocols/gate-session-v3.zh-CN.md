@@ -4,7 +4,8 @@
 
 `tbm.gate-session.v3` 定义未来 SQLite v2、PostgreSQL v3、`tbmd`、HTTP、MCP
 与 SDK adapter 共用的 durable runtime 生命周期；domain 记录仍与持久化实现无关。
-现在已有 opt-in、side-by-side SQLite repository 持久化 immutable revision，但这
+现在已有 opt-in、side-by-side SQLite 与隔离 PostgreSQL repository 持久化
+immutable revision，但这
 不表示当前本地 MCP server 已经持久化 pending request。active runtime 仍是
 snapshot v2、SQLite v1、PostgreSQL v2，以及进程内 pending request。
 
@@ -92,8 +93,26 @@ lease 或 session 过期后的转换，返回稳定的 `TBM_SQLITE_GATE_SESSION_
 immutable head identity；repository 读取时仍会重新校验 canonical payload 与 head
 identity。
 
-该 repository 是 opt-in persistence seam，不是 active SQLite schema v2。它不会
-重建 `MemoryGateRequest._store_token`、修改当前 Store，也不会让 STDIO MCP 在重启
-后可恢复。PostgreSQL v3、expiry/recovery worker、service integration、
-authorization 与跨 adapter conformance 仍需交付，GateSession 才能成为
-distributed runtime authority。
+## 隔离 PostgreSQL repository
+
+`PostgresGateSessionRepository` 在独立安装的
+`trace_backed_memory_v3_gate_session` schema 上提供相同的 create/get/history/
+transition、lease renewal 与有界 due discovery 契约。规范安装与 fail-closed
+rollback 分别是 `schemas/postgres-v3-gate-session.sql` 和
+`schemas/postgres-v3-gate-session-rollback.sql`；两者都要求并保留 active
+PostgreSQL schema version 2。
+
+每项操作先锁 active/GateSession metadata，再锁 session row。create 使用数据库
+强制、C collation 的 scoped idempotency；mutation 在读取
+`clock_timestamp()` 前锁定 head row，在 transaction 或调用方 savepoint 中追加
+canonical revision 并执行 exact-version CAS。catalog 检查拒绝缺失、额外或变形的
+relation、constraint、index、function、trigger 与 column。固定 search path 的
+trigger function 保护 immutable identity、history、lifecycle 连续性与 truncate
+边界。deferred consistency trigger 会拒绝提交后 head 未精确指向最大 revision 的
+transaction，包括 direct SQL 追加的 orphan revision；读取仍交叉校验每个 payload。
+
+这些 repository 是 opt-in persistence seam，不是 active SQLite schema v2 或
+active PostgreSQL schema v3。它们不会重建 `MemoryGateRequest._store_token`、
+修改当前 Store，也不会让 STDIO MCP 在重启后可恢复。expiry/recovery worker、
+service integration、authorization 与跨 adapter conformance 仍需交付，
+GateSession 才能成为 distributed runtime authority。

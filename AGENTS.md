@@ -45,6 +45,9 @@ Start with:
   explicit lifecycle transitions; not an active repository.
 - `sqlite_gate_session_v3.py`: opt-in side-by-side append-only GateSession
   revisions and CAS heads; not wired to the active Agent/MCP.
+- `postgres_gate_session_v3.py`: opt-in isolated PostgreSQL GateSession
+  revisions, database-time CAS, catalog validation, and rollback boundary;
+  active PostgreSQL schema version 2 remains unchanged.
 - `replay_v3.py`: content-addressed artifact, exact injection, and fixed
   decision replay manifest contracts; not an artifact repository.
 - `migration_v3.py`: inert content-addressed migration bundles and replay.

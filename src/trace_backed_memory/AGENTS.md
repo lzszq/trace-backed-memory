@@ -15,9 +15,10 @@ This directory implements the trusted runtime kernel and its adapters.
   records. They may not activate memory or change the active snapshot,
   SQLite, or PostgreSQL compatibility versions.
 - The version-3 GateSession domain record is persistence-neutral. Its opt-in
-  side-by-side SQLite repository stores revisions but is not wired to the
-  active Agent/MCP; do not claim distributed durable runtime until PostgreSQL,
-  expiry/recovery workers, service integration, and conformance exist.
+  side-by-side SQLite and isolated PostgreSQL repositories store revisions but
+  are not wired to the active Agent/MCP; do not claim distributed durable
+  runtime until expiry/recovery workers, service integration, authorization,
+  and conformance exist.
 - The local STDIO MCP profile is runtime-only. Keep its repository root and
   optional tenant server-owned, preserve bounded strict transport parsing,
   require Git ancestry capture, and expose no curator or activation surface.

@@ -18,7 +18,9 @@ from ._timestamps import (
 from .contracts_v3 import V3ContractError
 from .gate_session_v3 import (
     GATE_SESSION_CONTRACT_VERSION,
+    GATE_SESSION_MAX_LEASE_SECONDS,
     GATE_SESSION_MAX_BYTES,
+    GATE_SESSION_MAX_TTL_SECONDS,
     GateSession,
     GateSessionContractError,
     GateSessionStatus,
@@ -32,8 +34,6 @@ from .resources import PackagedResourceError, read_packaged_resource
 
 
 SQLITE_GATE_SESSION_SCHEMA_VERSION = 1
-GATE_SESSION_MAX_TTL_SECONDS = 31_536_000
-GATE_SESSION_MAX_LEASE_SECONDS = 86_400
 _SCHEMA_RESOURCE = "schemas/sqlite-v3-gate-session.sql"
 _MISSING_SCHEMA_MESSAGE = (
     "SQLite GateSession v3 schema is missing or incomplete"

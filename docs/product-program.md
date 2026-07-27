@@ -1289,7 +1289,7 @@ Track:
 - Publish synchronized Codex project configuration, runtime policy,
   architecture, product, README, and repository-skill guidance.
 - Preserve snapshot version 2, SQLite schema version 1, PostgreSQL schema
-  version 2, and the 48-resource distribution contract.
+  version 2, and the 50-resource distribution contract.
 
 ## Phase 74: Deployable trust boundaries and replayable audit (in progress)
 
@@ -1315,8 +1315,8 @@ Track:
 - Publish the immutable `tbm.gate-session.v3` domain contract, explicit
   lifecycle transition graph, optimistic revision checks, lease/expiry
   invariants, bounded strict JSON parser, and packaged Schema/example. Keep
-  the domain contract persistence-neutral. Its opt-in, side-by-side SQLite
-  adapter does not make GateSession active runtime authority; PostgreSQL v3,
+  the domain contract persistence-neutral. Its opt-in SQLite and isolated
+  PostgreSQL adapters do not make GateSession active runtime authority;
   workers, authorization, and service integration remain outstanding.
 - Publish storage-neutral `tbm.replay.v3` content-addressed artifact,
   injection, and fixed-component decision-manifest contracts with canonical
@@ -1328,6 +1328,12 @@ Track:
   transitions and lease renewal, schema-drift detection, caller savepoints,
   concurrency tests, and bounded due discovery. Keep active SQLite schema
   version 1 and the process-local Agent/MCP request token unchanged.
+- Add the matching opt-in PostgreSQL GateSession repository in an isolated
+  schema, with version-gated install/fail-closed rollback, deterministic
+  identity collation, database-time-after-row-lock semantics, append-only
+  trigger enforcement, exact-version CAS, catalog drift checks, caller
+  savepoints, and concurrent idempotency tests. Keep active PostgreSQL schema
+  version 2 and the Agent/MCP lifecycle unchanged.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

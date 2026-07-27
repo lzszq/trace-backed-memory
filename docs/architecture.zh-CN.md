@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 48 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 50 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -321,10 +321,18 @@ time，通过 savepoint 保留调用方 transaction，检测 canonical DDL drift
 due-session discovery。其独立 metadata 与 `schemas/sqlite-v3-gate-session.sql`
 使 active SQLite schema version 仍为 1。
 
-该 repository 不会连接私有 Store request token。当前本地 Agent 与 STDIO MCP 仍为
-进程内状态。PostgreSQL v3、expiry/recovery worker、service orchestration、
-authorization 与跨 adapter conformance 全部实现后，该 session 契约才能成为
-distributed runtime authority。
+`postgres_gate_session_v3.py` 在隔离
+`trace_backed_memory_v3_gate_session` schema 中增加对应的 opt-in PostgreSQL
+adapter。带版本门禁的 install 与 fail-closed rollback 保留 active PostgreSQL
+schema version 2。repository operation 先获取 metadata lock，再锁定 head、采样
+database time、追加 canonical revision 并执行 exact CAS。确定性 C-collation
+identity index、固定 search path 的 trigger function、catalog shape 校验、调用方
+savepoint 与 payload/head 交叉检查提供数据库侧约束，但不会激活该 schema。
+
+两个 repository 都不会连接私有 Store request token。当前本地 Agent 与 STDIO MCP
+仍为进程内状态。expiry/recovery worker、service orchestration、authorization 与
+跨 adapter conformance 全部实现后，该 session 契约才能成为 distributed runtime
+authority。
 
 ## 内容寻址重放 version-3 契约
 

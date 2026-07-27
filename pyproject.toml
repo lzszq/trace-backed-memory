@@ -84,6 +84,8 @@ trace_backed_memory = [
     "_resources/schemas/memory_usage_log.schema.json",
     "_resources/schemas/postgres-v1-to-v2.sql",
     "_resources/schemas/postgres-v2-lock-order-hotfix.sql",
+    "_resources/schemas/postgres-v3-gate-session-rollback.sql",
+    "_resources/schemas/postgres-v3-gate-session.sql",
     "_resources/schemas/postgres-v3-staging-rollback.sql",
     "_resources/schemas/postgres-v3-staging.sql",
     "_resources/schemas/postgres.sql",

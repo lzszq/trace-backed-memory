@@ -176,7 +176,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 54 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 55 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -254,8 +254,11 @@ memory。详见 [staging 契约](docs/migrations/v3-staging-bundles.zh-CN.md)。
 与存储实现无关的 `tbm.replay.v3` 契约可以描述精确 artifact 字节、finalized
 injection，以及固定八项 component 的 decision replay manifest。complete manifest
 绑定自身 canonical hash 与全部 replay component；legacy partial manifest 必须精确
-列出缺失项。当前 Store、SQL adapter、本地 Agent 与 MCP 均不持久化这些记录，因此
-它是统一 version-3 runtime 的准备工作，而不是当前已支持精确重放的声明。详见
+列出缺失项。opt-in `SQLiteReplayV3Repository` 在隔离 immutable 账本中保存精确
+字节、injection descriptor 与 manifest，提供原子 bundle 写入和 fail-closed load
+复验。当前 Store、active SQL adapter、本地 Agent 与 MCP 均不使用它；它也不提供
+access control、encryption、retention 或 GateSession authority，因此仍是统一
+version-3 runtime 的准备工作，而不是当前已支持精确重放的声明。详见
 [重放契约](docs/protocols/replay-v3.zh-CN.md)。
 
 与存储实现无关的授权 v3 契约定义 canonical repository、精确的租户作用域别名、
@@ -879,7 +882,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、54 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、55 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -983,6 +986,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- snapshot_v3_migration_*.schema.json
 |   |-- sqlite-v3-gate-session.sql
 |   |-- sqlite-v3-migration.sql
+|   |-- sqlite-v3-replay.sql
 |   |-- sqlite.sql
 |   |-- trace.schema.json
 |   |-- failure_case.schema.json
@@ -1018,6 +1022,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- replay_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_gate_session_v3.py
+|   |-- sqlite_replay_v3.py
 |   |-- sqlite_v3.py
 |   |-- py.typed
 |   |-- resources.py
@@ -1032,6 +1037,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_postgres_gate_session_v3.py
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py
+    |-- test_sqlite_replay_v3.py
     |-- test_quickstart.py
     |-- test_sqlite_v3.py
     |-- test_verify_tool.py

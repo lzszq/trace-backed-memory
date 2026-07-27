@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 54 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 55 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 54 resources.
+contains 55 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1473,10 +1473,17 @@ bounded and reject duplicate keys, unknown fields, invalid timestamps, and
 noncanonical component sets. See
 [Content-addressed replay contract v3](protocols/replay-v3.md).
 
-The active v2 Store and persistence adapters do not yet emit these contracts.
-They become authoritative only with atomic artifact storage, GateSession
-linkage, access control, retention, and adapter conformance in the coordinated
-version-3 runtime.
+`sqlite_replay_v3.py` adds an opt-in isolated ledger with immutable artifact,
+injection, and manifest rows. It stores each bundle in one transaction, uses
+foreign keys for manifest-to-injection linkage, verifies canonical schema
+objects, and revalidates duplicated columns, descriptors, bounds, and exact
+bytes on load. Caller transactions retain ownership through savepoints.
+
+The active v2 Store and persistence adapters do not emit these contracts. The
+ledger supplies atomic artifact storage, not GateSession linkage, access
+control, encryption, retention, or runtime authority. Those boundaries and
+cross-adapter conformance remain required in the coordinated version-3
+runtime.
 
 ## Authorization version-3 contract
 

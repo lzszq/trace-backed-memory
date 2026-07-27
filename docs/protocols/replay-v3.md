@@ -5,7 +5,8 @@
 `tbm.replay.v3` defines storage-neutral records for the exact bytes injected
 after a finalized memory decision and for the fixed evidence set needed to
 replay that decision. It does not provide an artifact repository, activate
-memory, or make the current process-local Gate durable.
+memory, or make the current process-local Gate durable. An opt-in isolated
+SQLite repository now persists these records; it is not active runtime state.
 
 ## Content identity
 
@@ -61,6 +62,25 @@ injection component digest. The canonical external contract is
 `schemas/decision_replay_manifest_v3.schema.json`; the packaged example is
 `examples/decision_replay_manifest_v3.example.json`.
 
+## Opt-in SQLite replay ledger
+
+`SQLiteReplayV3Repository` uses the isolated
+`schemas/sqlite-v3-replay.sql` schema without changing active SQLite schema
+version 1. It stores exact artifact bytes, injection descriptors, and replay
+manifests as immutable rows. `store_bundle()` inserts the artifact, injection,
+and manifest in one transaction, requires exact session/decision/usage and
+injection linkage, and treats exact replay as idempotent. Conflicting content
+rolls back the whole operation.
+
+Every load checks bounded sizes before fetching large values, reparses the
+descriptor, compares duplicated relational columns, and rehashes the stored
+bytes. Canonical schema metadata, tables, indexes, immutable triggers, foreign
+keys, and caller savepoint ownership are verified fail closed. The ledger does
+not authorize reads, encrypt content, apply retention, prove evidence truth,
+or link to a durable GateSession. The repository rejects
+confidential/restricted artifacts until a transparent encryption provider can
+preserve exact content identity.
+
 ## Parsing and trust boundary
 
 External JSON is limited to 1 MiB, depth 32, and 10,000 nodes. Parsers reject
@@ -72,7 +92,8 @@ JSON Schema consumers must enforce the draft's `date-time` format. Canonical
 self-hash and content-derived ID relationships are value-level rules enforced
 by the Python parser and must be checked after Schema validation.
 
-The current v2 Store, SQLite v1, PostgreSQL v2, local agent, and STDIO MCP do
-not persist or emit these records. A future runtime must store artifact bytes
-and descriptors atomically, authorize reads, apply retention/encryption, and
-link the finalized GateSession before it can claim complete decision replay.
+The current v2 Store, active SQLite v1 adapter, PostgreSQL v2 adapter, local
+agent, and STDIO MCP do not persist or emit these records. The opt-in SQLite
+ledger provides atomic byte/descriptor storage only. A future runtime must
+authorize reads, apply retention/encryption, and link the finalized
+GateSession before it can claim complete decision replay.

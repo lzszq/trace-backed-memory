@@ -68,9 +68,9 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Operations CLI | Dependency-free `tbm` and module entry point for snapshots, v3 migration preflight/bundle verification, lessons, obsolescence, audits, metrics, PR reports, completion, and recovery |
 | Migration preparation | Content-addressed inert v2-to-v3 bundles, exact plan replay, immutable SQLite staging, and version-gated PostgreSQL staging/rollback without changing active runtime versions |
 | GateSession persistence preparation | Opt-in side-by-side SQLite and isolated PostgreSQL append-only revisions, scoped idempotency, CAS transitions, trusted clocks, bounded due discovery, and fail-closed PostgreSQL rollback without changing active SQLite v1/PostgreSQL v2 |
-| Replay contract preparation | Storage-neutral content-addressed artifact, exact injection, and fixed-component decision-manifest v3 contracts; active adapters do not yet persist them |
+| Replay persistence preparation | Storage-neutral content-addressed artifact, exact injection, and fixed-component decision-manifest v3 contracts plus an opt-in isolated SQLite immutable byte/descriptor ledger; active adapters do not use it |
 | Authorization contract preparation | Storage-neutral canonical repository, exact alias, principal/client, role-binding, and linked-decision v3 contracts; active adapters do not yet enforce them |
-| Distribution resources | 54 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Distribution resources | 55 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |
@@ -232,7 +232,9 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
   authenticated service context, and service integration remain out of scope.
 - Storage-neutral replay descriptors now define the required retriever/index,
   Gate prompt/response, ancestry, policy, renderer, and exact snippet hashes,
-  but usage logs and active adapters do not yet persist those artifacts.
+  and the opt-in SQLite replay ledger stores exact bytes/descriptors. Usage
+  logs and active adapters do not use it, and access control, retention,
+  encryption, GateSession linkage, and PostgreSQL parity remain outstanding.
 - Git ancestry filtering is opt-in rather than an explicit required/disabled production policy.
 - Existing version-2 snapshots with verified but unreviewed cases must be repaired with review evidence before loading; existing PostgreSQL schema-version-1 installations must apply packaged `schemas/postgres-v1-to-v2.sql`. Version-2 databases created before the lesson/source-case lock-order fix must apply the idempotent, version-gated `schemas/postgres-v2-lock-order-hotfix.sql`; fresh installs and the current v1-to-v2 migration already include the fix.
 - SQLite uses canonical JSON payload envelopes and does not provide direct-SQL domain mutation, in-place migration, async access, or shared multi-host writer coordination.

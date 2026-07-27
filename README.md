@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 54 resources. `PackagedResource` descriptions
+The allowlist currently contains 55 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -400,9 +400,12 @@ The storage-neutral `tbm.replay.v3` contract can describe exact artifact
 bytes, the finalized injection, and a fixed eight-component decision replay
 manifest. Complete manifests bind their own canonical hash and every replay
 component; legacy partial manifests must name exactly what is absent. The
-current Store, SQL adapters, local agent, and MCP do not persist these records,
-so this contract is preparation for the coordinated version-3 runtime rather
-than a claim of exact replay today. See
+opt-in `SQLiteReplayV3Repository` stores exact bytes, injection descriptors,
+and manifests in an isolated immutable ledger with atomic bundle writes and
+fail-closed load verification. The current Store, active SQL adapters, local
+agent, and MCP do not use it, and it provides no access control, encryption,
+retention, or GateSession authority, so this remains preparation rather than a
+claim of exact replay today. See
 [the replay contract](docs/protocols/replay-v3.md).
 
 The storage-neutral authorization-v3 contract defines canonical repositories,
@@ -1232,7 +1235,7 @@ signed `INTEGER` column supplies the identical upper boundary. Existing
 schema-version-1 databases already enforce that physical maximum and need no
 Phase 47 migration; operators missing the earlier lower-bound CHECK still own
 that constraint migration. Only the canonical and packaged Trace Schema bytes
-change in Phase 47. The current distribution uses the 54-resource allowlist;
+change in Phase 47. The current distribution uses the 55-resource allowlist;
 snapshot version 2 and PostgreSQL schema version 2 are current.
 
 ### Deferred decision outcome sealing
@@ -1981,7 +1984,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 54 canonical Schemas, examples, and memory
+  explicit atomic export for all 55 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2100,6 +2103,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- snapshot_v3_migration_*.schema.json
 |   |-- sqlite-v3-gate-session.sql
 |   |-- sqlite-v3-migration.sql
+|   |-- sqlite-v3-replay.sql
 |   |-- sqlite.sql
 |   |-- trace.schema.json
 |   |-- failure_case.schema.json
@@ -2135,6 +2139,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- replay_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_gate_session_v3.py
+|   |-- sqlite_replay_v3.py
 |   |-- sqlite_v3.py
 |   |-- py.typed
 |   |-- resources.py
@@ -2149,6 +2154,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_postgres_gate_session_v3.py
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py
+    |-- test_sqlite_replay_v3.py
     |-- test_quickstart.py
     |-- test_sqlite_v3.py
     |-- test_verify_tool.py

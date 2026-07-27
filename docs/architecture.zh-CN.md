@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 54 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 55 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -347,9 +347,15 @@ component，不允许声称可精确重放。manifest 还绑定自身的规范�
 严格 parser 有界，并拒绝 duplicate key、未知字段、非法时间戳与非规范 component
 set。详见[内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)。
 
-active v2 Store 与 persistence adapter 尚不输出这些契约。只有在统一 version-3
-runtime 中交付原子 artifact storage、GateSession linkage、访问控制、retention 与
-adapter conformance 后，它们才能成为 authority。
+`sqlite_replay_v3.py` 增加 opt-in 隔离账本，以 immutable row 保存 artifact、
+injection 与 manifest。每个 bundle 在一个事务中保存；manifest-to-injection 使用
+foreign key；load 时复验 canonical schema object、重复 column、descriptor、边界
+和精确字节。调用方 transaction 通过 savepoint 保留 ownership。
+
+active v2 Store 与 persistence adapter 尚不输出这些契约。该账本提供原子 artifact
+storage，但不提供 GateSession linkage、access control、encryption、retention 或
+runtime authority；统一 version-3 runtime 仍需交付这些边界和 cross-adapter
+conformance。
 
 ## 授权 version-3 契约
 

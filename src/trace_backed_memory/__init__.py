@@ -253,6 +253,16 @@ from .sqlite_gate_session_v3 import (
     SQLiteGateSessionRepository,
     SQLiteGateSessionSchemaError,
 )
+from .sqlite_replay_v3 import (
+    SQLITE_REPLAY_V3_SCHEMA_VERSION,
+    SQLiteReplayV3ConflictError,
+    SQLiteReplayV3Error,
+    SQLiteReplayV3PersistenceError,
+    SQLiteReplayV3Repository,
+    SQLiteReplayV3SchemaError,
+    SQLiteReplayV3StoreResult,
+    StoredReplayArtifact,
+)
 from .sqlite_v3 import (
     SQLITE_V3_MIGRATION_SCHEMA_VERSION,
     SQLiteV3MigrationConflictError,
@@ -428,6 +438,13 @@ __all__ = [
     "SQLiteGateSessionPersistenceError",
     "SQLiteGateSessionRepository",
     "SQLiteGateSessionSchemaError",
+    "SQLITE_REPLAY_V3_SCHEMA_VERSION",
+    "SQLiteReplayV3ConflictError",
+    "SQLiteReplayV3Error",
+    "SQLiteReplayV3PersistenceError",
+    "SQLiteReplayV3Repository",
+    "SQLiteReplayV3SchemaError",
+    "SQLiteReplayV3StoreResult",
     "SQLITE_V3_MIGRATION_SCHEMA_VERSION",
     "SQLiteV3MigrationConflictError",
     "SQLiteV3MigrationError",
@@ -436,6 +453,7 @@ __all__ = [
     "SQLiteV3MigrationSchemaError",
     "SQLiteV3MigrationStageResult",
     "Trace",
+    "StoredReplayArtifact",
     "TraceBackedMemoryStore",
     "TraceIdentityBinding",
     "TraceMetadata",

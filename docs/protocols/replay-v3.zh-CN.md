@@ -3,8 +3,10 @@
 [English](replay-v3.md) | **简体中文**
 
 `tbm.replay.v3` 定义与存储实现无关的记录，用来描述 memory decision finalize
-之后实际注入的精确字节，以及重放该 decision 所需的固定证据集合。它不提供
-artifact repository，不激活 memory，也不会把当前进程内 Gate 变成 durable Gate。
+之后实际注入的精确字节，以及重放该 decision 所需的固定证据集合。契约模块本身
+不提供 artifact repository、不激活 memory，也不会把当前进程内 Gate 变成 durable
+Gate。现已提供 opt-in 的隔离 SQLite repository 持久化这些记录，但它不是 active
+runtime state。
 
 ## 内容身份
 
@@ -52,6 +54,21 @@ ID 必须从 injection component 摘要派生。规范外部契约为
 `schemas/decision_replay_manifest_v3.schema.json`，打包示例为
 `examples/decision_replay_manifest_v3.example.json`。
 
+## Opt-in SQLite 重放账本
+
+`SQLiteReplayV3Repository` 使用隔离的 `schemas/sqlite-v3-replay.sql` schema，
+不会改变 active SQLite schema version 1。它把精确 artifact 字节、injection
+descriptor 与 replay manifest 保存为 immutable row。`store_bundle()` 在一个事务
+中插入 artifact、injection 与 manifest，要求 session/decision/usage 和 injection
+linkage 精确一致，并把精确重放视为幂等；冲突内容会回滚整个操作。
+
+每次 load 都先检查有界大小，再读取大值、重解析 descriptor、比较重复 relational
+column，并重新计算已存字节 hash。canonical schema metadata、table、index、
+immutable trigger、foreign key 和调用方 savepoint ownership 都会 fail closed
+校验。该账本不授权读取、不加密内容、不执行 retention、不证明 evidence truth，也
+不连接 durable GateSession。该 repository 拒绝 confidential/restricted artifact，
+直到透明加密 provider 能够在加密的同时保留精确内容身份。
+
 ## 解析与信任边界
 
 外部 JSON 上限为 1 MiB、depth 32、10,000 nodes。parser 拒绝 duplicate key、非法
@@ -62,7 +79,7 @@ JSON Schema consumer 必须执行 draft 的 `date-time` format 检查。canonica
 self-hash 与内容派生 ID 的关系属于 value-level 规则，必须在 Schema 验证后继续用
 Python parser 检查。
 
-当前 v2 Store、SQLite v1、PostgreSQL v2、本地 Agent 与 STDIO MCP 均不会持久化或
-输出这些记录。未来 runtime 只有在原子存储 artifact 字节与 descriptor、授权读取、
-执行 retention/encryption，并链接 finalized GateSession 后，才能声称支持完整
-decision replay。
+当前 v2 Store、active SQLite v1 adapter、PostgreSQL v2 adapter、本地 Agent 与
+STDIO MCP 均不会持久化或输出这些记录。opt-in SQLite 账本只提供原子字节/descriptor
+存储。未来 runtime 只有在授权读取、执行 retention/encryption，并链接 finalized
+GateSession 后，才能声称支持完整 decision replay。

@@ -1323,6 +1323,13 @@ Track:
   self-hashes, strict bounded JSON, packaged Schemas/examples, and explicit
   `complete` versus `legacy_partial` semantics. Keep active v2 adapters from
   claiming artifact persistence or exact decision replay.
+- Add an opt-in isolated SQLite replay ledger for exact artifact bytes,
+  injection descriptors, and decision manifests, with atomic bundle writes,
+  immutable rows, exact idempotency/conflicts, foreign-key linkage, canonical
+  schema drift checks, bounded defensive loads, byte rehashing, caller
+  savepoints, and concurrent replay tests. Keep access control, encryption,
+  retention, GateSession linkage, PostgreSQL parity, and active integration
+  outstanding.
 - Add an opt-in side-by-side SQLite GateSession repository with append-only
   canonical revisions, a scoped atomic idempotency index, trusted-clock CAS
   transitions and lease renewal, schema-drift detection, caller savepoints,

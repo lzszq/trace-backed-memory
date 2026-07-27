@@ -198,6 +198,7 @@ _RESOURCE_SPECS: tuple[
     ),
     ("schemas/sqlite-v3-gate-session.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-migration.sql", "schema", "application/sql"),
+    ("schemas/sqlite-v3-replay.sql", "schema", "application/sql"),
     ("schemas/sqlite.sql", "schema", "application/sql"),
     ("schemas/trace.schema.json", "schema", "application/schema+json"),
 )

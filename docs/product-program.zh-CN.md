@@ -536,6 +536,12 @@
   component decision manifest 契约，包含 canonical self-hash、有界严格 JSON、
   打包 Schema/示例，以及明确的 `complete`/`legacy_partial` 语义。active v2
   adapter 不得宣称已持久化 artifact 或支持精确 decision replay。
+- 增加 opt-in 隔离 SQLite replay ledger，保存精确 artifact 字节、injection
+  descriptor 与 decision manifest，提供原子 bundle 写入、immutable row、精确
+  idempotency/conflict、foreign-key linkage、canonical schema drift 检查、有界
+  defensive load、字节 rehash、调用方 savepoint 与并发 replay 测试。access
+  control、encryption、retention、GateSession linkage、PostgreSQL parity 和
+  active integration 仍待完成。
 - 增加 opt-in、side-by-side SQLite GateSession repository，提供 append-only
   canonical revision、scoped 原子 idempotency index、可信时钟 CAS transition 与
   lease renewal、schema-drift 检测、调用方 savepoint、并发测试和有界 due

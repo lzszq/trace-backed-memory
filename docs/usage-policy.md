@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 54 installed resource copies must remain byte-identical to the top-level
+The 55 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -173,7 +173,7 @@ atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 `schemas/postgres-v2-lock-order-hotfix.sql` operator script. It also includes
 the agent protocol, v3 migration staging, GateSession, and content-addressed
 replay contract Schemas and examples, plus isolated SQLite GateSession DDL and
-isolated PostgreSQL GateSession install/rollback.
+replay-ledger DDL, and isolated PostgreSQL GateSession install/rollback.
 
 CLI resource reads emit deterministic JSON rather than unframed raw content.
 Export is the shell integration path. It must refuse an existing destination
@@ -821,7 +821,7 @@ so Phase 47 is not a database migration; operators missing the earlier CHECK
 still own the lower-bound migration. Only the canonical and packaged Trace
 Schema bytes changed in Phase 47; that baseline had 18 packaged resource names
 and PostgreSQL schema version 2. The current contract is snapshot version 2,
-54 packaged resources, and PostgreSQL schema version 2.
+55 packaged resources, and PostgreSQL schema version 2.
 
 Trace completion never seals a usage decision automatically, and decision
 outcome sealing never changes a Trace. Use the same evaluator result for both
@@ -1133,8 +1133,14 @@ ancestry. Verify artifact bytes before use.
 
 Classification metadata is not enforcement. A future repository must encrypt
 confidential/restricted bytes, authorize each read, apply retention and
-redaction policy, and avoid logging content. The current Store and adapters do
-not persist these contracts and must not advertise exact decision replay.
+redaction policy, and avoid logging content. The opt-in
+`SQLiteReplayV3Repository` stores accepted bytes verbatim and therefore rejects
+confidential/restricted artifacts until a transparent encryption provider can
+preserve exact content identity. It
+verifies exact bytes and immutable descriptor linkage but provides no access
+control, retention, or GateSession authority. The current Store and active
+adapters do not persist these contracts and must not advertise exact decision
+replay.
 
 ## Fixed runtime budgets
 

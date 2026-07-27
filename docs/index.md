@@ -47,7 +47,9 @@ slots, role bindings, and linked decisions, but is not wired into active
 adapters. Structured regression evidence remains part of the coordinated
 schema-version-3 program. The
 storage-neutral `tbm.replay.v3` artifact and replay-manifest contract is
-published, but no active adapter stores its bytes or manifests yet. The
+published with an opt-in isolated SQLite immutable byte/descriptor ledger, but
+no active adapter uses it and it provides no authorization, retention,
+encryption, or GateSession authority. The
 read-only v3 migration preflight and inert
 staging bundles are implemented, but they cannot activate memory or be loaded
 as version-3 runtime state.

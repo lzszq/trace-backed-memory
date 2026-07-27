@@ -52,6 +52,8 @@ Start with:
   active PostgreSQL schema version 2 remains unchanged.
 - `replay_v3.py`: content-addressed artifact, exact injection, and fixed
   decision replay manifest contracts; not an artifact repository.
+- `sqlite_replay_v3.py`: opt-in isolated immutable artifact-byte, injection,
+  and replay-manifest ledger; not wired to active runtime or authorization.
 - `migration_v3.py`: inert content-addressed migration bundles and replay.
 - `execution.py`: callback orchestration and recovery context.
 - `sqlite.py` / `postgres.py`: persistence adapters.

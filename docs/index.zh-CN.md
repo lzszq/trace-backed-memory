@@ -41,7 +41,8 @@ Store/MCP、worker 与 service integration 尚未使用它们。与存储实现�
 v3 policy/evaluator 契约已定义 canonical repository、精确租户别名、认证身份
 位置、role binding 与关联 decision，但尚未接入 active adapter。结构化
 regression evidence 仍属于统一推进的 schema version 3 计划。与存储实现无关的
-`tbm.replay.v3` artifact 与 replay manifest
-契约已经发布，但 active adapter 尚不存储其字节或 manifest。只读 v3 迁移预检和不可激活的 staging
+`tbm.replay.v3` artifact 与 replay manifest 契约及 opt-in 隔离 SQLite immutable
+字节/descriptor 账本已经发布，但 active adapter 尚不使用它，且它不提供授权、
+retention、encryption 或 GateSession authority。只读 v3 迁移预检和不可激活的 staging
 bundle 已经实现，但它们不能激活 memory，也不能作为 version-3 runtime state
 加载。

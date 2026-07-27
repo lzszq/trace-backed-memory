@@ -1,0 +1,20 @@
+{
+  "contract_version": "tbm.recovery-action.v3",
+  "recovery_action_id": "recovery_action_sha256_46323b112d500555ac3547e7a8bf69ea707935c212ea4bd7fd83c9fefa80bae7",
+  "target_kind": "memory_run",
+  "action": "recover",
+  "result": "succeeded",
+  "session_id": "gate_session_001",
+  "trace_id": "trace_001",
+  "run_id": "run_001",
+  "usage_decision_id": "usage_decision_001",
+  "expected_session_version": null,
+  "expected_memory_run_status": "trace_only",
+  "memory_caused_failure": null,
+  "request_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "requested_by_principal_id": "principal_001",
+  "executor_id": "recovery_worker",
+  "error_code": null,
+  "started_at": "2026-07-27T00:10:00Z",
+  "finished_at": "2026-07-27T00:10:01Z"
+}

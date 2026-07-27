@@ -565,6 +565,11 @@
   契约，把 completed GateSession 绑定到显式 evaluator evidence，并严格区分
   观察关联与独立核验的因果结论。durable persistence 与 active service 接入仍
   是后续工作。
+- 发布 storage-neutral `tbm.audit-event.v3` 与
+  `tbm.recovery-action.v3` 契约，提供内容派生 identity、精确 stream parent、
+  authenticated actor slot、typed reference、显式 request digest，以及对照
+  GateSession 与派生 MemoryRunRemediation state 的跨记录核验。durable
+  append-only ledger 与 active service integration 仍是后续工作。
 - 增加 opt-in、side-by-side SQLite GateSession repository，提供 append-only
   canonical revision、scoped 原子 idempotency index、可信时钟 CAS transition 与
   lease renewal、schema-drift 检测、调用方 savepoint、并发测试和有界 due

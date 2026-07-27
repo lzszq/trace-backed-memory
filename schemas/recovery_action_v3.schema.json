@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-backed-memory.dev/schemas/recovery_action_v3.schema.json",
+  "title": "Trace-backed Memory RecoveryAction v3",
+  "$comment": "Structural preflight only. Runtime validation must recompute the content ID and verify the action against the exact GateSession and derived MemoryRunRemediation state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "recovery_action_id",
+    "target_kind",
+    "action",
+    "result",
+    "session_id",
+    "trace_id",
+    "run_id",
+    "usage_decision_id",
+    "expected_session_version",
+    "expected_memory_run_status",
+    "memory_caused_failure",
+    "request_sha256",
+    "requested_by_principal_id",
+    "executor_id",
+    "error_code",
+    "started_at",
+    "finished_at"
+  ],
+  "properties": {
+    "contract_version": {"const": "tbm.recovery-action.v3"},
+    "recovery_action_id": {
+      "type": "string",
+      "pattern": "^recovery_action_sha256_[0-9a-f]{64}$"
+    },
+    "target_kind": {"enum": ["memory_run", "gate_session"]},
+    "action": {
+      "enum": [
+        "measure",
+        "recover",
+        "recover_with_attribution",
+        "investigate",
+        "cancel_session",
+        "expire_session",
+        "abandon_session"
+      ]
+    },
+    "result": {"enum": ["succeeded", "failed"]},
+    "session_id": {"$ref": "#/$defs/identifier"},
+    "trace_id": {"$ref": "#/$defs/identifier"},
+    "run_id": {"$ref": "#/$defs/identifier"},
+    "usage_decision_id": {
+      "oneOf": [
+        {"$ref": "#/$defs/identifier"},
+        {"type": "null"}
+      ]
+    },
+    "expected_session_version": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "expected_memory_run_status": {
+      "oneOf": [
+        {
+          "enum": [
+            "pending",
+            "trace_only",
+            "decision_only",
+            "complete",
+            "conflict"
+          ]
+        },
+        {"type": "null"}
+      ]
+    },
+    "memory_caused_failure": {"type": ["boolean", "null"]},
+    "request_sha256": {"$ref": "#/$defs/digest"},
+    "requested_by_principal_id": {"$ref": "#/$defs/identifier"},
+    "executor_id": {"$ref": "#/$defs/identifier"},
+    "error_code": {
+      "oneOf": [
+        {"$ref": "#/$defs/code"},
+        {"type": "null"}
+      ]
+    },
+    "started_at": {"$ref": "#/$defs/timestamp"},
+    "finished_at": {"$ref": "#/$defs/timestamp"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"result": {"const": "failed"}},
+        "required": ["result"]
+      },
+      "then": {"properties": {"error_code": {"type": "string"}}},
+      "else": {"properties": {"error_code": {"type": "null"}}}
+    },
+    {
+      "if": {
+        "properties": {"target_kind": {"const": "memory_run"}},
+        "required": ["target_kind"]
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "enum": [
+              "measure",
+              "recover",
+              "recover_with_attribution",
+              "investigate"
+            ]
+          },
+          "usage_decision_id": {"type": "string"},
+          "expected_session_version": {"type": "null"},
+          "expected_memory_run_status": {"type": "string"}
+        }
+      },
+      "else": {
+        "properties": {
+          "action": {
+            "enum": [
+              "cancel_session",
+              "expire_session",
+              "abandon_session"
+            ]
+          },
+          "expected_session_version": {"type": "integer"},
+          "expected_memory_run_status": {"type": "null"},
+          "memory_caused_failure": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"action": {"const": "recover_with_attribution"}},
+        "required": ["action"]
+      },
+      "then": {
+        "properties": {"memory_caused_failure": {"type": "boolean"}}
+      },
+      "else": {
+        "properties": {"memory_caused_failure": {"type": "null"}}
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]{1,128}$"
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    }
+  }
+}

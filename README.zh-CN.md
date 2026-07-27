@@ -176,7 +176,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 69 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 73 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -300,6 +300,12 @@ storage-neutral `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
 区分观察 association 与 causal claim。因果归因必须采用非观察性方法并由独立
 verifier 核验；异常或 score 不能被自动提升为因果。active v2 outcome 字段保持
 不变。详见[结果契约](docs/protocols/outcome-v3.zh-CN.md)。
+
+storage-neutral `tbm.audit-event.v3` 与 `tbm.recovery-action.v3` 增加
+内容寻址 append-only event chain 与显式 recovery-attempt evidence。恢复核验
+复用派生 `MemoryRunRemediation` 和不可变 GateSession version，不创建第二套
+lifecycle authority。active Store/Agent/MCP 尚不持久化这些记录。详见
+[审计与恢复契约](docs/protocols/audit-recovery-v3.zh-CN.md)。
 
 如需 opt-in 的 version-3 lifecycle 本地持久化，可使用独立
 `schemas/sqlite-v3-gate-session.sql` 契约与
@@ -915,7 +921,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、69 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、73 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -979,6 +985,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |   |-- agent-v1.zh-CN.md
 |   |   |-- authorization-v3.md
 |   |   |-- authorization-v3.zh-CN.md
+|   |   |-- audit-recovery-v3.md
+|   |   |-- audit-recovery-v3.zh-CN.md
 |   |   |-- evidence-v3.md
 |   |   |-- evidence-v3.zh-CN.md
 |   |   |-- memory-revision-v3.md
@@ -1002,6 +1010,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |-- examples/
 |   |-- agent_*.example.json
 |   |-- authorization_*_v3.example.json
+|   |-- audit_event_v3.example.json
 |   |-- decision_replay_manifest_v3.example.json
 |   |-- structured_regression_evidence_v3.example.json
 |   |-- gate_session_v3.example.json
@@ -1014,6 +1023,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- memory_context.example.json
 |   |-- memory_revision_v3.example.json
 |   |-- retrieval_snapshot_v3.example.json
+|   |-- recovery_action_v3.example.json
 |   |-- semantic_gate_attempt_v3.example.json
 |   |-- system_gate_evaluation_v3.example.json
 |   |-- project_policy.example.json
@@ -1027,6 +1037,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |-- schemas/
 |   |-- agent_*.schema.json
 |   |-- authorization_*_v3.schema.json
+|   |-- audit_event_v3.schema.json
 |   |-- decision_replay_manifest_v3.schema.json
 |   |-- gate_session_v3.schema.json
 |   |-- injection_artifact_v3.schema.json
@@ -1052,6 +1063,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- memory_context.schema.json
 |   |-- memory_revision_v3.schema.json
 |   |-- retrieval_snapshot_v3.schema.json
+|   |-- recovery_action_v3.schema.json
 |   |-- semantic_gate_attempt_v3.schema.json
 |   |-- system_gate_evaluation_v3.schema.json
 |   `-- memory_decision.schema.json
@@ -1068,6 +1080,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- execution.py
 |   |-- extraction.py
 |   |-- authorization_v3.py
+|   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
 |   |-- gate_evaluation_v3.py
@@ -1094,6 +1107,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 `-- tests/
     |-- test_agent.py
     |-- test_authorization_v3.py
+    |-- test_audit_v3.py
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py
     |-- test_gate_session_v3.py

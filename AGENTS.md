@@ -53,6 +53,8 @@ Start with:
   Semantic Gate attempt provenance; models can only narrow.
 - `outcome_v3.py`: content-addressed RunOutcome and explicit association versus
   independently verified causal attribution contracts.
+- `audit_v3.py`: append-only AuditEvent chains and explicit RecoveryAction
+  evidence verified against existing lifecycle sources of truth.
 - `gate_session_v3.py`: persistence-neutral durable-session contract and
   explicit lifecycle transitions; not an active repository.
 - `sqlite_gate_session_v3.py`: opt-in side-by-side append-only GateSession

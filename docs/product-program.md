@@ -1359,6 +1359,12 @@ Track:
   explicit evaluator evidence while keeping observed association separate
   from independently verified causal claims. Keep durable persistence and
   active service integration outstanding.
+- Publish storage-neutral `tbm.audit-event.v3` and
+  `tbm.recovery-action.v3` contracts with content-derived identity, exact
+  stream parents, authenticated actor slots, typed references, explicit
+  request digests, and cross-record verification against GateSession and
+  derived MemoryRunRemediation state. Keep the durable append-only ledger and
+  active service integration outstanding.
 - Add an opt-in side-by-side SQLite GateSession repository with append-only
   canonical revisions, a scoped atomic idempotency index, trusted-clock CAS
   transitions and lease renewal, schema-drift detection, caller savepoints,

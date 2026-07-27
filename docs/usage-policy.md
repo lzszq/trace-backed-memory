@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 69 installed resource copies must remain byte-identical to the top-level
+The 73 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1198,6 +1198,20 @@ requires a controlled experiment, manual review, or external evaluation,
 evidence artifacts, a known effect, and a verifier distinct from the
 evaluator. Adapters must validate exact linkage and timestamps before storing
 either record.
+
+## Version-3 audit and recovery policy
+
+Append AuditEvents with an exact stream sequence and parent; never update,
+delete, truncate, or silently fork a stream. Derive tenant, repository,
+session, and actor identity from authenticated service context. Store only
+bounded reason codes, typed identifiers, and payload hashes.
+
+RecoveryAction is evidence for an action already attempted, not authority to
+execute it. Before memory-run recovery, recompute and lock the current
+`MemoryRunRemediation`; before GateSession recovery, lock and compare the exact
+expected revision. Write the underlying transition, RecoveryAction, and
+matching success/failure AuditEvent atomically. A stale plan, request-hash
+collision, missing explicit attribution, or unauthorized actor fails closed.
 
 ## Version-3 replay artifact policy
 

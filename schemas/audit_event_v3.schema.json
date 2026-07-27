@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-backed-memory.dev/schemas/audit_event_v3.schema.json",
+  "title": "Trace-backed Memory AuditEvent v3",
+  "$comment": "Structural preflight only. Runtime validation must recompute the content ID, enforce canonical reference order, and verify the exact parent record.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "event_id",
+    "stream_id",
+    "sequence",
+    "previous_event_id",
+    "tenant_id",
+    "repository_id",
+    "session_id",
+    "trace_id",
+    "run_id",
+    "actor_type",
+    "actor_id",
+    "event_type",
+    "reason_code",
+    "payload_sha256",
+    "references",
+    "occurred_at"
+  ],
+  "properties": {
+    "contract_version": {"const": "tbm.audit-event.v3"},
+    "event_id": {
+      "type": "string",
+      "pattern": "^audit_event_sha256_[0-9a-f]{64}$"
+    },
+    "stream_id": {"$ref": "#/$defs/identifier"},
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "previous_event_id": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^audit_event_sha256_[0-9a-f]{64}$"
+        },
+        {"type": "null"}
+      ]
+    },
+    "tenant_id": {"$ref": "#/$defs/identifier"},
+    "repository_id": {"$ref": "#/$defs/identifier"},
+    "session_id": {"$ref": "#/$defs/identifier"},
+    "trace_id": {"$ref": "#/$defs/identifier"},
+    "run_id": {"$ref": "#/$defs/identifier"},
+    "actor_type": {"enum": ["principal", "service", "worker"]},
+    "actor_id": {"$ref": "#/$defs/identifier"},
+    "event_type": {
+      "enum": [
+        "session_created",
+        "session_transitioned",
+        "authorization_evaluated",
+        "retrieval_recorded",
+        "system_gate_evaluated",
+        "semantic_gate_attempted",
+        "decision_finalized",
+        "injection_created",
+        "execution_completed",
+        "outcome_attributed",
+        "recovery_succeeded",
+        "recovery_failed",
+        "session_canceled",
+        "session_expired",
+        "session_abandoned"
+      ]
+    },
+    "reason_code": {"$ref": "#/$defs/code"},
+    "payload_sha256": {"$ref": "#/$defs/digest"},
+    "references": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "record_id"],
+        "properties": {
+          "kind": {
+            "enum": [
+              "authorization_event",
+              "retrieval_snapshot",
+              "system_gate_evaluation",
+              "semantic_gate_attempt",
+              "memory_revision",
+              "decision",
+              "injection_artifact",
+              "usage_decision",
+              "run_outcome",
+              "outcome_attribution",
+              "recovery_action"
+            ]
+          },
+          "record_id": {"$ref": "#/$defs/identifier"}
+        }
+      }
+    },
+    "occurred_at": {"$ref": "#/$defs/timestamp"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"sequence": {"const": 1}},
+        "required": ["sequence"]
+      },
+      "then": {
+        "properties": {"previous_event_id": {"type": "null"}}
+      },
+      "else": {
+        "properties": {"previous_event_id": {"type": "string"}}
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]{1,128}$"
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    }
+  }
+}

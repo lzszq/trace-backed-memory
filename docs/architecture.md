@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 69 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 73 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 69 resources.
+contains 73 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1552,6 +1552,14 @@ an association, while a causal claim requires a non-observational method and
 an independent verifier. Existing v2 outcome fields remain authoritative for
 the active Store and are not silently upgraded. See
 [Run outcome and attribution v3](protocols/outcome-v3.md).
+
+The `tbm.audit-event.v3` contract provides a content-addressed append-only
+stream with exact parent and actor/reference provenance. The paired
+`tbm.recovery-action.v3` record captures one completed recovery attempt and is
+verified against the existing derived MemoryRunRemediation or the expected
+GateSession revision. These records are evidence, not a replacement Store
+lifecycle, authorization service, or durable ledger. See
+[Audit event and recovery action v3](protocols/audit-recovery-v3.md).
 
 ## Non-goals
 

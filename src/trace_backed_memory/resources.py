@@ -55,6 +55,7 @@ _RESOURCE_SPECS: tuple[
     ("examples/agent_error.example.json", "example", "application/json"),
     ("examples/agent_finalized.example.json", "example", "application/json"),
     ("examples/agent_prepared.example.json", "example", "application/json"),
+    ("examples/audit_event_v3.example.json", "example", "application/json"),
     (
         "examples/authorization_decision_v3.example.json",
         "example",
@@ -93,6 +94,11 @@ _RESOURCE_SPECS: tuple[
     ),
     ("examples/project_policy.example.json", "example", "application/json"),
     ("examples/quickstart.py", "example", "text/x-python"),
+    (
+        "examples/recovery_action_v3.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/retrieval_snapshot_v3.example.json",
         "example",
@@ -150,6 +156,11 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/agent_prepared.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/audit_event_v3.schema.json",
         "schema",
         "application/schema+json",
     ),
@@ -222,6 +233,11 @@ _RESOURCE_SPECS: tuple[
     ("schemas/postgres-v3-staging.sql", "schema", "application/sql"),
     ("schemas/postgres.sql", "schema", "application/sql"),
     ("schemas/project_policy.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/recovery_action_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/retrieval_snapshot_v3.schema.json",
         "schema",

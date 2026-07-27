@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 69 resources. `PackagedResource` descriptions
+The allowlist currently contains 73 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -460,6 +460,14 @@ from causal claims. Causal attribution requires a non-observational method and
 an independent verifier; no exception or score is promoted automatically.
 Active v2 outcome fields remain unchanged. See
 [the outcome contract](docs/protocols/outcome-v3.md).
+
+The storage-neutral `tbm.audit-event.v3` and `tbm.recovery-action.v3`
+contracts add a content-addressed append-only event chain and explicit
+recovery-attempt evidence. Recovery verification reuses the derived
+`MemoryRunRemediation` and immutable GateSession version; it does not create a
+second lifecycle authority. Active Store/Agent/MCP paths do not persist these
+records yet. See
+[the audit and recovery contract](docs/protocols/audit-recovery-v3.md).
 
 For opt-in local durability of the version-3 lifecycle itself,
 `SQLiteGateSessionRepository` uses the separate
@@ -2027,7 +2035,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 69 canonical Schemas, examples, and memory
+  explicit atomic export for all 73 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2106,6 +2114,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- agent-v1.zh-CN.md
 |   |   |-- authorization-v3.md
 |   |   |-- authorization-v3.zh-CN.md
+|   |   |-- audit-recovery-v3.md
+|   |   |-- audit-recovery-v3.zh-CN.md
 |   |   |-- evidence-v3.md
 |   |   |-- evidence-v3.zh-CN.md
 |   |   |-- memory-revision-v3.md
@@ -2129,6 +2139,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |-- examples/
 |   |-- agent_*.example.json
 |   |-- authorization_*_v3.example.json
+|   |-- audit_event_v3.example.json
 |   |-- decision_replay_manifest_v3.example.json
 |   |-- structured_regression_evidence_v3.example.json
 |   |-- gate_session_v3.example.json
@@ -2141,6 +2152,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- memory_context.example.json
 |   |-- memory_revision_v3.example.json
 |   |-- retrieval_snapshot_v3.example.json
+|   |-- recovery_action_v3.example.json
 |   |-- semantic_gate_attempt_v3.example.json
 |   |-- system_gate_evaluation_v3.example.json
 |   |-- project_policy.example.json
@@ -2154,6 +2166,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |-- schemas/
 |   |-- agent_*.schema.json
 |   |-- authorization_*_v3.schema.json
+|   |-- audit_event_v3.schema.json
 |   |-- decision_replay_manifest_v3.schema.json
 |   |-- gate_session_v3.schema.json
 |   |-- injection_artifact_v3.schema.json
@@ -2179,6 +2192,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- memory_context.schema.json
 |   |-- memory_revision_v3.schema.json
 |   |-- retrieval_snapshot_v3.schema.json
+|   |-- recovery_action_v3.schema.json
 |   |-- semantic_gate_attempt_v3.schema.json
 |   |-- system_gate_evaluation_v3.schema.json
 |   `-- memory_decision.schema.json
@@ -2195,6 +2209,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- execution.py
 |   |-- extraction.py
 |   |-- authorization_v3.py
+|   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
 |   |-- gate_evaluation_v3.py
@@ -2221,6 +2236,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 `-- tests/
     |-- test_agent.py
     |-- test_authorization_v3.py
+    |-- test_audit_v3.py
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py
     |-- test_gate_session_v3.py

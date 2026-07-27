@@ -1,0 +1,24 @@
+{
+  "contract_version": "tbm.audit-event.v3",
+  "event_id": "audit_event_sha256_c8234e38ed421b8c77bce625eff321b52d095e067d19f824ea47f353f947165a",
+  "stream_id": "audit_stream_001",
+  "sequence": 1,
+  "previous_event_id": null,
+  "tenant_id": "tenant_001",
+  "repository_id": "repository_001",
+  "session_id": "gate_session_001",
+  "trace_id": "trace_001",
+  "run_id": "run_001",
+  "actor_type": "worker",
+  "actor_id": "recovery_worker",
+  "event_type": "recovery_succeeded",
+  "reason_code": "RECOVERY_COMPLETED",
+  "payload_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "references": [
+    {
+      "kind": "recovery_action",
+      "record_id": "recovery_action_sha256_46323b112d500555ac3547e7a8bf69ea707935c212ea4bd7fd83c9fefa80bae7"
+    }
+  ],
+  "occurred_at": "2026-07-27T00:10:01Z"
+}

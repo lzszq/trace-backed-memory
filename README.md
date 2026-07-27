@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 43 resources. `PackagedResource` descriptions
+The allowlist currently contains 47 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -395,6 +395,15 @@ replays the plan. Bundles may be persisted through
 `SQLiteV3MigrationRepository`; they are not runtime snapshots and cannot
 activate memory. See
 [the staging contract](docs/migrations/v3-staging-bundles.md).
+
+The storage-neutral `tbm.replay.v3` contract can describe exact artifact
+bytes, the finalized injection, and a fixed eight-component decision replay
+manifest. Complete manifests bind their own canonical hash and every replay
+component; legacy partial manifests must name exactly what is absent. The
+current Store, SQL adapters, local agent, and MCP do not persist these records,
+so this contract is preparation for the coordinated version-3 runtime rather
+than a claim of exact replay today. See
+[the replay contract](docs/protocols/replay-v3.md).
 Completion and recovery commands return the serialized completions, ordered
 decision IDs, and a `written` flag. They are dry-run by default: the input
 bytes change only when `--write` is explicit and the complete operation
@@ -1194,7 +1203,7 @@ signed `INTEGER` column supplies the identical upper boundary. Existing
 schema-version-1 databases already enforce that physical maximum and need no
 Phase 47 migration; operators missing the earlier lower-bound CHECK still own
 that constraint migration. Only the canonical and packaged Trace Schema bytes
-change in Phase 47. The current distribution uses the 43-resource allowlist;
+change in Phase 47. The current distribution uses the 47-resource allowlist;
 snapshot version 2 and PostgreSQL schema version 2 are current.
 
 ### Deferred decision outcome sealing
@@ -1943,7 +1952,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 43 canonical Schemas, examples, and memory
+  explicit atomic export for all 47 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2021,7 +2030,9 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- agent-v1.md
 |   |   |-- agent-v1.zh-CN.md
 |   |   |-- gate-session-v3.md
-|   |   `-- gate-session-v3.zh-CN.md
+|   |   |-- gate-session-v3.zh-CN.md
+|   |   |-- replay-v3.md
+|   |   `-- replay-v3.zh-CN.md
 |   |-- product-program.md
 |   |-- product-program.zh-CN.md
 |   |-- product.en.md
@@ -2030,7 +2041,9 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   `-- usage-policy.zh-CN.md
 |-- examples/
 |   |-- agent_*.example.json
+|   |-- decision_replay_manifest_v3.example.json
 |   |-- gate_session_v3.example.json
+|   |-- injection_artifact_v3.example.json
 |   |-- quickstart.py
 |   |-- snapshot_v3_migration_*.example.json
 |   |-- trace.example.json
@@ -2045,7 +2058,9 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   `-- failure_taxonomy.yaml
 |-- schemas/
 |   |-- agent_*.schema.json
+|   |-- decision_replay_manifest_v3.schema.json
 |   |-- gate_session_v3.schema.json
+|   |-- injection_artifact_v3.schema.json
 |   |-- postgres-v1-to-v2.sql
 |   |-- postgres-v2-lock-order-hotfix.sql
 |   |-- postgres-v3-staging*.sql
@@ -2082,6 +2097,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- models.py
 |   |-- policy.py
 |   |-- postgres.py
+|   |-- replay_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_v3.py
 |   |-- py.typed
@@ -2093,6 +2109,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_gate_session_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py
+    |-- test_replay_v3.py
     |-- test_quickstart.py
     |-- test_sqlite_v3.py
     |-- test_verify_tool.py

@@ -1,0 +1,488 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lzszq/trace-backed-memory/schemas/decision_replay_manifest_v3.schema.json",
+  "title": "Trace-backed Memory decision replay manifest version 3 contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "manifest_kind",
+    "manifest_sha256",
+    "session_id",
+    "decision_id",
+    "usage_decision_id",
+    "components",
+    "injection_artifact_id",
+    "completeness",
+    "missing_components",
+    "created_at"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.replay.v3"
+    },
+    "manifest_kind": {
+      "const": "decision_replay"
+    },
+    "manifest_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "session_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "decision_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "usage_decision_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retrieval_snapshot",
+        "system_gate_evaluation",
+        "semantic_gate_prompt",
+        "semantic_gate_response",
+        "ancestry_evidence",
+        "policy_bundle",
+        "renderer",
+        "injection_artifact"
+      ],
+      "properties": {
+        "retrieval_snapshot": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "system_gate_evaluation": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "semantic_gate_prompt": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "semantic_gate_response": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "ancestry_evidence": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "policy_bundle": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "renderer": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "injection_artifact": {
+          "$ref": "#/$defs/nullableDigest"
+        }
+      }
+    },
+    "injection_artifact_id": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/artifactId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "completeness": {
+      "enum": [
+        "complete",
+        "legacy_partial"
+      ]
+    },
+    "missing_components": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "retrieval_snapshot",
+          "system_gate_evaluation",
+          "semantic_gate_prompt",
+          "semantic_gate_response",
+          "ancestry_evidence",
+          "policy_bundle",
+          "renderer",
+          "injection_artifact"
+        ]
+      }
+    },
+    "created_at": {
+      "$ref": "#/$defs/timestamp"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "completeness": {
+            "const": "complete"
+          }
+        },
+        "required": [
+          "completeness"
+        ]
+      },
+      "then": {
+        "properties": {
+          "components": {
+            "properties": {
+              "retrieval_snapshot": {
+                "$ref": "#/$defs/digest"
+              },
+              "system_gate_evaluation": {
+                "$ref": "#/$defs/digest"
+              },
+              "semantic_gate_prompt": {
+                "$ref": "#/$defs/digest"
+              },
+              "semantic_gate_response": {
+                "$ref": "#/$defs/digest"
+              },
+              "ancestry_evidence": {
+                "$ref": "#/$defs/digest"
+              },
+              "policy_bundle": {
+                "$ref": "#/$defs/digest"
+              },
+              "renderer": {
+                "$ref": "#/$defs/digest"
+              },
+              "injection_artifact": {
+                "$ref": "#/$defs/digest"
+              }
+            }
+          },
+          "injection_artifact_id": {
+            "$ref": "#/$defs/artifactId"
+          },
+          "missing_components": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "completeness": {
+            "const": "legacy_partial"
+          }
+        },
+        "required": [
+          "completeness"
+        ]
+      },
+      "then": {
+        "properties": {
+          "missing_components": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "components": {
+            "properties": {
+              "retrieval_snapshot": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_components": {
+            "contains": {
+              "const": "retrieval_snapshot"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "missing_components": {
+            "not": {
+              "contains": {
+                "const": "retrieval_snapshot"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "components": {
+            "properties": {
+              "system_gate_evaluation": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_components": {
+            "contains": {
+              "const": "system_gate_evaluation"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "missing_components": {
+            "not": {
+              "contains": {
+                "const": "system_gate_evaluation"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "components": {
+            "properties": {
+              "semantic_gate_prompt": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_components": {
+            "contains": {
+              "const": "semantic_gate_prompt"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "missing_components": {
+            "not": {
+              "contains": {
+                "const": "semantic_gate_prompt"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "components": {
+            "properties": {
+              "semantic_gate_response": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_components": {
+            "contains": {
+              "const": "semantic_gate_response"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "missing_components": {
+            "not": {
+              "contains": {
+                "const": "semantic_gate_response"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "components": {
+            "properties": {
+              "ancestry_evidence": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_components": {
+            "contains": {
+              "const": "ancestry_evidence"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "missing_components": {
+            "not": {
+              "contains": {
+                "const": "ancestry_evidence"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "components": {
+            "properties": {
+              "policy_bundle": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_components": {
+            "contains": {
+              "const": "policy_bundle"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "missing_components": {
+            "not": {
+              "contains": {
+                "const": "policy_bundle"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "components": {
+            "properties": {
+              "renderer": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_components": {
+            "contains": {
+              "const": "renderer"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "missing_components": {
+            "not": {
+              "contains": {
+                "const": "renderer"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "components": {
+            "properties": {
+              "injection_artifact": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "missing_components": {
+            "contains": {
+              "const": "injection_artifact"
+            }
+          },
+          "injection_artifact_id": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "missing_components": {
+            "not": {
+              "contains": {
+                "const": "injection_artifact"
+              }
+            }
+          },
+          "injection_artifact_id": {
+            "$ref": "#/$defs/artifactId"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": ".*\\S.*"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "nullableDigest": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/digest"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "artifactId": {
+      "type": "string",
+      "pattern": "^artifact_sha256_[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$"
+    }
+  }
+}

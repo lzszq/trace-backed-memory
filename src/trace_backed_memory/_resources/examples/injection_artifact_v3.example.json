@@ -1,0 +1,25 @@
+{
+  "artifact": {
+    "artifact_id": "artifact_sha256_82ae921b30c5a20b8f8bfb43688ef81da1a54c4a63f3e7a8d87b70dc213ff3d5",
+    "classification": "internal",
+    "content_sha256": "sha256:82ae921b30c5a20b8f8bfb43688ef81da1a54c4a63f3e7a8d87b70dc213ff3d5",
+    "created_at": "2026-07-27T00:00:00Z",
+    "encryption_key_id": null,
+    "media_type": "text/plain; charset=utf-8",
+    "redaction_policy_id": null,
+    "size_bytes": 38
+  },
+  "artifact_kind": "injection",
+  "contract_version": "tbm.replay.v3",
+  "decision_id": "decision_001",
+  "memory_revision_ids": [
+    "memory_revision_001",
+    "memory_revision_002"
+  ],
+  "policy_bundle_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "rendered_at": "2026-07-27T00:00:00Z",
+  "renderer_id": "renderer_001",
+  "renderer_version": "1.0.0",
+  "session_id": "session_001",
+  "usage_decision_id": "usage_decision_001"
+}

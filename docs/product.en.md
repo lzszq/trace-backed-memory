@@ -67,7 +67,8 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Operations recovery | Five-state audits, remediation actions, single/batch recovery, and ready-recovery sweeps |
 | Operations CLI | Dependency-free `tbm` and module entry point for snapshots, v3 migration preflight/bundle verification, lessons, obsolescence, audits, metrics, PR reports, completion, and recovery |
 | Migration preparation | Content-addressed inert v2-to-v3 bundles, exact plan replay, immutable SQLite staging, and version-gated PostgreSQL staging/rollback without changing active runtime versions |
-| Distribution resources | 43 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Replay contract preparation | Storage-neutral content-addressed artifact, exact injection, and fixed-component decision-manifest v3 contracts; active adapters do not yet persist them |
+| Distribution resources | 47 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |
@@ -225,7 +226,9 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
   `request_id`. The version-3 GateSession contract is not yet an active
   repository; persisted idempotency, expiry, and crash recovery remain out of
   scope.
-- Usage logs do not yet persist retriever/index, gate model/prompt, ancestry, renderer, response, or snippet hashes required for exact replay.
+- Storage-neutral replay descriptors now define the required retriever/index,
+  Gate prompt/response, ancestry, policy, renderer, and exact snippet hashes,
+  but usage logs and active adapters do not yet persist those artifacts.
 - Git ancestry filtering is opt-in rather than an explicit required/disabled production policy.
 - Existing version-2 snapshots with verified but unreviewed cases must be repaired with review evidence before loading; existing PostgreSQL schema-version-1 installations must apply packaged `schemas/postgres-v1-to-v2.sql`. Version-2 databases created before the lesson/source-case lock-order fix must apply the idempotent, version-gated `schemas/postgres-v2-lock-order-hotfix.sql`; fresh installs and the current v1-to-v2 migration already include the fix.
 - SQLite uses canonical JSON payload envelopes and does not provide direct-SQL domain mutation, in-place migration, async access, or shared multi-host writer coordination.

@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lzszq/trace-backed-memory/schemas/injection_artifact_v3.schema.json",
+  "title": "Trace-backed Memory injection artifact version 3 contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "artifact_kind",
+    "artifact",
+    "session_id",
+    "decision_id",
+    "usage_decision_id",
+    "memory_revision_ids",
+    "renderer_id",
+    "renderer_version",
+    "policy_bundle_sha256",
+    "rendered_at"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.replay.v3"
+    },
+    "artifact_kind": {
+      "const": "injection"
+    },
+    "artifact": {
+      "$ref": "#/$defs/artifact"
+    },
+    "session_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "decision_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "usage_decision_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "memory_revision_ids": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/identifier"
+      }
+    },
+    "renderer_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "renderer_version": {
+      "$ref": "#/$defs/metadata"
+    },
+    "policy_bundle_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "rendered_at": {
+      "$ref": "#/$defs/timestamp"
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "content_sha256",
+        "size_bytes",
+        "media_type",
+        "classification",
+        "created_at",
+        "encryption_key_id",
+        "redaction_policy_id"
+      ],
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/artifactId"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1048576
+        },
+        "media_type": {
+          "const": "text/plain; charset=utf-8"
+        },
+        "classification": {
+          "enum": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ]
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "encryption_key_id": {
+          "$ref": "#/$defs/nullableIdentifier"
+        },
+        "redaction_policy_id": {
+          "$ref": "#/$defs/nullableIdentifier"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "enum": [
+                  "confidential",
+                  "restricted"
+                ]
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          },
+          "then": {
+            "properties": {
+              "encryption_key_id": {
+                "$ref": "#/$defs/identifier"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": ".*\\S.*"
+    },
+    "nullableIdentifier": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/identifier"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "metadata": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": ".*\\S.*"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "artifactId": {
+      "type": "string",
+      "pattern": "^artifact_sha256_[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$"
+    }
+  }
+}

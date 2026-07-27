@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 43 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 47 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -318,6 +318,23 @@ usage decision，最后是 run outcome。cancel、expiry 与 abandon 均为 term
 与 STDIO MCP 仍为进程内状态。只有 durable idempotency index、事务、expiry
 worker、crash recovery 与 adapter conformance 全部实现后，该 session 契约才能
 成为 runtime authority。
+
+## 内容寻址重放 version-3 契约
+
+`replay_v3.py` 发布与存储实现无关的精确 artifact 字节 descriptor、最终渲染
+injection，以及重放一个 decision 所需的固定八项 evidence manifest。artifact ID
+从带标签的 SHA-256 摘要派生。complete manifest 绑定 retrieval、两层 Gate、
+ancestry、policy、renderer 与 injection evidence；`legacy_partial` 只精确记录缺失
+component，不允许声称可精确重放。manifest 还绑定自身的规范内容 hash。
+
+敏感 descriptor 必须带 encryption-key metadata，但该纯模块不存储、加密、授权、
+保留或记录 artifact 字节。hash 只能证明内容身份，不能证明 provenance 真实性或授权。
+严格 parser 有界，并拒绝 duplicate key、未知字段、非法时间戳与非规范 component
+set。详见[内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)。
+
+active v2 Store 与 persistence adapter 尚不输出这些契约。只有在统一 version-3
+runtime 中交付原子 artifact storage、GateSession linkage、访问控制、retention 与
+adapter conformance 后，它们才能成为 authority。
 
 ## 非目标
 

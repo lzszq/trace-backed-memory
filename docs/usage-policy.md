@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 21 installed resource copies must remain byte-identical to the top-level
+The 41 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -540,7 +540,7 @@ Return only this JSON:
 }
 ```
 
-The MVP exposes `parse_memory_decision()` to validate this JSON shape before it
+The public policy layer exposes `parse_memory_decision()` to validate this JSON shape before it
 is applied. Together with `parse_memory_context()`, this keeps both external
 runtime context and LLM applicability output behind deterministic validators.
 The decision must keep `use_memory`, `allowed_memory_ids`, and
@@ -607,6 +607,42 @@ lifecycle control should continue to call
 The callback module is not a persistence adapter and adds no stored record:
 snapshot version 2, JSON Schemas, active-lessons YAML, and PostgreSQL schema
 version 2 remain unchanged.
+
+Applications may use `LocalAgentMemory` instead of owning Store and repository
+plumbing. The façade must still follow the same Gate sequence. A caller may
+submit only a narrowing decision over `system_allowed_memory_ids`, execute with
+only `AgentFinalizedMemory.snippet`, and then provide an explicit
+`MemoryRunMeasurement`. It must cancel an abandoned prepared request.
+
+`LocalAgentMemory` persists durable phases but does not make pending requests
+durable. The same runtime instance must finalize or cancel a request. Stable
+`AgentMemoryError` codes may be used for recovery; callback failures expose the
+request or decision ID for the next valid phase. Do not restart the whole
+one-shot sequence and create a duplicate run. `tbm capabilities` is the
+authoritative discovery output for this boundary.
+
+The optional `tbm-mcp` process applies the same rules. A runtime client must
+call `tbm_prepare_memory`, narrow only the returned
+`system_allowed_memory_ids`, call `tbm_finalize_memory`, and provide only the
+returned `snippet` to the executor. It must then call `tbm_complete_run` with
+an explicit measurement or call `tbm_cancel_run` before finalization. The
+server must expose no lesson verification, publication, activation, raw Store,
+snapshot, or migration operation.
+
+An MCP deployment must configure one fixed checkout root and one explicit
+storage mode. Git provenance and ancestry come from that root, not from the
+model. PostgreSQL conninfo must be named by environment variable rather than
+embedded in project configuration. An optional fixed tenant remains
+declared-scope applicability in version 2 and must not be presented as
+authorization.
+
+Each STDIO input frame is capped at 8 MiB, 100,000 JSON nodes, and depth 100
+before SDK dispatch. Duplicate keys, invalid UTF-8, and non-finite numbers are
+rejected. Pending requests remain process-local even when durable storage is
+configured. After a server restart, a client must prepare again; it must not
+reconstruct or replay a private request token. Treat every request ID as an
+opaque, session-scoped handle. A fresh 128-bit namespace prevents an abandoned
+ID from colliding with a newly prepared request after restart.
 
 The usual chronology is decision first and evaluation later. Call
 `record_trace()` first with an `unknown` current Trace, call
@@ -782,7 +818,7 @@ so Phase 47 is not a database migration; operators missing the earlier CHECK
 still own the lower-bound migration. Only the canonical and packaged Trace
 Schema bytes changed in Phase 47; that baseline had 18 packaged resource names
 and PostgreSQL schema version 2. The current contract is snapshot version 2,
-21 packaged resources, and PostgreSQL schema version 2.
+41 packaged resources, and PostgreSQL schema version 2.
 
 Trace completion never seals a usage decision automatically, and decision
 outcome sealing never changes a Trace. Use the same evaluator result for both

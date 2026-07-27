@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintain Trace-backed Memory"
+  short_description: "Preserve TBM invariants while changing the repository"
+  default_prompt: "Use $maintain-trace-backed-memory to implement this repository change without weakening evidence, gate, or persistence invariants."

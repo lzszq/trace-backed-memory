@@ -1,0 +1,22 @@
+{
+  "counts": {
+    "errors": 0,
+    "failure_cases": 1,
+    "lessons": 1,
+    "mapped_scopes": 2,
+    "project_policies": 1,
+    "regression_evidence": 1,
+    "repositories": 1,
+    "tenants": 1,
+    "traces": 2,
+    "usage_logs": 0,
+    "warnings": 0
+  },
+  "issues": [],
+  "mapping_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "plan_version": "tbm.snapshot.v2-to-v3.plan.v1",
+  "ready": true,
+  "source_snapshot_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_snapshot_version": 2,
+  "target_snapshot_version": 3
+}

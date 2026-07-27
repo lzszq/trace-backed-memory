@@ -1,6 +1,6 @@
-# MVP 路线图
+# 产品交付计划
 
-[English](mvp-roadmap.md) | **简体中文**
+[English](product-program.md) | **简体中文**
 
 ## Phase 0：项目定义
 
@@ -474,7 +474,60 @@
 - 将原子 `schemas/postgres-v1-to-v2.sql` operator migration 作为第 20 项打包资源，覆盖 fresh install、迁移、重放拒绝、wheel、sdist、Windows、SQLite 与真实 PostgreSQL 测试。
 - 保持 snapshot version 2 与 SQLite schema version 1。
 
-## Phase 74：可部署信任边界与可重放审计（计划）
+## Agent 集成基础（已实现）
+
+- 增加 `LocalAgentMemory`，在现有 Store、Gate、completion、SQLite 与
+  PostgreSQL 契约之上提供聚焦本地应用边界。
+- 增加 Git-backed pending Trace capture、capability discovery、稳定有界
+  Agent 错误、cancel、callback 恢复 ID 与同 runtime 精确 decision 幂等。
+- 发布独立版本的 `tbm.agent.v1` capability、prepared、finalized、completed
+  和 error Schema，并提供字节一致的打包示例。
+- 增加 `tbm capabilities`、根/嵌套 `AGENTS.md`、仓库本地维护/运行技能、
+  Codex 集成指南与统一跨平台验证命令。
+- pending Gate request 仍为进程内状态并明确报告；在统一 schema version 3
+  工作完成前，不宣称 durable MCP/HTTP session。
+- 保持 snapshot version 2、SQLite schema version 1 与 PostgreSQL schema
+  version 2。
+
+## 本地 STDIO MCP 运行时（已实现）
+
+- 增加可选 `trace-backed-memory[mcp]` 打包与 `tbm-mcp` console entry，同时
+  不给核心 runtime 增加第三方依赖。
+- 只通过一个长驻 STDIO 进程暴露 capability/health discovery 与
+  prepare/finalize/complete/cancel runtime 生命周期；不暴露 curator、
+  activation、原始 Store、snapshot 或 migration 操作。
+- 在 server 配置中固定 repository provenance 与可选 declared tenant，在检索前
+  捕获完整 Git ancestry，并且只从命名环境变量读取 PostgreSQL conninfo。
+- SDK dispatch 前把每个输入帧限制为 8 MiB、100,000 个 JSON nodes 与 depth
+  100；拒绝 duplicate key、非法 UTF-8、非有限数字、未知 request 字段和错误的
+  strict type。
+- 保留进程内 pending request 与 replay tombstone，并通过真实 MCP client 验证：
+  即使 durable SQLite 记录仍存在，server 重启后也不能恢复尚未 finalized 的
+  request。每个 Store runtime 使用新的 128-bit request namespace，防止 stale
+  handle 在重启后与新 request 碰撞。
+- 同步发布 Codex 项目配置、运行策略、架构、产品、README 与仓库技能指南。
+- 保持 snapshot version 2、SQLite schema version 1、PostgreSQL schema
+  version 2，以及 41 项资源的发行契约。
+
+## Phase 74：可部署信任边界与可重放审计（进行中）
+
+- 交付只读 `tbm.snapshot.v2-to-v3.mapping.v1` 与
+  `tbm.snapshot.v2-to-v3.plan.v1` 预检契约、严格 Python value object、稳定
+  issue code、canonical SHA-256 绑定、打包 Schema/示例，以及
+  `tbm migration plan-v3`。
+- Mapping ready 前必须显式提供 Trace repository/tenant binding、memory
+  authorization scope、结构化 regression evidence、global policy privileged
+  approval，以及 `required` 或带审计 reason 的 `disabled` ancestry policy。
+- `required` ancestry 必须使用可信应用 verifier（CLI 中为显式映射的本地 Git
+  对象库）；拒绝无 version 的 legacy snapshot，在 hash 前归一化语义无序的
+  mapping 字段，并报告每次 disabled ancestry bypass。
+- 预检保持只读期间，继续保留当前 snapshot/SQLite/PostgreSQL/agent 版本；
+  不生成无法运行的不完整 version-3 snapshot。
+- 交付不可激活的 `tbm.snapshot.v2-to-v3.bundle.v1`，包含原始与 normalized
+  source hash、严格 plan replay、有界 duplicate-rejecting JSON 和内容派生 ID。
+- 增加 immutable、side-by-side SQLite staging repository，以及带版本门禁的
+  PostgreSQL staging/rollback scripts；所有 staging 对 runtime v2 adapter
+  不可见，且不提供 activation operation。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 canonical repository ID、显式 global/repository/tenant scope kind 与 global policy 权限，使 scope 成为可执行的授权边界。

@@ -23,6 +23,7 @@ classifiers = [
 
 [project.scripts]
 tbm = "trace_backed_memory.cli:main"
+tbm-mcp = "trace_backed_memory.mcp_entry:main"
 
 [project.urls]
 Homepage = "https://github.com/lzszq/trace-backed-memory"
@@ -30,10 +31,12 @@ Repository = "https://github.com/lzszq/trace-backed-memory"
 Issues = "https://github.com/lzszq/trace-backed-memory/issues"
 
 [project.optional-dependencies]
+mcp = ["mcp>=1.28.1,<2"]
 postgres = ["psycopg>=3.2,<4"]
 dev = [
     "build>=1.2,<2",
     "coverage[toml]>=7.9,<8",
+    "mcp>=1.28.1,<2",
     "mypy>=1.16,<2",
     "pip-audit>=2.9,<3",
     "psycopg[binary]>=3.2,<4",
@@ -44,15 +47,29 @@ dev = [
 [tool.setuptools.package-data]
 trace_backed_memory = [
     "py.typed",
+    "_resources/examples/agent_capabilities.example.json",
+    "_resources/examples/agent_completed.example.json",
+    "_resources/examples/agent_error.example.json",
+    "_resources/examples/agent_finalized.example.json",
+    "_resources/examples/agent_prepared.example.json",
     "_resources/examples/failure_case.example.json",
     "_resources/examples/lesson.example.json",
     "_resources/examples/memory_context.example.json",
     "_resources/examples/memory_decision.example.json",
     "_resources/examples/memory_usage_log.example.json",
     "_resources/examples/project_policy.example.json",
+    "_resources/examples/quickstart.py",
+    "_resources/examples/snapshot_v3_migration_bundle.example.json",
+    "_resources/examples/snapshot_v3_migration_mapping.example.json",
+    "_resources/examples/snapshot_v3_migration_plan.example.json",
     "_resources/examples/trace.example.json",
     "_resources/memory/failure_taxonomy.yaml",
     "_resources/memory/lessons.example.yaml",
+    "_resources/schemas/agent_capabilities.schema.json",
+    "_resources/schemas/agent_completed.schema.json",
+    "_resources/schemas/agent_error.schema.json",
+    "_resources/schemas/agent_finalized.schema.json",
+    "_resources/schemas/agent_prepared.schema.json",
     "_resources/schemas/failure_case.schema.json",
     "_resources/schemas/lesson.schema.json",
     "_resources/schemas/memory_context.schema.json",
@@ -61,8 +78,14 @@ trace_backed_memory = [
     "_resources/schemas/memory_usage_log.schema.json",
     "_resources/schemas/postgres-v1-to-v2.sql",
     "_resources/schemas/postgres-v2-lock-order-hotfix.sql",
+    "_resources/schemas/postgres-v3-staging-rollback.sql",
+    "_resources/schemas/postgres-v3-staging.sql",
     "_resources/schemas/postgres.sql",
     "_resources/schemas/project_policy.schema.json",
+    "_resources/schemas/snapshot_v3_migration_bundle.schema.json",
+    "_resources/schemas/snapshot_v3_migration_mapping.schema.json",
+    "_resources/schemas/snapshot_v3_migration_plan.schema.json",
+    "_resources/schemas/sqlite-v3-migration.sql",
     "_resources/schemas/sqlite.sql",
     "_resources/schemas/trace.schema.json",
 ]

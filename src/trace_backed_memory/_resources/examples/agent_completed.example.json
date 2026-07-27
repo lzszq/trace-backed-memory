@@ -1,0 +1,9 @@
+{
+  "protocol_version": "tbm.agent.v1",
+  "request_id": "gate_request_0123456789abcdef0123456789abcdef_000001",
+  "trace_id": "trace_current",
+  "run_id": "run_current",
+  "decision_id": "decision_000001",
+  "eval_result": "pass",
+  "memory_caused_failure": false
+}

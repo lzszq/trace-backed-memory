@@ -4,24 +4,40 @@ import argparse
 import json
 import math
 import sys
+from collections.abc import Mapping
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict, fields
 from pathlib import Path
 from typing import Any, Iterator, NoReturn, Sequence, TextIO
 
+from .agent import agent_capabilities
 from ._ingestion import (
     CLI_JSON_FILE_MAX_BYTES,
     CLI_JSON_MAX_DEPTH,
     CLI_JSON_MAX_ITEMS,
     CLI_JSON_MAX_NODES,
     CLI_RECOVER_BATCH_MAX_ITEMS,
+    parse_bounded_json,
     read_bounded_utf8,
-    unique_json_object_pairs,
 )
 from .capture import CommitAncestryCaptureError, capture_commit_ancestry
+from .contracts_v3 import (
+    CommitRelationEvidence,
+    CommitRelationVerifier,
+    SnapshotV3MigrationMapping,
+    V3ContractError,
+    parse_v3_migration_mapping,
+    plan_snapshot_v3_migration,
+)
 from .locking import (
     _snapshot_lock_path as _shared_snapshot_lock_path,
     snapshot_write_lock as _shared_snapshot_write_lock,
+)
+from .migration_v3 import (
+    V3MigrationBundleError,
+    create_snapshot_v3_migration_bundle,
+    load_snapshot_v3_migration_bundle,
+    verify_snapshot_v3_migration_bundle,
 )
 from .models import (
     Lesson,
@@ -39,7 +55,7 @@ from .resources import (
     packaged_resources,
     read_packaged_resource,
 )
-from .store import TraceBackedMemoryStore
+from .store import TraceBackedMemoryStore, _load_snapshot_json_document
 
 
 _ERROR_MESSAGE_MAX_CHARS = 2048
@@ -56,6 +72,10 @@ class CLIUsageError(ValueError):
 
 class CLIInputError(ValueError):
     """Raised for command inputs that argparse cannot validate directly."""
+
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        self.code = code
+        super().__init__(message)
 
 
 def _snapshot_lock_path(snapshot_path: str | Path) -> Path:
@@ -101,6 +121,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
+    commands.add_parser(
+        "capabilities",
+        help="Print the machine-readable agent and storage contract.",
+    )
+
     resource = commands.add_parser(
         "resource",
         help="Inspect and export installed canonical resources.",
@@ -141,6 +166,46 @@ def _build_parser() -> argparse.ArgumentParser:
     ):
         subcommand = snapshot_commands.add_parser(command, help=help_text)
         subcommand.add_argument("snapshot", type=Path)
+
+    migration = commands.add_parser(
+        "migration",
+        help="Plan explicit, fail-closed persistence migrations.",
+    )
+    migration_commands = migration.add_subparsers(
+        dest="migration_command",
+        required=True,
+    )
+    for command, help_text in (
+        (
+            "plan-v3",
+            "Preflight a snapshot-v2 to snapshot-v3 mapping without writing.",
+        ),
+        (
+            "bundle-v3",
+            "Create an inert, content-addressed v3 migration bundle.",
+        ),
+    ):
+        migration_snapshot_command = migration_commands.add_parser(
+            command,
+            help=help_text,
+        )
+        migration_snapshot_command.add_argument("snapshot", type=Path)
+        migration_snapshot_command.add_argument(
+            "mapping_json",
+            type=Path,
+            metavar="MAPPING_JSON",
+        )
+        _add_repository_root_arguments(migration_snapshot_command)
+    migration_verify_v3 = migration_commands.add_parser(
+        "verify-v3-bundle",
+        help="Integrity-check and exactly replay an inert v3 migration bundle.",
+    )
+    migration_verify_v3.add_argument(
+        "bundle_json",
+        type=Path,
+        metavar="BUNDLE_JSON",
+    )
+    _add_repository_root_arguments(migration_verify_v3)
 
     for command, help_text in (
         ("audit", "Audit memory-run completion state."),
@@ -402,19 +467,38 @@ def _error_message(error: BaseException) -> str:
 
 def _emit_error(kind: str, error: BaseException, exit_code: int) -> int:
     try:
+        error_payload = {
+            "kind": kind,
+            "message": _error_message(error),
+            "type": type(error).__name__,
+        }
+        code = getattr(error, "code", None)
+        if type(code) is str and code:
+            error_payload["code"] = code
         _write_json(
             sys.stderr,
             {
-                "error": {
-                    "kind": kind,
-                    "message": _error_message(error),
-                    "type": type(error).__name__,
-                }
+                "error": error_payload,
             },
         )
     except Exception:
         pass
     return exit_code
+
+
+def _add_repository_root_arguments(
+    parser: argparse.ArgumentParser,
+) -> None:
+    parser.add_argument(
+        "--repository-root",
+        action="append",
+        default=[],
+        metavar="REPOSITORY_ID=PATH",
+        help=(
+            "Verify required commit ancestry against an explicitly mapped "
+            "local Git checkout; repeat for multiple repositories."
+        ),
+    )
 
 
 def _snapshot_summary(store: TraceBackedMemoryStore) -> dict[str, object]:
@@ -479,52 +563,16 @@ def _load_json_file(path: Path, description: str) -> Any:
     except ValueError as error:
         raise CLIInputError(str(error)) from error
 
-    def reject_non_finite(value: str) -> Any:
-        raise CLIInputError(
-            f"{description} JSON contains non-finite number: {value}"
-        )
-
-    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-        try:
-            return unique_json_object_pairs(pairs, description=description)
-        except ValueError as error:
-            raise CLIInputError(str(error)) from error
-
     try:
-        payload: Any = json.loads(
+        return parse_bounded_json(
             source,
-            parse_constant=reject_non_finite,
-            object_pairs_hook=unique_object,
+            description=description,
+            max_nodes=CLI_JSON_MAX_NODES,
+            max_depth=CLI_JSON_MAX_DEPTH,
+            source=path,
         )
-    except (json.JSONDecodeError, RecursionError) as error:
-        raise CLIInputError(
-            f"invalid {description} JSON in {path}: {error}"
-        ) from error
-
-    node_count = 0
-    pending = [(payload, 0)]
-    while pending:
-        value, depth = pending.pop()
-        if depth > CLI_JSON_MAX_DEPTH:
-            raise CLIInputError(
-                f"{description} JSON exceeds maximum depth of "
-                f"{CLI_JSON_MAX_DEPTH}"
-            )
-        node_count += 1
-        if node_count > CLI_JSON_MAX_NODES:
-            raise CLIInputError(
-                f"{description} JSON contains more than "
-                f"{CLI_JSON_MAX_NODES} nodes"
-            )
-        if type(value) is float and not math.isfinite(value):
-            raise CLIInputError(
-                f"{description} JSON contains non-finite number"
-            )
-        if type(value) is list:
-            pending.extend((item, depth + 1) for item in value)
-        elif type(value) is dict:
-            pending.extend((item, depth + 1) for item in value.values())
-    return payload
+    except ValueError as error:
+        raise CLIInputError(str(error)) from error
 
 
 def _load_pr_context(path: Path) -> MemoryContext:
@@ -549,6 +597,66 @@ def _load_pr_context(path: Path) -> MemoryContext:
     except ValueError as error:
         raise CLIInputError(str(error)) from error
     return context
+
+
+def _load_v3_migration_mapping(
+    path: Path,
+) -> SnapshotV3MigrationMapping:
+    payload = _load_json_file(path, "v3 migration mapping")
+    if type(payload) is not dict:
+        raise CLIInputError("v3 migration mapping JSON must be an object")
+    try:
+        return parse_v3_migration_mapping(payload)
+    except V3ContractError as error:
+        raise CLIInputError(
+            str(error),
+            code=error.code,
+        ) from error
+
+
+def _parse_repository_roots(values: Sequence[str]) -> dict[str, Path]:
+    roots: dict[str, Path] = {}
+    for value in values:
+        repository_id, separator, path_text = value.partition("=")
+        if (
+            not separator
+            or not repository_id.strip()
+            or not path_text.strip()
+        ):
+            raise CLIInputError(
+                "repository root must use REPOSITORY_ID=PATH"
+            )
+        if repository_id in roots:
+            raise CLIInputError(
+                f"duplicate repository root for repository_id: {repository_id}"
+            )
+        roots[repository_id] = Path(path_text)
+    return roots
+
+
+def _commit_relation_verifier(
+    repository_roots: dict[str, Path],
+) -> CommitRelationVerifier | None:
+    if not repository_roots:
+        return None
+
+    def verify(
+        repository_id: str,
+        relation: CommitRelationEvidence,
+    ) -> bool:
+        repository_root = repository_roots.get(repository_id)
+        if repository_root is None:
+            return False
+        captured = capture_commit_ancestry(
+            relation.to_commit_sha,
+            (relation.from_commit_sha,),
+            str(repository_root),
+        )
+        return dict(captured.commit_relations).get(
+            relation.from_commit_sha
+        ) is True
+
+    return verify
 
 
 def _load_lessons_yaml(
@@ -1031,12 +1139,33 @@ def _run_resource_command(args: argparse.Namespace) -> int:
 def _execute(
     args: argparse.Namespace,
     store: TraceBackedMemoryStore,
+    *,
+    source_snapshot: Mapping[str, object] | None = None,
 ) -> dict[str, Any] | list[dict[str, Any]]:
     if args.command == "snapshot":
         summary = _snapshot_summary(store)
         if args.snapshot_command == "validate":
             return {"valid": True, **summary}
         return summary
+
+    if args.command == "migration":
+        repository_roots = _parse_repository_roots(args.repository_root)
+        verifier = _commit_relation_verifier(repository_roots)
+        mapping = _load_v3_migration_mapping(args.mapping_json)
+        migration_source = (
+            source_snapshot if source_snapshot is not None else store
+        )
+        if args.migration_command == "plan-v3":
+            return plan_snapshot_v3_migration(
+                migration_source,
+                mapping,
+                commit_relation_verifier=verifier,
+            ).to_dict()
+        return create_snapshot_v3_migration_bundle(
+            migration_source,
+            mapping,
+            commit_relation_verifier=verifier,
+        ).to_dict()
 
     if args.command == "audit":
         return [asdict(audit) for audit in store.memory_run_audits()]
@@ -1188,6 +1317,47 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "resource":
         return _run_resource_command(args)
+    if (
+        args.command == "migration"
+        and args.migration_command == "verify-v3-bundle"
+    ):
+        try:
+            bundle = load_snapshot_v3_migration_bundle(args.bundle_json)
+            repository_roots = _parse_repository_roots(
+                args.repository_root
+            )
+        except (
+            CLIInputError,
+            V3MigrationBundleError,
+        ) as error:
+            return _emit_error("input", error, 2)
+        try:
+            verify_snapshot_v3_migration_bundle(
+                bundle,
+                commit_relation_verifier=_commit_relation_verifier(
+                    repository_roots
+                ),
+            )
+            _write_json(
+                sys.stdout,
+                {
+                    "bundle_id": bundle.bundle_id,
+                    "plan_sha256": bundle.plan_sha256,
+                    "state": bundle.state,
+                    "verified": True,
+                },
+            )
+        except V3MigrationBundleError as error:
+            return _emit_error("state", error, 3)
+        except Exception as error:
+            return _emit_error("internal", error, 1)
+        return 0
+    if args.command == "capabilities":
+        try:
+            _write_json(sys.stdout, agent_capabilities().to_dict())
+        except Exception as error:
+            return _emit_error("internal", error, 1)
+        return 0
 
     snapshot_write = bool(getattr(args, "write", False))
     with ExitStack() as snapshot_transaction:
@@ -1199,8 +1369,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             except (OSError, ValueError) as error:
                 return _emit_error("write", error, 4)
 
+        source_snapshot: Mapping[str, object] | None = None
         try:
-            store = TraceBackedMemoryStore.load_json(args.snapshot)
+            if args.command == "migration":
+                source_snapshot = _load_snapshot_json_document(
+                    args.snapshot
+                )
+                store = TraceBackedMemoryStore.from_snapshot(source_snapshot)
+            else:
+                store = TraceBackedMemoryStore.load_json(args.snapshot)
         except (
             OSError,
             UnicodeError,
@@ -1213,7 +1390,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _emit_error("internal", error, 1)
 
         try:
-            payload = _execute(args, store)
+            payload = _execute(
+                args,
+                store,
+                source_snapshot=source_snapshot,
+            )
         except CLIInputError as error:
             return _emit_error("input", error, 2)
         except CommitAncestryCaptureError as error:

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TraceBackedMemoryAgentFinalized",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "request_id",
+    "trace_id",
+    "decision_id",
+    "use_memory",
+    "allowed_memory_ids",
+    "blocked_memory_ids",
+    "reason",
+    "risk",
+    "recommended_injection",
+    "snippet"
+  ],
+  "properties": {
+    "protocol_version": {"const": "tbm.agent.v1"},
+    "request_id": {"type": "string", "pattern": "\\S", "maxLength": 128},
+    "trace_id": {"type": "string", "pattern": "\\S", "maxLength": 128},
+    "decision_id": {"type": "string", "pattern": "\\S", "maxLength": 128},
+    "use_memory": {"type": "boolean"},
+    "allowed_memory_ids": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {"type": "string", "minLength": 1, "maxLength": 128},
+      "uniqueItems": true
+    },
+    "blocked_memory_ids": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {"type": "string", "minLength": 1, "maxLength": 128},
+      "uniqueItems": true
+    },
+    "reason": {"type": "string", "pattern": "\\S", "maxLength": 2000},
+    "risk": {"type": "string", "enum": ["none", "low", "medium", "high"]},
+    "recommended_injection": {
+      "type": "string",
+      "enum": ["none", "short_summary", "full_case_summary", "pointer_only"]
+    },
+    "snippet": {"type": "string", "maxLength": 12000}
+  },
+  "additionalProperties": false
+}

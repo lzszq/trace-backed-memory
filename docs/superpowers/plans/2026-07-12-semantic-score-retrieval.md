@@ -31,7 +31,7 @@
 - `README.md`: document caller responsibilities and the public API example.
 - `docs/architecture.md`: describe the external-score boundary and gate ordering.
 - `docs/usage-policy.md`: state semantic retrieval safety requirements.
-- `docs/mvp-roadmap.md`: record completion of optional semantic/vector-assisted retrieval.
+- `docs/product-program.md`: record completion of optional semantic/vector-assisted retrieval.
 - `docs/superpowers/specs/2026-07-12-semantic-score-retrieval-design.md`: authoritative design; do not rewrite during implementation unless a reviewed contradiction is found.
 
 No other source, test, schema, packaging, or persistence file should change.
@@ -528,7 +528,7 @@ git commit -m "feat: integrate semantic retrieval with safe workflow"
 - Modify: `README.md`
 - Modify: `docs/architecture.md`
 - Modify: `docs/usage-policy.md`
-- Modify: `docs/mvp-roadmap.md`
+- Modify: `docs/product-program.md`
 
 **Interfaces:**
 - Consumes: Task 2 public `prepare_memory()` signature and unchanged `finalize_memory()`.
@@ -639,7 +639,7 @@ memory must still be blocked by the normal gates.
 
 - [ ] **Step 5: Mark the roadmap item implemented without overstating scope**
 
-Replace `Optionally add keyword/vector search.` in `docs/mvp-roadmap.md` with:
+Replace `Optionally add keyword/vector search.` in `docs/product-program.md` with:
 
 ```text
 - Support optional keyword filtering and bounded caller-provided semantic/vector scores after metadata filtering.
@@ -666,7 +666,7 @@ Run:
 
 ```powershell
 git status --short
-git add README.md docs/architecture.md docs/usage-policy.md docs/mvp-roadmap.md tests/test_readme_api.py
+git add README.md docs/architecture.md docs/usage-policy.md docs/product-program.md tests/test_readme_api.py
 git commit -m "docs: document semantic score retrieval"
 ```
 

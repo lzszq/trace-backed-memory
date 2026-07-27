@@ -1,0 +1,13 @@
+{
+  "protocol_version": "tbm.agent.v1",
+  "request_id": "gate_request_0123456789abcdef0123456789abcdef_000001",
+  "trace_id": "trace_current",
+  "decision_id": "decision_000001",
+  "use_memory": true,
+  "allowed_memory_ids": ["lesson_001"],
+  "blocked_memory_ids": [],
+  "reason": "The verified lesson directly applies.",
+  "risk": "low",
+  "recommended_injection": "short_summary",
+  "snippet": "Relevant verified memory:\n\n1. [memory_id: lesson_001]\nRule: Always provide a non-empty query."
+}

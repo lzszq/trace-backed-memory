@@ -18,7 +18,11 @@ CANONICAL_RESOURCE_NAMES = tuple(
             ROOT / "schemas",
         )
         for path in directory.rglob("*")
-        if path.is_file()
+        if (
+            path.is_file()
+            and path.name != "AGENTS.md"
+            and "__pycache__" not in path.parts
+        )
     )
 )
 
@@ -27,7 +31,7 @@ def test_packaged_resources_match_every_canonical_file_byte_for_byte():
     descriptions = tbm.packaged_resources()
 
     assert tuple(item.name for item in descriptions) == CANONICAL_RESOURCE_NAMES
-    assert len(descriptions) == 21
+    assert len(descriptions) == 41
     for item in descriptions:
         canonical = (ROOT / item.name).read_bytes()
         assert tbm.read_packaged_resource(item.name) == canonical
@@ -39,6 +43,10 @@ def test_packaged_resources_match_every_canonical_file_byte_for_byte():
             assert item.kind == "memory"
         else:
             assert item.kind == "example"
+
+    assert "schemas/AGENTS.md" not in {
+        item.name for item in descriptions
+    }
 
     with pytest.raises(FrozenInstanceError):
         descriptions[0].name = "changed"  # type: ignore[misc]
@@ -56,15 +64,36 @@ def test_resource_media_types_are_deterministic():
         by_name["schemas/postgres-v2-lock-order-hotfix.sql"].media_type
         == "application/sql"
     )
+    assert (
+        by_name["schemas/postgres-v3-staging.sql"].media_type
+        == "application/sql"
+    )
+    assert (
+        by_name["schemas/postgres-v3-staging-rollback.sql"].media_type
+        == "application/sql"
+    )
     assert by_name["schemas/sqlite.sql"].media_type == "application/sql"
     assert (
+        by_name["schemas/sqlite-v3-migration.sql"].media_type
+        == "application/sql"
+    )
+    assert (
         by_name["schemas/trace.schema.json"].media_type
+        == "application/schema+json"
+    )
+    assert (
+        by_name["schemas/snapshot_v3_migration_mapping.schema.json"].media_type
+        == "application/schema+json"
+    )
+    assert (
+        by_name["schemas/snapshot_v3_migration_bundle.schema.json"].media_type
         == "application/schema+json"
     )
     assert (
         by_name["examples/trace.example.json"].media_type
         == "application/json"
     )
+    assert by_name["examples/quickstart.py"].media_type == "text/x-python"
     assert (
         by_name["memory/failure_taxonomy.yaml"].media_type
         == "application/yaml"

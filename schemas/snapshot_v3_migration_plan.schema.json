@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lzszq/trace-backed-memory/schemas/snapshot_v3_migration_plan.schema.json",
+  "title": "Trace-backed Memory snapshot v3 migration preflight plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "plan_version",
+    "source_snapshot_version",
+    "target_snapshot_version",
+    "source_snapshot_sha256",
+    "mapping_sha256",
+    "ready",
+    "counts",
+    "issues"
+  ],
+  "properties": {
+    "plan_version": {
+      "const": "tbm.snapshot.v2-to-v3.plan.v1"
+    },
+    "source_snapshot_version": {
+      "const": 2
+    },
+    "target_snapshot_version": {
+      "const": 3
+    },
+    "source_snapshot_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "mapping_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "errors",
+        "failure_cases",
+        "lessons",
+        "mapped_scopes",
+        "project_policies",
+        "regression_evidence",
+        "repositories",
+        "tenants",
+        "traces",
+        "usage_logs",
+        "warnings"
+      ],
+      "properties": {
+        "errors": {
+          "$ref": "#/$defs/count"
+        },
+        "failure_cases": {
+          "$ref": "#/$defs/count"
+        },
+        "lessons": {
+          "$ref": "#/$defs/count"
+        },
+        "mapped_scopes": {
+          "$ref": "#/$defs/count"
+        },
+        "project_policies": {
+          "$ref": "#/$defs/count"
+        },
+        "regression_evidence": {
+          "$ref": "#/$defs/count"
+        },
+        "repositories": {
+          "$ref": "#/$defs/count"
+        },
+        "tenants": {
+          "$ref": "#/$defs/count"
+        },
+        "traces": {
+          "$ref": "#/$defs/count"
+        },
+        "usage_logs": {
+          "$ref": "#/$defs/count"
+        },
+        "warnings": {
+          "$ref": "#/$defs/count"
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/issue"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ready": {
+            "const": true
+          }
+        },
+        "required": [
+          "ready"
+        ]
+      },
+      "then": {
+        "properties": {
+          "counts": {
+            "properties": {
+              "errors": {
+                "const": 0
+              }
+            }
+          },
+          "issues": {
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/issue"
+                },
+                {
+                  "properties": {
+                    "severity": {
+                      "const": "warning"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "ready": {
+            "const": false
+          }
+        },
+        "required": [
+          "ready"
+        ]
+      },
+      "then": {
+        "properties": {
+          "counts": {
+            "properties": {
+              "errors": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "issues": {
+            "contains": {
+              "properties": {
+                "severity": {
+                  "const": "error"
+                }
+              },
+              "required": [
+                "severity"
+              ]
+            },
+            "minContains": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": ".*\\S.*"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": ".*\\S.*"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 250000
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "severity",
+        "record_kind",
+        "record_id",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/identifier"
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning"
+          ]
+        },
+        "record_kind": {
+          "$ref": "#/$defs/identifier"
+        },
+        "record_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "message": {
+          "$ref": "#/$defs/reason"
+        }
+      }
+    }
+  }
+}

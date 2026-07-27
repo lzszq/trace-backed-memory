@@ -33,7 +33,7 @@
 - `tests/test_capture.py`: unit and real temporary-DAG tests for Git capture.
 - `tests/test_store.py`: runtime, gate, audit, persistence, PR, validation, and compatibility tests.
 - `tests/test_readme_api.py`: executable public workflow example.
-- `README.md`, `docs/architecture.md`, `docs/usage-policy.md`, `docs/mvp-roadmap.md`: public contract and implemented roadmap phase.
+- `README.md`, `docs/architecture.md`, `docs/usage-policy.md`, `docs/product-program.md`: public contract and implemented roadmap phase.
 
 No package metadata, schema, PostgreSQL, YAML, or example JSON file changes.
 
@@ -908,7 +908,7 @@ git commit -m "feat: scope pr memory reports by git ancestry"
 - Modify: `README.md`
 - Modify: `docs/architecture.md`
 - Modify: `docs/usage-policy.md`
-- Modify: `docs/mvp-roadmap.md`
+- Modify: `docs/product-program.md`
 
 **Interfaces:**
 - Consumes: all Task 1-3 public APIs.
@@ -1001,7 +1001,7 @@ capture them against the exact context commit, and pass the evidence unchanged.
 State that exit 1 is false while command errors must stop the workflow.
 
 Add `Phase 9: Git ancestry applicability (implemented)` to
-`docs/mvp-roadmap.md` with runtime and PR anchor discovery, lock-free capture,
+`docs/product-program.md` with runtime and PR anchor discovery, lock-free capture,
 current-commit binding, missing-evidence failure, and persistence compatibility.
 
 - [ ] **Step 5: Run documentation and persistence compatibility tests**
@@ -1021,7 +1021,7 @@ Expected: all tests and checks pass with no schema or adapter changes.
 Run `python -m pytest -q`, then commit:
 
 ```powershell
-git add README.md docs/architecture.md docs/usage-policy.md docs/mvp-roadmap.md tests/test_readme_api.py
+git add README.md docs/architecture.md docs/usage-policy.md docs/product-program.md tests/test_readme_api.py
 git commit -m "docs: document git ancestry applicability"
 ```
 

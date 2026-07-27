@@ -310,7 +310,7 @@ git commit -m "feat: scope pr ancestry to change endpoints"
 - Modify: `README.md`
 - Modify: `docs/architecture.md`
 - Modify: `docs/usage-policy.md`
-- Modify: `docs/mvp-roadmap.md`
+- Modify: `docs/product-program.md`
 - Modify: `tests/test_readme_api.py`
 - Modify: `tests/test_examples_and_schema.py`
 - Test: `tests/test_store.py`
@@ -351,7 +351,7 @@ Update `docs/usage-policy.md` to require caller-supplied exact values, reject
 mixed-state interpretation, and prohibit value-aware `model_family` claims.
 
 Add `Phase 10: PR change-set endpoint matching (implemented)` to
-`docs/mvp-roadmap.md`.
+`docs/product-program.md`.
 
 - [ ] **Step 4: Add explicit persistence compatibility assertions**
 
@@ -375,7 +375,7 @@ changes.
 - [ ] **Step 6: Commit Task 4**
 
 ```powershell
-git add README.md docs/architecture.md docs/usage-policy.md docs/mvp-roadmap.md tests/test_readme_api.py tests/test_examples_and_schema.py tests/test_store.py
+git add README.md docs/architecture.md docs/usage-policy.md docs/product-program.md tests/test_readme_api.py tests/test_examples_and_schema.py tests/test_store.py
 git commit -m "docs: publish pr change-set workflow"
 ```
 

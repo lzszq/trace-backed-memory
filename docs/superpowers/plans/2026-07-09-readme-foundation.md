@@ -1,8 +1,8 @@
-# README MVP Implementation Plan
+# README Product Foundation Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement the README-described trace-backed memory MVP as a small, dependency-free Python library.
+**Goal:** Implement the README-described trace-backed memory foundation as a small, dependency-free Python library.
 
 **Architecture:** Keep the current public `MemoryContext`, `MemoryItem`, `system_gate`, and `build_injection_snippet` API intact. Add focused dataclasses for traces, failure cases, lessons, and usage logs; lifecycle helpers that convert trace evidence into verified lessons; deterministic policy helpers for system and LLM gate decisions; and an in-memory store for candidate retrieval and audit logs.
 
@@ -275,7 +275,7 @@ Expected: PASS.
 
 **Interfaces:**
 - Confirms README example imports still work.
-- Documents the added MVP API without changing project scope.
+- Documents the added foundation API without changing project scope.
 
 - [x] **Step 1: Write README API regression test**
 
@@ -315,7 +315,7 @@ def test_readme_suggested_initial_api_still_works():
 Run: `python -m pytest tests/test_readme_api.py -v`
 Expected: PASS if the existing API remains intact.
 
-- [x] **Step 3: Update README with implemented MVP API**
+- [x] **Step 3: Update README with implemented foundation API**
 
 Add a compact section showing trace-to-lesson lifecycle, `TraceBackedMemoryStore`, LLM gate decision application, and usage log recording.
 

@@ -1,0 +1,516 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lzszq/trace-backed-memory/schemas/snapshot_v3_migration_mapping.schema.json",
+  "title": "Trace-backed Memory snapshot v2 to v3 migration mapping",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "mapping_version",
+    "repositories",
+    "tenants",
+    "trace_bindings",
+    "memory_scopes",
+    "regression_evidence",
+    "global_policy_approvals",
+    "ancestry_policy"
+  ],
+  "properties": {
+    "mapping_version": {
+      "const": "tbm.snapshot.v2-to-v3.mapping.v1"
+    },
+    "repositories": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/repository"
+      }
+    },
+    "tenants": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/tenant"
+      }
+    },
+    "trace_bindings": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/traceBinding"
+      }
+    },
+    "memory_scopes": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/memoryScope"
+      }
+    },
+    "regression_evidence": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/regressionEvidence"
+      }
+    },
+    "global_policy_approvals": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/globalPolicyApproval"
+      }
+    },
+    "ancestry_policy": {
+      "$ref": "#/$defs/ancestryPolicy"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": ".*\\S.*"
+    },
+    "metadata": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": ".*\\S.*"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": ".*\\S.*"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_id",
+        "provider",
+        "provider_repository_id",
+        "canonical_locator_hash",
+        "display_name",
+        "legacy_aliases"
+      ],
+      "properties": {
+        "repository_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "provider": {
+          "enum": [
+            "local",
+            "github",
+            "gitlab",
+            "bitbucket",
+            "azure_devops",
+            "other"
+          ]
+        },
+        "provider_repository_id": {
+          "$ref": "#/$defs/metadata"
+        },
+        "canonical_locator_hash": {
+          "$ref": "#/$defs/digest"
+        },
+        "display_name": {
+          "$ref": "#/$defs/metadata"
+        },
+        "legacy_aliases": {
+          "type": "array",
+          "maxItems": 100000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/metadata"
+          }
+        }
+      }
+    },
+    "tenant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tenant_id",
+        "display_name",
+        "legacy_aliases"
+      ],
+      "properties": {
+        "tenant_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "display_name": {
+          "$ref": "#/$defs/metadata"
+        },
+        "legacy_aliases": {
+          "type": "array",
+          "maxItems": 100000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/metadata"
+          }
+        }
+      }
+    },
+    "traceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trace_id",
+        "repository_id",
+        "tenant_id"
+      ],
+      "properties": {
+        "trace_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "repository_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "authorizationScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "tenant_id",
+        "repository_id",
+        "attributes"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "global",
+            "tenant",
+            "repository"
+          ]
+        },
+        "tenant_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repository_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attributes": {
+          "type": "object",
+          "maxProperties": 10,
+          "propertyNames": {
+            "enum": [
+              "branch",
+              "prompt_version",
+              "prompt_family",
+              "tool",
+              "tool_schema_version",
+              "model",
+              "model_family",
+              "eval_suite",
+              "task_type",
+              "failure_type"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/metadata"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "global"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tenant_id": {
+                "type": "null"
+              },
+              "repository_id": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "tenant"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tenant_id": {
+                "$ref": "#/$defs/identifier"
+              },
+              "repository_id": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "repository"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tenant_id": {
+                "$ref": "#/$defs/identifier"
+              },
+              "repository_id": {
+                "$ref": "#/$defs/identifier"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "memoryScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "memory_kind",
+        "memory_id",
+        "scope"
+      ],
+      "properties": {
+        "memory_kind": {
+          "enum": [
+            "lesson",
+            "project_policy"
+          ]
+        },
+        "memory_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "scope": {
+          "$ref": "#/$defs/authorizationScope"
+        }
+      }
+    },
+    "commitRelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from_commit_sha",
+        "to_commit_sha",
+        "relation",
+        "verified_by",
+        "verified_at"
+      ],
+      "properties": {
+        "from_commit_sha": {
+          "$ref": "#/$defs/metadata"
+        },
+        "to_commit_sha": {
+          "$ref": "#/$defs/metadata"
+        },
+        "relation": {
+          "const": "ancestor"
+        },
+        "verified_by": {
+          "$ref": "#/$defs/identifier"
+        },
+        "verified_at": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "regressionEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id",
+        "case_id",
+        "regression_trace_id",
+        "regression_run_id",
+        "evaluator_id",
+        "evaluator_version",
+        "eval_suite",
+        "eval_case_id",
+        "evaluated_commit_sha",
+        "result",
+        "observed_at",
+        "source_to_fix",
+        "fix_to_regression",
+        "artifact_hashes"
+      ],
+      "properties": {
+        "evidence_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "case_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "regression_trace_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "regression_run_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "evaluator_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "evaluator_version": {
+          "$ref": "#/$defs/metadata"
+        },
+        "eval_suite": {
+          "$ref": "#/$defs/metadata"
+        },
+        "eval_case_id": {
+          "$ref": "#/$defs/metadata"
+        },
+        "evaluated_commit_sha": {
+          "$ref": "#/$defs/metadata"
+        },
+        "result": {
+          "enum": [
+            "pass",
+            "fail",
+            "error"
+          ]
+        },
+        "observed_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "source_to_fix": {
+          "$ref": "#/$defs/commitRelation"
+        },
+        "fix_to_regression": {
+          "$ref": "#/$defs/commitRelation"
+        },
+        "artifact_hashes": {
+          "type": "array",
+          "maxItems": 1000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        }
+      }
+    },
+    "globalPolicyApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_id",
+        "principal_id",
+        "authorization_event_id",
+        "approved_at",
+        "reason"
+      ],
+      "properties": {
+        "policy_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "principal_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "authorization_event_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "approved_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      }
+    },
+    "ancestryPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "bypass_reason"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "required",
+            "disabled"
+          ]
+        },
+        "bypass_reason": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/reason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "required"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "bypass_reason": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "disabled"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "bypass_reason": {
+                "$ref": "#/$defs/reason"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

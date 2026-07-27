@@ -18,8 +18,12 @@ def test_package_metadata_exposes_dependency_free_cli_entry_points():
     assert metadata["project"]["license"] == "MIT"
     assert metadata["project"]["license-files"] == ["LICENSE"]
     assert metadata["project"]["scripts"] == {
-        "tbm": "trace_backed_memory.cli:main"
+        "tbm": "trace_backed_memory.cli:main",
+        "tbm-mcp": "trace_backed_memory.mcp_entry:main",
     }
+    assert metadata["project"]["optional-dependencies"]["mcp"] == [
+        "mcp>=1.28.1,<2"
+    ]
     assert "Typing :: Typed" in metadata["project"]["classifiers"]
 
 
@@ -38,7 +42,11 @@ def test_package_data_exactly_covers_canonical_resources_and_typing_marker():
             ROOT / "schemas",
         )
         for path in directory.rglob("*")
-        if path.is_file()
+        if (
+            path.is_file()
+            and path.name != "AGENTS.md"
+            and "__pycache__" not in path.parts
+        )
     )
 
     assert package_data[0] == "py.typed"

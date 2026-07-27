@@ -66,7 +66,7 @@ Recommended fields:
 
 Raw trace is not runtime memory. It is evidence.
 
-The MVP includes `capture_trace_metadata()` for reading repo name, commit SHA,
+The reference kernel includes `capture_trace_metadata()` for reading repo name, commit SHA,
 current branch, and dirty state from git before a harness records the trace.
 Prompt version, prompt family, tool schema version, model, and eval suite are
 first-class trace fields that callers attach from the harness runtime. Git
@@ -142,7 +142,7 @@ Fields:
 
 Failure cases are episodic memory.
 
-The MVP includes `load_failure_taxonomy()` plus conservative extraction helpers
+The reference kernel includes `load_failure_taxonomy()` plus conservative extraction helpers
 that classify obvious trace failures into taxonomy IDs before drafting a case.
 When a taxonomy is supplied, classifier output must be present in that taxonomy.
 Specific context-missing and stale-context signals take precedence over generic
@@ -207,13 +207,13 @@ applicability checks.
 Project policies are manually maintained prompt, tool, or eval rules. They are
 not derived from failure cases, but they still need source identity, scope,
 status, and safety flags before they can be considered for injection.
-`ProjectPolicy` and `memory_item_from_project_policy()` provide the MVP bridge
+`ProjectPolicy` and `memory_item_from_project_policy()` provide the compatibility bridge
 from maintained policy records to sourced `MemoryItem` policy memory. The
 in-memory store rejects policies with empty IDs or text, invalid status, invalid
 scope fields, confidence outside the inclusive 0.0 to 1.0 range, or IDs that
 collide with the shared runtime memory ID namespace across failure cases, lessons, and project policies.
 
-For the MVP, `TraceBackedMemoryStore.to_snapshot()`, `from_snapshot()`,
+For the reference implementation, `TraceBackedMemoryStore.to_snapshot()`, `from_snapshot()`,
 `save_json()`, and `load_json()` provide a stable full-store persistence
 boundary for traces, failure cases, lessons, project policies, and usage logs.
 The boundary requires a JSON object, accepts JSON-serializable integer costs,
@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 21 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 41 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -577,7 +577,7 @@ Runtime output is bounded by fixed contract constants:
 12,000. Identifier and metadata limits are enforced before rendering; total
 prompt and snippet limits are checked before either value is returned.
 
-Candidate retrieval is metadata-first. The in-memory MVP retrieves lessons and
+Candidate retrieval is metadata-first. The in-memory reference store retrieves lessons and
 project policies when every declared scope metadata field matches the current
 context. In debug and repair modes, it also exposes verified,
 regression-backed failure cases by deriving runtime memory scope from the
@@ -653,6 +653,54 @@ state, persist records, synchronize PostgreSQL, or create another completion
 state machine. `MemoryRunMeasurement`, callback types, and execution errors are
 ephemeral; snapshot version 2, JSON Schemas, active-lessons YAML, and
 PostgreSQL schema version 2 remain unchanged.
+
+### Agent application façade
+
+`LocalAgentMemory` is a focused application boundary over the same Store
+lifecycle. It owns Trace registration, in-memory request lookup, repository
+load/sync/close, stable agent errors, and the common prepare/finalize/complete
+sequence. `capture_local_trace()` derives Git provenance from an explicit
+checkout root. `agent_capabilities()` and `tbm capabilities` publish protocol,
+storage, operation, and hard-limit discovery without loading a snapshot.
+
+The façade never serializes the private Store token. SQLite and PostgreSQL
+synchronize the Trace before preparation, the usage decision after
+finalization, and atomic measured completion. Pending requests and local
+finalization tombstones remain process-local. Exact same-decision finalize
+replay is idempotent within one runtime; a different retry is a stable
+conflict. The packaged `tbm.agent.v1` schemas describe capabilities, prepared,
+finalized, completed, and error results without changing snapshot version 2,
+SQLite schema version 1, or PostgreSQL schema version 2.
+
+Every Store runtime generates a fresh 128-bit namespace for opaque Gate
+request IDs. The persisted numeric suffix can continue after reload, but a
+stale ID from an abandoned process cannot name a new request in the next
+process. This prevents stale finalization or cancellation from crossing a
+runtime restart without pretending that pending state is durable.
+
+`tbm-mcp` is a thin, optional STDIO adapter over one process-owned
+`LocalAgentMemory`. It exposes only capability, health, prepare, finalize,
+complete, and cancel tools. The configured checkout root and optional tenant
+are server-owned; prepare captures Trace Git provenance and complete ancestry
+from that root before calling the façade. The adapter does not reproduce Gate
+policy and cannot curate, verify, publish, activate, inspect the raw Store, or
+run migrations.
+
+The STDIO reader bounds each line before JSON decoding, drains an oversized
+line before accepting another request, and applies the shared duplicate-key,
+finite-number, UTF-8, node, and depth checks. Strict tool request models reject
+unknown fields. Transport and request errors become bounded agent envelopes;
+unexpected failures are sanitized. The stable MCP v1 SDK remains an optional
+dependency, so importing the core package and running `tbm` stay
+dependency-free.
+
+The server deliberately retains the façade's process-local session boundary.
+Durable repositories synchronize only the existing Trace, finalized usage
+decision, and measured completion records. Restarting the MCP process abandons
+unfinalized requests and replay tombstones; it does not reconstruct private
+Store tokens from durable data. Per-session request namespaces also ensure a
+stale client handle cannot collide with a newly prepared request after that
+restart.
 
 Execution normally finishes after the decision is logged. The chronological
 runtime path registers an `unknown` current Trace, finalizes memory, executes,
@@ -1092,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 21 resources.
+contains 41 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1203,7 +1251,7 @@ outer transaction, the repository transaction commits normally.
 
 ## Layer 5: PR / CI Memory Report
 
-The in-memory MVP can generate a PR-oriented memory report from the same trace
+The in-memory reference store can generate a PR-oriented memory report from the same trace
 and failure-case stores. It only treats verified, regression-backed failure
 cases with trace `repo` and `tenant` exactly matching the current context as
 reportable historical failures. Traces without repo provenance are not eligible
@@ -1328,6 +1376,36 @@ warnings, or provenance.
 Ancestry evidence is never added to snapshots, usage logs, YAML, schemas, or
 the PostgreSQL repository. The feature changes neither persistence contracts
 nor the existing gate contracts.
+
+## Version-3 migration preparation
+
+The version-3 preparation path is deliberately separate from the runtime
+Store. `SnapshotV3MigrationMapping` supplies explicit canonical repository and
+tenant bindings, authorization scopes, structured regression evidence,
+privileged global-policy approvals, and an explicit ancestry policy.
+`plan_snapshot_v3_migration()` strictly reconstructs one frozen version-2
+source snapshot, validates the mapping, invokes a trusted relation verifier
+when ancestry is required, and returns a deterministic read-only plan with
+stable issue codes. It does not synthesize a partial version-3 snapshot.
+
+`tbm.snapshot.v2-to-v3.bundle.v1` then content-addresses the exact source,
+normalized source state, mapping, and plan. Bundle parsing is bounded and
+duplicate-key rejecting; verification reruns the full preflight and requires
+an exact plan replay. Content addressing detects modification but is not an
+identity signature or evidence attestation.
+
+`SQLiteV3MigrationRepository` stores these inert bundles in separate tables.
+The PostgreSQL operator resources create and remove only
+`trace_backed_memory_v3_staging`; canonical triggers reject ordinary update,
+delete, and truncate statements, while the schema owner and superusers remain
+trusted because they can alter those triggers. Rollback enumerates known
+objects and uses `RESTRICT`, so unexpected objects or external dependencies
+fail closed. Both staging paths remain invisible to the active adapters and
+provide no publication or activation operation.
+Snapshot version 2, SQLite schema version 1, and PostgreSQL schema version 2
+therefore remain the runtime compatibility boundary. The complete contract is
+documented in
+[Version-3 migration bundles and isolated staging](migrations/v3-staging-bundles.md).
 
 ## Non-goals
 

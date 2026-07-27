@@ -1,6 +1,6 @@
-# MVP Roadmap
+# Product Delivery Program
 
-**English** | [简体中文](mvp-roadmap.zh-CN.md)
+**English** | [简体中文](product-program.zh-CN.md)
 
 ## Phase 0: Project framing
 
@@ -1249,7 +1249,69 @@ Track:
   rejection, wheel, sdist, Windows, SQLite, and real PostgreSQL execution.
 - Preserve snapshot version 2 and SQLite schema version 1.
 
-## Phase 74: Deployable trust boundaries and replayable audit (planned)
+## Agent integration foundation (implemented)
+
+- Add `LocalAgentMemory` as the focused local application boundary over the
+  existing Store, Gate, completion, SQLite, and PostgreSQL contracts.
+- Add explicit Git-backed pending Trace capture, capability discovery, stable
+  bounded agent errors, cancellation, callback recovery IDs, and same-runtime
+  exact-decision idempotency.
+- Publish separately versioned `tbm.agent.v1` capability, prepared, finalized,
+  completed, and error schemas with byte-identical packaged examples.
+- Add `tbm capabilities`, root and nested `AGENTS.md`, repository-local
+  maintainer/runtime skills, Codex integration guidance, and one cross-platform
+  verification command.
+- Keep pending Gate requests process-local and report that boundary honestly;
+  do not claim durable MCP/HTTP sessions before the coordinated schema-version-3
+  work.
+- Preserve snapshot version 2, SQLite schema version 1, and PostgreSQL schema
+  version 2.
+
+## Local STDIO MCP runtime (implemented)
+
+- Add optional `trace-backed-memory[mcp]` packaging and the `tbm-mcp` console
+  entry without adding a third-party dependency to the core runtime.
+- Expose only capability/health discovery and the
+  prepare/finalize/complete/cancel runtime lifecycle over one long-running
+  STDIO process; expose no curator, activation, raw Store, snapshot, or
+  migration operation.
+- Fix repository provenance and optional declared tenant in server
+  configuration, capture complete Git ancestry before retrieval, and read
+  PostgreSQL conninfo only from a named environment variable.
+- Bound every input frame before SDK dispatch to 8 MiB, 100,000 JSON nodes,
+  and depth 100; reject duplicate keys, invalid UTF-8, non-finite numbers,
+  unknown request fields, and malformed strict types.
+- Preserve process-local pending requests and replay tombstones, and verify
+  through an actual MCP client that an unfinalized request cannot be resumed
+  after server restart even when durable SQLite records are retained. Give
+  every Store runtime a fresh 128-bit request namespace so a stale handle
+  cannot collide with a new request after restart.
+- Publish synchronized Codex project configuration, runtime policy,
+  architecture, product, README, and repository-skill guidance.
+- Preserve snapshot version 2, SQLite schema version 1, PostgreSQL schema
+  version 2, and the 41-resource distribution contract.
+
+## Phase 74: Deployable trust boundaries and replayable audit (in progress)
+
+- Deliver the read-only `tbm.snapshot.v2-to-v3.mapping.v1` and
+  `tbm.snapshot.v2-to-v3.plan.v1` preflight contracts, strict Python value
+  objects, stable issue codes, canonical SHA-256 binding, packaged
+  Schema/examples, and `tbm migration plan-v3`.
+- Require explicit Trace repository/tenant bindings, memory authorization
+  scopes, structured regression evidence, privileged global-policy approval,
+  and `required`/audited-`disabled` ancestry policy before a mapping is ready.
+- Require a trusted application verifier (or explicitly mapped local Git
+  object databases in the CLI) for `required` ancestry, reject legacy
+  versionless snapshots, normalize semantically unordered mapping fields
+  before hashing, and report every disabled ancestry bypass.
+- Preserve the active snapshot/SQLite/PostgreSQL/agent versions while the
+  preflight is read-only; do not emit an unusable partial version-3 snapshot.
+- Deliver inert `tbm.snapshot.v2-to-v3.bundle.v1` artifacts with exact and
+  normalized source hashes, strict plan replay, bounded duplicate-rejecting
+  JSON, and content-derived identities.
+- Add an immutable, side-by-side SQLite staging repository plus version-gated
+  PostgreSQL staging and rollback scripts. Keep all staging invisible to
+  runtime v2 adapters and expose no activation operation.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

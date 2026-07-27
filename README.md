@@ -8,7 +8,7 @@ A provenance-backed memory layer for LLM / agent harness engineering.
 
 Trace-backed Memory turns provenance-bound agent traces, eval results, and git commits into verified, scoped, auditable memory that can be used selectively during debug, repair, regression analysis, planning, and production runtime.
 
-[Product Overview and Current Capabilities](docs/product.en.md) | [Architecture](docs/architecture.md) | [Memory Usage Policy](docs/usage-policy.md) | [Roadmap](docs/mvp-roadmap.md)
+[Documentation](docs/index.md) | [Product Overview and Current Capabilities](docs/product.en.md) | [Architecture](docs/architecture.md) | [Memory Usage Policy](docs/usage-policy.md) | [Delivery Program](docs/product-program.md)
 
 ## What this is
 
@@ -36,7 +36,7 @@ The system is designed around five rules:
 | Project Policy | Manually maintained prompt/tool/eval policy | Yes, if relevant |
 | Memory Decision | Audit record of why memory was used or blocked | No |
 
-## MVP architecture
+## Reference architecture
 
 ```text
 Git commit / PR / CI
@@ -80,11 +80,88 @@ distribution is marked as typed with `py.typed`. For one-off local commands from
 a checkout, use `$env:PYTHONPATH = "src"` in PowerShell or
 `PYTHONPATH=src` in a POSIX shell.
 
+## Agent-facing local runtime
+
+Applications now have a focused entry point that owns Trace registration,
+prepare/finalize state, durable repository synchronization, completion, and
+stable error envelopes:
+
+```python
+from trace_backed_memory import (
+    LocalAgentMemory,
+    MemoryContext,
+    MemoryRunMeasurement,
+    capture_local_trace,
+)
+
+trace = capture_local_trace(".", tenant="acme", tool_names=("search_docs",))
+context = MemoryContext(
+    mode="repair",
+    repo=trace.repo,
+    tenant=trace.tenant,
+    commit_sha=trace.commit_sha,
+    tool="search_docs",
+)
+
+with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
+    prepared = memory.prepare(
+        trace,
+        context,
+        task="repair the failing search call",
+    )
+    finalized = memory.finalize(
+        prepared.request_id,
+        {
+            "use_memory": False,
+            "allowed_memory_ids": [],
+            "blocked_memory_ids": [],
+            "reason": "No prepared lesson is needed.",
+            "risk": "none",
+            "recommended_injection": "none",
+        },
+    )
+    memory.complete(
+        finalized.decision_id,
+        MemoryRunMeasurement(eval_result="pass"),
+    )
+```
+
+Run `tbm capabilities` to discover the `tbm.agent.v1` protocol, storage modes,
+operations, and hard limits without loading a snapshot. Prepared gate requests
+remain deliberately process-local in the current schema; keep one
+`LocalAgentMemory` instance alive through finalize or cancel. Traces, finalized
+usage decisions, and measured completion are synchronized to SQLite or
+PostgreSQL. See [the agent protocol](docs/protocols/agent-v1.md) and
+[Codex integration guide](docs/integrations/codex.md).
+
+### Long-running local MCP
+
+Install the optional profile and configure Codex to launch the runtime-only
+STDIO server:
+
+```powershell
+python -m pip install -e ".[mcp]"
+New-Item -ItemType Directory -Force .tbm
+tbm-mcp --repo-path . --sqlite .tbm/memory.sqlite3
+```
+
+`tbm-mcp` exposes capability and health discovery plus prepare, finalize,
+complete, and cancel tools. It fixes Git provenance to `--repo-path`, captures
+complete ancestry before retrieval, accepts no curation or activation
+operations, and requires exactly one explicit storage mode. Pending Gate
+requests remain process-local, so Codex must keep the server alive from
+prepare through finalize or cancel; a restart requires a new prepare. Opaque
+request IDs carry a fresh 128-bit Store-session namespace so stale handles
+cannot collide with new requests after restart. See the
+[Codex integration guide](docs/integrations/codex.md) for the project
+`.codex/config.toml` and the exact tool sequence.
+
 ## Packaged Resources
 
 Wheel, source-distribution, and editable installs contain byte-identical copies
-of every file under `schemas/` and `examples/`, plus the canonical failure
-taxonomy and active-lesson YAML example. Resource names come from a strict
+of every canonical runtime file under `schemas/` and `examples/`, plus the
+canonical failure taxonomy and active-lesson YAML example. Contributor control
+files such as `AGENTS.md` are not runtime resources. Resource names come from a strict
 allowlist of canonical POSIX paths; they never resolve arbitrary filesystem
 input:
 
@@ -124,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 21 resources. `PackagedResource` descriptions
+The allowlist currently contains 41 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -278,8 +355,12 @@ Installing the package exposes the dependency-free `tbm` console script. The
 same command surface is available through `python -m trace_backed_memory`:
 
 ```text
+tbm capabilities
 tbm snapshot validate SNAPSHOT
 tbm snapshot stats SNAPSHOT
+tbm migration plan-v3 SNAPSHOT_V2 MAPPING_JSON [--repository-root REPOSITORY_ID=PATH]...
+tbm migration bundle-v3 SNAPSHOT_V2 MAPPING_JSON [--repository-root REPOSITORY_ID=PATH]...
+tbm migration verify-v3-bundle BUNDLE_JSON [--repository-root REPOSITORY_ID=PATH]...
 tbm lessons export SNAPSHOT DESTINATION [--overwrite]
 tbm lessons import SNAPSHOT SOURCE_YAML [--write]
 tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]
@@ -296,9 +377,24 @@ tbm recover SNAPSHOT DECISION_ID [--memory-caused-failure true|false] [--write]
 tbm recover-batch SNAPSHOT DECISION_ID... [--attribution DECISION_ID=true|false]... [--write]
 ```
 
+`tbm capabilities` is snapshot-free and returns the agent protocol contract.
 Each snapshot-backed command loads one local snapshot through the regular
 store validation path. Read commands emit one deterministic JSON value plus a
-newline.
+newline. `migration plan-v3` is a read-only preflight: it validates explicit
+canonical repository/tenant bindings, memory authorization scopes, structured
+regression evidence, privileged global-policy approvals, and ancestry policy.
+Required ancestry is verified against only the explicitly supplied
+`--repository-root` Git object databases; omitting a trusted verifier blocks
+readiness, while an audited `disabled` policy is reported as a warning.
+It reports whether a future coordinated version-3 migration is ready without
+emitting or writing a version-3 snapshot.
+`migration bundle-v3` freezes the exact source, normalized source digest,
+mapping, and plan into an inert content-addressed bundle.
+`migration verify-v3-bundle` revalidates every embedded hash and exactly
+replays the plan. Bundles may be persisted through
+`SQLiteV3MigrationRepository`; they are not runtime snapshots and cannot
+activate memory. See
+[the staging contract](docs/migrations/v3-staging-bundles.md).
 Completion and recovery commands return the serialized completions, ordered
 decision IDs, and a `written` flag. They are dry-run by default: the input
 bytes change only when `--write` is explicit and the complete operation
@@ -1098,7 +1194,7 @@ signed `INTEGER` column supplies the identical upper boundary. Existing
 schema-version-1 databases already enforce that physical maximum and need no
 Phase 47 migration; operators missing the earlier lower-bound CHECK still own
 that constraint migration. Only the canonical and packaged Trace Schema bytes
-change in Phase 47. The current distribution uses the 21-resource allowlist;
+change in Phase 47. The current distribution uses the 41-resource allowlist;
 snapshot version 2 and PostgreSQL schema version 2 are current.
 
 ### Deferred decision outcome sealing
@@ -1533,7 +1629,7 @@ candidates = [
 allowed, blocked = system_gate(context, candidates)
 ```
 
-## Implemented MVP API
+## Implemented public API
 
 The package now implements the README pipeline as dependency-free Python objects and helpers:
 
@@ -1834,7 +1930,7 @@ Implemented pieces:
 - Deterministic System Gate with strict source, declared-scope, status, memory-type, confidence, sensitivity, eval-leak, and mode checks.
 - Gate boundary helpers that validate runtime context JSON and direct-call container/record types before use, require non-empty string tasks and string-or-`None` queries, JSON-quote and cap dynamic gate prompt fields, and bound LLM decision responses to 64 KiB, 1,000 JSON nodes, depth 20, and a 2,000-character reason. Decision ID lists remain capped at 50 each, System Gate cannot be overridden, and every system-approved candidate omitted by the LLM is audited as blocked.
 - Distinct injection renderers: `none` emits nothing, `pointer_only` emits identity and scope, `short_summary` emits a 500-character rule, and `full_case_summary` emits up to 2,000 characters of lesson plus reviewed failure/fix provenance when Store-owned case evidence is available.
-- In-memory MVP store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, optional opt-in Git ancestry filtering before keyword or semantic ranking, debug/repair visibility for verified regression-backed failure cases, Unicode-aware keyword filtering, optional bounded caller-provided semantic scores ranked score-descending with memory-ID-ascending ties, and usage decision logs. The high-level prepare/finalize path deterministically keeps the first 50 system-approved candidates and audits overflow; retrieval cannot bypass either gate.
+- In-memory reference store for trace/case/lesson/project-policy records, metadata-first candidate retrieval that requires all declared scope fields to match, optional opt-in Git ancestry filtering before keyword or semantic ranking, debug/repair visibility for verified regression-backed failure cases, Unicode-aware keyword filtering, optional bounded caller-provided semantic scores ranked score-descending with memory-ID-ascending ties, and usage decision logs. The high-level prepare/finalize path deterministically keeps the first 50 system-approved candidates and audits overflow; retrieval cannot bypass either gate.
 - Usage-log validation and persisted contract that require trace ID, serialized context, candidate status snapshots, System Gate block reasons, and a reason no longer than 2,000 characters; reject empty identities, duplicate imported decision IDs, invalid mode/risk/injection fields, duplicate, empty-string, or non-string memory ID lists, unsupported eval results, unknown runtime memory IDs, and used or blocked memory IDs outside the candidate set.
 - Dependency-free strict JSON snapshot save/load for trace, failure case, lesson, project policy, and usage-log records; non-object snapshots, non-finite floats, over-limit integers, and non-standard JSON numeric constants are rejected while JSON-serializable integer costs remain valid.
 - Aggregate runtime validation for Trace structured JSON: 100,000 nodes,
@@ -1847,7 +1943,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 21 canonical Schemas, examples, and memory
+  explicit atomic export for all 41 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -1900,18 +1996,40 @@ PostgreSQL schema-version-1 installations must apply the packaged
 
 ## Repository layout
 
+Key current paths are shown below; historical design-plan files are omitted.
+
 ```text
 .
+|-- AGENTS.md
+|-- .agents/skills/
+|   |-- maintain-trace-backed-memory/
+|   `-- use-trace-backed-memory/
 |-- docs/
 |   |-- architecture.md
 |   |-- architecture.zh-CN.md
-|   |-- mvp-roadmap.md
-|   |-- mvp-roadmap.zh-CN.md
+|   |-- development.md
+|   |-- development.zh-CN.md
+|   |-- index.md
+|   |-- index.zh-CN.md
+|   |-- integrations/
+|   |   |-- codex.md
+|   |   `-- codex.zh-CN.md
+|   |-- migrations/
+|   |   |-- snapshot-v3-preflight*.md
+|   |   `-- v3-staging-bundles*.md
+|   |-- protocols/
+|   |   |-- agent-v1.md
+|   |   `-- agent-v1.zh-CN.md
+|   |-- product-program.md
+|   |-- product-program.zh-CN.md
 |   |-- product.en.md
 |   |-- product.md
 |   |-- usage-policy.md
 |   `-- usage-policy.zh-CN.md
 |-- examples/
+|   |-- agent_*.example.json
+|   |-- quickstart.py
+|   |-- snapshot_v3_migration_*.example.json
 |   |-- trace.example.json
 |   |-- failure_case.example.json
 |   |-- lesson.example.json
@@ -1923,9 +2041,13 @@ PostgreSQL schema-version-1 installations must apply the packaged
 |   |-- lessons.example.yaml
 |   `-- failure_taxonomy.yaml
 |-- schemas/
+|   |-- agent_*.schema.json
 |   |-- postgres-v1-to-v2.sql
 |   |-- postgres-v2-lock-order-hotfix.sql
+|   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
+|   |-- snapshot_v3_migration_*.schema.json
+|   |-- sqlite-v3-migration.sql
 |   |-- sqlite.sql
 |   |-- trace.schema.json
 |   |-- failure_case.schema.json
@@ -1938,21 +2060,36 @@ PostgreSQL schema-version-1 installations must apply the packaged
 |-- src/trace_backed_memory/
 |   |-- _resources/
 |   |-- _ingestion.py
+|   |-- _timestamps.py
 |   |-- __main__.py
 |   |-- __init__.py
+|   |-- agent.py
 |   |-- capture.py
 |   |-- cli.py
+|   |-- contracts_v3.py
 |   |-- execution.py
 |   |-- extraction.py
 |   |-- lifecycle.py
+|   |-- locking.py
+|   |-- mcp_entry.py
+|   |-- mcp_server.py
+|   |-- migration_v3.py
 |   |-- models.py
 |   |-- policy.py
 |   |-- postgres.py
 |   |-- sqlite.py
+|   |-- sqlite_v3.py
 |   |-- py.typed
 |   |-- resources.py
 |   `-- store.py
 `-- tests/
+    |-- test_agent.py
+    |-- test_contracts_v3.py
+    |-- test_mcp_server.py
+    |-- test_migration_v3.py
+    |-- test_quickstart.py
+    |-- test_sqlite_v3.py
+    |-- test_verify_tool.py
     |-- test_capture.py
     |-- test_cli.py
     |-- test_execution.py
@@ -1960,12 +2097,15 @@ PostgreSQL schema-version-1 installations must apply the packaged
     |-- test_extraction.py
     |-- test_ingestion.py
     |-- test_lifecycle.py
+    |-- test_locking.py
     |-- test_packaging.py
     |-- test_postgres_integration.py
     |-- test_postgres_repository.py
     |-- test_policy.py
     |-- test_readme_api.py
     |-- test_resources.py
+    |-- test_sqlite_repository.py
+    |-- test_store.py
     |-- verify_distribution.py
-    `-- test_store.py
+    `-- ...
 ```

@@ -636,7 +636,7 @@ git commit -m "feat: sync postgres memory lifecycle"
 **Files:**
 - Modify: `README.md`
 - Modify: `docs/architecture.md`
-- Modify: `docs/mvp-roadmap.md`
+- Modify: `docs/product-program.md`
 - Modify: `docs/usage-policy.md`
 - Modify: `tests/test_readme_api.py`
 - Modify: `tests/test_examples_and_schema.py`
@@ -718,7 +718,7 @@ committing if either check fails.
 - [ ] **Step 7: Commit Task 6**
 
 ```powershell
-git add README.md docs/architecture.md docs/mvp-roadmap.md docs/usage-policy.md tests/test_readme_api.py tests/test_examples_and_schema.py
+git add README.md docs/architecture.md docs/product-program.md docs/usage-policy.md tests/test_readme_api.py tests/test_examples_and_schema.py
 git commit -m "docs: publish postgres repository workflow"
 ```
 

@@ -652,7 +652,7 @@ git commit -m "feat: add strict versioned memory snapshots"
 - Modify: `README.md`
 - Modify: `docs/architecture.md`
 - Modify: `docs/usage-policy.md`
-- Modify: `docs/mvp-roadmap.md`
+- Modify: `docs/product-program.md`
 - Modify: `tests/test_examples_and_schema.py`
 - Modify: `tests/test_readme_api.py`
 
@@ -754,7 +754,7 @@ Check `docs/superpowers/specs/2026-07-10-compatible-secure-store-boundary-design
 - [ ] **Step 7: Commit Task 5**
 
 ```bash
-git add README.md docs/architecture.md docs/usage-policy.md docs/mvp-roadmap.md examples/memory_usage_log.example.json schemas/memory_usage_log.schema.json schemas/postgres.sql tests/test_examples_and_schema.py tests/test_readme_api.py
+git add README.md docs/architecture.md docs/usage-policy.md docs/product-program.md examples/memory_usage_log.example.json schemas/memory_usage_log.schema.json schemas/postgres.sql tests/test_examples_and_schema.py tests/test_readme_api.py
 git commit -m "docs: publish secure store workflow contract"
 ```
 

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TraceBackedMemoryAgentError",
+  "type": "object",
+  "required": ["protocol_version", "error"],
+  "properties": {
+    "protocol_version": {"const": "tbm.agent.v1"},
+    "error": {
+      "type": "object",
+      "required": [
+        "code",
+        "category",
+        "message",
+        "operation",
+        "retryable"
+      ],
+      "properties": {
+        "code": {"type": "string", "pattern": "^TBM_[A-Z0-9_]+$"},
+        "category": {
+          "type": "string",
+          "enum": ["input", "state", "persistence", "callback", "closed", "internal"]
+        },
+        "message": {"type": "string", "pattern": "\\S", "maxLength": 2048},
+        "operation": {
+          "type": "string",
+          "enum": ["open", "capture", "prepare", "finalize", "complete", "cancel", "flush", "run", "close"]
+        },
+        "retryable": {"type": "boolean"},
+        "request_id": {"type": "string", "pattern": "\\S", "maxLength": 128},
+        "decision_id": {"type": "string", "pattern": "\\S", "maxLength": 128}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

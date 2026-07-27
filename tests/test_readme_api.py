@@ -539,7 +539,7 @@ def test_readme_suggested_initial_api_still_works():
     assert blocked == {}
 
 
-def test_readme_implemented_mvp_api_pipeline_still_works(tmp_path):
+def test_readme_implemented_public_api_pipeline_still_works(tmp_path):
     def runner(args: list[str], cwd: str | None = None) -> str:
         if args == ["git", "rev-parse", "HEAD"]:
             return "abc123\n"
@@ -771,6 +771,7 @@ def test_readme_publishes_snapshot_operations_cli_contract():
     for command in [
         "tbm snapshot validate SNAPSHOT",
         "tbm snapshot stats SNAPSHOT",
+        "tbm migration plan-v3 SNAPSHOT_V2 MAPPING_JSON",
         "tbm lessons export SNAPSHOT DESTINATION [--overwrite]",
         "tbm lessons import SNAPSHOT SOURCE_YAML [--write]",
         "tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]",
@@ -961,7 +962,7 @@ def test_readme_publishes_and_executes_packaged_resource_contract(tmp_path):
         assert contract in normalized
 
     descriptions = packaged_resources()
-    assert len(descriptions) == 21
+    assert len(descriptions) == 41
     sqlite_expected = read_packaged_resource("schemas/sqlite.sql")
     sqlite_destination = tmp_path / "sqlite.sql"
     assert export_packaged_resource(

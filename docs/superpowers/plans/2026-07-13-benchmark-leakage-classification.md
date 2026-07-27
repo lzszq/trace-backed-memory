@@ -297,7 +297,7 @@ git commit -m "feat: audit automatic benchmark leakage blocks"
 - Modify: `README.md`
 - Modify: `docs/architecture.md`
 - Modify: `docs/usage-policy.md`
-- Modify: `docs/mvp-roadmap.md`
+- Modify: `docs/product-program.md`
 - Modify: `examples/trace.example.json`
 - Modify: `tests/test_readme_api.py`
 - Modify: `tests/test_examples_and_schema.py`
@@ -369,7 +369,7 @@ Expected: all pass with PostgreSQL schema version 1 and snapshot version 2.
 - [ ] **Step 7: Commit Task 4**
 
 ```powershell
-git add README.md docs/architecture.md docs/usage-policy.md docs/mvp-roadmap.md examples/trace.example.json tests/test_readme_api.py tests/test_examples_and_schema.py tests/test_postgres_repository.py tests/test_store.py
+git add README.md docs/architecture.md docs/usage-policy.md docs/product-program.md examples/trace.example.json tests/test_readme_api.py tests/test_examples_and_schema.py tests/test_postgres_repository.py tests/test_store.py
 git commit -m "docs: publish benchmark leakage workflow"
 ```
 

@@ -1,6 +1,6 @@
 {
   "decision_id": "decision_000001",
-  "request_id": "gate_request_000001",
+  "request_id": "gate_request_0123456789abcdef0123456789abcdef_000001",
   "run_id": "run_001",
   "mode": "repair",
   "candidate_memory_ids": ["lesson_001"],

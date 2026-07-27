@@ -1,0 +1,25 @@
+{
+  "protocol_version": "tbm.agent.v1",
+  "snapshot_version": 2,
+  "sqlite_schema_version": 1,
+  "postgres_schema_version": 2,
+  "storage_modes": ["memory", "sqlite", "postgres"],
+  "operations": ["capture", "prepare", "finalize", "complete", "cancel", "run", "flush", "health"],
+  "modes": ["debug", "repair", "regression", "planning", "eval", "production"],
+  "limits": {
+    "gate_candidates": 50,
+    "gate_prompt_chars": 32000,
+    "gate_response_bytes": 65536,
+    "gate_response_nodes": 1000,
+    "gate_response_depth": 20,
+    "decision_reason_chars": 2000,
+    "injection_memories": 20,
+    "injection_chars": 12000,
+    "prepared_request_candidates": 1000,
+    "pending_requests": 1000,
+    "pending_candidate_references": 100000,
+    "finalized_request_replays": 10000
+  },
+  "durable_records": ["traces", "failure_cases", "lessons", "project_policies", "usage_logs"],
+  "process_local_records": ["pending_gate_requests", "finalized_gate_requests"]
+}

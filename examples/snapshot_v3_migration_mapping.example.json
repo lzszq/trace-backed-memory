@@ -1,0 +1,107 @@
+{
+  "ancestry_policy": {
+    "bypass_reason": null,
+    "mode": "required"
+  },
+  "global_policy_approvals": [
+    {
+      "approved_at": "2026-07-27T00:00:00Z",
+      "authorization_event_id": "authorization_global_policy_001",
+      "policy_id": "policy_global_001",
+      "principal_id": "principal_policy_admin_001",
+      "reason": "Approved by the privileged global-policy workflow."
+    }
+  ],
+  "mapping_version": "tbm.snapshot.v2-to-v3.mapping.v1",
+  "memory_scopes": [
+    {
+      "memory_id": "lesson_search_001",
+      "memory_kind": "lesson",
+      "scope": {
+        "attributes": {
+          "tool": "search_docs"
+        },
+        "kind": "repository",
+        "repository_id": "repository_001",
+        "tenant_id": "tenant_001"
+      }
+    },
+    {
+      "memory_id": "policy_global_001",
+      "memory_kind": "project_policy",
+      "scope": {
+        "attributes": {
+          "tool": "search_docs"
+        },
+        "kind": "global",
+        "repository_id": null,
+        "tenant_id": null
+      }
+    }
+  ],
+  "regression_evidence": [
+    {
+      "artifact_hashes": [
+        "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      ],
+      "case_id": "case_search_001",
+      "eval_case_id": "search_docs_non_empty_query",
+      "eval_suite": "tool_contract_regressions",
+      "evaluated_commit_sha": "commit_fix_001",
+      "evaluator_id": "evaluator_ci_001",
+      "evaluator_version": "1",
+      "evidence_id": "regression_evidence_001",
+      "fix_to_regression": {
+        "from_commit_sha": "commit_fix_001",
+        "relation": "ancestor",
+        "to_commit_sha": "commit_fix_001",
+        "verified_at": "2026-07-27T00:00:00Z",
+        "verified_by": "principal_ci_001"
+      },
+      "observed_at": "2026-07-27T00:00:00Z",
+      "regression_run_id": "run_regression_001",
+      "regression_trace_id": "trace_regression_001",
+      "result": "pass",
+      "source_to_fix": {
+        "from_commit_sha": "commit_failure_001",
+        "relation": "ancestor",
+        "to_commit_sha": "commit_fix_001",
+        "verified_at": "2026-07-27T00:00:00Z",
+        "verified_by": "principal_ci_001"
+      }
+    }
+  ],
+  "repositories": [
+    {
+      "canonical_locator_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "display_name": "trace-backed-memory",
+      "legacy_aliases": [
+        "trace-backed-memory"
+      ],
+      "provider": "github",
+      "provider_repository_id": "123456789",
+      "repository_id": "repository_001"
+    }
+  ],
+  "tenants": [
+    {
+      "display_name": "Example engineering team",
+      "legacy_aliases": [
+        "example-team"
+      ],
+      "tenant_id": "tenant_001"
+    }
+  ],
+  "trace_bindings": [
+    {
+      "repository_id": "repository_001",
+      "tenant_id": "tenant_001",
+      "trace_id": "trace_failure_001"
+    },
+    {
+      "repository_id": "repository_001",
+      "tenant_id": "tenant_001",
+      "trace_id": "trace_regression_001"
+    }
+  ]
+}

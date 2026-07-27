@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import errno
+import json
+import math
 import os
 from pathlib import Path
 import stat
@@ -34,6 +36,97 @@ def unique_json_object_pairs(
             )
         result[key] = value
     return result
+
+
+def parse_bounded_json(
+    source_text: str,
+    *,
+    description: str,
+    max_nodes: int,
+    max_depth: int,
+    source: str | Path | None = None,
+) -> Any:
+    """Parse one duplicate-rejecting, finite, bounded JSON document."""
+    if type(source_text) is not str:
+        raise ValueError("source_text must be a string")
+    _validate_positive_limit(max_nodes, "max_nodes")
+    validate_non_negative_limit(max_depth, "max_depth")
+    if not isinstance(description, str) or not description.strip():
+        raise ValueError("description must be a nonblank string")
+
+    def reject_non_finite(value: str) -> Any:
+        raise ValueError(
+            f"{description} JSON contains non-finite number: {value}"
+        )
+
+    def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        return unique_json_object_pairs(
+            pairs,
+            description=description,
+        )
+
+    try:
+        payload: Any = json.loads(
+            source_text,
+            parse_constant=reject_non_finite,
+            object_pairs_hook=unique_object,
+        )
+    except (json.JSONDecodeError, RecursionError) as error:
+        location = f" in {source}" if source is not None else ""
+        raise ValueError(
+            f"invalid {description} JSON{location}: {error}"
+        ) from error
+
+    node_count = 0
+    pending = [(payload, 0)]
+    while pending:
+        value, depth = pending.pop()
+        if depth > max_depth:
+            raise ValueError(
+                f"{description} JSON exceeds maximum depth of {max_depth}"
+            )
+        node_count += 1
+        if node_count > max_nodes:
+            raise ValueError(
+                f"{description} JSON contains more than {max_nodes} nodes"
+            )
+        if type(value) is float and not math.isfinite(value):
+            raise ValueError(
+                f"{description} JSON contains non-finite number"
+            )
+        if type(value) is str:
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError as error:
+                raise ValueError(
+                    f"{description} JSON contains an invalid Unicode string"
+                ) from error
+            continue
+        if type(value) is list:
+            if len(value) > max_nodes - node_count:
+                raise ValueError(
+                    f"{description} JSON contains more than "
+                    f"{max_nodes} nodes"
+                )
+            pending.extend((item, depth + 1) for item in value)
+            continue
+        if type(value) is dict:
+            if len(value) > max_nodes - node_count:
+                raise ValueError(
+                    f"{description} JSON contains more than "
+                    f"{max_nodes} nodes"
+                )
+            for key in value:
+                try:
+                    key.encode("utf-8")
+                except UnicodeEncodeError as error:
+                    raise ValueError(
+                        f"{description} JSON contains an invalid Unicode key"
+                    ) from error
+            pending.extend(
+                (item, depth + 1) for item in value.values()
+            )
+    return payload
 
 
 def read_bounded_utf8(

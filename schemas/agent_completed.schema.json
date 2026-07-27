@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TraceBackedMemoryAgentCompleted",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "request_id",
+    "trace_id",
+    "run_id",
+    "decision_id",
+    "eval_result",
+    "memory_caused_failure"
+  ],
+  "properties": {
+    "protocol_version": {"const": "tbm.agent.v1"},
+    "request_id": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 128
+    },
+    "trace_id": {"type": "string", "pattern": "\\S", "maxLength": 128},
+    "run_id": {"type": "string", "pattern": "\\S", "maxLength": 128},
+    "decision_id": {"type": "string", "pattern": "\\S", "maxLength": 128},
+    "eval_result": {"type": "string", "enum": ["pass", "fail", "error"]},
+    "memory_caused_failure": {"type": "boolean"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,11 @@
+{
+  "protocol_version": "tbm.agent.v1",
+  "error": {
+    "code": "TBM_AGENT_REQUEST_NOT_FOUND",
+    "category": "state",
+    "message": "Prepared request is not available in this process.",
+    "operation": "finalize",
+    "retryable": false,
+    "request_id": "gate_request_0123456789abcdef0123456789abcdef_000001"
+  }
+}

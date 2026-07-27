@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TraceBackedMemoryAgentCapabilities",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "snapshot_version",
+    "sqlite_schema_version",
+    "postgres_schema_version",
+    "storage_modes",
+    "operations",
+    "modes",
+    "limits",
+    "durable_records",
+    "process_local_records"
+  ],
+  "properties": {
+    "protocol_version": {"const": "tbm.agent.v1"},
+    "snapshot_version": {"type": "integer", "minimum": 1},
+    "sqlite_schema_version": {"type": "integer", "minimum": 1},
+    "postgres_schema_version": {"type": "integer", "minimum": 1},
+    "storage_modes": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["memory", "sqlite", "postgres"]},
+      "uniqueItems": true
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["capture", "prepare", "finalize", "complete", "cancel", "run", "flush", "health"]
+      },
+      "uniqueItems": true
+    },
+    "modes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["debug", "repair", "regression", "planning", "eval", "production"]
+      },
+      "uniqueItems": true
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "gate_candidates": {"type": "integer", "minimum": 0},
+        "gate_prompt_chars": {"type": "integer", "minimum": 0},
+        "gate_response_bytes": {"type": "integer", "minimum": 0},
+        "gate_response_nodes": {"type": "integer", "minimum": 0},
+        "gate_response_depth": {"type": "integer", "minimum": 0},
+        "decision_reason_chars": {"type": "integer", "minimum": 0},
+        "injection_memories": {"type": "integer", "minimum": 0},
+        "injection_chars": {"type": "integer", "minimum": 0},
+        "prepared_request_candidates": {"type": "integer", "minimum": 0},
+        "pending_requests": {"type": "integer", "minimum": 0},
+        "pending_candidate_references": {"type": "integer", "minimum": 0},
+        "finalized_request_replays": {"type": "integer", "minimum": 0}
+      },
+      "required": [
+        "gate_candidates",
+        "gate_prompt_chars",
+        "gate_response_bytes",
+        "gate_response_nodes",
+        "gate_response_depth",
+        "decision_reason_chars",
+        "injection_memories",
+        "injection_chars",
+        "prepared_request_candidates",
+        "pending_requests",
+        "pending_candidate_references",
+        "finalized_request_replays"
+      ],
+      "additionalProperties": false
+    },
+    "durable_records": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "\\S"},
+      "uniqueItems": true
+    },
+    "process_local_records": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "\\S"},
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

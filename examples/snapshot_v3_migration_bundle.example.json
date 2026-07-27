@@ -1,0 +1,62 @@
+{
+  "bundle_id": "sha256:a556b3add131524d81129b313e8c468eac9d79154c54db43a7ffe18d638d537c",
+  "bundle_version": "tbm.snapshot.v2-to-v3.bundle.v1",
+  "mapping": {
+    "ancestry_policy": {
+      "bypass_reason": "No commit-bearing evidence exists in this empty staging example.",
+      "mode": "disabled"
+    },
+    "global_policy_approvals": [],
+    "mapping_version": "tbm.snapshot.v2-to-v3.mapping.v1",
+    "memory_scopes": [],
+    "regression_evidence": [],
+    "repositories": [],
+    "tenants": [],
+    "trace_bindings": []
+  },
+  "mapping_sha256": "sha256:9c28475a4d1e7748b3a2055d236397b5b78294fac17e1d0b885138c5bd96933c",
+  "normalized_source_snapshot_sha256": "sha256:fa0e6e4c941c57c34175e4566a365e01e228ecc13abf6bb02e74ce28acc3f694",
+  "plan": {
+    "counts": {
+      "errors": 0,
+      "failure_cases": 0,
+      "lessons": 0,
+      "mapped_scopes": 0,
+      "project_policies": 0,
+      "regression_evidence": 0,
+      "repositories": 0,
+      "tenants": 0,
+      "traces": 0,
+      "usage_logs": 0,
+      "warnings": 1
+    },
+    "issues": [
+      {
+        "code": "TBM_V3_ANCESTRY_DISABLED",
+        "message": "commit ancestry verification is disabled under an explicit operator bypass",
+        "record_id": "*",
+        "record_kind": "ancestry_policy",
+        "severity": "warning"
+      }
+    ],
+    "mapping_sha256": "sha256:9c28475a4d1e7748b3a2055d236397b5b78294fac17e1d0b885138c5bd96933c",
+    "plan_version": "tbm.snapshot.v2-to-v3.plan.v1",
+    "ready": true,
+    "source_snapshot_sha256": "sha256:fa0e6e4c941c57c34175e4566a365e01e228ecc13abf6bb02e74ce28acc3f694",
+    "source_snapshot_version": 2,
+    "target_snapshot_version": 3
+  },
+  "plan_sha256": "sha256:b5626e957c36dc7f692df8464072a494d0517694659cd1c6ff54205c9b1fd900",
+  "source_snapshot": {
+    "failure_cases": [],
+    "lessons": [],
+    "project_policies": [],
+    "snapshot_version": 2,
+    "traces": [],
+    "usage_logs": []
+  },
+  "source_snapshot_sha256": "sha256:fa0e6e4c941c57c34175e4566a365e01e228ecc13abf6bb02e74ce28acc3f694",
+  "source_snapshot_version": 2,
+  "state": "ready",
+  "target_snapshot_version": 3
+}

@@ -1498,7 +1498,8 @@ def test_invalid_semantic_prepare_does_not_consume_request_id():
         )
 
     request = store.prepare_memory(context, task="repair")
-    assert request.request_id == "gate_request_000001"
+    assert request.request_id.startswith("gate_request_")
+    assert request.request_id.endswith("_000001")
 
 
 def test_prepare_memory_validates_context_before_empty_candidate_registration():
@@ -1514,7 +1515,8 @@ def test_prepare_memory_validates_context_before_empty_candidate_registration():
         MemoryContext(mode="repair", repo="repo", commit_sha="abc"),
         task="repair",
     )
-    assert request.request_id == "gate_request_000001"
+    assert request.request_id.startswith("gate_request_")
+    assert request.request_id.endswith("_000001")
 
 
 def test_gate_request_cannot_cross_stores_or_be_replayed():
@@ -1593,7 +1595,7 @@ def test_cancel_memory_request_releases_pending_capacity(
 
     store.cancel_memory_request(first)
     second = store.prepare_memory(context, task="repair")
-    assert second.request_id == "gate_request_000002"
+    assert second.request_id.endswith("_000002")
     with pytest.raises(ValueError, match="does not belong"):
         store.cancel_memory_request(first)
 
@@ -1628,6 +1630,58 @@ def test_v2_snapshot_without_request_id_remains_compatible():
 
     assert restored.usage_logs[0].request_id is None
     assert restored.to_snapshot()["usage_logs"][0]["request_id"] is None
+
+
+def test_snapshot_restores_gate_request_counter_from_usage_audit():
+    store, trace, _case, lesson = store_with_active_lesson()
+    first = store.prepare_memory(
+        matching_context(trace),
+        task="repair",
+        trace_id=trace.trace_id,
+    )
+    store.finalize_memory(
+        first,
+        allow_decision(lesson.lesson_id),
+        trace_id=trace.trace_id,
+    )
+
+    restored = TraceBackedMemoryStore.from_snapshot(
+        store.to_snapshot()
+    )
+    second = restored.prepare_memory(
+        matching_context(trace),
+        task="repair",
+        trace_id=trace.trace_id,
+    )
+
+    assert first.request_id.endswith("_000001")
+    assert second.request_id.endswith("_000002")
+
+
+def test_snapshot_restores_counter_from_legacy_gate_request_id():
+    store, trace, _case, lesson = store_with_active_lesson()
+    request = store.prepare_memory(
+        matching_context(trace),
+        task="repair",
+        trace_id=trace.trace_id,
+    )
+    store.finalize_memory(
+        request,
+        allow_decision(lesson.lesson_id),
+        trace_id=trace.trace_id,
+    )
+    snapshot = store.to_snapshot()
+    snapshot["usage_logs"][0]["request_id"] = "gate_request_000007"
+
+    restored = TraceBackedMemoryStore.from_snapshot(snapshot)
+    current = restored.prepare_memory(
+        matching_context(trace),
+        task="repair",
+        trace_id=trace.trace_id,
+    )
+
+    assert current.request_id.endswith("_000008")
+    assert current.request_id != "gate_request_000008"
 
 
 def test_finalize_rechecks_memory_obsoleted_after_prepare():
@@ -7623,9 +7677,10 @@ def test_invalid_ancestry_prepare_does_not_consume_request_id():
             commit_ancestry=CommitAncestryEvidence("other", ()),
         )
 
-    assert store.prepare_memory(context, task="repair").request_id == (
-        "gate_request_000001"
-    )
+    assert store.prepare_memory(
+        context,
+        task="repair",
+    ).request_id.endswith("_000001")
 
 
 def test_prepare_uses_ancestry_without_persisting_evidence():
@@ -11869,7 +11924,7 @@ def test_prepare_memory_rejects_malformed_inputs_without_consuming_request_id(
         store.prepare_memory(context, **invalid_kwargs)  # type: ignore[arg-type]
 
     request = store.prepare_memory(context, task="repair")
-    assert request.request_id == "gate_request_000001"
+    assert request.request_id.endswith("_000001")
 
 
 @pytest.mark.parametrize(

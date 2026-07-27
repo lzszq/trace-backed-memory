@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lzszq/trace-backed-memory/schemas/snapshot_v3_migration_bundle.schema.json",
+  "title": "Trace-backed Memory inert snapshot v3 migration bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bundle_version",
+    "bundle_id",
+    "state",
+    "source_snapshot_version",
+    "target_snapshot_version",
+    "source_snapshot_sha256",
+    "normalized_source_snapshot_sha256",
+    "mapping_sha256",
+    "plan_sha256",
+    "source_snapshot",
+    "mapping",
+    "plan"
+  ],
+  "properties": {
+    "bundle_version": {
+      "const": "tbm.snapshot.v2-to-v3.bundle.v1"
+    },
+    "bundle_id": {
+      "$ref": "#/$defs/digest"
+    },
+    "state": {
+      "enum": [
+        "blocked",
+        "ready"
+      ]
+    },
+    "source_snapshot_version": {
+      "const": 2
+    },
+    "target_snapshot_version": {
+      "const": 3
+    },
+    "source_snapshot_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "normalized_source_snapshot_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "mapping_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "plan_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "source_snapshot": {
+      "$ref": "memory_store_snapshot.schema.json"
+    },
+    "mapping": {
+      "$ref": "snapshot_v3_migration_mapping.schema.json"
+    },
+    "plan": {
+      "$ref": "snapshot_v3_migration_plan.schema.json"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "ready"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "plan": {
+            "properties": {
+              "ready": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "blocked"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "plan": {
+            "properties": {
+              "ready": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

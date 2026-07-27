@@ -1,10 +1,13 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.coverage
+htmlcov/
 .venv/
 .env
 .env.*
 !.env.example
+.tbm/
 *.pem
 *.key
 id_rsa

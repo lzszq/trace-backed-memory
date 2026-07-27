@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-21 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration 和可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本。
+41 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging 与显式 rollback 资源。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -153,6 +153,35 @@ System Gate 后，LLM 只判断候选的语义适用性。推荐 prompt 必须�
 使用 `prepare_memory()` 检索、运行 System Gate 并创建有界 LLM prompt。若超过 50 个候选通过 System Gate，则按确定性候选顺序保留前 50 个，并把溢出项记录为 `LLM gate candidate limit exceeded`；再把 decision payload 与 Trace ID 传给 `finalize_memory()`。它重新验证陈旧状态、将 LLM decision 作为缩窄操作、渲染 snippet，并原子记录 context、候选状态和 block reason。只有该工作流提供所有权、重放、陈旧状态、Trace linkage 与原子日志保证。
 
 常见同步路径使用 `run_memory_execution()`。调用方提供 decision callback 与 execution callback，并返回显式 `MemoryRunMeasurement`。模块使用 Store decision ID 并委托 `complete_memory_run()`；不得从异常猜测 outcome、failure attribution 或 evidence。
+
+应用可以使用 `LocalAgentMemory` 隐藏 Store/Repository plumbing，但仍必须遵循
+同一 Gate 序列。调用方只能在 `system_allowed_memory_ids` 上提交缩小 decision，
+执行时只能使用 `AgentFinalizedMemory.snippet`，随后提供显式
+`MemoryRunMeasurement`；放弃的 prepared request 必须 cancel。
+
+门面会持久化 durable phase，但不会把 pending request 变为 durable。必须由同一
+runtime 实例 finalize/cancel。稳定 `AgentMemoryError` code 用于恢复；callback
+失败会暴露下一合法阶段所需的 request/decision ID，不得重启整个一次性序列制造
+重复运行。`tbm capabilities` 是该边界的权威能力发现输出。
+
+可选的 `tbm-mcp` 进程遵循同一规则。runtime client 必须先调用
+`tbm_prepare_memory`，只在返回的 `system_allowed_memory_ids` 上缩小 decision，
+再调用 `tbm_finalize_memory`，并且只把返回的 `snippet` 提供给 executor。之后
+必须用显式 measurement 调用 `tbm_complete_run`；若尚未 finalization 就放弃，
+则调用 `tbm_cancel_run`。server 不得暴露 lesson verification、publication、
+activation、原始 Store、snapshot 或 migration 操作。
+
+MCP 部署必须配置一个固定 checkout root 和一种显式 storage mode。Git provenance
+与 ancestry 来自该 root，而不是模型。PostgreSQL conninfo 必须通过命名环境变量
+提供，不能写入项目配置。可选固定 tenant 在 version 2 中仍是 declared-scope
+适用性，不能宣称为授权。
+
+每个 STDIO 输入帧在 SDK dispatch 前限制为 8 MiB、100,000 个 JSON nodes 与
+depth 100，并拒绝 duplicate key、非法 UTF-8 与非有限数字。即使配置 durable
+storage，pending request 仍为进程内状态。server 重启后必须重新 prepare，不得
+重建或重放私有 request token。每个 request ID 都是 opaque、session-scoped
+handle；新的 128-bit namespace 可防止遗留 ID 在重启后与新 prepared request
+碰撞。
 
 prepare 后的 `MemoryRunExecutionError` 保留阶段、原始 cause、request，以及可用的 finalized result/decision ID。一次 helper 调用会创建新 request，重试必须基于错误暴露状态，而不是重跑整个 helper。
 

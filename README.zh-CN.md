@@ -8,7 +8,7 @@
 
 Trace-backed Memory 将绑定来源的 Agent Trace、评估结果和 Git 提交，转化为经过验证、受作用域约束且可审计的记忆，并允许系统在调试、修复、回归分析、规划和生产运行时有选择地使用这些记忆。
 
-[产品概览与当前能力](docs/product.md) | [架构](docs/architecture.zh-CN.md) | [记忆使用策略](docs/usage-policy.zh-CN.md) | [路线图](docs/mvp-roadmap.zh-CN.md)
+[文档索引](docs/index.zh-CN.md) | [产品概览与当前能力](docs/product.md) | [架构](docs/architecture.zh-CN.md) | [记忆使用策略](docs/usage-policy.zh-CN.md) | [交付计划](docs/product-program.zh-CN.md)
 
 ## 项目定位
 
@@ -36,7 +36,7 @@ Trace -> 失败案例 -> 已验证经验 -> 经门控的运行时记忆
 | Project Policy | 人工维护的提示词、工具或评估策略 | 是，但必须相关 |
 | Memory Decision | 记录记忆为何被使用或阻止的审计事件 | 否 |
 
-## MVP 架构
+## 参考架构
 
 ```text
 Git commit / PR / CI
@@ -76,9 +76,75 @@ python -m pip install -e .
 
 也可以使用 `pip` 安装构建出的 wheel 或源码分发包。发行包通过 `py.typed` 标记为带类型信息。若只需从检出目录执行一次本地命令，PowerShell 使用 `$env:PYTHONPATH = "src"`，POSIX shell 使用 `PYTHONPATH=src`。
 
+## 面向 Agent 的本地运行接口
+
+应用现在可以从一个聚焦入口完成 Trace 注册、prepare/finalize 状态管理、Repository 同步、结果完成和稳定错误封装：
+
+```python
+from trace_backed_memory import (
+    LocalAgentMemory,
+    MemoryContext,
+    MemoryRunMeasurement,
+    capture_local_trace,
+)
+
+trace = capture_local_trace(".", tenant="acme", tool_names=("search_docs",))
+context = MemoryContext(
+    mode="repair",
+    repo=trace.repo,
+    tenant=trace.tenant,
+    commit_sha=trace.commit_sha,
+    tool="search_docs",
+)
+
+with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
+    prepared = memory.prepare(
+        trace,
+        context,
+        task="repair the failing search call",
+    )
+    finalized = memory.finalize(
+        prepared.request_id,
+        {
+            "use_memory": False,
+            "allowed_memory_ids": [],
+            "blocked_memory_ids": [],
+            "reason": "No prepared lesson is needed.",
+            "risk": "none",
+            "recommended_injection": "none",
+        },
+    )
+    memory.complete(
+        finalized.decision_id,
+        MemoryRunMeasurement(eval_result="pass"),
+    )
+```
+
+`tbm capabilities` 不需要加载快照即可返回 `tbm.agent.v1` 协议、存储模式、操作和硬限制。当前 schema 中，prepared gate request 仍有意保留为进程内状态，因此必须让同一个 `LocalAgentMemory` 实例存活到 finalize 或 cancel。Trace、finalized usage decision 和 measured completion 会同步到 SQLite 或 PostgreSQL。更多说明见 [Agent 协议](docs/protocols/agent-v1.zh-CN.md) 与 [Codex 集成指南](docs/integrations/codex.zh-CN.md)。
+
+### 长驻本地 MCP
+
+安装可选 profile，并让 Codex 启动 runtime-only STDIO server：
+
+```powershell
+python -m pip install -e ".[mcp]"
+New-Item -ItemType Directory -Force .tbm
+tbm-mcp --repo-path . --sqlite .tbm/memory.sqlite3
+```
+
+`tbm-mcp` 暴露 capability/health discovery，以及 prepare、finalize、complete
+和 cancel 工具。它把 Git provenance 固定到 `--repo-path`，在检索前捕获完整
+ancestry，不提供 curation 或 activation 操作，并要求显式且只能选择一种存储。
+Pending Gate request 仍为进程内状态，因此 Codex 必须让 server 从 prepare
+存活到 finalize 或 cancel；重启后必须重新 prepare。opaque request ID 带有新的
+128-bit Store-session namespace，因此 stale handle 不会与重启后的新 request
+碰撞。项目
+`.codex/config.toml` 与精确工具顺序见
+[Codex 集成指南](docs/integrations/codex.zh-CN.md)。
+
 ## 打包资源
 
-wheel、源码分发包和可编辑安装都会提供 `schemas/` 与 `examples/` 下文件的字节一致副本，以及规范的失败分类体系和 active lesson YAML 示例。资源名来自严格的 POSIX 规范路径白名单，不能借此读取任意文件系统路径。
+wheel、源码分发包和可编辑安装都会提供 `schemas/` 与 `examples/` 下规范运行时文件的字节一致副本，以及规范的失败分类体系和 active lesson YAML 示例。`AGENTS.md` 等贡献者指引不属于运行时资源。资源名来自严格的 POSIX 规范路径白名单，不能借此读取任意文件系统路径。
 
 ```text
 tbm resource list
@@ -110,7 +176,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 21 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 41 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -155,8 +221,12 @@ Store 将 `Trace.retrieved_context`、`Trace.tool_calls` 和 `Trace.tool_outputs
 安装包提供无依赖的 `tbm` 控制台命令，也可以通过 `python -m trace_backed_memory` 调用同一接口：
 
 ```text
+tbm capabilities
 tbm snapshot validate SNAPSHOT
 tbm snapshot stats SNAPSHOT
+tbm migration plan-v3 SNAPSHOT_V2 MAPPING_JSON [--repository-root REPOSITORY_ID=PATH]...
+tbm migration bundle-v3 SNAPSHOT_V2 MAPPING_JSON [--repository-root REPOSITORY_ID=PATH]...
+tbm migration verify-v3-bundle BUNDLE_JSON [--repository-root REPOSITORY_ID=PATH]...
 tbm lessons export SNAPSHOT DESTINATION [--overwrite]
 tbm lessons import SNAPSHOT SOURCE_YAML [--write]
 tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]
@@ -173,7 +243,13 @@ tbm recover SNAPSHOT DECISION_ID [--memory-caused-failure true|false] [--write]
 tbm recover-batch SNAPSHOT DECISION_ID... [--attribution DECISION_ID=true|false]... [--write]
 ```
 
-每个快照命令都通过标准 Store 验证路径加载一次本地快照。读取命令输出一个确定性 JSON 值和换行。完成、恢复和生命周期变更默认只预演；只有显式 `--write` 且整个操作成功时才会原子替换输入快照。
+`tbm capabilities` 不读取快照，直接返回 Agent 协议契约。每个快照命令都通过标准 Store 验证路径加载一次本地快照。读取命令输出一个确定性 JSON 值和换行。`migration plan-v3` 是只读预检：它验证显式 canonical repository/tenant binding、memory authorization scope、结构化 regression evidence、global-policy privileged approval 与 ancestry policy。`required` ancestry 只会针对显式提供的 `--repository-root` Git 对象库执行验证；缺少可信 verifier 会阻止 ready，而带审计 reason 的 `disabled` policy 会产生 warning。它只报告未来协同 version-3 迁移是否 ready，不会生成或写入 version-3 snapshot。完成、恢复和生命周期变更默认只预演；只有显式 `--write` 且整个操作成功时才会原子替换输入快照。
+
+`migration bundle-v3` 会把原始 source、normalized source digest、mapping 与
+plan 冻结为不可激活的 content-addressed bundle；`migration
+verify-v3-bundle` 会复验所有内嵌 hash 并精确重放 plan。Bundle 可通过
+`SQLiteV3MigrationRepository` 持久化，但它不是 runtime snapshot，也不能激活
+memory。详见 [staging 契约](docs/migrations/v3-staging-bundles.zh-CN.md)。
 
 `recover-batch` 在重复项检查前统计提交值，decision ID 与 attribution 各自最多接受 10,000 项。每个 `--attribution DECISION_ID=true|false` 使用最后一个 `=` 作为分隔符，因此 `decision=regional` 这样的 ID 仍可寻址；后缀必须是严格的小写 `true` 或 `false`。
 
@@ -648,7 +724,7 @@ allowed, blocked = system_gate(context, candidates)
 
 System Gate 负责严格来源、tenant-aware 作用域、状态、记忆类型、置信度、敏感性、评估泄漏和模式检查。它不能被后续 LLM decision 绕过。
 
-## 已实现的 MVP API
+## 已实现的公共 API
 
 包根导出完整的模型、生命周期、门控、持久化、资源、捕获和执行接口。下面给出一条从失败 Trace 到已验证 lesson，再到运行时使用与原子完成的最小主流程：
 
@@ -772,7 +848,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、21 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、41 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -808,20 +884,42 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 
 ## 仓库布局
 
+下方列出当前关键路径；历史设计计划文件从略。
+
 ```text
 .
 |-- README.md
 |-- README.zh-CN.md
+|-- AGENTS.md
+|-- .agents/skills/
+|   |-- maintain-trace-backed-memory/
+|   `-- use-trace-backed-memory/
 |-- docs/
 |   |-- architecture.md
 |   |-- architecture.zh-CN.md
-|   |-- mvp-roadmap.md
-|   |-- mvp-roadmap.zh-CN.md
+|   |-- development.md
+|   |-- development.zh-CN.md
+|   |-- index.md
+|   |-- index.zh-CN.md
+|   |-- integrations/
+|   |   |-- codex.md
+|   |   `-- codex.zh-CN.md
+|   |-- migrations/
+|   |   |-- snapshot-v3-preflight*.md
+|   |   `-- v3-staging-bundles*.md
+|   |-- protocols/
+|   |   |-- agent-v1.md
+|   |   `-- agent-v1.zh-CN.md
+|   |-- product-program.md
+|   |-- product-program.zh-CN.md
 |   |-- product.en.md
 |   |-- product.md
 |   |-- usage-policy.md
 |   `-- usage-policy.zh-CN.md
 |-- examples/
+|   |-- agent_*.example.json
+|   |-- quickstart.py
+|   |-- snapshot_v3_migration_*.example.json
 |   |-- trace.example.json
 |   |-- failure_case.example.json
 |   |-- lesson.example.json
@@ -833,9 +931,13 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- lessons.example.yaml
 |   `-- failure_taxonomy.yaml
 |-- schemas/
+|   |-- agent_*.schema.json
 |   |-- postgres-v1-to-v2.sql
 |   |-- postgres-v2-lock-order-hotfix.sql
+|   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
+|   |-- snapshot_v3_migration_*.schema.json
+|   |-- sqlite-v3-migration.sql
 |   |-- sqlite.sql
 |   |-- trace.schema.json
 |   |-- failure_case.schema.json
@@ -848,21 +950,36 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |-- src/trace_backed_memory/
 |   |-- _resources/
 |   |-- _ingestion.py
+|   |-- _timestamps.py
 |   |-- __main__.py
 |   |-- __init__.py
+|   |-- agent.py
 |   |-- capture.py
 |   |-- cli.py
+|   |-- contracts_v3.py
 |   |-- execution.py
 |   |-- extraction.py
 |   |-- lifecycle.py
+|   |-- locking.py
+|   |-- mcp_entry.py
+|   |-- mcp_server.py
+|   |-- migration_v3.py
 |   |-- models.py
 |   |-- policy.py
 |   |-- postgres.py
 |   |-- sqlite.py
+|   |-- sqlite_v3.py
 |   |-- py.typed
 |   |-- resources.py
 |   `-- store.py
 `-- tests/
+    |-- test_agent.py
+    |-- test_contracts_v3.py
+    |-- test_mcp_server.py
+    |-- test_migration_v3.py
+    |-- test_quickstart.py
+    |-- test_sqlite_v3.py
+    |-- test_verify_tool.py
     |-- test_capture.py
     |-- test_cli.py
     |-- test_execution.py
@@ -870,12 +987,15 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_extraction.py
     |-- test_ingestion.py
     |-- test_lifecycle.py
+    |-- test_locking.py
     |-- test_packaging.py
     |-- test_postgres_integration.py
     |-- test_postgres_repository.py
     |-- test_policy.py
     |-- test_readme_api.py
     |-- test_resources.py
+    |-- test_sqlite_repository.py
+    |-- test_store.py
     |-- verify_distribution.py
-    `-- test_store.py
+    `-- ...
 ```

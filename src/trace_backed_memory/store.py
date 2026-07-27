@@ -5,6 +5,7 @@ import json
 import math
 import os
 import re
+import secrets
 import tempfile
 from collections import ChainMap, Counter, deque
 from collections.abc import Collection, Iterable, Mapping
@@ -171,8 +172,36 @@ def _synchronized(method):
     return synchronized
 
 
+def _load_snapshot_json_document(
+    path: str | Path,
+    *,
+    max_bytes: int | None = SNAPSHOT_FILE_MAX_BYTES,
+) -> dict[str, Any]:
+    """Read one strict snapshot document without normalizing record order."""
+
+    source = read_bounded_utf8(
+        path,
+        max_bytes=max_bytes,
+        description="memory store snapshot",
+    )
+    try:
+        data = json.loads(
+            source,
+            parse_constant=_reject_json_constant,
+            object_pairs_hook=lambda pairs: unique_json_object_pairs(
+                pairs,
+                description="memory store snapshot",
+            ),
+        )
+    except RecursionError as exc:
+        raise ValueError("invalid memory store snapshot JSON nesting") from exc
+    if type(data) is not dict:
+        raise ValueError("memory store snapshot must be a JSON object")
+    return cast(dict[str, Any], data)
+
+
 class TraceBackedMemoryStore:
-    """Small in-memory MVP store for trace-backed memory workflows."""
+    """In-memory reference store for trace-backed memory workflows."""
 
     def __init__(self) -> None:
         self._lock = RLock()
@@ -188,6 +217,7 @@ class TraceBackedMemoryStore:
         self._finalized_gate_request_ids: set[str] = set()
         self._finalized_gate_request_order: deque[str] = deque()
         self._store_token = object()
+        self._gate_request_session_id = secrets.token_hex(16)
         self._next_gate_request_number = 1
 
     @property
@@ -325,24 +355,10 @@ class TraceBackedMemoryStore:
         ),
         max_total_records: int | None = SNAPSHOT_MAX_TOTAL_RECORDS,
     ) -> "TraceBackedMemoryStore":
-        source = read_bounded_utf8(
+        data = _load_snapshot_json_document(
             path,
             max_bytes=max_bytes,
-            description="memory store snapshot",
         )
-        try:
-            data = json.loads(
-                source,
-                parse_constant=_reject_json_constant,
-                object_pairs_hook=lambda pairs: unique_json_object_pairs(
-                    pairs,
-                    description="memory store snapshot",
-                ),
-            )
-        except RecursionError as exc:
-            raise ValueError("invalid memory store snapshot JSON nesting") from exc
-        if not isinstance(data, Mapping):
-            raise ValueError("memory store snapshot must be a JSON object")
         return cls.from_snapshot(
             data,
             max_records_per_collection=max_records_per_collection,
@@ -1334,7 +1350,10 @@ class TraceBackedMemoryStore:
             )
         system_allowed, system_blocked = _bounded_system_gate(context, candidates)
         request = MemoryGateRequest(
-            request_id=f"gate_request_{self._next_gate_request_number:06d}",
+            request_id=(
+                f"gate_request_{self._gate_request_session_id}_"
+                f"{self._next_gate_request_number:06d}"
+            ),
             context=context,
             candidate_memory_ids=tuple(memory.memory_id for memory in candidates),
             system_allowed_memory_ids=tuple(
@@ -1580,6 +1599,20 @@ class TraceBackedMemoryStore:
                 next_decision_number,
                 int(match.group(1)) + 1,
             )
+        request_match = (
+            re.fullmatch(
+                r"gate_request_(?:[0-9a-f]{32}_)?(\d+)",
+                log.request_id,
+            )
+            if log.request_id is not None
+            else None
+        )
+        next_gate_request_number = self._next_gate_request_number
+        if request_match is not None:
+            next_gate_request_number = max(
+                next_gate_request_number,
+                int(request_match.group(1)) + 1,
+            )
 
         log_index = len(self._usage_logs)
         self._usage_logs.append(log)
@@ -1589,6 +1622,7 @@ class TraceBackedMemoryStore:
             self._usage_logs.pop()
             raise
         self._next_decision_number = next_decision_number
+        self._next_gate_request_number = next_gate_request_number
 
     def _trace_for_run_id(self, run_id: str) -> Trace:
         _validate_required_string(

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Trace-backed Memory"
+  short_description: "Run the safe TBM agent memory lifecycle"
+  default_prompt: "Use $use-trace-backed-memory to prepare, narrow, apply, and complete verified memory for this task."

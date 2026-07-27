@@ -23,7 +23,11 @@ def _canonical_resource_names() -> tuple[str, ...]:
                 ROOT / "schemas",
             )
             for path in directory.rglob("*")
-            if path.is_file()
+            if (
+                path.is_file()
+                and path.name != "AGENTS.md"
+                and "__pycache__" not in path.parts
+            )
         )
     )
 
@@ -114,7 +118,14 @@ def verify_distributions(dist_directory: Path) -> None:
             ],
             "wheel metadata member",
         )
-        assert b"Classifier: Typing :: Typed" in archive.read(metadata_name)
+        metadata = archive.read(metadata_name)
+        assert b"Classifier: Typing :: Typed" in metadata
+        assert b"Provides-Extra: mcp" in metadata
+        assert any(
+            line.startswith(b"Requires-Dist: mcp")
+            and b'extra == "mcp"' in line
+            for line in metadata.splitlines()
+        )
 
     with tarfile.open(source_distributions[0], mode="r:gz") as archive:
         file_members = [
@@ -177,7 +188,14 @@ def verify_distributions(dist_directory: Path) -> None:
         )
         extracted_metadata = archive.extractfile(package_metadata)
         assert extracted_metadata is not None
-        assert b"Classifier: Typing :: Typed" in extracted_metadata.read()
+        metadata = extracted_metadata.read()
+        assert b"Classifier: Typing :: Typed" in metadata
+        assert b"Provides-Extra: mcp" in metadata
+        assert any(
+            line.startswith(b"Requires-Dist: mcp")
+            and b'extra == "mcp"' in line
+            for line in metadata.splitlines()
+        )
 
 
 def main(argv: list[str] | None = None) -> int:

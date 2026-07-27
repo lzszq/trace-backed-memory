@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 21 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 41 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -150,6 +150,45 @@ Semantic 模式要求 `max_candidates` 为 1 到 50，验证完整 score mapping
 `run_memory_execution()` 为常见同步路径提供无依赖编排：prepare、decision callback、finalize、execution callback、`complete_memory_run()`。`MemoryRunMeasurement` 不含 decision ID；模块总是传递 Store 生成的 ID，并只转发非 `None` 可选证据。
 
 prepare 后的普通异常包装为 `MemoryRunExecutionError`，阶段为 `decision`、`finalization`、`execution` 或 `completion`，同时保留原始 cause 与恢复上下文。prepare 错误原样传播，`KeyboardInterrupt` 和 `SystemExit` 不包装。一次性 helper 每次调用都会准备新 request，不能作为幂等重试令牌。
+
+### Agent 应用门面
+
+`LocalAgentMemory` 在同一 Store 生命周期之上提供聚焦应用边界，负责 Trace
+注册、进程内 request lookup、Repository load/sync/close、稳定 Agent 错误与
+prepare/finalize/complete 主流程。`capture_local_trace()` 从显式 checkout root
+派生 Git provenance；`agent_capabilities()` 与 `tbm capabilities` 不加载快照
+即可发布协议、存储、操作和硬限制。
+
+门面不会序列化私有 Store token。SQLite/PostgreSQL 分别同步 prepare 前的
+Trace、finalize 后的 usage decision 和原子 measured completion。pending request
+与本地 finalization tombstone 仍为进程内状态；同一 runtime 的相同 decision
+重放幂等，不同 decision 返回稳定冲突。打包的 `tbm.agent.v1` Schema 覆盖
+capability、prepared、finalized、completed 与 error，不改变 snapshot version
+2、SQLite schema version 1 或 PostgreSQL schema version 2。
+
+每个 Store runtime 都会为 opaque Gate request ID 生成新的 128-bit namespace。
+持久化数字后缀可在 reload 后继续递增，但已放弃进程中的 stale ID 无法在下一
+进程中命名新 request。这样既阻止 stale finalization/cancellation 跨 runtime
+restart，又不会假装 pending state 已持久化。
+
+`tbm-mcp` 是一个可选的薄 STDIO adapter，建立在单个进程持有的
+`LocalAgentMemory` 之上，只暴露 capability、health、prepare、finalize、
+complete 与 cancel 工具。配置的 checkout root 和可选 tenant 由 server 持有；
+prepare 从该 root 捕获 Trace Git provenance 与完整 ancestry，再调用门面。
+adapter 不复制 Gate policy，也不能 curate、verify、publish、activate、查看原始
+Store 或运行 migration。
+
+STDIO reader 在 JSON 解码前限制每一行；超限行会先完整排空，之后才接受下一
+请求；随后复用 duplicate-key、finite-number、UTF-8、node 与 depth 检查。严格
+工具 request model 拒绝未知字段。transport/request 错误转换为有界 agent
+envelope，意外故障会净化。稳定 MCP v1 SDK 仍是可选依赖，因此导入核心包和运行
+`tbm` 保持无第三方运行时依赖。
+
+server 有意保留门面的进程内 session 边界。持久 Repository 只同步已有的
+Trace、finalized usage decision 与 measured completion。MCP 进程重启会放弃
+尚未 finalized 的 request 与 replay tombstone，不会从 durable data 重建私有
+Store token。每个 session 的 request namespace 还保证 stale client handle 不会
+在重启后与新 prepared request 碰撞。
 
 正常时间顺序为注册 unknown Trace、finalize decision、执行、再原子完成。`complete_memory_run()` 在一把 Store 锁下验证 Trace 与 usage-log 候选后同时赋值，支持 pending、匹配部分完成和精确重放；任何 outcome、归因、证据或 linkage 冲突都不会留下半完成状态。
 
@@ -230,6 +269,30 @@ Store 要求每个 new value 与变更后 context 相等，并只匹配完整 ol
 Lesson anchor 是 source case 的 fix commit，Failure Case anchor 是 source commit，Project Policy 无 anchor。提供证据时必须覆盖所有候选 anchor 并绑定当前 `context.commit_sha`；缺失证据 fail closed，false 关系排除对应历史。省略证据保留兼容路径。
 
 处理顺序是 metadata discovery、外部 ancestry capture、ancestry filter、可选关键词/semantic retrieval、System Gate、LLM Gate。证据不写入快照、usage log、YAML、Schema 或 PostgreSQL。
+
+## Version-3 迁移准备
+
+Version-3 准备路径与 runtime Store 严格分离。`SnapshotV3MigrationMapping`
+显式提供 canonical repository/tenant binding、authorization scope、结构化
+regression evidence、global-policy privileged approval 与明确 ancestry policy。
+`plan_snapshot_v3_migration()` 只重建一次并冻结严格 version-2 source snapshot，
+验证 mapping，在 required ancestry 下调用可信 relation verifier，然后返回带稳定
+issue code 的确定性只读 plan；它不会合成不完整的 version-3 snapshot。
+
+`tbm.snapshot.v2-to-v3.bundle.v1` 对原始 source、normalized source state、
+mapping 与 plan 进行内容寻址。Bundle 解析有界并拒绝 duplicate key；验证会重跑
+完整 preflight 并要求 plan 精确重放。内容寻址可以发现篡改，但不是 identity
+signature 或 evidence attestation。
+
+`SQLiteV3MigrationRepository` 使用独立表保存这些不可激活的 bundle。PostgreSQL
+operator resource 只创建或删除 `trace_backed_memory_v3_staging`；其 metadata 与
+bundle row 的 canonical trigger 会拒绝普通 update、delete 和 truncate；schema
+owner 与 superuser 能修改 trigger，因此仍属于可信 operator。Rollback 枚举已知
+object 并使用 `RESTRICT`，所以意外 object 或外部 dependency 会 fail closed。
+两条 staging 路径都对 active adapter 不可见，且不提供 publication/activation 操作。因此 runtime
+兼容边界仍是 snapshot version 2、SQLite schema version 1 与 PostgreSQL schema
+version 2。完整契约见
+[Version-3 迁移 bundle 与隔离 staging](migrations/v3-staging-bundles.zh-CN.md)。
 
 ## 非目标
 

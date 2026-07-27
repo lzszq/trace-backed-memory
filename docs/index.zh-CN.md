@@ -1,0 +1,38 @@
+# 文档索引
+
+[English](index.md) | **简体中文**
+
+本页是 Trace-backed Memory 的文档地图。README 用于快速了解项目，以下文档定义工程契约。
+
+## 产品与架构
+
+- [产品定义与当前能力](product.md)
+- [参考架构](architecture.zh-CN.md)
+- [记忆使用策略](usage-policy.zh-CN.md)
+- [产品交付计划](product-program.zh-CN.md)
+
+## Agent 集成
+
+- [本地 Agent 协议 `tbm.agent.v1`](protocols/agent-v1.zh-CN.md)
+- [Codex 集成](integrations/codex.zh-CN.md)
+- 仓库技能：`.agents/skills/maintain-trace-backed-memory/` 与
+  `.agents/skills/use-trace-backed-memory/`
+
+## 开发与运维
+
+- [开发与验证](development.zh-CN.md)
+- [Snapshot v3 迁移预检](migrations/snapshot-v3-preflight.zh-CN.md)
+- [Version-3 迁移 bundle 与隔离 staging](migrations/v3-staging-bundles.zh-CN.md)
+- `schemas/sqlite.sql`：受支持的本地 SQL 形态
+- `schemas/postgres.sql` 与 `schemas/postgres-v1-to-v2.sql`：PostgreSQL
+- `tests/verify_distribution.py`：安装资源逐字节验证
+
+## 兼容性边界
+
+当前格式为 snapshot version 2、SQLite schema version 1、PostgreSQL schema
+version 2 和 Agent 协议 `tbm.agent.v1`。可选 `tbm-mcp` 命令是该协议的长驻
+本地 STDIO transport，不是新的持久化版本。pending gate request 仍为进程内
+状态；durable gate session、canonical repository 授权、结构化 regression
+evidence 与完整 replay manifest 属于统一推进的 schema version 3 计划。只读
+v3 迁移预检和不可激活的 staging bundle 已经实现，但它们不能激活 memory，
+也不能作为 version-3 runtime state 加载。

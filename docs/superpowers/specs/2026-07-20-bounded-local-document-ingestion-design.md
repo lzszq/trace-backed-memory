@@ -31,7 +31,7 @@ packaged resources as caller paths.
 
 ## Default Budgets
 
-The defaults are intentionally far above current canonical resources and MVP
+The defaults are intentionally far above current canonical resources and initial
 examples while placing finite ceilings on allocation and validation work:
 
 - snapshot JSON: 64 MiB, 100,000 records per collection, 250,000 total;

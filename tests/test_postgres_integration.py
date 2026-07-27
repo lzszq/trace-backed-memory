@@ -485,6 +485,311 @@ def _downgrade_postgres_v2_fixture_to_v1(cluster: PostgresCluster) -> None:
     )
 
 
+def _empty_v3_migration_bundle():
+    import trace_backed_memory as tbm
+
+    mapping = tbm.SnapshotV3MigrationMapping(
+        repositories=(),
+        tenants=(),
+        trace_bindings=(),
+        memory_scopes=(),
+        regression_evidence=(),
+        global_policy_approvals=(),
+        ancestry_policy=tbm.AncestryPolicy(
+            mode="disabled",
+            bypass_reason=(
+                "the PostgreSQL staging fixture has no commit-bearing "
+                "evidence"
+            ),
+        ),
+    )
+    return tbm.create_snapshot_v3_migration_bundle(
+        tbm.TraceBackedMemoryStore(),
+        mapping,
+    )
+
+
+def test_postgres_v3_staging_is_isolated_immutable_and_rollback_safe(
+    postgres_cluster: PostgresCluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    import trace_backed_memory as tbm
+
+    cluster = postgres_cluster
+    cluster.load_schema()
+    staging = ROOT / "schemas" / "postgres-v3-staging.sql"
+    rollback = ROOT / "schemas" / "postgres-v3-staging-rollback.sql"
+
+    staged = cluster.run_script(staging)
+    assert staged.returncode == 0, staged.stderr
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT schema_version FROM public.trace_backed_memory_schema",
+    ) == "2"
+    assert assert_sql_succeeds(
+        cluster,
+        """
+        SELECT staging_schema_version,
+               source_postgres_schema_version,
+               target_snapshot_version
+        FROM trace_backed_memory_v3_staging.schema_metadata
+        """,
+    ) == "1|2|3"
+
+    bundle = _empty_v3_migration_bundle()
+    payload = tbm.dumps_snapshot_v3_migration_bundle(bundle)
+    with psycopg.connect(**cluster.connection_kwargs()) as connection:
+        runtime = tbm.PostgresMemoryRepository(connection)
+        runtime.sync(tbm.TraceBackedMemoryStore())
+        assert (
+            runtime.load().to_snapshot()
+            == tbm.TraceBackedMemoryStore().to_snapshot()
+        )
+        connection.execute(
+            """
+            INSERT INTO trace_backed_memory_v3_staging.migration_bundles (
+                bundle_id,
+                bundle_version,
+                state,
+                source_snapshot_sha256,
+                normalized_source_snapshot_sha256,
+                mapping_sha256,
+                plan_sha256,
+                payload
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                bundle.bundle_id,
+                bundle.bundle_version,
+                bundle.state,
+                bundle.source_snapshot_sha256,
+                bundle.normalized_source_snapshot_sha256,
+                bundle.mapping_sha256,
+                bundle.plan_sha256,
+                payload,
+            ),
+        )
+
+    for statement in (
+        (
+            "UPDATE trace_backed_memory_v3_staging.migration_bundles "
+            "SET state = 'blocked'"
+        ),
+        "DELETE FROM trace_backed_memory_v3_staging.migration_bundles",
+        "TRUNCATE trace_backed_memory_v3_staging.migration_bundles",
+        (
+            "UPDATE trace_backed_memory_v3_staging.schema_metadata "
+            "SET source_postgres_schema_version = 2"
+        ),
+        "DELETE FROM trace_backed_memory_v3_staging.schema_metadata",
+        "TRUNCATE trace_backed_memory_v3_staging.schema_metadata",
+    ):
+        rejected = cluster.run(statement)
+        assert rejected.returncode != 0
+        assert "v3 staging records are immutable" in rejected.stderr
+
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT count(*) "
+        "FROM trace_backed_memory_v3_staging.migration_bundles",
+    ) == "1"
+    replay = cluster.run_script(staging)
+    assert replay.returncode != 0
+    assert 'schema "trace_backed_memory_v3_staging" already exists' in (
+        replay.stderr
+    )
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT schema_version FROM public.trace_backed_memory_schema",
+    ) == "2"
+
+    rolled_back = cluster.run_script(rollback)
+    assert rolled_back.returncode == 0, rolled_back.stderr
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT to_regnamespace("
+        "'trace_backed_memory_v3_staging') IS NULL",
+    ) == "t"
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT schema_version FROM public.trace_backed_memory_schema",
+    ) == "2"
+
+    with psycopg.connect(**cluster.connection_kwargs()) as connection:
+        assert (
+            tbm.PostgresMemoryRepository(connection).load().to_snapshot()
+            == tbm.TraceBackedMemoryStore().to_snapshot()
+        )
+
+
+def test_postgres_v3_staging_install_failure_is_atomic(
+    postgres_cluster: PostgresCluster,
+):
+    cluster = postgres_cluster
+    cluster.load_schema()
+    source = (ROOT / "schemas" / "postgres-v3-staging.sql").read_text(
+        encoding="utf-8"
+    )
+    broken = source.replace(
+        (
+            "CREATE TABLE "
+            "trace_backed_memory_v3_staging.migration_bundles ("
+        ),
+        (
+            "SELECT v3_staging_failure_after_schema_creation();\n\n"
+            "CREATE TABLE "
+            "trace_backed_memory_v3_staging.migration_bundles ("
+        ),
+        1,
+    )
+    assert broken != source
+    broken_path = cluster.root / "broken-postgres-v3-staging.sql"
+    broken_path.write_text(broken, encoding="utf-8")
+
+    failed = cluster.run_script(broken_path)
+    assert failed.returncode != 0
+    assert "v3_staging_failure_after_schema_creation" in failed.stderr
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT to_regnamespace("
+        "'trace_backed_memory_v3_staging') IS NULL",
+    ) == "t"
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT schema_version FROM public.trace_backed_memory_schema",
+    ) == "2"
+
+
+def test_postgres_v3_staging_rollback_rejects_unexpected_objects(
+    postgres_cluster: PostgresCluster,
+):
+    cluster = postgres_cluster
+    cluster.load_schema()
+    staging = ROOT / "schemas" / "postgres-v3-staging.sql"
+    rollback = ROOT / "schemas" / "postgres-v3-staging-rollback.sql"
+    installed = cluster.run_script(staging)
+    assert installed.returncode == 0, installed.stderr
+    assert_sql_succeeds(
+        cluster,
+        "CREATE TABLE trace_backed_memory_v3_staging.unexpected_object "
+        "(value text)",
+    )
+
+    rejected = cluster.run_script(rollback)
+
+    assert rejected.returncode != 0
+    assert assert_sql_succeeds(
+        cluster,
+        """
+        SELECT count(*)
+        FROM pg_catalog.pg_class
+        WHERE relnamespace =
+              'trace_backed_memory_v3_staging'::regnamespace
+          AND relname IN (
+              'schema_metadata',
+              'migration_bundles',
+              'unexpected_object'
+          )
+        """,
+    ) == "3"
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT schema_version FROM public.trace_backed_memory_schema",
+    ) == "2"
+
+
+def test_postgres_v3_staging_rollback_rejects_external_dependencies(
+    postgres_cluster: PostgresCluster,
+):
+    cluster = postgres_cluster
+    cluster.load_schema()
+    staging = ROOT / "schemas" / "postgres-v3-staging.sql"
+    rollback = ROOT / "schemas" / "postgres-v3-staging-rollback.sql"
+    installed = cluster.run_script(staging)
+    assert installed.returncode == 0, installed.stderr
+    assert_sql_succeeds(
+        cluster,
+        """
+        CREATE VIEW public.trace_backed_memory_v3_staging_dependency AS
+        SELECT bundle_id
+        FROM trace_backed_memory_v3_staging.migration_bundles
+        """,
+    )
+
+    rejected = cluster.run_script(rollback)
+
+    assert rejected.returncode != 0
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT to_regclass("
+        "'public.trace_backed_memory_v3_staging_dependency'"
+        ") IS NOT NULL",
+    ) == "t"
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT to_regclass("
+        "'trace_backed_memory_v3_staging.migration_bundles'"
+        ") IS NOT NULL",
+    ) == "t"
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT to_regclass("
+        "'trace_backed_memory_v3_staging.schema_metadata'"
+        ") IS NOT NULL",
+    ) == "t"
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT schema_version FROM public.trace_backed_memory_schema",
+    ) == "2"
+
+
+def test_postgres_v3_staging_and_rollback_fail_closed_on_runtime_v1(
+    postgres_cluster: PostgresCluster,
+):
+    cluster = postgres_cluster
+    cluster.load_schema()
+    staging = ROOT / "schemas" / "postgres-v3-staging.sql"
+    rollback = ROOT / "schemas" / "postgres-v3-staging-rollback.sql"
+
+    _downgrade_postgres_v2_fixture_to_v1(cluster)
+    rejected_stage = cluster.run_script(staging)
+    assert rejected_stage.returncode != 0
+    assert (
+        "v3 staging requires PostgreSQL schema version 2, found 1"
+        in rejected_stage.stderr
+    )
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT to_regnamespace("
+        "'trace_backed_memory_v3_staging') IS NULL",
+    ) == "t"
+
+    assert_sql_succeeds(
+        cluster,
+        "UPDATE public.trace_backed_memory_schema "
+        "SET schema_version = 2 WHERE singleton",
+    )
+    installed = cluster.run_script(staging)
+    assert installed.returncode == 0, installed.stderr
+    assert_sql_succeeds(
+        cluster,
+        "UPDATE public.trace_backed_memory_schema "
+        "SET schema_version = 1 WHERE singleton",
+    )
+
+    rejected_rollback = cluster.run_script(rollback)
+    assert rejected_rollback.returncode != 0
+    assert (
+        "v3 staging rollback requires PostgreSQL schema version 2, found 1"
+        in rejected_rollback.stderr
+    )
+    assert assert_sql_succeeds(
+        cluster,
+        "SELECT to_regnamespace("
+        "'trace_backed_memory_v3_staging') IS NOT NULL",
+    ) == "t"
+
+
 def test_postgres_v1_to_v2_migration_is_atomic_and_rejects_replay(
     postgres_cluster: PostgresCluster,
 ):

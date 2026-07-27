@@ -63,9 +63,11 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Injection | `none`, `pointer_only`, `short_summary`, and `full_case_summary` under fixed item and character budgets |
 | Runtime closure | Two-phase prepare/finalize, atomic single and batch completion, and deferred outcome sealing |
 | Runtime orchestration | `run_memory_execution()` joins decision and execution callbacks with atomic completion |
+| Agent application boundary | `LocalAgentMemory`, Git-backed Trace capture, stable errors, `tbm capabilities`, versioned `tbm.agent.v1` schemas/examples, and optional long-running local STDIO MCP |
 | Operations recovery | Five-state audits, remediation actions, single/batch recovery, and ready-recovery sweeps |
-| Operations CLI | Dependency-free `tbm` and module entry point for snapshots, lessons, obsolescence, audits, metrics, PR reports, completion, and recovery |
-| Distribution resources | 21 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Operations CLI | Dependency-free `tbm` and module entry point for snapshots, v3 migration preflight/bundle verification, lessons, obsolescence, audits, metrics, PR reports, completion, and recovery |
+| Migration preparation | Content-addressed inert v2-to-v3 bundles, exact plan replay, immutable SQLite staging, and version-gated PostgreSQL staging/rollback without changing active runtime versions |
+| Distribution resources | 41 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |
@@ -84,7 +86,7 @@ All caller-owned JSON is checked for duplicate object keys before conversion to 
 5. The harness executes and evaluates the task.
 6. `complete_memory_run()` or `complete_memory_runs()` atomically writes the Trace and decision outcome. Snapshot operators can submit measured results with `tbm complete` or `tbm complete-batch`.
 
-Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
+Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Applications that do not need the lower-level Store lifecycle can use `LocalAgentMemory`, which also owns Trace registration, repository synchronization, stable errors, and callback recovery IDs. The optional `tbm-mcp` command exposes only this runtime lifecycle over bounded local STDIO, fixes provenance to a configured checkout root, and captures complete Git ancestry before retrieval. SQLite and PostgreSQL synchronize durable phases; pending requests remain process-local until the coordinated durable Gate-session schema is delivered. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
 
 ### 5.2 From Failure to Reusable Lesson
 
@@ -135,6 +137,9 @@ The product fails closed:
 - JSON snapshot version 2 persists the complete local Store.
 - The YAML adapter transports active-only lessons with bounded, all-or-nothing import and text-preserving literal blocks.
 - `tbm` and `python -m trace_backed_memory` expose equivalent command surfaces.
+- Install `trace-backed-memory[mcp]` to add `tbm-mcp`, a long-running local
+  STDIO profile with capability/health, prepare/finalize, completion, and
+  cancellation tools. It exposes no curation or activation surface.
 - Every snapshot `--write` command locks a canonical sibling `.tbm.lock` before load and holds it through atomic publication. Dry runs and read-only commands remain lock-free.
 - Python callers can use `snapshot_write_lock()` around the complete load, mutate, and save transaction.
 - `tbm recover-batch` caps decision IDs and attribution options at 10,000 each before snapshot loading and splits attribution values on their final `=`.
@@ -167,7 +172,7 @@ The product fails closed:
 
 ## 8. Product Maturity
 
-The current release implements roadmap Phases 0 through 73. The main product path has executable README examples, JSON Schemas, SQL invariants, and pytest coverage across Python 3.11, 3.12, 3.13, Windows, SQLite, and required PostgreSQL CI.
+The current release implements roadmap Phases 0 through 73, the local agent/MCP integration increment, and the migration-preparation portion of Phase 74. The main product path has executable README examples, JSON Schemas, SQL invariants, and pytest coverage across Python 3.11, 3.12, 3.13, Windows, SQLite, and required PostgreSQL CI.
 
 The implemented hardening includes:
 
@@ -179,6 +184,11 @@ The implemented hardening includes:
 - consistent PostgreSQL loads with record-count and loaded-row payload preflights;
 - standard-library SQLite persistence with atomic additive sync, savepoints,
   bounded payload loads, and Store-level reconstruction validation;
+- a runtime-only local STDIO MCP adapter with fixed Git provenance, required
+  ancestry capture, strict bounded frames, session-namespaced request handles,
+  and process-restart conformance;
+- strict v3 mapping/preflight contracts, inert content-addressed bundles,
+  immutable SQLite staging, and isolated PostgreSQL staging/rollback;
 - concurrent insert revalidation and row-locked lifecycle synchronization;
 - portable nonblank persisted strings across Store and JSON Schema boundaries;
 - average O(n) snapshot usage-log validation and private O(1) live indexes;
@@ -238,5 +248,5 @@ Integrating teams can observe:
 - [README / Quick start](../README.md)
 - [Architecture](architecture.md)
 - [Memory usage policy](usage-policy.md)
-- [Implemented roadmap](mvp-roadmap.md)
+- [Product delivery program](product-program.md)
 - [MIT License](../LICENSE)

@@ -111,14 +111,14 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
         assert ignored_secret_pattern in gitignore
 
 
-def test_current_docs_publish_postgres_v2_and_21_resource_contracts():
+def test_current_docs_publish_postgres_v2_and_41_resource_contracts():
     current_english_documents = {
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.en.md": _doc("product.en.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in current_english_documents.items():
         normalized = " ".join(document.split()).lower()
@@ -136,7 +136,7 @@ def test_current_docs_publish_postgres_v2_and_21_resource_contracts():
         **{
             name: document
             for name, document in current_english_documents.items()
-            if name != "docs/mvp-roadmap.md"
+            if name != "docs/product-program.md"
         },
         "README.zh-CN.md": (ROOT / "README.zh-CN.md").read_text(
             encoding="utf-8"
@@ -149,17 +149,17 @@ def test_current_docs_publish_postgres_v2_and_21_resource_contracts():
             "schemas/postgres-v2-lock-order-hotfix.sql" in document
         ), f"{name} must publish the version-2 hotfix resource"
 
-    assert "contains 21 resources" in current_english_documents["README.md"]
+    assert "contains 41 resources" in current_english_documents["README.md"]
     assert (
-        "contains 21 resources"
+        "contains 41 resources"
         in current_english_documents["docs/architecture.md"]
     )
     assert (
-        "21 installed resource copies"
+        "41 installed resource copies"
         in current_english_documents["docs/usage-policy.md"]
     )
     assert (
-        "Distribution resources | 21"
+        "Distribution resources | 41"
         in current_english_documents["docs/product.en.md"]
     )
 
@@ -185,13 +185,19 @@ def test_readme_language_versions_stay_linked_and_structurally_aligned():
         "docs/product.en.md",
         "docs/architecture.md",
         "docs/usage-policy.md",
-        "docs/mvp-roadmap.md",
+        "docs/product-program.md",
+        "docs/index.md",
+        "docs/protocols/agent-v1.md",
+        "docs/integrations/codex.md",
     ]
     chinese_targets = [
         "docs/product.md",
         "docs/architecture.zh-CN.md",
         "docs/usage-policy.zh-CN.md",
-        "docs/mvp-roadmap.zh-CN.md",
+        "docs/product-program.zh-CN.md",
+        "docs/index.zh-CN.md",
+        "docs/protocols/agent-v1.zh-CN.md",
+        "docs/integrations/codex.zh-CN.md",
     ]
     for document, targets in [
         (english, english_targets),
@@ -207,7 +213,25 @@ def test_product_and_reference_documents_are_localized_in_pairs():
         ("docs/product.en.md", "docs/product.md"),
         ("docs/architecture.md", "docs/architecture.zh-CN.md"),
         ("docs/usage-policy.md", "docs/usage-policy.zh-CN.md"),
-        ("docs/mvp-roadmap.md", "docs/mvp-roadmap.zh-CN.md"),
+        ("docs/product-program.md", "docs/product-program.zh-CN.md"),
+        ("docs/index.md", "docs/index.zh-CN.md"),
+        ("docs/development.md", "docs/development.zh-CN.md"),
+        (
+            "docs/protocols/agent-v1.md",
+            "docs/protocols/agent-v1.zh-CN.md",
+        ),
+        (
+            "docs/migrations/snapshot-v3-preflight.md",
+            "docs/migrations/snapshot-v3-preflight.zh-CN.md",
+        ),
+        (
+            "docs/migrations/v3-staging-bundles.md",
+            "docs/migrations/v3-staging-bundles.zh-CN.md",
+        ),
+        (
+            "docs/integrations/codex.md",
+            "docs/integrations/codex.zh-CN.md",
+        ),
     ]
 
     for english_name, chinese_name in pairs:
@@ -256,7 +280,7 @@ def test_postgres_jsonpath_schema_publishes_supported_version_floor():
     documents = {
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "design": _doc(
             "superpowers/specs/2026-07-12-postgres-runtime-adapter-design.md"
@@ -274,7 +298,7 @@ def test_docs_publish_postgres_repository_operational_boundaries():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     architecture = _doc("architecture.md")
     architecture_contract = " ".join(architecture.split())
-    roadmap = _doc("mvp-roadmap.md")
+    roadmap = _doc("product-program.md")
     usage_policy = _doc("usage-policy.md")
 
     for required_text in [
@@ -1261,7 +1285,7 @@ def test_postgres_usage_logs_enforce_decision_consistency_rules():
 
 def test_docs_describe_shared_runtime_memory_id_namespace_and_usage_id_arrays_precisely():
     architecture = _doc("architecture.md")
-    roadmap = _doc("mvp-roadmap.md")
+    roadmap = _doc("product-program.md")
 
     assert "shared runtime memory ID namespace" in architecture
     assert "failure cases, lessons, and project policies" in architecture
@@ -1338,7 +1362,7 @@ def test_docs_publish_benchmark_leakage_contract_and_persistence_boundaries():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`(eval_suite, input_hash)`",
@@ -1368,7 +1392,7 @@ def test_docs_publish_benchmark_leakage_contract_and_persistence_boundaries():
 
     assert (
         "Phase 11: Benchmark example leakage classification (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     context_schema = _json_schema("memory_context.schema.json")
@@ -1391,7 +1415,7 @@ def test_docs_publish_outcome_aware_metrics_and_ephemeral_boundary():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`pass`, `fail`, and `error` are evaluated outcomes",
@@ -1410,7 +1434,7 @@ def test_docs_publish_outcome_aware_metrics_and_ephemeral_boundary():
 
     assert (
         "Phase 12: Outcome-aware metrics (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
@@ -1429,7 +1453,7 @@ def test_docs_publish_per_memory_outcome_metrics_and_noncausal_boundary():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`memory_outcome_metrics()`",
@@ -1452,7 +1476,7 @@ def test_docs_publish_per_memory_outcome_metrics_and_noncausal_boundary():
 
     assert (
         "Phase 13: Per-memory outcome metrics (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
@@ -1474,7 +1498,7 @@ def test_docs_publish_declared_trace_provenance_binding_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`repo`, `commit_sha`, and `tenant` always match",
@@ -1495,7 +1519,7 @@ def test_docs_publish_declared_trace_provenance_binding_and_compatibility():
 
     assert (
         "Phase 14: Declared Trace provenance binding (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
@@ -1512,7 +1536,7 @@ def test_docs_publish_deferred_outcome_sealing_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`record_decision_outcome()`",
@@ -1537,7 +1561,7 @@ def test_docs_publish_deferred_outcome_sealing_and_compatibility():
 
     assert (
         "Phase 15: Deferred decision outcome sealing (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -1556,7 +1580,7 @@ def test_docs_publish_deferred_trace_completion_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`complete_trace()`",
@@ -1583,7 +1607,7 @@ def test_docs_publish_deferred_trace_completion_and_compatibility():
 
     assert (
         "Phase 16: Deferred Trace completion (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     trace_schema = _json_schema("trace.schema.json")
     for field_name in (
@@ -1610,7 +1634,7 @@ def test_docs_publish_atomic_memory_run_completion_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`complete_memory_run()`",
@@ -1634,7 +1658,7 @@ def test_docs_publish_atomic_memory_run_completion_and_compatibility():
 
     assert (
         "Phase 17: Atomic memory-run completion (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -1652,7 +1676,7 @@ def test_docs_publish_memory_run_audits_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`memory_run_audits()`",
@@ -1682,7 +1706,7 @@ def test_docs_publish_memory_run_audits_and_compatibility():
 
     assert (
         "Phase 18: Memory-run audit view (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -1700,7 +1724,7 @@ def test_docs_publish_memory_run_recovery_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`recover_memory_run()`",
@@ -1729,7 +1753,7 @@ def test_docs_publish_memory_run_recovery_and_compatibility():
 
     assert (
         "Phase 19: Safe memory-run recovery (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -1747,7 +1771,7 @@ def test_docs_publish_memory_run_metrics_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`memory_run_metrics()`",
@@ -1776,7 +1800,7 @@ def test_docs_publish_memory_run_metrics_and_compatibility():
 
     assert (
         "Phase 20: Memory-run health metrics (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -1794,7 +1818,7 @@ def test_docs_publish_atomic_batch_memory_run_recovery_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`recover_memory_runs()`",
@@ -1826,7 +1850,7 @@ def test_docs_publish_atomic_batch_memory_run_recovery_and_compatibility():
 
     assert (
         "Phase 21: Atomic batch memory-run recovery (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -1844,7 +1868,7 @@ def test_docs_publish_atomic_batch_memory_run_completion_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`complete_memory_runs()`",
@@ -1875,7 +1899,7 @@ def test_docs_publish_atomic_batch_memory_run_completion_and_compatibility():
 
     assert (
         "Phase 22: Atomic batch memory-run completion (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -1893,7 +1917,7 @@ def test_docs_publish_memory_run_remediation_plan_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`memory_run_remediations()`",
@@ -1926,7 +1950,7 @@ def test_docs_publish_memory_run_remediation_plan_and_compatibility():
 
     assert (
         "Phase 23: Memory-run remediation plan (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -1945,7 +1969,7 @@ def test_docs_publish_ready_memory_run_recovery_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`recover_ready_memory_runs()`",
@@ -1974,7 +1998,7 @@ def test_docs_publish_ready_memory_run_recovery_and_compatibility():
 
     assert (
         "Phase 24: Atomic ready memory-run recovery (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -1992,7 +2016,7 @@ def test_docs_publish_snapshot_operations_cli_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`tbm`",
@@ -2021,7 +2045,7 @@ def test_docs_publish_snapshot_operations_cli_and_compatibility():
 
     assert (
         "Phase 25: Snapshot Operations CLI (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2052,7 +2076,7 @@ def test_docs_publish_memory_run_execution_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`run_memory_execution()`",
@@ -2079,7 +2103,7 @@ def test_docs_publish_memory_run_execution_and_compatibility():
 
     assert (
         "Phase 26: Synchronous memory-run execution (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2099,7 +2123,7 @@ def test_docs_publish_packaged_resources_and_persistence_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`packaged_resources()`",
@@ -2122,7 +2146,7 @@ def test_docs_publish_packaged_resources_and_persistence_compatibility():
     assert "`PackagedResourceError`" in documents["docs/architecture.md"]
     assert (
         "Phase 27: Packaged distribution resources (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2140,7 +2164,7 @@ def test_docs_publish_evidence_ingestion_integrity_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "`tool_outputs`",
@@ -2159,7 +2183,7 @@ def test_docs_publish_evidence_ingestion_integrity_and_compatibility():
 
     assert (
         "Phase 28: Evidence ingestion integrity (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2180,7 +2204,7 @@ def test_docs_publish_conservative_failure_extraction_accuracy():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "truthy top-level `error`",
@@ -2197,7 +2221,7 @@ def test_docs_publish_conservative_failure_extraction_accuracy():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 50: Conservative failure extraction accuracy (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2206,7 +2230,7 @@ def test_docs_publish_conservative_failure_extraction_accuracy():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_linear_snapshot_usage_log_validation():
@@ -2217,7 +2241,7 @@ def test_docs_publish_linear_snapshot_usage_log_validation():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "average o(n)",
@@ -2235,7 +2259,7 @@ def test_docs_publish_linear_snapshot_usage_log_validation():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 51: Linear snapshot usage-log validation (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2244,7 +2268,7 @@ def test_docs_publish_linear_snapshot_usage_log_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_indexed_usage_log_operations():
@@ -2255,7 +2279,7 @@ def test_docs_publish_indexed_usage_log_operations():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "average o(1)",
@@ -2273,7 +2297,7 @@ def test_docs_publish_indexed_usage_log_operations():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 52: Indexed usage-log operations (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2282,7 +2306,7 @@ def test_docs_publish_indexed_usage_log_operations():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_indexed_run_to_trace_lookup():
@@ -2293,7 +2317,7 @@ def test_docs_publish_indexed_run_to_trace_lookup():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "average o(1)",
@@ -2312,7 +2336,7 @@ def test_docs_publish_indexed_run_to_trace_lookup():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 53: Indexed run-to-Trace lookup (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2321,7 +2345,7 @@ def test_docs_publish_indexed_run_to_trace_lookup():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_referenced_live_memory_id_validation():
@@ -2332,7 +2356,7 @@ def test_docs_publish_referenced_live_memory_id_validation():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "average o(r)",
@@ -2350,7 +2374,7 @@ def test_docs_publish_referenced_live_memory_id_validation():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 54: Referenced live memory-ID validation (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2359,7 +2383,7 @@ def test_docs_publish_referenced_live_memory_id_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_single_pass_store_metrics():
@@ -2370,7 +2394,7 @@ def test_docs_publish_single_pass_store_metrics():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "one usage-log pass",
@@ -2388,7 +2412,7 @@ def test_docs_publish_single_pass_store_metrics():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 55: Single-pass Store metrics (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2397,7 +2421,7 @@ def test_docs_publish_single_pass_store_metrics():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_single_pass_memory_run_metrics():
@@ -2408,7 +2432,7 @@ def test_docs_publish_single_pass_memory_run_metrics():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "`memory_run_metrics()`",
@@ -2428,7 +2452,7 @@ def test_docs_publish_single_pass_memory_run_metrics():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 56: Single-pass memory-run metrics (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2437,7 +2461,7 @@ def test_docs_publish_single_pass_memory_run_metrics():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_serialized_snapshot_cli_writes():
@@ -2448,7 +2472,7 @@ def test_docs_publish_serialized_snapshot_cli_writes():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "`--write`",
@@ -2470,7 +2494,7 @@ def test_docs_publish_serialized_snapshot_cli_writes():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 57: Serialized snapshot CLI writes (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2479,7 +2503,7 @@ def test_docs_publish_serialized_snapshot_cli_writes():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_active_only_lesson_imports():
@@ -2490,7 +2514,7 @@ def test_docs_publish_active_only_lesson_imports():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "active-only",
@@ -2512,7 +2536,7 @@ def test_docs_publish_active_only_lesson_imports():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 58: Active-only lesson imports (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2521,7 +2545,7 @@ def test_docs_publish_active_only_lesson_imports():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_bounded_pr_change_sets():
@@ -2532,7 +2556,7 @@ def test_docs_publish_bounded_pr_change_sets():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "prchangeset",
@@ -2552,7 +2576,7 @@ def test_docs_publish_bounded_pr_change_sets():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 59: Bounded PR change sets (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2561,7 +2585,7 @@ def test_docs_publish_bounded_pr_change_sets():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_linear_legacy_pr_warnings():
@@ -2572,7 +2596,7 @@ def test_docs_publish_linear_legacy_pr_warnings():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "legacy pr warning",
@@ -2593,7 +2617,7 @@ def test_docs_publish_linear_legacy_pr_warnings():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 60: Linear legacy PR warnings (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2602,7 +2626,7 @@ def test_docs_publish_linear_legacy_pr_warnings():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_bounded_git_capture():
@@ -2617,7 +2641,7 @@ def test_docs_publish_bounded_git_capture():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "git capture",
@@ -2640,7 +2664,7 @@ def test_docs_publish_bounded_git_capture():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 61: Bounded Git capture (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2649,7 +2673,7 @@ def test_docs_publish_bounded_git_capture():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_durable_atomic_publish():
@@ -2660,7 +2684,7 @@ def test_docs_publish_durable_atomic_publish():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "atomic publish",
@@ -2679,7 +2703,7 @@ def test_docs_publish_durable_atomic_publish():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 62: Durable atomic publish (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2688,7 +2712,7 @@ def test_docs_publish_durable_atomic_publish():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_bounded_semantic_top_k():
@@ -2699,7 +2723,7 @@ def test_docs_publish_bounded_semantic_top_k():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "bounded semantic top-k",
@@ -2718,7 +2742,7 @@ def test_docs_publish_bounded_semantic_top_k():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 63: Bounded semantic top-k (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2727,7 +2751,7 @@ def test_docs_publish_bounded_semantic_top_k():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_public_snapshot_write_lock():
@@ -2738,7 +2762,7 @@ def test_docs_publish_public_snapshot_write_lock():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "snapshot_write_lock",
@@ -2759,7 +2783,7 @@ def test_docs_publish_public_snapshot_write_lock():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 64: Public snapshot write lock (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2768,7 +2792,7 @@ def test_docs_publish_public_snapshot_write_lock():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_bounded_runtime_trace_json():
@@ -2780,7 +2804,7 @@ def test_docs_publish_bounded_runtime_trace_json():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = (
         "retrieved_context",
@@ -2808,7 +2832,7 @@ def test_docs_publish_bounded_runtime_trace_json():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 65: Bounded runtime Trace JSON (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2817,7 +2841,7 @@ def test_docs_publish_bounded_runtime_trace_json():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_postgres_loaded_row_payloads():
@@ -2828,7 +2852,7 @@ def test_docs_publish_postgres_loaded_row_payloads():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
         "Phase 48 design": _doc(
             "superpowers/specs/"
             "2026-07-22-postgres-load-payload-budget-design.md"
@@ -2860,7 +2884,7 @@ def test_docs_publish_postgres_loaded_row_payloads():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 66: PostgreSQL loaded-row payloads (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2870,7 +2894,7 @@ def test_docs_publish_postgres_loaded_row_payloads():
     postgres_schema = _postgres_schema()
     assert postgres_schema.count("updated_at TIMESTAMPTZ DEFAULT now()") == 3
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_snapshot_lock_sidecar_safety():
@@ -2881,7 +2905,7 @@ def test_docs_publish_snapshot_lock_sidecar_safety():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
         "Phase 57 design": _doc(
             "superpowers/specs/"
             "2026-07-22-serialized-snapshot-cli-writes-design.md"
@@ -2913,7 +2937,7 @@ def test_docs_publish_snapshot_lock_sidecar_safety():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 67: Snapshot lock sidecar safety (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2922,7 +2946,7 @@ def test_docs_publish_snapshot_lock_sidecar_safety():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_git_metadata_output_validation():
@@ -2934,7 +2958,7 @@ def test_docs_publish_git_metadata_output_validation():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
         "Phase 61 design": _doc(
             "superpowers/specs/2026-07-22-bounded-git-capture-design.md"
         ),
@@ -2965,7 +2989,7 @@ def test_docs_publish_git_metadata_output_validation():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 68: Git metadata output validation (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -2974,7 +2998,7 @@ def test_docs_publish_git_metadata_output_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_explicit_failure_text_classification():
@@ -2985,7 +3009,7 @@ def test_docs_publish_explicit_failure_text_classification():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
         "Phase 28 design": _doc(
             "superpowers/specs/"
             "2026-07-20-evidence-ingestion-integrity-design.md"
@@ -3013,7 +3037,7 @@ def test_docs_publish_explicit_failure_text_classification():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 69: Explicit failure text classification (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3022,7 +3046,7 @@ def test_docs_publish_explicit_failure_text_classification():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_measured_completion_cli_and_compatibility():
@@ -3030,7 +3054,7 @@ def test_docs_publish_measured_completion_cli_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "complete",
@@ -3053,7 +3077,7 @@ def test_docs_publish_measured_completion_cli_and_compatibility():
 
     assert (
         "Phase 29: Measured memory-run completion CLI (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3071,7 +3095,7 @@ def test_docs_publish_lesson_yaml_persistence_integrity_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "save_lessons_yaml",
@@ -3091,7 +3115,7 @@ def test_docs_publish_lesson_yaml_persistence_integrity_and_compatibility():
 
     assert (
         "Phase 30: Lesson YAML persistence integrity (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3109,7 +3133,7 @@ def test_docs_publish_batch_measured_completion_cli_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "complete-batch",
@@ -3133,7 +3157,7 @@ def test_docs_publish_batch_measured_completion_cli_and_compatibility():
 
     assert (
         "Phase 31: Batch measured memory-run completion CLI (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3152,7 +3176,7 @@ def test_docs_publish_bounded_local_document_ingestion_and_compatibility():
         "docs/product.md": _doc("product.md"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "bounded local document ingestion",
@@ -3171,7 +3195,7 @@ def test_docs_publish_bounded_local_document_ingestion_and_compatibility():
 
     assert (
         "Phase 32: Bounded local document ingestion (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3190,7 +3214,7 @@ def test_docs_publish_pr_report_cli_and_compatibility():
         "docs/product.md": _doc("product.md"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "pr-report",
@@ -3211,7 +3235,7 @@ def test_docs_publish_pr_report_cli_and_compatibility():
 
     assert (
         "Phase 33: PR report CLI (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3239,7 +3263,7 @@ def test_docs_publish_active_lessons_cli_and_compatibility():
         "docs/product.md": _doc("product.md"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "lessons export",
@@ -3262,7 +3286,7 @@ def test_docs_publish_active_lessons_cli_and_compatibility():
 
     assert (
         "Phase 34: Active lessons portability CLI (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3295,7 +3319,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
         "docs/product.md": _doc("product.md"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     required_contracts = [
         "obsolete",
@@ -3320,11 +3344,11 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 35: Memory obsolescence CLI (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     assert (
         "Phase 36: Atomic batch memory obsolescence (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3358,7 +3382,7 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
     product = _doc("product.md")
     architecture = _doc("architecture.md")
     usage_policy = _doc("usage-policy.md")
-    roadmap = _doc("mvp-roadmap.md")
+    roadmap = _doc("product-program.md")
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
         encoding="utf-8"
     )
@@ -3396,7 +3420,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     product = _doc("product.md")
     required_contracts = [
@@ -3422,7 +3446,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
     assert "decision-only `outcome` CLI" in product
     assert (
         "Phase 38: Deferred decision outcome CLI (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
@@ -3451,7 +3475,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3481,7 +3505,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
     assert (
         "Phase 39: PostgreSQL consistent snapshots and lifecycle row locks "
         "(implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     runtime = (
@@ -3507,7 +3531,7 @@ def test_docs_publish_postgres_bounded_load_before_materialization():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3524,7 +3548,7 @@ def test_docs_publish_postgres_bounded_load_before_materialization():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 40: PostgreSQL bounded load materialization (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     runtime = (
@@ -3557,7 +3581,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3575,7 +3599,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 41: Runtime collection cardinality limits (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     assert COMMIT_ANCESTRY_MAX_ANCHORS == 1_000
 
@@ -3592,7 +3616,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
         / "memory_decision.schema.json"
     ).read_bytes()
     assert packaged_schema == canonical_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3612,7 +3636,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3634,7 +3658,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 42: PostgreSQL concurrent insert revalidation (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     runtime = (
@@ -3659,7 +3683,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
         / "postgres.sql"
     ).read_bytes()
     assert packaged_postgres == canonical_postgres
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3677,7 +3701,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3695,7 +3719,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 43: Strict JSON object key uniqueness (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     runtime_files = {
@@ -3705,11 +3729,13 @@ def test_docs_publish_strict_json_object_key_uniqueness():
         for name in ("_ingestion.py", "cli.py", "policy.py", "store.py")
     }
     assert "def unique_json_object_pairs(" in runtime_files["_ingestion.py"]
-    for name in ("cli.py", "policy.py", "store.py"):
+    assert "def parse_bounded_json(" in runtime_files["_ingestion.py"]
+    assert "parse_bounded_json" in runtime_files["cli.py"]
+    for name in ("policy.py", "store.py"):
         assert "unique_json_object_pairs" in runtime_files[name]
         assert "object_pairs_hook" in runtime_files[name]
 
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
         "type": "integer",
@@ -3726,7 +3752,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3757,7 +3783,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 44: Bounded recover-batch arguments (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     ingestion_source = (
@@ -3774,7 +3800,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
         "_validate_recover_batch_cardinality(args)"
     ) < main_source.index("TraceBackedMemoryStore.load_json(args.snapshot)")
 
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
         "type": "integer",
@@ -3791,7 +3817,7 @@ def test_docs_publish_recover_attribution_final_delimiter():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
         "Phase 25 design": _doc(
             "superpowers/specs/2026-07-18-snapshot-operations-cli-design.md"
         ),
@@ -3820,7 +3846,7 @@ def test_docs_publish_recover_attribution_final_delimiter():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 70: Recover attribution final delimiter (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     usage_schema = _json_schema("memory_usage_log.schema.json")
     assert usage_schema["properties"]["decision_id"] == {
@@ -3835,7 +3861,7 @@ def test_docs_publish_recover_attribution_final_delimiter():
         "const": 2,
     }
     assert "VALUES (true, 2)" in _postgres_schema()
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_non_negative_trace_latency_contract():
@@ -3846,7 +3872,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3870,7 +3896,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 45: Non-negative trace latency (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     store_source = (
@@ -3913,7 +3939,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
     ).read_bytes()
     assert packaged_postgres == canonical_postgres
     assert b"traces_latency_ms_non_negative" in canonical_postgres
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3931,7 +3957,7 @@ def test_docs_publish_public_project_policy_obsolescence_export():
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         assert "obsolete_project_policy" in document, (
@@ -3944,12 +3970,12 @@ def test_docs_publish_public_project_policy_obsolescence_export():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 46: Public project-policy obsolescence export (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     assert tbm.obsolete_project_policy is lifecycle.obsolete_project_policy
     assert "obsolete_project_policy" in tbm.__all__
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3967,7 +3993,7 @@ def test_docs_publish_postgres_compatible_trace_latency_range():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -3982,7 +4008,7 @@ def test_docs_publish_postgres_compatible_trace_latency_range():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 47: PostgreSQL-compatible trace latency range (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
 
     store_source = (
@@ -4027,7 +4053,7 @@ def test_docs_publish_postgres_compatible_trace_latency_range():
     assert packaged_postgres == canonical_postgres
     assert b"latency_ms INTEGER" in canonical_postgres
     assert b"traces_latency_ms_non_negative" in canonical_postgres
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -4045,7 +4071,7 @@ def test_docs_publish_postgres_bounded_load_payloads():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -4060,7 +4086,7 @@ def test_docs_publish_postgres_bounded_load_payloads():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 48: PostgreSQL bounded load payloads (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     assert "max_record_bytes" in documents["docs/architecture.md"]
     assert "total_bytes" in documents["docs/architecture.md"]
@@ -4092,7 +4118,7 @@ def test_docs_publish_postgres_bounded_load_payloads():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
     assert "snapshot_payload_bytes" not in postgres_schema
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_docs_publish_portable_nonblank_persisted_strings():
@@ -4103,7 +4129,7 @@ def test_docs_publish_portable_nonblank_persisted_strings():
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
-        "docs/mvp-roadmap.md": _doc("mvp-roadmap.md"),
+        "docs/product-program.md": _doc("product-program.md"),
     }
     for name, document in documents.items():
         normalized = " ".join(document.split()).lower()
@@ -4117,7 +4143,7 @@ def test_docs_publish_portable_nonblank_persisted_strings():
     assert CURRENT_IMPLEMENTED_PHASE in documents["docs/product.md"]
     assert (
         "Phase 49: Portable nonblank persisted strings (implemented)"
-        in documents["docs/mvp-roadmap.md"]
+        in documents["docs/product-program.md"]
     )
     assert '`pattern: "\\\\S"`' in documents["README.md"]
     assert "default `btrim(text)`" in documents["docs/architecture.md"]
@@ -4145,7 +4171,7 @@ def test_docs_publish_portable_nonblank_persisted_strings():
         "type": "integer",
         "const": 2,
     }
-    assert len(packaged_resources()) == 21
+    assert len(packaged_resources()) == 41
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

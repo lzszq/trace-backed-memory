@@ -391,13 +391,14 @@ renderer 与 policy bundle。
 component；不得据此静默重建缺失的 prompt、response、policy 或 ancestry。使用前必须
 验证 artifact 字节。
 
-classification metadata 本身不执行安全策略。未来 repository 必须加密
+classification metadata 本身不执行安全策略。未来 service 必须加密
 confidential/restricted 字节、授权每次读取、执行 retention 与 redaction policy，并
-避免记录内容。opt-in `SQLiteReplayV3Repository` 会逐字节保存接受的内容，因此会拒绝
-confidential/restricted artifact，直到透明加密 provider 能在加密的同时保留精确内容
-身份。它校验精确字节与 immutable descriptor linkage，但不提供 access control、
-retention 或 GateSession authority。当前 Store
-与 active adapter 不持久化这些契约，也不得宣称支持精确 decision replay。
+避免记录内容。opt-in SQLite/PostgreSQL replay repository 会逐字节保存接受的内容，
+因此会拒绝 confidential/restricted artifact，直到透明加密 provider 能在加密的同时
+保留精确内容身份。两者校验精确字节与 immutable descriptor linkage，把精确 replay
+视为 idempotent，并通过 savepoint 保留 borrowed transaction；两者都不提供 access
+control、retention 或 GateSession authority。当前 Store 与 active adapter 不持久化
+这些契约，也不得宣称支持精确 decision replay。
 
 ## 固定运行时预算
 

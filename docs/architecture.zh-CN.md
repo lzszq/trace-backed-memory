@@ -358,10 +358,14 @@ version 2 的前提下建立匹配的隔离 PostgreSQL 关系边界。安装先�
 与固定 `search_path` immutability trigger；rollback 锁定两份 metadata，并在
 `RESTRICT` 删除前核对预期 catalog membership。SQL 强制 derived ID、精确关系
 linkage 与 injection shape；canonical descriptor 和 content-digest 验证仍由可信
-PostgreSQL repository 负责。该 repository 与跨记录 service transaction 仍待完成。
+opt-in `PostgresReplayV3Repository` 在 write 前和 load 后执行。该 repository 与
+SQLite 的 idempotency/conflict 语义对等，通过 psycopg savepoint 保留 caller
+transaction ownership，并在每次操作检查 metadata、catalog、trigger shape/state
+与 canonical function body。跨记录 authorization 与 GateSession service
+transaction 仍待完成。
 
-active v2 Store 与 persistence adapter 尚不输出这些契约。SQLite 账本提供原子
-artifact storage，PostgreSQL 资源当前只提供 schema lifecycle；两者都不提供
+active v2 Store 与 persistence adapter 尚不输出这些契约。SQLite/PostgreSQL replay
+repository 都提供原子 artifact storage；两者都不提供
 GateSession linkage、access control、encryption、retention 或 runtime authority。
 统一 version-3 runtime 仍需交付这些边界和 cross-adapter conformance。
 

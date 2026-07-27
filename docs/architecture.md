@@ -1487,15 +1487,18 @@ fixed-search-path immutability triggers atomically. Rollback locks both
 metadata rows and ledger tables, then verifies expected catalog membership
 before `RESTRICT` removal. SQL enforces derived IDs, exact relational linkage,
 and injection shape, but canonical descriptor and content-digest verification
-remain the trusted PostgreSQL repository's responsibility. That repository and
-the cross-record service transaction remain outstanding.
+are performed by the opt-in `PostgresReplayV3Repository` before writes and
+after loads. The repository mirrors SQLite idempotency/conflict behavior,
+preserves caller transaction ownership through psycopg savepoints, and checks
+metadata, catalog, trigger shape/state, and canonical function bodies on every
+operation. Cross-record authorization and the GateSession service transaction
+remain outstanding.
 
 The active v2 Store and persistence adapters do not emit these contracts. The
-SQLite ledger supplies atomic artifact storage, while the PostgreSQL resources
-currently supply schema lifecycle only. Neither supplies GateSession linkage,
-access control, encryption, retention, or runtime authority. Those boundaries
-and cross-adapter conformance remain required in the coordinated version-3
-runtime.
+SQLite and PostgreSQL replay repositories supply atomic artifact storage.
+Neither supplies GateSession linkage, access control, encryption, retention,
+or runtime authority. Those boundaries and active service integration remain
+required in the coordinated version-3 runtime.
 
 ## Authorization version-3 contract
 

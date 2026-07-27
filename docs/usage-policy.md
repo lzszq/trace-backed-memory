@@ -1229,14 +1229,14 @@ ancestry. Verify artifact bytes before use.
 
 Classification metadata is not enforcement. A future repository must encrypt
 confidential/restricted bytes, authorize each read, apply retention and
-redaction policy, and avoid logging content. The opt-in
-`SQLiteReplayV3Repository` stores accepted bytes verbatim and therefore rejects
+redaction policy, and avoid logging content. The opt-in SQLite and PostgreSQL
+replay repositories store accepted bytes verbatim and therefore reject
 confidential/restricted artifacts until a transparent encryption provider can
-preserve exact content identity. It
-verifies exact bytes and immutable descriptor linkage but provides no access
-control, retention, or GateSession authority. The current Store and active
-adapters do not persist these contracts and must not advertise exact decision
-replay.
+preserve exact content identity. Both verify exact bytes and immutable
+descriptor linkage, treat exact replay as idempotent, and preserve a borrowed
+transaction through a savepoint; neither provides access control, retention,
+or GateSession authority. The current Store and active adapters do not persist
+these contracts and must not advertise exact decision replay.
 
 ## Fixed runtime budgets
 

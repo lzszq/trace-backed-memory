@@ -545,8 +545,10 @@
 - 增加带版本门禁的隔离 PostgreSQL replay-ledger install 与 fail-closed rollback
   资源：提供有界精确字节、不可变 injection/manifest descriptor、关系链接、固定
   `search_path` mutation guard、active metadata 锁与精确 catalog 校验。PostgreSQL
-  repository adapter、authorization/encryption/retention、GateSession 事务链接和
-  active integration 仍待完成。
+  repository adapter 现提供精确 byte/descriptor 复验、精确 idempotency/conflict、
+  caller savepoint、schema/function/trigger drift 检查、有界 load 与并发 conformance。
+  authorization/encryption/retention、GateSession 事务链接和 active integration
+  仍待完成。
 - 发布 `tbm.regression-evidence.v3` storage-neutral、content-addressed 验证记录，
   要求不同的 submitter/verifier principal、精确 source/fix/verification commit
   关系、evaluator/environment provenance、expected/observed outcome、artifact hash

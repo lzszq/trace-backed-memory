@@ -19,7 +19,7 @@
 | PostgreSQL GateSession v3 repository | `postgres_gate_session_v3.py`, `schemas/postgres-v3-gate-session*.sql` | row-lock/database-time/CAS/idempotency/catalog/rollback tests, protocol docs |
 | Replay v3 contracts | `replay_v3.py` | injection/manifest Schemas and examples, parser tests, protocol docs |
 | SQLite replay v3 ledger | `sqlite_replay_v3.py`, `schemas/sqlite-v3-replay.sql` | exact-byte/idempotency/conflict/schema-drift/savepoint/concurrency tests, replay protocol docs |
-| PostgreSQL replay v3 schema | `schemas/postgres-v3-replay*.sql` | version-gated install, immutable/catalog/fail-closed rollback integration tests, replay protocol docs |
+| PostgreSQL replay v3 ledger | `postgres_replay_v3.py`, `schemas/postgres-v3-replay*.sql` | exact-byte/idempotency/conflict/schema-drift/savepoint/concurrency/install/rollback tests, replay protocol docs |
 | Callback orchestration | `execution.py` | recovery/error tests |
 | SQLite persistence | `sqlite.py`, `schemas/sqlite.sql` | Store conformance, migration docs |
 | PostgreSQL persistence | `postgres.py`, `schemas/postgres*.sql` | integration, concurrency, migration tests |

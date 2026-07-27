@@ -66,9 +66,9 @@ Start with:
   decision replay manifest contracts; not an artifact repository.
 - `sqlite_replay_v3.py`: opt-in isolated immutable artifact-byte, injection,
   and replay-manifest ledger; not wired to active runtime or authorization.
-- `schemas/postgres-v3-replay*.sql`: isolated PostgreSQL replay-ledger
-  install/fail-closed rollback boundary; the repository adapter remains
-  outstanding.
+- `postgres_replay_v3.py`: opt-in isolated PostgreSQL replay ledger with
+  exact-byte/descriptor revalidation, nested transactions, and schema drift
+  checks; not wired to active runtime or authorization.
 - `migration_v3.py`: inert content-addressed migration bundles and replay.
 - `execution.py`: callback orchestration and recovery context.
 - `sqlite.py` / `postgres.py`: persistence adapters.

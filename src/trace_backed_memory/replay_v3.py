@@ -175,6 +175,14 @@ class ContentAddressedArtifact:
 
 
 @dataclass(frozen=True)
+class StoredReplayArtifact:
+    """Validated replay descriptor paired with its exact stored bytes."""
+
+    artifact: ContentAddressedArtifact
+    content: bytes
+
+
+@dataclass(frozen=True)
 class InjectionArtifact:
     """Exact rendered injection metadata linked to one finalized decision."""
 
@@ -897,6 +905,7 @@ __all__ = [
     "ReplayCompleteness",
     "ReplayComponentName",
     "ReplayContractError",
+    "StoredReplayArtifact",
     "artifact_id_from_sha256",
     "build_decision_replay_manifest",
     "create_content_addressed_artifact",

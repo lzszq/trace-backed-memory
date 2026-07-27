@@ -403,9 +403,10 @@ component; legacy partial manifests must name exactly what is absent. The
 opt-in `SQLiteReplayV3Repository` stores exact bytes, injection descriptors,
 and manifests in an isolated immutable ledger with atomic bundle writes and
 fail-closed load verification. Isolated PostgreSQL install/rollback resources
-now establish the matching immutable relational boundary and verify its exact
-catalog membership on fail-closed removal; canonical descriptor and byte-digest
-verification remain responsibilities of the outstanding PostgreSQL repository.
+establish the matching immutable relational boundary, while the opt-in
+`PostgresReplayV3Repository` supplies canonical descriptor and byte-digest
+verification, exact idempotency, nested transaction ownership, and schema
+drift checks. Fail-closed removal verifies expected catalog membership.
 The current Store, active SQL adapters, local agent, and MCP do not use these
 resources, and they provide no access control, encryption, retention, or
 GateSession authority, so this remains preparation rather than a claim of
@@ -2230,6 +2231,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- policy.py
 |   |-- postgres.py
 |   |-- postgres_gate_session_v3.py
+|   |-- postgres_replay_v3.py
 |   |-- replay_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_gate_session_v3.py
@@ -2252,6 +2254,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_outcome_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
+    |-- test_postgres_replay_v3.py
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py
     |-- test_sqlite_replay_v3.py

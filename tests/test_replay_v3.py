@@ -629,6 +629,7 @@ def test_replay_schemas_examples_and_public_exports():
         "DecisionReplayManifest",
         "InjectionArtifact",
         "ReplayContractError",
+        "StoredReplayArtifact",
         "artifact_id_from_sha256",
         "build_decision_replay_manifest",
         "create_content_addressed_artifact",

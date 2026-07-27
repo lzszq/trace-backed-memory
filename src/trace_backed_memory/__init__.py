@@ -333,6 +333,15 @@ from .postgres_gate_session_v3 import (
     PostgresGateSessionRepository,
     PostgresGateSessionSchemaError,
 )
+from .postgres_replay_v3 import (
+    POSTGRES_REPLAY_V3_SCHEMA_VERSION,
+    PostgresReplayV3ConflictError,
+    PostgresReplayV3Error,
+    PostgresReplayV3PersistenceError,
+    PostgresReplayV3Repository,
+    PostgresReplayV3SchemaError,
+    PostgresReplayV3StoreResult,
+)
 from .replay_v3 import (
     ARTIFACT_MAX_BYTES,
     INJECTION_ARTIFACT_MAX_BYTES,
@@ -349,6 +358,7 @@ from .replay_v3 import (
     ReplayCompleteness,
     ReplayComponentName,
     ReplayContractError,
+    StoredReplayArtifact,
     artifact_id_from_sha256,
     build_decision_replay_manifest,
     create_content_addressed_artifact,
@@ -396,7 +406,6 @@ from .sqlite_replay_v3 import (
     SQLiteReplayV3Repository,
     SQLiteReplayV3SchemaError,
     SQLiteReplayV3StoreResult,
-    StoredReplayArtifact,
 )
 from .sqlite_v3 import (
     SQLITE_V3_MIGRATION_SCHEMA_VERSION,
@@ -613,6 +622,13 @@ __all__ = [
     "PostgresGateSessionPersistenceError",
     "PostgresGateSessionRepository",
     "PostgresGateSessionSchemaError",
+    "POSTGRES_REPLAY_V3_SCHEMA_VERSION",
+    "PostgresReplayV3ConflictError",
+    "PostgresReplayV3Error",
+    "PostgresReplayV3PersistenceError",
+    "PostgresReplayV3Repository",
+    "PostgresReplayV3SchemaError",
+    "PostgresReplayV3StoreResult",
     "PostgresMemoryRepository",
     "PostgresPersistenceError",
     "PostgresSchemaError",

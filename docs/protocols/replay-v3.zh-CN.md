@@ -6,8 +6,8 @@
 之后实际注入的精确字节，以及重放该 decision 所需的固定证据集合。契约模块本身
 不激活 memory，也不会把当前进程内 Gate 变成 durable Gate。现有 opt-in 隔离
 SQLite repository 可持久化这些记录；隔离 PostgreSQL 安装与 fail-closed rollback
-schema 建立相同的不可变关系边界，但尚未连接 Python repository 或 active runtime
-state。
+schema 建立相同的不可变关系边界；opt-in PostgreSQL repository 现已提供精确
+byte/descriptor 验证。两个 ledger 都尚未连接 active runtime state。
 
 ## 内容身份
 
@@ -84,10 +84,11 @@ manifest-to-injection identity linkage 以及 injection byte/media bound，并�
 核对预期 relation、function、trigger、constraint 与 column catalog membership，
 再使用 `RESTRICT`
 仅删除隔离 schema。额外对象、外部依赖、metadata drift 或 active version 不是 2
-都会让整个 rollback 失败。这两份 SQL 只建立 migration boundary；当前尚不提供
-content SHA-256 重算或 canonical descriptor parsing，也不提供 PostgreSQL
-repository、访问授权、加密、保留或 service 事务。可信 repository 必须在每次
-insert 前和 load 后验证 descriptor 与精确字节。
+都会让整个 rollback 失败。SQL 本身不重算 content SHA-256 或解析 canonical
+descriptor。`PostgresReplayV3Repository` 会在每次 insert 前和 load 后执行这些
+检查，把精确 replay 视为 idempotent，并使用嵌套 psycopg transaction 保留 caller
+work ownership，同时拒绝 catalog/function/trigger drift。它不提供访问授权、加密、
+保留、GateSession linkage 或 service 事务。
 
 ## 解析与信任边界
 
@@ -101,6 +102,6 @@ Python parser 检查。
 
 当前 v2 Store、active SQLite v1 adapter、PostgreSQL v2 adapter、本地 Agent 与
 STDIO MCP 均不会持久化或输出这些记录。opt-in SQLite 账本提供原子字节/descriptor
-存储；隔离 PostgreSQL 资源目前只提供 schema lifecycle。未来 runtime 只有在授权
+存储；opt-in PostgreSQL repository 提供相同的原子 byte/descriptor storage。未来 runtime 只有在授权
 读取、执行 retention/encryption，并链接 finalized GateSession 后，才能声称支持
 完整 decision replay。

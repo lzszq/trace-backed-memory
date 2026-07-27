@@ -19,6 +19,7 @@ from .replay_v3 import (
     DecisionReplayManifest,
     InjectionArtifact,
     ReplayContractError,
+    StoredReplayArtifact,
     dumps_decision_replay_manifest,
     dumps_injection_artifact,
     loads_decision_replay_manifest,
@@ -64,12 +65,6 @@ class SQLiteReplayV3ConflictError(SQLiteReplayV3Error):
 
 class SQLiteReplayV3PersistenceError(SQLiteReplayV3Error):
     pass
-
-
-@dataclass(frozen=True)
-class StoredReplayArtifact:
-    artifact: ContentAddressedArtifact
-    content: bytes
 
 
 @dataclass(frozen=True)

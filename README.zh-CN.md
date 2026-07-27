@@ -257,8 +257,9 @@ injection，以及固定八项 component 的 decision replay manifest。complete
 列出缺失项。opt-in `SQLiteReplayV3Repository` 在隔离 immutable 账本中保存精确
 字节、injection descriptor 与 manifest，提供原子 bundle 写入和 fail-closed load
 复验。隔离 PostgreSQL install/rollback 资源现已建立匹配的不可变关系边界，并在
-fail-closed 删除前核对预期 catalog membership；canonical descriptor 与 byte-digest
-验证仍由待完成的 PostgreSQL repository 负责。当前 Store、
+fail-closed 删除前核对预期 catalog membership；opt-in
+`PostgresReplayV3Repository` 提供 canonical descriptor/byte-digest 复验、精确
+idempotency、嵌套 transaction ownership 与 schema drift 检查。当前 Store、
 active SQL adapter、本地 Agent 与 MCP 均不使用这些资源；它们也不提供 access
 control、encryption、retention 或 GateSession authority，因此仍是统一 version-3
 runtime 的准备工作，而不是当前已支持精确重放的声明。详见
@@ -1100,6 +1101,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- policy.py
 |   |-- postgres.py
 |   |-- postgres_gate_session_v3.py
+|   |-- postgres_replay_v3.py
 |   |-- replay_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_gate_session_v3.py
@@ -1122,6 +1124,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_outcome_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
+    |-- test_postgres_replay_v3.py
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py
     |-- test_sqlite_replay_v3.py

@@ -1333,8 +1333,11 @@ Track:
   rollback resources with bounded exact bytes, immutable injection/manifest
   descriptors, relational linkage, fixed-search-path mutation guards, active
   metadata locking, and exact catalog verification. Keep the PostgreSQL
-  repository adapter, authorization/encryption/retention, GateSession
-  transaction linkage, and active integration outstanding.
+  repository adapter with exact-byte/descriptor revalidation, exact
+  idempotency/conflict handling, caller savepoints, schema/function/trigger
+  drift checks, bounded loads, and concurrency conformance. Keep
+  authorization/encryption/retention, GateSession transaction linkage, and
+  active integration outstanding.
 - Publish `tbm.regression-evidence.v3` as a storage-neutral, content-addressed
   verification record with distinct submitter/verifier principals, exact
   source/fix/verification commit relationships, evaluator and environment

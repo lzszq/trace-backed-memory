@@ -7,8 +7,9 @@ after a finalized memory decision and for the fixed evidence set needed to
 replay that decision. It does not activate memory or make the current
 process-local Gate durable. An opt-in isolated SQLite repository persists
 these records; isolated PostgreSQL install and fail-closed rollback schemas
-establish the same immutable relational boundary but are not yet connected to
-a Python repository or active runtime state.
+establish the same immutable relational boundary, and an opt-in PostgreSQL
+repository now provides exact-byte and descriptor validation. Neither ledger
+is connected to active runtime state.
 
 ## Content identity
 
@@ -100,11 +101,12 @@ ledger tables, verifies the expected relation, function, trigger, constraint,
 and column catalog membership, and
 drops only the isolated schema with `RESTRICT`. Unexpected objects, external
 dependencies, metadata drift, or an active version other than 2 abort the
-entire rollback. These SQL resources establish a migration boundary; they do
-not recompute content SHA-256, parse canonical descriptors, or provide the
-PostgreSQL repository, access authorization, encryption, retention, or service
-transactions. The trusted repository must verify descriptors and exact bytes
-before every insert and after every load.
+entire rollback. SQL alone does not recompute content SHA-256 or parse
+canonical descriptors. `PostgresReplayV3Repository` performs those checks
+before every insert and after every load, treats exact replay as idempotent,
+uses nested psycopg transactions so caller work retains ownership, and rejects
+catalog/function/trigger drift. It does not provide access authorization,
+encryption, retention, GateSession linkage, or service transactions.
 
 ## Parsing and trust boundary
 
@@ -119,7 +121,7 @@ by the Python parser and must be checked after Schema validation.
 
 The current v2 Store, active SQLite v1 adapter, PostgreSQL v2 adapter, local
 agent, and STDIO MCP do not persist or emit these records. The opt-in SQLite
-ledger provides atomic byte/descriptor storage, while the isolated PostgreSQL
-resources currently provide schema lifecycle only. A future runtime must
+ledger and opt-in PostgreSQL repository provide atomic byte/descriptor
+storage only. A future runtime must
 authorize reads, apply retention/encryption, and link the finalized
 GateSession before it can claim complete decision replay.

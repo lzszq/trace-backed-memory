@@ -2,11 +2,12 @@
 
 **English** | [简体中文](gate-session-v3.zh-CN.md)
 
-`tbm.gate-session.v3` is the persistence-neutral domain contract for the
-durable runtime lifecycle planned for SQLite v2, PostgreSQL v3, `tbmd`, HTTP,
-MCP, and SDK adapters. It is not a claim that the current local MCP server
-persists pending requests. The active runtime remains snapshot v2, SQLite v1,
-PostgreSQL v2, and process-local pending Gate requests.
+`tbm.gate-session.v3` defines the durable runtime lifecycle planned for
+SQLite v2, PostgreSQL v3, `tbmd`, HTTP, MCP, and SDK adapters. Its domain
+record remains persistence-neutral. An opt-in, side-by-side SQLite repository
+now persists immutable revisions, but this is not a claim that the current
+local MCP server persists pending requests. The active runtime remains
+snapshot v2, SQLite v1, PostgreSQL v2, and process-local pending requests.
 
 ## Identity and concurrency
 
@@ -19,13 +20,13 @@ Every session binds these server-resolved identities:
 The record is immutable. Each transition creates a new record with
 `version + 1`; callers must present the exact `expected_version`. A stale
 revision fails with `TBM_GATE_SESSION_STALE_VERSION`. Repository adapters must
-enforce the same optimistic check atomically when they are implemented.
+enforce the same optimistic check atomically.
 
 `created_at`, `updated_at`, `expires_at`, and lease timestamps are
 service-authoritative fields. An agent client must never choose them. The
 contract functions stay deterministic for replay and therefore do not consult
-the wall clock; a future repository/service must supply transactional database
-or trusted service time and reject a request received after its live lease or
+the wall clock; a repository/service supplies transactional database or
+trusted service time and rejects a request received after its live lease or
 expiry even if the client presents an older timestamp.
 
 ## Lifecycle
@@ -81,12 +82,30 @@ Stable contract errors are:
 - `TBM_GATE_SESSION_INVALID_TRANSITION`
 - `TBM_GATE_SESSION_STALE_VERSION`
 
-## Current boundary
+## Side-by-side SQLite repository
 
-`GateSession`, `create_gate_session()`, `transition_gate_session()`, and
-`renew_gate_session_lease()` define and test the target lifecycle. They do not
-reconstruct `MemoryGateRequest._store_token`, alter the current Store, change
-snapshot or database versions, or make the existing STDIO MCP lifecycle
-restart-resumable. A later coordinated migration must implement the
-authoritative repositories, atomic idempotency index, expiry worker, recovery,
-and adapter conformance before durable runtime claims are valid.
+`SQLiteGateSessionRepository` stores append-only revision payloads plus one
+compare-and-swap current head under
+`schemas/sqlite-v3-gate-session.sql`. `create_or_get()` scopes idempotency by
+tenant, repository, principal, and agent client. Exact request replay returns
+the existing session; conflicting identity or fingerprint fails without
+overwrite. `transition()` and `renew_lease()` use a trusted service clock,
+append one validated revision, and advance the head by exactly one version in
+one `BEGIN IMMEDIATE` transaction or caller-owned savepoint. `history()`
+retains the revision chain and `list_due()` returns bounded current candidates
+without mutating them.
+
+The adapter additionally emits stable `TBM_SQLITE_GATE_SESSION_*` errors for
+closed connections, disabled foreign keys or recursive triggers, schema drift,
+persistence failures, missing sessions, clock regression, scoped
+idempotency/session-ID conflicts, and transitions attempted after lease or
+session expiry. Database triggers
+protect append-only history, revision continuity, the lifecycle graph, and
+immutable head identity even from direct SQL; repository reads still
+revalidate canonical payloads and head identity before returning them.
+
+This repository is an opt-in persistence seam, not active SQLite schema v2.
+It does not reconstruct `MemoryGateRequest._store_token`, alter the current
+Store, or make STDIO MCP restart-resumable. PostgreSQL v3, expiry/recovery
+workers, service integration, authorization, and cross-adapter conformance
+remain required before GateSession is the distributed runtime authority.

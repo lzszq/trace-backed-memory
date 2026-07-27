@@ -176,7 +176,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 47 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 48 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -257,6 +257,14 @@ injection，以及固定八项 component 的 decision replay manifest。complete
 列出缺失项。当前 Store、SQL adapter、本地 Agent 与 MCP 均不持久化这些记录，因此
 它是统一 version-3 runtime 的准备工作，而不是当前已支持精确重放的声明。详见
 [重放契约](docs/protocols/replay-v3.zh-CN.md)。
+
+如需 opt-in 的 version-3 lifecycle 本地持久化，可使用独立
+`schemas/sqlite-v3-gate-session.sql` 契约与
+`SQLiteGateSessionRepository`。它保存 append-only canonical revision、
+逐 version CAS head、scoped idempotency、可信时钟 lease 与有界 due-session
+discovery，并可与 active SQLite v1 Store 共用一个数据库文件而不改变其 schema。
+当前 Agent 与 MCP 不使用该 repository，也不会恢复私有 pending request token；
+详见 [GateSession 契约](docs/protocols/gate-session-v3.zh-CN.md)。
 
 `recover-batch` 在重复项检查前统计提交值，decision ID 与 attribution 各自最多接受 10,000 项。每个 `--attribution DECISION_ID=true|false` 使用最后一个 `=` 作为分隔符，因此 `decision=regional` 这样的 ID 仍可寻址；后缀必须是严格的小写 `true` 或 `false`。
 
@@ -855,7 +863,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、47 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、48 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -954,6 +962,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
 |   |-- snapshot_v3_migration_*.schema.json
+|   |-- sqlite-v3-gate-session.sql
 |   |-- sqlite-v3-migration.sql
 |   |-- sqlite.sql
 |   |-- trace.schema.json
@@ -987,6 +996,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- postgres.py
 |   |-- replay_v3.py
 |   |-- sqlite.py
+|   |-- sqlite_gate_session_v3.py
 |   |-- sqlite_v3.py
 |   |-- py.typed
 |   |-- resources.py
@@ -998,6 +1008,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_mcp_server.py
     |-- test_migration_v3.py
     |-- test_replay_v3.py
+    |-- test_sqlite_gate_session_v3.py
     |-- test_quickstart.py
     |-- test_sqlite_v3.py
     |-- test_verify_tool.py

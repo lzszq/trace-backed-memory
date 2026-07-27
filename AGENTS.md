@@ -43,6 +43,8 @@ Start with:
 - `contracts_v3.py`: strict version-3 identities, mappings, and preflight plans.
 - `gate_session_v3.py`: persistence-neutral durable-session contract and
   explicit lifecycle transitions; not an active repository.
+- `sqlite_gate_session_v3.py`: opt-in side-by-side append-only GateSession
+  revisions and CAS heads; not wired to the active Agent/MCP.
 - `replay_v3.py`: content-addressed artifact, exact injection, and fixed
   decision replay manifest contracts; not an artifact repository.
 - `migration_v3.py`: inert content-addressed migration bundles and replay.

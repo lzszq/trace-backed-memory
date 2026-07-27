@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-47 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession 与内容寻址重放 contract 资源。
+48 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放 contract 资源与隔离 SQLite GateSession repository DDL。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -270,6 +270,15 @@ terminal failure path 必须保留有界 reason。
 `MemoryGateRequest` token 来模拟 durability。未来 repository 必须在不削弱
 现有 Gate 的前提下，实现原子 idempotency、expiry、recovery，以及 retrieval
 前 authorization。
+
+opt-in `SQLiteGateSessionRepository` 是该记录的首个 durable adapter。只有
+service-owned 代码可以配置其可信 clock 与 TTL/lease duration。原子 idempotency
+replay 必须使用 `create_or_get()`；调用 `transition()` 或 `renew_lease()` 时始终
+提交精确 current version；`list_due()` 只是未加锁 candidate snapshot，后续仍需
+CAS transition。不得直接修改 revision row 或 identity column。借用的 SQLite
+connection 必须持续启用 foreign key 与 recursive trigger。该 adapter 与 active
+SQLite v1 side-by-side，且不连接 `MemoryGateRequest`；它本身不提供 expiry worker、
+recovery、authorization 或 restart-resumable MCP。
 
 ## Version-3 重放 artifact 策略
 

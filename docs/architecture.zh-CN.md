@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 47 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 48 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -314,10 +314,17 @@ usage decision，最后是 run outcome。cancel、expiry 与 abandon 均为 term
 外部 parser 有界、拒绝 duplicate key、检查 finite number，并拒绝未知字段。完整
 契约见 [Durable GateSession version-3 契约](protocols/gate-session-v3.zh-CN.md)。
 
-该模块不是 repository，也不会用来重建私有 Store request token。当前本地 Agent
-与 STDIO MCP 仍为进程内状态。只有 durable idempotency index、事务、expiry
-worker、crash recovery 与 adapter conformance 全部实现后，该 session 契约才能
-成为 runtime authority。
+`sqlite_gate_session_v3.py` 增加 opt-in、side-by-side 本地 repository。它保存
+append-only canonical revision payload 与 CAS head，按
+tenant/repository/principal/agent 限定原子 idempotency index，使用可信 service
+time，通过 savepoint 保留调用方 transaction，检测 canonical DDL drift，并提供有界
+due-session discovery。其独立 metadata 与 `schemas/sqlite-v3-gate-session.sql`
+使 active SQLite schema version 仍为 1。
+
+该 repository 不会连接私有 Store request token。当前本地 Agent 与 STDIO MCP 仍为
+进程内状态。PostgreSQL v3、expiry/recovery worker、service orchestration、
+authorization 与跨 adapter conformance 全部实现后，该 session 契约才能成为
+distributed runtime authority。
 
 ## 内容寻址重放 version-3 契约
 

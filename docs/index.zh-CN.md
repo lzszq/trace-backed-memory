@@ -34,8 +34,9 @@
 当前格式为 snapshot version 2、SQLite schema version 1、PostgreSQL schema
 version 2 和 Agent 协议 `tbm.agent.v1`。可选 `tbm-mcp` 命令是该协议的长驻
 本地 STDIO transport，不是新的持久化版本。pending gate request 仍为进程内
-状态。与持久化实现无关的 `tbm.gate-session.v3` 生命周期契约已经发布，但其
-SQLite/PostgreSQL repository、worker 与 service integration 尚未启用。
+状态。与持久化实现无关的 `tbm.gate-session.v3` 生命周期契约及 opt-in、
+side-by-side SQLite revision repository 已经发布，但 active Store/MCP、
+PostgreSQL repository、worker 与 service integration 尚未使用它。
 canonical repository 授权与结构化 regression evidence 属于统一推进的 schema
 version 3 计划。与存储实现无关的 `tbm.replay.v3` artifact 与 replay manifest
 契约已经发布，但 active adapter 尚不存储其字节或 manifest。只读 v3 迁移预检和不可激活的 staging

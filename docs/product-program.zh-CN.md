@@ -507,7 +507,7 @@
   handle 在重启后与新 request 碰撞。
 - 同步发布 Codex 项目配置、运行策略、架构、产品、README 与仓库技能指南。
 - 保持 snapshot version 2、SQLite schema version 1、PostgreSQL schema
-  version 2，以及 47 项资源的发行契约。
+  version 2，以及 48 项资源的发行契约。
 
 ## Phase 74：可部署信任边界与可重放审计（进行中）
 
@@ -536,6 +536,11 @@
   component decision manifest 契约，包含 canonical self-hash、有界严格 JSON、
   打包 Schema/示例，以及明确的 `complete`/`legacy_partial` 语义。active v2
   adapter 不得宣称已持久化 artifact 或支持精确 decision replay。
+- 增加 opt-in、side-by-side SQLite GateSession repository，提供 append-only
+  canonical revision、scoped 原子 idempotency index、可信时钟 CAS transition 与
+  lease renewal、schema-drift 检测、调用方 savepoint、并发测试和有界 due
+  discovery。active SQLite schema version 1 与进程内 Agent/MCP request token
+  保持不变。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 canonical repository ID、显式 global/repository/tenant scope kind 与 global policy 权限，使 scope 成为可执行的授权边界。

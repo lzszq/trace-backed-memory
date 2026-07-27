@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 47 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 48 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 47 resources.
+contains 48 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1433,11 +1433,19 @@ external parsing is bounded, duplicate-key rejecting, finite-number checked,
 and closed to unknown fields. The full contract is documented in
 [Durable GateSession version-3 contract](protocols/gate-session-v3.md).
 
-This module is not a repository and is not used to reconstruct the private
-Store request token. The active local agent and STDIO MCP remain
-process-local. Durable idempotency indexes, transactions, expiry workers,
-crash recovery, and adapter conformance are required before the session
-contract becomes the runtime authority.
+`sqlite_gate_session_v3.py` adds an opt-in, side-by-side local repository. It
+stores append-only canonical revision payloads plus a CAS head, scopes its
+atomic idempotency index by tenant/repository/principal/agent, uses trusted
+service time, preserves caller transactions through savepoints, detects
+canonical DDL drift, and exposes bounded due-session discovery. Its separate
+metadata and `schemas/sqlite-v3-gate-session.sql` leave the active SQLite
+schema version at 1.
+
+This repository is not wired to the private Store request token. The active
+local agent and STDIO MCP remain process-local. PostgreSQL v3, expiry/recovery
+workers, service orchestration, authorization, and cross-adapter conformance
+are required before the session contract becomes the distributed runtime
+authority.
 
 ## Content-addressed replay version-3 contract
 

@@ -67,8 +67,9 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Operations recovery | Five-state audits, remediation actions, single/batch recovery, and ready-recovery sweeps |
 | Operations CLI | Dependency-free `tbm` and module entry point for snapshots, v3 migration preflight/bundle verification, lessons, obsolescence, audits, metrics, PR reports, completion, and recovery |
 | Migration preparation | Content-addressed inert v2-to-v3 bundles, exact plan replay, immutable SQLite staging, and version-gated PostgreSQL staging/rollback without changing active runtime versions |
+| GateSession persistence preparation | Opt-in side-by-side SQLite append-only revisions, scoped idempotency, CAS transitions, trusted-clock leases, and bounded due discovery without changing active SQLite v1 |
 | Replay contract preparation | Storage-neutral content-addressed artifact, exact injection, and fixed-component decision-manifest v3 contracts; active adapters do not yet persist them |
-| Distribution resources | 47 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Distribution resources | 48 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |
@@ -87,7 +88,7 @@ All caller-owned JSON is checked for duplicate object keys before conversion to 
 5. The harness executes and evaluates the task.
 6. `complete_memory_run()` or `complete_memory_runs()` atomically writes the Trace and decision outcome. Snapshot operators can submit measured results with `tbm complete` or `tbm complete-batch`.
 
-Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Applications that do not need the lower-level Store lifecycle can use `LocalAgentMemory`, which also owns Trace registration, repository synchronization, stable errors, and callback recovery IDs. The optional `tbm-mcp` command exposes only this runtime lifecycle over bounded local STDIO, fixes provenance to a configured checkout root, and captures complete Git ancestry before retrieval. SQLite and PostgreSQL synchronize durable phases; pending requests remain process-local. The persistence-neutral `tbm.gate-session.v3` contract defines the target lifecycle, revision, lease, and expiry semantics, but durable repositories and service integration are not yet delivered. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
+Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Applications that do not need the lower-level Store lifecycle can use `LocalAgentMemory`, which also owns Trace registration, repository synchronization, stable errors, and callback recovery IDs. The optional `tbm-mcp` command exposes only this runtime lifecycle over bounded local STDIO, fixes provenance to a configured checkout root, and captures complete Git ancestry before retrieval. SQLite and PostgreSQL synchronize durable phases; pending requests remain process-local. The `tbm.gate-session.v3` contract defines the target lifecycle, revision, lease, and expiry semantics, and an opt-in side-by-side SQLite repository persists its immutable revisions. The active agent/MCP does not yet use that repository; PostgreSQL, workers, authorization, and service integration remain outstanding. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
 
 ### 5.2 From Failure to Reusable Lesson
 
@@ -223,9 +224,10 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
 - Gate requests and finalized tombstones remain process-local. Pending requests
   are bounded and explicitly cancellable, finalized tombstones are bounded,
   high-level requests bind Trace/run identity, and final usage logs persist the
-  `request_id`. The version-3 GateSession contract is not yet an active
-  repository; persisted idempotency, expiry, and crash recovery remain out of
-  scope.
+  `request_id`. The version-3 GateSession contract has an opt-in SQLite
+  revision repository, but it is not yet active agent/MCP state; PostgreSQL,
+  expiry/recovery workers, authorization, and service integration remain out
+  of scope.
 - Storage-neutral replay descriptors now define the required retriever/index,
   Gate prompt/response, ancestry, policy, renderer, and exact snippet hashes,
   but usage logs and active adapters do not yet persist those artifacts.

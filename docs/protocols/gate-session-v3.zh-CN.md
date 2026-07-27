@@ -2,10 +2,11 @@
 
 [English](gate-session-v3.md) | **简体中文**
 
-`tbm.gate-session.v3` 是未来 SQLite v2、PostgreSQL v3、`tbmd`、HTTP、MCP
-与 SDK adapter 共用的、与持久化实现无关的 durable runtime 生命周期领域契约。
-它不表示当前本地 MCP server 已经持久化 pending request。当前 runtime 仍是
-snapshot v2、SQLite v1、PostgreSQL v2，以及进程内 pending Gate request。
+`tbm.gate-session.v3` 定义未来 SQLite v2、PostgreSQL v3、`tbmd`、HTTP、MCP
+与 SDK adapter 共用的 durable runtime 生命周期；domain 记录仍与持久化实现无关。
+现在已有 opt-in、side-by-side SQLite repository 持久化 immutable revision，但这
+不表示当前本地 MCP server 已经持久化 pending request。active runtime 仍是
+snapshot v2、SQLite v1、PostgreSQL v2，以及进程内 pending request。
 
 ## 身份与并发
 
@@ -17,11 +18,11 @@ snapshot v2、SQLite v1、PostgreSQL v2，以及进程内 pending Gate request�
 
 记录不可变。每次转换产生 `version + 1` 的新记录；调用方必须提交精确的
 `expected_version`。stale revision 使用 `TBM_GATE_SESSION_STALE_VERSION`
-失败。后续 repository adapter 必须在一个原子操作中执行同样的乐观并发检查。
+失败。repository adapter 必须在一个原子操作中执行同样的乐观并发检查。
 
 `created_at`、`updated_at`、`expires_at` 与 lease 时间戳都是 service-authoritative
 字段，agent client 绝不能自行选择。为保证 replay 的确定性，契约函数不会读取
-wall clock；未来 repository/service 必须使用事务内数据库时间或可信 service
+wall clock；repository/service 必须使用事务内数据库时间或可信 service
 时间，并在真实 lease/expiry 已过时拒绝请求，不能接受 client 提交的旧时间戳。
 
 ## 生命周期
@@ -73,11 +74,26 @@ JSON，并将时间戳规范化为 UTC。
 - `TBM_GATE_SESSION_INVALID_TRANSITION`
 - `TBM_GATE_SESSION_STALE_VERSION`
 
-## 当前边界
+## Side-by-side SQLite repository
 
-`GateSession`、`create_gate_session()`、`transition_gate_session()` 与
-`renew_gate_session_lease()` 定义并测试目标生命周期。它们不会重建
-`MemoryGateRequest._store_token`、修改当前 Store、提升 snapshot/database
-版本，也不会让现有 STDIO MCP 生命周期在重启后可恢复。只有后续统一迁移交付
-authoritative repository、原子 idempotency index、expiry worker、recovery
-与 adapter conformance 后，才能宣称 durable runtime 已实现。
+`SQLiteGateSessionRepository` 在 `schemas/sqlite-v3-gate-session.sql` 下保存
+append-only revision payload 与 compare-and-swap current head。
+`create_or_get()` 按 tenant、repository、principal 与 agent client 限定
+idempotency；相同 request replay 返回既有 session，冲突 identity/fingerprint
+不会覆盖。`transition()` 与 `renew_lease()` 使用可信 service clock，在一个
+`BEGIN IMMEDIATE` transaction 或调用方 savepoint 中追加一条 validated revision，
+并让 head 精确前进一个 version。`history()` 保留 revision chain，`list_due()` 只
+返回有界当前候选，不自动修改。
+
+adapter 还会针对连接关闭、foreign key 或 recursive trigger 禁用、schema drift、
+持久化失败、session 不存在、时钟回退、scoped idempotency/session ID 冲突，以及
+lease 或 session 过期后的转换，返回稳定的 `TBM_SQLITE_GATE_SESSION_*` 错误。数据库 trigger
+即使面对 direct SQL 也会保护 append-only history、revision 连续性、生命周期图和
+immutable head identity；repository 读取时仍会重新校验 canonical payload 与 head
+identity。
+
+该 repository 是 opt-in persistence seam，不是 active SQLite schema v2。它不会
+重建 `MemoryGateRequest._store_token`、修改当前 Store，也不会让 STDIO MCP 在重启
+后可恢复。PostgreSQL v3、expiry/recovery worker、service integration、
+authorization 与跨 adapter conformance 仍需交付，GateSession 才能成为
+distributed runtime authority。

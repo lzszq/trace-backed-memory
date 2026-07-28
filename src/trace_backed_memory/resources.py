@@ -301,6 +301,16 @@ _RESOURCE_SPECS: tuple[
         "application/sql",
     ),
     (
+        "schemas/postgres-v3-outcome-attribution-rollback.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres-v3-outcome-attribution.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
         "schemas/postgres-v3-outcome-rollback.sql",
         "schema",
         "application/sql",

@@ -74,6 +74,9 @@ Start with:
 - `postgres_outcome_v3.py`: opt-in isolated PostgreSQL RunOutcome plus
   `COMPLETED` GateSession transaction with database-time row locking and
   fail-closed rollback; active PostgreSQL schema version 2 remains unchanged.
+- `postgres_outcome_attribution_v3.py`: opt-in isolated PostgreSQL immutable
+  multi-claim OutcomeAttribution ledger with exact catalog validation,
+  row-lock linkage, savepoint safety, concurrency, and fail-closed rollback.
 - `audit_v3.py`: append-only AuditEvent chains and explicit RecoveryAction
   evidence verified against existing lifecycle sources of truth.
 - `sqlite_audit_v3.py`: opt-in isolated append-only AuditEvent/RecoveryAction

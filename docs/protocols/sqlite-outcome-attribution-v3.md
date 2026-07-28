@@ -62,6 +62,8 @@ verify artifact bytes, establish a trusted clock, or turn an association into a
 causal claim. A service must derive authenticated identities and trusted time
 before constructing the content-addressed record.
 
-PostgreSQL parity, authenticated evaluator and artifact checks, completion and
+The isolated
+[PostgreSQL attribution ledger](postgres-outcome-attribution-v3.md) provides
+database parity. Authenticated evaluator and artifact checks, completion and
 attribution outbox delivery, and active Agent/MCP/HTTP/SDK integration remain
 follow-up work.

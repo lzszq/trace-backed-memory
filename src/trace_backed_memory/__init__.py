@@ -482,6 +482,16 @@ from .postgres_outcome_v3 import (
     PostgresOutcomeV3Repository,
     PostgresOutcomeV3SchemaError,
 )
+from .postgres_outcome_attribution_v3 import (
+    POSTGRES_OUTCOME_ATTRIBUTION_V3_SCHEMA_VERSION,
+    PostgresOutcomeAttributionV3ConflictError,
+    PostgresOutcomeAttributionV3Error,
+    PostgresOutcomeAttributionV3NotFoundError,
+    PostgresOutcomeAttributionV3PersistenceError,
+    PostgresOutcomeAttributionV3Repository,
+    PostgresOutcomeAttributionV3SchemaError,
+    PostgresOutcomeAttributionWrite,
+)
 from .postgres_replay_v3 import (
     POSTGRES_REPLAY_V3_SCHEMA_VERSION,
     PostgresReplayV3ConflictError,
@@ -1010,6 +1020,14 @@ __all__ = [
     "PostgresOutcomeV3PersistenceError",
     "PostgresOutcomeV3Repository",
     "PostgresOutcomeV3SchemaError",
+    "POSTGRES_OUTCOME_ATTRIBUTION_V3_SCHEMA_VERSION",
+    "PostgresOutcomeAttributionV3ConflictError",
+    "PostgresOutcomeAttributionV3Error",
+    "PostgresOutcomeAttributionV3NotFoundError",
+    "PostgresOutcomeAttributionV3PersistenceError",
+    "PostgresOutcomeAttributionV3Repository",
+    "PostgresOutcomeAttributionV3SchemaError",
+    "PostgresOutcomeAttributionWrite",
     "POSTGRES_REPLAY_V3_SCHEMA_VERSION",
     "PostgresReplayV3ConflictError",
     "PostgresReplayV3Error",

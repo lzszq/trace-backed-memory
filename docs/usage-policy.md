@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 106 installed resource copies must remain byte-identical to the top-level
+The 108 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -173,11 +173,12 @@ atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 `schemas/postgres-v2-lock-order-hotfix.sql` operator script. It also includes
 the agent protocol, v3 migration staging, GateSession, and content-addressed
 replay, MemoryRevision, and entity-registry contract Schemas and examples, plus
-isolated SQLite GateSession/replay/audit/authorization/MemoryRevision ledgers
-and normalized entity-registry DDL, isolated PostgreSQL GateSession and
-entity-registry install/rollback, and isolated PostgreSQL
-replay/audit/authorization/MemoryRevision/Semantic Gate attempt and artifact
-ledger install/fail-closed rollback.
+isolated SQLite GateSession/replay/audit/authorization/MemoryRevision/
+RunOutcome/OutcomeAttribution ledgers and normalized entity-registry DDL,
+isolated PostgreSQL GateSession and entity-registry install/rollback, and
+isolated PostgreSQL replay/audit/authorization/MemoryRevision/Semantic Gate
+attempt and artifact/RunOutcome/OutcomeAttribution ledger
+install/fail-closed rollback.
 
 CLI resource reads emit deterministic JSON rather than unframed raw content.
 Export is the shell integration path. It must refuse an existing destination
@@ -1298,14 +1299,16 @@ replay only after the service has verified both durable read-backs. Do not use
 either authority as proof of evaluator authentication, artifact
 authorization, outbox delivery, or active Agent/MCP completion.
 
-For opt-in local attribution persistence, construct a canonical
+For opt-in attribution persistence, construct a canonical
 `OutcomeAttribution` only after a trusted service has supplied authenticated
 evaluator/verifier identities and trusted time. Append it through
-`SQLiteOutcomeAttributionV3Repository`; exact replay is by content ID, and one
-RunOutcome may retain multiple association or causal records. Keep foreign
-keys and recursive triggers enabled. Treat stored identity strings and
-artifact hashes as provenance, not authentication or proof that bytes were
-verified. PostgreSQL attribution parity remains outstanding.
+`SQLiteOutcomeAttributionV3Repository` or
+`PostgresOutcomeAttributionV3Repository`; exact replay is by content ID, and
+one RunOutcome may retain multiple association or causal records. Keep SQLite
+foreign keys and recursive triggers enabled, and install/rollback PostgreSQL
+dependencies in GateSession → RunOutcome → OutcomeAttribution order. Treat
+stored identity strings and artifact hashes as provenance, not authentication
+or proof that bytes were verified.
 
 ## Version-3 audit and recovery policy
 

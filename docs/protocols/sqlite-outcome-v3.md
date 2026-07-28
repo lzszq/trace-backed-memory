@@ -55,8 +55,9 @@ come from a trusted service boundary.
 PostgreSQL parity is provided by the isolated
 [PostgreSQL completion authority](postgres-outcome-v3.md).
 SQLite OutcomeAttribution persistence is provided by the separate
-[immutable attribution ledger](sqlite-outcome-attribution-v3.md). PostgreSQL
-attribution parity, authenticated evaluator derivation, artifact authorization,
-completion outbox delivery, and active Agent/MCP/HTTP/SDK integration remain
-follow-up work. Active snapshot version 2, SQLite schema version 1, PostgreSQL
-schema version 2, and `tbm.agent.v1` remain unchanged.
+[immutable attribution ledger](sqlite-outcome-attribution-v3.md), with isolated
+[PostgreSQL parity](postgres-outcome-attribution-v3.md). Authenticated evaluator
+derivation, artifact authorization, completion outbox delivery, and active
+Agent/MCP/HTTP/SDK integration remain follow-up work. Active snapshot version
+2, SQLite schema version 1, PostgreSQL schema version 2, and `tbm.agent.v1`
+remain unchanged.

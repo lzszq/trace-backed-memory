@@ -230,7 +230,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 106 resources. `PackagedResource` descriptions
+The allowlist currently contains 108 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -578,13 +578,17 @@ measurement conflicts. This does not activate the v3 lifecycle in the Store,
 Agent, or MCP. See [the SQLite completion contract](protocols/sqlite-outcome-v3.md)
 and [the PostgreSQL completion contract](protocols/postgres-outcome-v3.md).
 
-`SQLiteOutcomeAttributionV3Repository` adds a separate opt-in immutable ledger
-over those retained outcomes. It permits multiple claims per outcome, verifies
-exact completed-session, usage-decision, finalized-revision, and timestamp
-linkage, supports exact content-ID replay and deterministic listing, preserves
-caller savepoints, and rejects replacement writes or canonical schema drift.
-It stores identity and artifact provenance but does not authenticate either.
-See [the SQLite attribution ledger contract](protocols/sqlite-outcome-attribution-v3.md).
+`SQLiteOutcomeAttributionV3Repository` and
+`PostgresOutcomeAttributionV3Repository` add opt-in immutable ledgers over
+those retained outcomes. They permit multiple claims per outcome, verify exact
+completed-session, usage-decision, finalized-revision, and timestamp linkage,
+support exact content-ID replay and deterministic listing, preserve caller
+transactions through savepoints, and reject replacement writes or canonical
+schema/catalog drift. PostgreSQL adds database-side hash reconstruction,
+row-lock concurrency, and fail-closed rollback. Both store identity and
+artifact provenance but do not authenticate either. See
+[the SQLite attribution ledger contract](protocols/sqlite-outcome-attribution-v3.md)
+and [the PostgreSQL attribution ledger contract](protocols/postgres-outcome-attribution-v3.md).
 
 The storage-neutral `tbm.audit-event.v3` and `tbm.recovery-action.v3`
 contracts add a content-addressed append-only event chain and explicit
@@ -2166,7 +2170,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 106 canonical Schemas, examples, and memory
+  explicit atomic export for all 108 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2269,6 +2273,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- sqlite-outcome-attribution-v3.zh-CN.md
 |   |   |-- postgres-outcome-v3.md
 |   |   |-- postgres-outcome-v3.zh-CN.md
+|   |   |-- postgres-outcome-attribution-v3.md
+|   |   |-- postgres-outcome-attribution-v3.zh-CN.md
 |   |   |-- retrieval-snapshot-v3.md
 |   |   |-- retrieval-snapshot-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
@@ -2387,6 +2393,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- sqlite_outcome_attribution_v3.py
 |   |-- sqlite_outcome_v3.py
 |   |-- postgres_outcome_v3.py
+|   |-- postgres_outcome_attribution_v3.py
 |   |-- retrieval_v3.py
 |   |-- policy.py
 |   |-- postgres.py
@@ -2421,6 +2428,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_sqlite_outcome_attribution_v3.py
     |-- test_sqlite_outcome_v3.py
     |-- test_postgres_outcome_v3.py
+    |-- test_postgres_outcome_attribution_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_postgres_replay_v3.py

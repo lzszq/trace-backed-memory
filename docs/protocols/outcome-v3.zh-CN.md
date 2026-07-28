@@ -36,9 +36,10 @@ commit 前读回。详见
 [SQLite RunOutcome 完成事务 v3](sqlite-outcome-v3.zh-CN.md)与
 [PostgreSQL RunOutcome 完成事务 v3](postgres-outcome-v3.zh-CN.md)。
 opt-in [SQLite OutcomeAttribution ledger](sqlite-outcome-attribution-v3.zh-CN.md)
+与 [PostgreSQL OutcomeAttribution ledger](postgres-outcome-attribution-v3.zh-CN.md)
 提供 immutable multi-claim persistence、精确 durable linkage 与 content-ID
-replay。PostgreSQL attribution parity、evaluator authentication、artifact
-verification、outbox delivery 与 active runtime integration 仍未完成。
+replay。evaluator authentication、artifact verification、outbox delivery 与
+active runtime integration 仍未完成。
 
 规范 Schema：
 

@@ -204,7 +204,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 106 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 108 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -405,13 +405,16 @@ measurement 冲突。它不会在 Store、Agent 或 MCP 中激活 v3 生命周�
 [SQLite 完成事务契约](protocols/sqlite-outcome-v3.zh-CN.md)与
 [PostgreSQL 完成事务契约](protocols/postgres-outcome-v3.zh-CN.md)。
 
-`SQLiteOutcomeAttributionV3Repository` 在这些 retained outcome 上增加独立的
-opt-in immutable ledger。它允许每个 outcome 保留多条 claim，核验精确的
+`SQLiteOutcomeAttributionV3Repository` 与
+`PostgresOutcomeAttributionV3Repository` 在这些 retained outcome 上增加 opt-in
+immutable ledger。它们允许每个 outcome 保留多条 claim，核验精确的
 completed-session、usage-decision、finalized-revision 与 timestamp linkage，
-支持 content-ID 精确重放与确定性列表，保留 caller savepoint，并拒绝
-replacement write 或 canonical schema drift。它保存 identity 与 artifact
-provenance，但不认证二者。详见
-[SQLite attribution ledger 契约](protocols/sqlite-outcome-attribution-v3.zh-CN.md)。
+支持 content-ID 精确重放与确定性列表，通过 savepoint 保留 caller transaction，
+并拒绝 replacement write 或 canonical schema/catalog drift。PostgreSQL 还提供
+数据库 hash 重建、row-lock concurrency 与 fail-closed rollback。两者都保存
+identity 与 artifact provenance，但不认证二者。详见
+[SQLite attribution ledger 契约](protocols/sqlite-outcome-attribution-v3.zh-CN.md)
+与 [PostgreSQL attribution ledger 契约](protocols/postgres-outcome-attribution-v3.zh-CN.md)。
 
 storage-neutral `tbm.audit-event.v3` 与 `tbm.recovery-action.v3` 增加
 内容寻址 append-only event chain 与显式 recovery-attempt evidence。恢复核验
@@ -1127,6 +1130,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |   |-- sqlite-outcome-attribution-v3.zh-CN.md
 |   |   |-- postgres-outcome-v3.md
 |   |   |-- postgres-outcome-v3.zh-CN.md
+|   |   |-- postgres-outcome-attribution-v3.md
+|   |   |-- postgres-outcome-attribution-v3.zh-CN.md
 |   |   |-- retrieval-snapshot-v3.md
 |   |   |-- retrieval-snapshot-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
@@ -1245,6 +1250,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- sqlite_outcome_attribution_v3.py
 |   |-- sqlite_outcome_v3.py
 |   |-- postgres_outcome_v3.py
+|   |-- postgres_outcome_attribution_v3.py
 |   |-- retrieval_v3.py
 |   |-- policy.py
 |   |-- postgres.py
@@ -1279,6 +1285,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_sqlite_outcome_attribution_v3.py
     |-- test_sqlite_outcome_v3.py
     |-- test_postgres_outcome_v3.py
+    |-- test_postgres_outcome_attribution_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_postgres_replay_v3.py

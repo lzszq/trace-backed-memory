@@ -53,5 +53,7 @@ storage-neutral provenance 保存。它不认证 principal、不核验 artifact 
 trusted clock，也不会把 association 提升为 causal claim。service 必须在构造
 content-addressed record 前派生 authenticated identity 与 trusted time。
 
-PostgreSQL parity、authenticated evaluator/artifact checks、completion/attribution
+隔离的
+[PostgreSQL attribution ledger](postgres-outcome-attribution-v3.zh-CN.md)提供
+database parity。authenticated evaluator/artifact checks、completion/attribution
 outbox delivery，以及 active Agent/MCP/HTTP/SDK integration 仍是后续工作。

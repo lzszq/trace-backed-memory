@@ -1439,14 +1439,15 @@ Track:
   replay/read-back, caller savepoints, and concurrent single-insert behavior.
   Keep authenticated evaluator/artifact checks, outbox delivery, and active
   Agent/MCP/HTTP/SDK integration outstanding.
-- Add an opt-in isolated SQLite OutcomeAttribution ledger with an independent
-  version-1 schema, exact content-ID replay, immutable multi-claim storage,
-  completed outcome/session/usage/revision linkage, canonical descriptor
-  revalidation, replacement-write guards, temporary-shadow and schema-drift
-  checks, caller savepoints, and concurrent idempotency. Keep PostgreSQL
-  parity, authenticated evaluator/verifier derivation, trusted-time
-  construction, artifact authorization, outbox delivery, and active runtime
-  integration outstanding.
+- Add opt-in isolated SQLite and PostgreSQL OutcomeAttribution ledgers with
+  independent version-1 schemas, exact content-ID replay, immutable
+  multi-claim storage, completed outcome/session/usage/revision linkage,
+  canonical descriptor revalidation, replacement-write guards, schema/catalog
+  drift checks, caller savepoints, and concurrent idempotency. PostgreSQL adds
+  database-side validation, row locking, and fail-closed rollback. Keep
+  authenticated evaluator/verifier derivation, trusted-time construction,
+  artifact authorization, outbox delivery, and active runtime integration
+  outstanding.
 - Publish storage-neutral `tbm.audit-event.v3` and
   `tbm.recovery-action.v3` contracts with content-derived identity, exact
   stream parents, authenticated actor slots, typed references, explicit

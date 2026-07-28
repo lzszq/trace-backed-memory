@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-106 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision contract 资源、隔离 SQLite GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome ledger install/fail-closed rollback。
+108 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision contract 资源、隔离 SQLite GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution ledger install/fail-closed rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -444,13 +444,14 @@ closed。只有 service 校验两份持久化读回后，才能把 `inserted=fal
 精确重放。不得把任一 authority 当作 evaluator authentication、artifact
 authorization、outbox delivery 或 active Agent/MCP completion 的证明。
 
-使用 opt-in 本地 attribution persistence 时，只能在可信 service 提供 authenticated
+使用 opt-in attribution persistence 时，只能在可信 service 提供 authenticated
 evaluator/verifier identity 与 trusted time 后构造 canonical
-`OutcomeAttribution`，再通过 `SQLiteOutcomeAttributionV3Repository` append。
-精确 replay 以 content ID 为准；一个 RunOutcome 可以保留多条 association 或 causal
-record。必须保持 foreign key 与 recursive trigger 开启。已保存的 identity string 与
-artifact hash 只是 provenance，不是 authentication 或 bytes 已核验的证明。
-PostgreSQL attribution parity 仍待完成。
+`OutcomeAttribution`，再通过 `SQLiteOutcomeAttributionV3Repository` 或
+`PostgresOutcomeAttributionV3Repository` append。精确 replay 以 content ID
+为准；一个 RunOutcome 可以保留多条 association 或 causal record。SQLite 必须
+保持 foreign key 与 recursive trigger 开启；PostgreSQL 必须按 GateSession →
+RunOutcome → OutcomeAttribution 顺序安装并以相反顺序回滚。已保存的 identity
+string 与 artifact hash 只是 provenance，不是 authentication 或 bytes 已核验的证明。
 
 ## Version-3 审计与恢复策略
 

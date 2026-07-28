@@ -631,13 +631,13 @@
   CAS 完成 session、插入 immutable outcome，并支持精确重放/读回、caller
   savepoint 与并发单写。authenticated evaluator/artifact 检查、outbox delivery
   与 active Agent/MCP/HTTP/SDK 集成仍待完成。
-- 增加 opt-in 隔离 SQLite OutcomeAttribution ledger：使用独立 version-1 schema，
-  提供精确 content-ID replay、immutable 多 claim 存储、completed
-  outcome/session/usage/revision linkage、canonical descriptor 复验、
-  replacement-write guard、temporary-shadow/schema-drift 检查、caller savepoint
-  与并发幂等。PostgreSQL parity、authenticated evaluator/verifier 派生、trusted-time
-  构造、artifact authorization、outbox delivery 与 active runtime integration
-  仍待完成。
+- 增加 opt-in 隔离 SQLite 与 PostgreSQL OutcomeAttribution ledger：使用各自独立的
+  version-1 schema，提供精确 content-ID replay、immutable 多 claim 存储、
+  completed outcome/session/usage/revision linkage、canonical descriptor 复验、
+  replacement-write guard、schema/catalog drift 检查、caller savepoint 与并发幂等。
+  PostgreSQL 另提供数据库侧校验、row lock 与 fail-closed rollback。authenticated
+  evaluator/verifier 派生、trusted-time 构造、artifact authorization、outbox
+  delivery 与 active runtime integration 仍待完成。
 - 发布 storage-neutral `tbm.audit-event.v3` 与
   `tbm.recovery-action.v3` 契约，提供内容派生 identity、精确 stream parent、
   authenticated actor slot、typed reference、显式 request digest，以及对照

@@ -1,0 +1,101 @@
+{
+  "authorization_policy": {
+    "agent_clients": [
+      {
+        "agent_client_id": "agent_client_001",
+        "client_kind": "service",
+        "status": "active",
+        "tenant_id": "tenant_001"
+      }
+    ],
+    "contract_version": "tbm.authorization-policy.v3",
+    "policy_version": "policy_001",
+    "principals": [
+      {
+        "issuer": "https://identity.example.test",
+        "principal_id": "principal_tenant_001",
+        "status": "active",
+        "subject_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tenant_id": "tenant_001"
+      }
+    ],
+    "repositories": [
+      {
+        "canonical_locator_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "display_name": "Example repository",
+        "legacy_aliases": [
+          "legacy/repository"
+        ],
+        "provider": "local",
+        "provider_repository_id": "provider_repository_001",
+        "repository_id": "repository_001"
+      }
+    ],
+    "repository_aliases": [
+      {
+        "alias": "owner/repository",
+        "repository_id": "repository_001",
+        "source": "operator_registry",
+        "tenant_id": "tenant_001"
+      }
+    ],
+    "repository_tenants": [
+      {
+        "repository_id": "repository_001",
+        "tenant_id": "tenant_001"
+      }
+    ],
+    "role_bindings": [
+      {
+        "agent_client_id": "agent_client_001",
+        "binding_id": "binding_001",
+        "expires_at": null,
+        "permissions": [
+          "memory:retrieve"
+        ],
+        "principal_id": "principal_tenant_001",
+        "role_name": "repository_reader",
+        "scope": {
+          "attributes": {
+            "branch": "main"
+          },
+          "kind": "repository",
+          "repository_id": "repository_001",
+          "tenant_id": "tenant_001"
+        },
+        "status": "active",
+        "valid_from": "2026-07-27T00:00:00Z"
+      }
+    ]
+  },
+  "contract_version": "tbm.entity-registry.v3",
+  "environments": [
+    {
+      "attributes": {
+        "region": "ap-southeast-1"
+      },
+      "display_name": "Production",
+      "environment_id": "environment_001",
+      "environment_kind": "production",
+      "repository_id": "repository_001",
+      "status": "active",
+      "tenant_id": "tenant_001"
+    }
+  ],
+  "organizations": [
+    {
+      "display_name": "Example organization",
+      "organization_id": "organization_001",
+      "status": "active"
+    }
+  ],
+  "registry_version": "registry_001",
+  "tenants": [
+    {
+      "display_name": "Example tenant",
+      "organization_id": "organization_001",
+      "status": "active",
+      "tenant_id": "tenant_001"
+    }
+  ]
+}

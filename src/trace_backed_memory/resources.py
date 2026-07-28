@@ -71,6 +71,11 @@ _RESOURCE_SPECS: tuple[
         "example",
         "application/json",
     ),
+    (
+        "examples/entity_registry_v3.example.json",
+        "example",
+        "application/json",
+    ),
     ("examples/failure_case.example.json", "example", "application/json"),
     ("examples/gate_session_v3.example.json", "example", "application/json"),
     (
@@ -176,6 +181,11 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/decision_replay_manifest_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/entity_registry_v3.schema.json",
         "schema",
         "application/schema+json",
     ),

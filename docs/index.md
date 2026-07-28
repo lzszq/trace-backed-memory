@@ -16,6 +16,7 @@ orientation; these documents define the engineering contracts.
 
 - [Local agent protocol `tbm.agent.v1`](protocols/agent-v1.md)
 - [Authorization v3 contract](protocols/authorization-v3.md)
+- [Entity registry v3 contract](protocols/entity-registry-v3.md)
 - [Append-only audit and recovery v3](protocols/audit-recovery-v3.md)
 - [Structured regression evidence v3](protocols/evidence-v3.md)
 - [Immutable MemoryRevision v3](protocols/memory-revision-v3.md)

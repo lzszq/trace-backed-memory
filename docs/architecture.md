@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 81 resources.
+contains 83 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1527,6 +1527,16 @@ resources with immutable triggers and exact catalog checks. Neither authority
 authenticates callers, issues reusable capabilities, or connects to the active
 Store, Agent, MCP, or GateSession repositories. See
 [Authorization v3 contract](protocols/authorization-v3.md).
+
+`entity_registry_v3.py` closes the authorization namespace with versioned,
+content-addressed Organization, formal Tenant, and Environment identities. It
+reuses the authorization policy's Principal, AgentClient, canonical
+Repository, alias, and RoleBinding records, then requires every referenced
+tenant to be active under an active organization and every repository-scoped
+environment to remain in that repository's tenant. This is referential
+integrity, not caller authentication or authorization. The active adapters do
+not consume it yet. See
+[Entity registry v3 contract](protocols/entity-registry-v3.md).
 
 The storage-neutral `tbm.regression-evidence.v3` record is the first
 production-oriented evidence boundary beyond the migration mapping. Its

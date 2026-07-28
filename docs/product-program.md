@@ -1412,6 +1412,12 @@ Track:
   triggers, concurrent exact-replay idempotency, descriptor revalidation, and
   caller-savepoint preservation. Keep authenticated service integration
   outstanding.
+- Publish the storage-neutral, content-addressed `tbm.entity-registry.v3`
+  snapshot. Add Organization, formal Tenant, and Environment identities while
+  reusing the authorization-v3 Principal, AgentClient, canonical Repository,
+  alias, and role-binding records. Enforce organization/tenant closure and
+  same-tenant environment/repository linkage. Keep normalized persistence and
+  authenticated service enforcement outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

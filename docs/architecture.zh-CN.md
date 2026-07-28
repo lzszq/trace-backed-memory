@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 81 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 83 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -392,6 +392,14 @@ fail-closed rollback、immutable trigger 与精确 catalog 检查。两者都不
 方、不签发可重用 capability，也不连接 active Store、Agent、MCP 或 GateSession
 repository。
 详见[授权 v3 契约](protocols/authorization-v3.zh-CN.md)。
+
+`entity_registry_v3.py` 以带版本、内容寻址的 Organization、正式 Tenant 与
+Environment identity 补全 authorization namespace。它复用 authorization policy
+中的 Principal、AgentClient、canonical Repository、alias 与 RoleBinding，并要求
+每个被引用的 tenant 处于 active 状态且属于 active organization；repository 范围
+environment 也必须与 repository 处于同一 tenant。这是引用完整性，不是调用方认证
+或授权；active adapter 尚未使用该注册表。详见
+[实体注册表 v3 契约](protocols/entity-registry-v3.zh-CN.md)。
 
 storage-neutral `tbm.regression-evidence.v3` 是 migration mapping 之外第一层面向
 生产的 evidence boundary。其内容派生 identity 绑定不同的 source/verification

@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lzszq/trace-backed-memory/schemas/entity_registry_v3.schema.json",
+  "title": "Trace-backed Memory entity registry version 3 contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "registry_version",
+    "organizations",
+    "tenants",
+    "environments",
+    "authorization_policy"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.entity-registry.v3"
+    },
+    "registry_version": {
+      "$ref": "#/$defs/metadata"
+    },
+    "organizations": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/organization"
+      }
+    },
+    "tenants": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/tenant"
+      }
+    },
+    "environments": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/environment"
+      }
+    },
+    "authorization_policy": {
+      "$ref": "authorization_policy_v3.schema.json"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": ".*\\S.*"
+    },
+    "metadata": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": ".*\\S.*"
+    },
+    "status": {
+      "enum": [
+        "active",
+        "disabled"
+      ]
+    },
+    "organization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "organization_id",
+        "display_name",
+        "status"
+      ],
+      "properties": {
+        "organization_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "display_name": {
+          "$ref": "#/$defs/metadata"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        }
+      }
+    },
+    "tenant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tenant_id",
+        "organization_id",
+        "display_name",
+        "status"
+      ],
+      "properties": {
+        "tenant_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "organization_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "display_name": {
+          "$ref": "#/$defs/metadata"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment_id",
+        "tenant_id",
+        "repository_id",
+        "environment_kind",
+        "display_name",
+        "status",
+        "attributes"
+      ],
+      "properties": {
+        "environment_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "tenant_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "repository_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "environment_kind": {
+          "enum": [
+            "development",
+            "test",
+            "staging",
+            "production",
+            "ci",
+            "other"
+          ]
+        },
+        "display_name": {
+          "$ref": "#/$defs/metadata"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "attributes": {
+          "type": "object",
+          "maxProperties": 10000,
+          "propertyNames": {
+            "$ref": "#/$defs/metadata"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/metadata"
+          }
+        }
+      }
+    }
+  }
+}

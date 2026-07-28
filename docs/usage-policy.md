@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 81 installed resource copies must remain byte-identical to the top-level
+The 83 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -172,7 +172,7 @@ The allowlist includes fresh-install PostgreSQL schema version 2, the
 atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 `schemas/postgres-v2-lock-order-hotfix.sql` operator script. It also includes
 the agent protocol, v3 migration staging, GateSession, and content-addressed
-replay contract Schemas and examples, plus isolated SQLite
+replay and entity-registry contract Schemas and examples, plus isolated SQLite
 GateSession/replay/audit/authorization-ledger DDL, isolated PostgreSQL
 GateSession install/rollback, and isolated PostgreSQL
 replay/audit/authorization-ledger install/fail-closed rollback.

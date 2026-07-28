@@ -29,12 +29,14 @@ builder 会在哈希前把数值输入规范化为 JSON float。内容哈希只�
 唯一性，并原子写入 outcome、session 转换和 attribution。raw tool output
 与秘密应保存在受控 artifact 中，而不是这些记录内。
 
-opt-in SQLite completion authority 现在会使用同一个可信 timestamp，在一个
-transaction 中原子写入 RunOutcome 与对应的 `EXECUTING` → `COMPLETED`
-GateSession revision，并提供精确重放、schema guard 与 commit 前读回。详见
-[SQLite RunOutcome 完成事务 v3](sqlite-outcome-v3.zh-CN.md)。PostgreSQL
-parity、attribution persistence、evaluator authentication、artifact
-verification、outbox delivery 与 active runtime integration 仍未完成。
+opt-in SQLite 与隔离 PostgreSQL completion authority 现在都会使用同一个可信
+timestamp，在一个 transaction 中原子写入 RunOutcome 与对应的 `EXECUTING` →
+`COMPLETED` GateSession revision，并提供精确重放、schema/catalog guard 与
+commit 前读回。详见
+[SQLite RunOutcome 完成事务 v3](sqlite-outcome-v3.zh-CN.md)与
+[PostgreSQL RunOutcome 完成事务 v3](postgres-outcome-v3.zh-CN.md)。
+attribution persistence、evaluator authentication、artifact verification、
+outbox delivery 与 active runtime integration 仍未完成。
 
 规范 Schema：
 

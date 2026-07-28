@@ -46,7 +46,8 @@ verifier。它不会认证 evaluator、校验 evidence artifact byte，也不会
 
 ## 当前边界
 
-PostgreSQL parity、OutcomeAttribution persistence、authenticated evaluator
+隔离[PostgreSQL completion authority](postgres-outcome-v3.zh-CN.md)现已提供
+PostgreSQL parity。OutcomeAttribution persistence、authenticated evaluator
 derivation、artifact authorization、completion outbox delivery，以及 active
 Agent/MCP/HTTP/SDK 集成仍是后续工作。active snapshot version 2、SQLite schema
 version 1、PostgreSQL schema version 2 与 `tbm.agent.v1` 均保持不变。

@@ -1432,9 +1432,14 @@ Track:
   CAS-append the `EXECUTING` to `COMPLETED` session revision, insert the
   immutable outcome, and read both records back. Exact terminal replay is
   idempotent; conflicting measurements, schema drift, clock rollback, or
-  partial writes fail closed. Keep PostgreSQL parity, OutcomeAttribution
-  persistence, authenticated evaluator/artifact checks, outbox delivery, and
-  active Agent/MCP/HTTP/SDK integration outstanding.
+  partial writes fail closed.
+- Add PostgreSQL RunOutcome parity with an isolated version-1 install and
+  fail-closed exact-catalog rollback, database-time sampling after the
+  GateSession head lock, CAS completion, immutable outcome insertion, exact
+  replay/read-back, caller savepoints, and concurrent single-insert behavior.
+  Keep OutcomeAttribution persistence, authenticated evaluator/artifact
+  checks, outbox delivery, and active Agent/MCP/HTTP/SDK integration
+  outstanding.
 - Publish storage-neutral `tbm.audit-event.v3` and
   `tbm.recovery-action.v3` contracts with content-derived identity, exact
   stream parents, authenticated actor slots, typed references, explicit

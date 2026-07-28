@@ -294,11 +294,15 @@ class PostgresGateSessionRepository:
         connection: object,
         *,
         owns_connection: bool = False,
+        allow_direct_completion: bool = True,
     ) -> None:
         if connection is None:
             raise ValueError("connection is required")
+        if type(allow_direct_completion) is not bool:
+            raise ValueError("allow_direct_completion must be a boolean")
         self._connection = connection
         self._owns_connection = owns_connection
+        self._allow_direct_completion = allow_direct_completion
         self._closed = False
         self._lock = RLock()
 
@@ -426,6 +430,14 @@ class PostgresGateSessionRepository:
                 "TBM_POSTGRES_GATE_SESSION_SCHEMA",
                 "PostgreSQL GateSession schema metadata mismatch",
             )
+
+        cursor.execute(
+            "LOCK TABLE "
+            "trace_backed_memory_v3_gate_session.schema_metadata, "
+            "trace_backed_memory_v3_gate_session.gate_session_heads, "
+            "trace_backed_memory_v3_gate_session.gate_session_revisions "
+            "IN ROW SHARE MODE"
+        )
 
         relations = self._catalog_names(
             cursor,
@@ -1134,6 +1146,11 @@ class PostgresGateSessionRepository:
         terminal_reason: str | None = None,
     ) -> GateSession:
         self._require_open()
+        if target_status == "completed" and not self._allow_direct_completion:
+            raise PostgresGateSessionConflictError(
+                "TBM_POSTGRES_GATE_SESSION_COMPLETION_AUTHORITY",
+                "GateSession completion requires the RunOutcome authority",
+            )
         psycopg, dict_row, _Jsonb = _load_psycopg()
         try:
             with self._connection.transaction():

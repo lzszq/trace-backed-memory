@@ -37,6 +37,7 @@ orientation; these documents define the engineering contracts.
 - [PostgreSQL Semantic Gate attempt ledger v3](protocols/postgres-semantic-gate-v3.md)
 - [Run outcome and attribution v3](protocols/outcome-v3.md)
 - [SQLite RunOutcome completion v3](protocols/sqlite-outcome-v3.md)
+- [PostgreSQL RunOutcome completion v3](protocols/postgres-outcome-v3.md)
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Content-addressed replay contract v3](protocols/replay-v3.md)
 - [Codex integration](integrations/codex.md)
@@ -79,8 +80,8 @@ ranking inputs/results, index versions, scores, hashes, and truncation reasons,
 while immutable System/Semantic Gate records bind deterministic policy and
 model-attempt provenance under a monotonic narrowing rule. No active retriever,
 gate, or GateSession repository emits them yet.
-The opt-in SQLite RunOutcome authority now atomically completes an executing
-GateSession with one content-addressed outcome, but PostgreSQL parity,
+The opt-in SQLite and isolated PostgreSQL RunOutcome authorities now atomically
+complete an executing GateSession with one content-addressed outcome.
 OutcomeAttribution persistence, authenticated evaluator/artifact checks,
 outbox delivery, and active runtime emission remain outstanding.
 Approval, activation, remaining persistence, and active integration remain

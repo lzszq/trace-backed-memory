@@ -258,7 +258,8 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 100 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 105 canonical Schema, SQL/migration, memory-support, and
+example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1149,7 +1150,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 103 resources.
+contains 105 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1690,20 +1691,26 @@ an independent verifier. Existing v2 outcome fields remain authoritative for
 the active Store and are not silently upgraded. See
 [Run outcome and attribution v3](protocols/outcome-v3.md).
 
-The opt-in `SQLiteOutcomeV3Repository` and
-`schemas/sqlite-v3-outcome.sql` now provide the first durable completion
-transaction. The repository shares one connection and lock with its
-side-by-side GateSession authority, derives trace/run/usage identities from
+The opt-in `SQLiteOutcomeV3Repository` with
+`schemas/sqlite-v3-outcome.sql`, and the isolated
+`PostgresOutcomeV3Repository` with `schemas/postgres-v3-outcome*.sql`, provide
+matching durable completion transactions. Each shares its connection and lock
+with a guarded GateSession authority, derives trace/run/usage identities from
 the current `EXECUTING` session, uses one trusted timestamp for both records,
 CAS-appends `COMPLETED`, inserts the immutable RunOutcome, and exactly reads
-both back before commit. Caller-owned transactions use savepoints. Exact
-terminal replay is idempotent; mismatched measurement, stale version, clock
-rollback, trigger failure, or read-back mismatch rolls back the whole
-operation. `GateSessionCompletionService` verifies the returned pair and
-durable read-back without reproducing lifecycle policy. PostgreSQL parity,
-attribution persistence, evaluator authentication, artifact authorization,
-outbox delivery, and active runtime emission remain separate work. See
-[SQLite RunOutcome completion v3](protocols/sqlite-outcome-v3.md).
+both back before commit. PostgreSQL samples database time only after locking
+the current head; its insert trigger reconstructs canonical descriptor bytes
+and recomputes the outcome payload SHA-256 before accepting a row. It also
+validates the exact install/rollback catalog.
+Caller-owned transactions use savepoints. Exact terminal replay is
+idempotent; mismatched measurements, stale versions, clock rollback, trigger
+or catalog failure, and read-back mismatch roll back the whole operation.
+`GateSessionCompletionService` verifies the returned pair and durable
+read-back without reproducing lifecycle policy. Attribution persistence,
+evaluator authentication, artifact authorization, outbox delivery, and active
+runtime emission remain separate work. See
+[SQLite RunOutcome completion v3](protocols/sqlite-outcome-v3.md) and
+[PostgreSQL RunOutcome completion v3](protocols/postgres-outcome-v3.md).
 
 The `tbm.audit-event.v3` contract provides a content-addressed append-only
 stream with exact parent and actor/reference provenance. The paired

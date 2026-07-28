@@ -123,6 +123,8 @@ trace_backed_memory = [
     "_resources/schemas/postgres-v3-gate-session.sql",
     "_resources/schemas/postgres-v3-memory-revision-rollback.sql",
     "_resources/schemas/postgres-v3-memory-revision.sql",
+    "_resources/schemas/postgres-v3-outcome-rollback.sql",
+    "_resources/schemas/postgres-v3-outcome.sql",
     "_resources/schemas/postgres-v3-replay-rollback.sql",
     "_resources/schemas/postgres-v3-replay.sql",
     "_resources/schemas/postgres-v3-semantic-gate-artifacts-rollback.sql",

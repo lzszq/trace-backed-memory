@@ -52,8 +52,9 @@ come from a trusted service boundary.
 
 ## Current boundary
 
-PostgreSQL parity, OutcomeAttribution persistence, authenticated evaluator
-derivation, artifact authorization, completion outbox delivery, and active
-Agent/MCP/HTTP/SDK integration remain follow-up work. Active snapshot version
-2, SQLite schema version 1, PostgreSQL schema version 2, and
-`tbm.agent.v1` remain unchanged.
+PostgreSQL parity is provided by the isolated
+[PostgreSQL completion authority](postgres-outcome-v3.md).
+OutcomeAttribution persistence, authenticated evaluator derivation, artifact
+authorization, completion outbox delivery, and active Agent/MCP/HTTP/SDK
+integration remain follow-up work. Active snapshot version 2, SQLite schema
+version 1, PostgreSQL schema version 2, and `tbm.agent.v1` remain unchanged.

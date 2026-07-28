@@ -230,7 +230,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 103 resources. `PackagedResource` descriptions
+The allowlist currently contains 105 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -565,15 +565,18 @@ an independent verifier; no exception or score is promoted automatically.
 Active v2 outcome fields remain unchanged. See
 [the outcome contract](protocols/outcome-v3.md).
 
-`GateSessionCompletionService` and `SQLiteOutcomeV3Repository` add an opt-in
-SQLite completion authority over `schemas/sqlite-v3-outcome.sql`. The
-authority derives all linkage from the durable executing GateSession, uses a
-single trusted timestamp, and writes the content-addressed RunOutcome plus
-`COMPLETED` revision in one transaction/savepoint with CAS and exact
-read-back. Same-measurement replay returns `inserted=false`; a different
-terminal measurement conflicts. This does not activate the v3 lifecycle in
-the Store, Agent, or MCP. See
-[the SQLite completion contract](protocols/sqlite-outcome-v3.md).
+`GateSessionCompletionService`, `SQLiteOutcomeV3Repository`, and
+`PostgresOutcomeV3Repository` add opt-in SQLite and isolated PostgreSQL
+completion authorities over `schemas/sqlite-v3-outcome.sql` and
+`schemas/postgres-v3-outcome*.sql`. Each authority derives all linkage from
+the durable executing GateSession, uses one trusted timestamp, and writes the
+content-addressed RunOutcome plus `COMPLETED` revision in one
+transaction/savepoint with CAS and exact read-back. PostgreSQL locks the head
+before sampling database time and supports fail-closed exact-catalog rollback.
+Same-measurement replay returns `inserted=false`; a different terminal
+measurement conflicts. This does not activate the v3 lifecycle in the Store,
+Agent, or MCP. See [the SQLite completion contract](protocols/sqlite-outcome-v3.md)
+and [the PostgreSQL completion contract](protocols/postgres-outcome-v3.md).
 
 The storage-neutral `tbm.audit-event.v3` and `tbm.recovery-action.v3`
 contracts add a content-addressed append-only event chain and explicit
@@ -2155,7 +2158,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 100 canonical Schemas, examples, and memory
+  explicit atomic export for all 105 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2254,6 +2257,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- outcome-v3.zh-CN.md
 |   |   |-- sqlite-outcome-v3.md
 |   |   |-- sqlite-outcome-v3.zh-CN.md
+|   |   |-- postgres-outcome-v3.md
+|   |   |-- postgres-outcome-v3.zh-CN.md
 |   |   |-- retrieval-snapshot-v3.md
 |   |   |-- retrieval-snapshot-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
@@ -2305,6 +2310,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- postgres-v1-to-v2.sql
 |   |-- postgres-v2-lock-order-hotfix.sql
 |   |-- postgres-v3-gate-session*.sql
+|   |-- postgres-v3-outcome*.sql
 |   |-- postgres-v3-replay*.sql
 |   |-- postgres-v3-audit*.sql
 |   |-- postgres-v3-authorization*.sql
@@ -2368,6 +2374,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- memory_revision_v3.py
 |   |-- outcome_v3.py
 |   |-- sqlite_outcome_v3.py
+|   |-- postgres_outcome_v3.py
 |   |-- retrieval_v3.py
 |   |-- policy.py
 |   |-- postgres.py
@@ -2400,6 +2407,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_memory_revision_v3.py
     |-- test_outcome_v3.py
     |-- test_sqlite_outcome_v3.py
+    |-- test_postgres_outcome_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_postgres_replay_v3.py

@@ -55,14 +55,17 @@ new repository-owned connection.
 
 ## Current boundary
 
-The ledger stores provenance descriptors and artifact hashes, not
-prompt/response artifact bytes. It does not authenticate providers, choose
-trusted timestamps, append GateSession revisions, or emit attempts from the
+This attempt ledger stores provenance descriptors and artifact hashes, not
+prompt/response bytes by itself. The opt-in
+[SQLite Semantic Gate artifact repository](sqlite-semantic-gate-artifact-v3.md)
+now composes it with exact public/internal byte storage in one transaction.
+Neither repository authenticates providers, chooses trusted timestamps,
+appends GateSession revisions, or emits attempts from the
 active Store, Agent, or MCP path. The
 [PostgreSQL peer](postgres-semantic-gate-v3.md) now provides shared-database
-persistence parity; artifact validation, authorization, retention, and
-transactionally integrated GateSession/replay service operations remain
-outstanding.
+persistence parity for attempts; PostgreSQL artifact bytes, authorization,
+retention, and transactionally integrated GateSession/replay service
+operations remain outstanding.
 
 SQLite database administrators remain inside the local trust boundary.
 Repository operations reject disabled required PRAGMAs, and the insert

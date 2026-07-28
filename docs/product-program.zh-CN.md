@@ -587,8 +587,8 @@
   Gate evidence，通过唯一 sequence 与 CAS head 为每个 System Gate evaluation
   强制一条有界线性 chain，支持精确幂等重放，通过 savepoint 保留调用方
   transaction，检测 canonical schema drift，并在每次读取时复核完整 chain。
-  artifact 字节校验、GateSession 事务挂接与 active Agent/MCP emission
-  仍待完成。
+  GateSession 事务挂接与 active Agent/MCP emission 仍待完成；精确字节由下述
+  独立 opt-in repository 提供。
 - 增加隔离 PostgreSQL SemanticGateAttempt 对等实现：active-v2 与 Gate evidence
   install 门禁、parent-before-head lock、单一 row-locked CAS head、deferred
   commit-time chain consistency、精确 descriptor/完整 chain 读回、完整安全 catalog
@@ -599,8 +599,16 @@
   prompt/response 字节连接到一条 SemanticGateAttempt 的对应角色与 digest，保留
   classification/encryption/redaction 元数据，执行 prompt/response 字节上限，拒绝
   为失败 attempt 绑定 response，并提供有界、拒绝重复键的 JSON 以及规范
-  Schema/example 资源。字节仓库、provider 认证、可信时间戳、GateSession/replay
-  事务与 active emission 仍待完成。
+  Schema/example 资源。provider 认证、可信时间戳、GateSession/replay 事务与
+  active emission 仍待完成。
+- 增加独立 version-1 SQLite Semantic Gate artifact schema 与
+  `SQLiteSemanticGateArtifactV3Repository`。一个外层 transaction/savepoint
+  原子追加 attempt、精确 public/internal prompt/response 字节与角色 binding；
+  精确 replay 会去重并完整读回。SQL 会重算字节 digest 与派生 ID、比较每个
+  descriptor 字段、执行角色/status/长度/媒体约束、即使关闭 recursive trigger
+  也阻止 replacement write，并拒绝意外受管对象。加密敏感存储、PostgreSQL
+  对等实现、provider trust、GateSession/replay linkage 与 active emission
+  仍待完成。
 - 发布内容寻址 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
   契约，把 completed GateSession 绑定到显式 evaluator evidence，并严格区分
   观察关联与独立核验的因果结论。durable persistence 与 active service 接入仍

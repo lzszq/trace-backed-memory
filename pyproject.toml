@@ -143,6 +143,7 @@ trace_backed_memory = [
     "_resources/schemas/sqlite-v3-memory-revision.sql",
     "_resources/schemas/sqlite-v3-migration.sql",
     "_resources/schemas/sqlite-v3-replay.sql",
+    "_resources/schemas/sqlite-v3-semantic-gate-artifacts.sql",
     "_resources/schemas/sqlite-v3-semantic-gate.sql",
     "_resources/schemas/sqlite.sql",
     "_resources/schemas/trace.schema.json",

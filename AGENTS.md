@@ -57,6 +57,8 @@ Start with:
   bindings for Semantic Gate attempts; not an artifact repository.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
+- `sqlite_semantic_gate_artifact_v3.py`: opt-in atomic SQLite attempt plus
+  exact public/internal prompt/response byte repository.
 - `postgres_semantic_gate_v3.py`: isolated PostgreSQL Semantic Gate attempt
   peer with row-lock serialization, catalog checks, and fail-closed rollback.
 - `outcome_v3.py`: content-addressed RunOutcome and explicit association versus

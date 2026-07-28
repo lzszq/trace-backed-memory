@@ -51,12 +51,15 @@ schema。connection 中存在调用方未提交工作时，不得调用 Python
 
 ## 当前边界
 
-ledger 保存 provenance descriptor 与 artifact hash，不保存 prompt/response
-artifact 字节。它不认证 provider、不选择可信 timestamp、不追加 GateSession
+此 attempt ledger 本身保存 provenance descriptor 与 artifact hash，不保存
+prompt/response 字节。opt-in
+[SQLite Semantic Gate artifact 仓库](sqlite-semantic-gate-artifact-v3.zh-CN.md)
+现已在一个 transaction 中组合它与精确 public/internal 字节存储。两个仓库都
+不认证 provider、不选择可信 timestamp、不追加 GateSession
 revision，也不从 active Store、Agent 或 MCP 路径产生 attempt。
 [PostgreSQL 对等实现](postgres-semantic-gate-v3.zh-CN.md)现已提供 shared-database
-persistence parity；artifact 校验、授权、保留策略，以及与 GateSession/replay
-服务的事务集成仍待完成。
+attempt persistence parity；PostgreSQL artifact 字节、授权、保留策略，以及与
+GateSession/replay 服务的事务集成仍待完成。
 
 SQLite 数据库管理员属于本地信任边界。Repository operation 会拒绝已关闭的必要
 PRAGMA；只关闭 `recursive_triggers` 时，insert conflict guard 仍会阻止 replacement

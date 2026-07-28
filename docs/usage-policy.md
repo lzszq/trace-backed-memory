@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 99 installed resource copies must remain byte-identical to the top-level
+The 100 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1257,8 +1257,10 @@ revalidate the complete chain on every read. Before persistence, use
 the attempt role and digest, size, classification, and required encryption
 metadata. Do not log or embed those bytes in descriptor JSON. Binding presence
 does not authenticate a provider, prove encryption at rest, or authorize
-finalization;
-active Agent/MCP integration remains separate work. The isolated PostgreSQL
+finalization. Use `SQLiteSemanticGateArtifactV3Repository` only for `public`
+or `internal` bytes; it atomically appends the attempt, bytes, and bindings,
+and rejects sensitive classifications because it has no encryption-at-rest
+provider. Active Agent/MCP integration remains separate work. The isolated PostgreSQL
 peer must preserve the same chain rules through parent-before-head row locks,
 exact CAS, deferred commit checks, caller savepoints, and fail-closed catalog
 verification and rollback.

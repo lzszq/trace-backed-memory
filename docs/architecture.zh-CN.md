@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 99 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 100 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -457,8 +457,12 @@ catalog 校验、调用方 savepoint 与 fail-closed `RESTRICT` rollback。两�
 active Agent/MCP emission。`semantic_gate_artifact_v3.py` 现已把精确非空
 prompt/response 字节、内容派生 ID、classification 与 encryption metadata
 绑定到 attempt 对应角色，但不会把字节嵌入 JSON。durable artifact 仓库、
-provider 认证/可信时间与 GateSession 事务挂接尚未提供。详见
+`sqlite_semantic_gate_artifact_v3.py` 现已提供 SQLite 持久化：一个外层
+transaction 组合 attempt append、精确 public/internal 字节、角色 binding、SQL
+digest/descriptor guard 与完整读回。PostgreSQL artifact 对等实现、provider
+认证/可信时间与 GateSession 事务挂接尚未提供。详见
 [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)、
+[SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)、
 [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.zh-CN.md)
 与
 [PostgreSQL Semantic Gate attempt ledger v3](protocols/postgres-semantic-gate-v3.zh-CN.md)。

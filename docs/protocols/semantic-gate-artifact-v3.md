@@ -36,9 +36,11 @@ required for the content-derived artifact-ID relationship and exact bytes.
 
 ## Boundary
 
-This is a storage-neutral binding contract. It does not persist artifact
+This is a storage-neutral binding contract. It does not itself persist artifact
 bytes, authenticate a provider, establish trusted server timestamps, verify
 encryption at rest, or transactionally append a Semantic Gate ledger row,
-GateSession revision, or replay manifest. SQLite/PostgreSQL byte repositories
-and the authenticated provider invocation service remain separate follow-up
-work. Artifact hashes prove byte identity, not authorship or truth.
+GateSession revision, or replay manifest. The opt-in
+[SQLite repository](sqlite-semantic-gate-artifact-v3.md) now persists exact
+public/internal bytes atomically with their attempt; PostgreSQL parity and the
+authenticated provider invocation service remain follow-up work. Artifact
+hashes prove byte identity, not authorship or truth.

@@ -32,8 +32,10 @@ JSON 加载有大小边界、拒绝重复键、严格拒绝未知或缺失字段
 
 ## 边界
 
-这是存储中立的绑定契约。它不持久化 artifact 字节、不认证 provider、不建立可信
+这是存储中立的绑定契约。它本身不持久化 artifact 字节、不认证 provider、不建立可信
 服务端时间戳、不验证静态加密，也不会以事务方式追加 Semantic Gate ledger 行、
-GateSession revision 或 replay manifest。SQLite/PostgreSQL 字节仓库与认证后的
+GateSession revision 或 replay manifest。opt-in
+[SQLite 仓库](sqlite-semantic-gate-artifact-v3.zh-CN.md)现已把精确
+public/internal 字节与 attempt 原子持久化；PostgreSQL 对等实现与认证后的
 provider invocation service 仍是后续工作。Artifact 哈希只证明字节身份，不证明
 作者身份或内容真实性。

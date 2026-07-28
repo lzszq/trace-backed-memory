@@ -1386,8 +1386,8 @@ Track:
   evaluation through unique sequence and CAS head, supports exact idempotent
   replay, preserves caller transactions with savepoints, detects canonical
   schema drift, and revalidates the full chain on every read. Keep
-  artifact-byte validation, GateSession transaction linkage, and active
-  Agent/MCP emission outstanding.
+  GateSession transaction linkage and active Agent/MCP emission outstanding;
+  exact bytes are provided by a separate opt-in repository below.
 - Add the isolated PostgreSQL SemanticGateAttempt peer with active-v2 and Gate
   evidence install gates, parent-before-head locks, one row-locked CAS head,
   deferred commit-time chain consistency, exact descriptor/whole-chain
@@ -1400,9 +1400,17 @@ Track:
   digest, retain classification/encryption/redaction metadata, enforce the
   prompt and response byte limits, reject response artifacts for failed
   attempts, and provide bounded duplicate-key-rejecting JSON plus canonical
-  Schema/example resources. Keep byte repositories, provider authentication,
-  trusted timestamps, GateSession/replay transactions, and active emission
-  outstanding.
+  Schema/example resources. Keep provider authentication, trusted timestamps,
+  GateSession/replay transactions, and active emission outstanding.
+- Add the independent version-1 SQLite Semantic Gate artifact schema and
+  `SQLiteSemanticGateArtifactV3Repository`. One outer transaction/savepoint
+  atomically appends the attempt, exact public/internal prompt/response bytes,
+  and role bindings; exact replay is deduplicated and fully read back. SQL
+  recomputes byte digests and derived IDs, compares every descriptor field,
+  enforces role/status/size/media constraints, blocks replacement writes even
+  with recursive triggers disabled, and rejects unexpected managed objects.
+  Keep encrypted sensitive storage, PostgreSQL parity, provider trust,
+  GateSession/replay linkage, and active emission outstanding.
 - Publish content-addressed `tbm.run-outcome.v3` and
   `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
   explicit evaluator evidence while keeping observed association separate

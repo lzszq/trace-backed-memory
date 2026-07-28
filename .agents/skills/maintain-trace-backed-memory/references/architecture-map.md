@@ -16,6 +16,7 @@
 | Gate evaluation v3 | `gate_evaluation_v3.py` | System/Semantic Gate Schemas/examples, monotonicity/provenance/retry-shape tests, protocol docs |
 | Semantic Gate artifact v3 | `semantic_gate_artifact_v3.py` | exact prompt/response byte binding, classification/encryption metadata, strict JSON/schema/example tests, protocol docs |
 | SQLite Semantic Gate v3 ledger | `sqlite_semantic_gate_v3.py`, `schemas/sqlite-v3-semantic-gate.sql` | Gate evidence linkage, linear head CAS, exact replay, schema-drift/savepoint/concurrency tests, protocol docs |
+| SQLite Semantic Gate artifact v3 | `sqlite_semantic_gate_artifact_v3.py`, `schemas/sqlite-v3-semantic-gate-artifacts.sql` | atomic attempt/byte/binding writes, SQL digest/descriptor guards, exact replay, schema-drift/savepoint/concurrency tests, protocol docs |
 | PostgreSQL Semantic Gate v3 ledger | `postgres_semantic_gate_v3.py`, `schemas/postgres-v3-semantic-gate*.sql` | row-lock linearization, deferred chain consistency, exact catalog/rollback/savepoint/concurrency tests, protocol docs |
 | Run outcome and attribution v3 | `outcome_v3.py` | outcome/attribution Schemas/examples, completed-session linkage and causal-boundary tests, protocol docs |
 | Audit and recovery v3 | `audit_v3.py` | event/recovery Schemas/examples, parent/linkage/remediation rejection tests, protocol docs |

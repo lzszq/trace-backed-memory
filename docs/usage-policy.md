@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 91 installed resource copies must remain byte-identical to the top-level
+The 92 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1204,6 +1204,12 @@ runtime exposes no revision publication operation. Approval and activation
 must be separate authenticated, authorized, append-only service events with
 transactional parent/sequence and current-policy checks. Corrections create a
 new revision; they never mutate an existing one.
+
+The isolated SQLite proposal ledger may persist only a fully verified exact
+evidence bundle. Require linear parent/revision continuity, immutable
+idempotent replay, and exact read-back before commit. Its presence is not
+publication authority and it must never project proposals into active v2
+memory.
 
 ## Version-3 retrieval snapshot policy
 

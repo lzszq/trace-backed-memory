@@ -25,6 +25,7 @@
 - [结构化 regression evidence v3](protocols/evidence-v3.zh-CN.md)
 - [FixEvidence v3](protocols/fix-evidence-v3.zh-CN.md)
 - [不可变 MemoryRevision v3](protocols/memory-revision-v3.zh-CN.md)
+- [SQLite MemoryRevision proposal ledger v3](protocols/sqlite-memory-revision-v3.zh-CN.md)
 - [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)
 - [System 与 Semantic Gate evaluation v3](protocols/gate-evaluation-v3.zh-CN.md)
 - [运行结果与归因 v3](protocols/outcome-v3.zh-CN.md)

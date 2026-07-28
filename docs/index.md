@@ -26,6 +26,7 @@ orientation; these documents define the engineering contracts.
 - [Structured regression evidence v3](protocols/evidence-v3.md)
 - [FixEvidence v3](protocols/fix-evidence-v3.md)
 - [Immutable MemoryRevision v3](protocols/memory-revision-v3.md)
+- [SQLite MemoryRevision proposal ledger v3](protocols/sqlite-memory-revision-v3.md)
 - [Replayable RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.md)
 - [System and Semantic Gate evaluation v3](protocols/gate-evaluation-v3.md)
 - [Run outcome and attribution v3](protocols/outcome-v3.md)

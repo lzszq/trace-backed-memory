@@ -564,6 +564,10 @@
   evidence 引用与 server-owned proposer/client attestation context。在认证
   authorization 与 audit service operation 交付前，不把 approval/activation 放入
   该契约。
+- 增加 opt-in、隔离的 SQLite immutable MemoryRevision proposal ledger：原子保存
+  精确 FixEvidence/regression bundle，强制线性 parent/revision continuity，支持
+  精确幂等 replay 与 caller savepoint，并在 commit 前读回。approval、activation、
+  active v2 projection、authorization 与 retention 保持在该 ledger 之外。
 - 发布内容寻址 `tbm.retrieval-snapshot.v3` 以及嵌套 RetrievalHit/IndexVersion，
   绑定精确 authorization/context/query、有序 revision 命中、候选哈希、有限的
   stage/fusion 分数、retriever/index 版本、边界与截断原因。在 UTF-8 编码前拒绝

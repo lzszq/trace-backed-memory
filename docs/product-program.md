@@ -1356,6 +1356,11 @@ Track:
   proposer/client attestation context. Keep approval and activation out of the
   contract until authenticated authorization and audit service operations are
   delivered.
+- Add an opt-in isolated SQLite immutable MemoryRevision proposal ledger that
+  atomically stores the exact FixEvidence/regression bundle, enforces linear
+  parent/revision continuity, supports exact idempotent replay and caller
+  savepoints, and reads back before commit. Keep approval, activation, active
+  v2 projection, authorization, and retention outside this ledger.
 - Publish content-addressed `tbm.retrieval-snapshot.v3` and nested
   RetrievalHit/IndexVersion records with exact authorization/context/query
   linkage, ordered revision hits, candidate hashes, finite stage/fusion scores,

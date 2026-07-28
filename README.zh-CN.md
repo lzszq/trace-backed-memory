@@ -176,7 +176,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 78 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 79 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -268,8 +268,11 @@ runtime 的准备工作，而不是当前已支持精确重放的声明。详见
 与存储实现无关的授权 v3 契约定义 canonical repository、精确的租户作用域别名、
 principal、agent client、role binding 与内容关联的允许/拒绝 decision。求值器把
 授权与适用性分开，并设计为先于任何检索运行。身份与目标字段必须来自服务端认证
-上下文；decision hash 只是内容身份，不是签名或可重用 capability。active Store、
-Agent、MCP 与 GateSession repository 尚未调用该求值器。详见
+上下文；decision hash 只是内容身份，不是签名或可重用 capability。
+`SQLiteAuthorizationV3Repository` 提供 opt-in 隔离 authority，在原子持久化
+immutable policy/decision 和唯一 request identity 前核验精确
+policy/request/decision 三元组。active Store、Agent、MCP 与 GateSession
+repository 仍未调用该 authority。详见
 [授权契约](docs/protocols/authorization-v3.zh-CN.md)。
 
 storage-neutral `tbm.regression-evidence.v3` 不会替换任何 active 字段；它补上发布
@@ -931,7 +934,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、78 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、79 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -1060,6 +1063,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
 |   |-- snapshot_v3_migration_*.schema.json
+|   |-- sqlite-v3-audit.sql
+|   |-- sqlite-v3-authorization.sql
 |   |-- sqlite-v3-gate-session.sql
 |   |-- sqlite-v3-migration.sql
 |   |-- sqlite-v3-replay.sql
@@ -1113,6 +1118,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- replay_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_audit_v3.py
+|   |-- sqlite_authorization_v3.py
 |   |-- sqlite_gate_session_v3.py
 |   |-- sqlite_replay_v3.py
 |   |-- sqlite_v3.py
@@ -1138,6 +1144,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py
     |-- test_sqlite_audit_v3.py
+    |-- test_sqlite_authorization_v3.py
     |-- test_sqlite_replay_v3.py
     |-- test_quickstart.py
     |-- test_sqlite_v3.py

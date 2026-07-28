@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 78 resources.
+contains 79 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1516,9 +1516,13 @@ later retrieval; they cannot grant access. Decisions bind the exact canonical
 request and policy hashes and can be recomputed with
 `verify_authorization_decision`.
 
-The hashes are content identities, not signatures. The contract does not
-authenticate callers, persist policy, issue reusable capabilities, or connect
-to the active Store, Agent, MCP, or GateSession repositories. See
+The hashes are content identities, not signatures. The opt-in isolated
+`SQLiteAuthorizationV3Repository` persists immutable policies and decisions,
+requires exact request/policy/decision verification before append, enforces one
+decision identity per request, revalidates stored descriptors, and fails closed
+on schema drift while preserving caller transactions with savepoints. It does
+not authenticate callers, issue reusable capabilities, or connect to the active
+Store, Agent, MCP, or GateSession repositories. See
 [Authorization v3 contract](protocols/authorization-v3.md).
 
 The storage-neutral `tbm.regression-evidence.v3` record is the first

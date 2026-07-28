@@ -8,6 +8,7 @@
 | Cross-record invariants | `store.py` | snapshot tests, both repositories |
 | Agent application façade | `agent.py` | package exports, CLI capabilities, agent schemas |
 | Authorization v3 contract | `authorization_v3.py` | policy/decision Schemas and examples, evaluator rejection tests, protocol docs |
+| SQLite authorization v3 authority | `sqlite_authorization_v3.py`, `schemas/sqlite-v3-authorization.sql` | request/policy verification, immutable decision audit, request uniqueness, schema-drift/savepoint tests |
 | Structured regression evidence v3 | `evidence_v3.py` | evidence Schema/example, content/linkage/self-verification rejection tests, protocol docs |
 | Immutable MemoryRevision v3 | `memory_revision_v3.py` | revision Schema/example, lineage/artifact/evidence rejection tests, protocol docs |
 | Replayable retrieval v3 | `retrieval_v3.py` | snapshot Schema/example, rank/hash/version/truncation rejection tests, protocol docs |

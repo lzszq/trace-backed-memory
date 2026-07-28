@@ -409,6 +409,16 @@ from .sqlite_audit_v3 import (
     SQLiteAuditV3Repository,
     SQLiteAuditV3SchemaError,
 )
+from .sqlite_authorization_v3 import (
+    SQLITE_AUTHORIZATION_V3_MAX_PAGE_SIZE,
+    SQLITE_AUTHORIZATION_V3_SCHEMA_VERSION,
+    SQLiteAuthorizationV3AppendResult,
+    SQLiteAuthorizationV3ConflictError,
+    SQLiteAuthorizationV3Error,
+    SQLiteAuthorizationV3PersistenceError,
+    SQLiteAuthorizationV3Repository,
+    SQLiteAuthorizationV3SchemaError,
+)
 from .sqlite_gate_session_v3 import (
     SQLITE_GATE_SESSION_SCHEMA_VERSION,
     SQLiteGateSessionConflictError,
@@ -701,6 +711,14 @@ __all__ = [
     "SQLiteAuditV3PersistenceError",
     "SQLiteAuditV3Repository",
     "SQLiteAuditV3SchemaError",
+    "SQLITE_AUTHORIZATION_V3_MAX_PAGE_SIZE",
+    "SQLITE_AUTHORIZATION_V3_SCHEMA_VERSION",
+    "SQLiteAuthorizationV3AppendResult",
+    "SQLiteAuthorizationV3ConflictError",
+    "SQLiteAuthorizationV3Error",
+    "SQLiteAuthorizationV3PersistenceError",
+    "SQLiteAuthorizationV3Repository",
+    "SQLiteAuthorizationV3SchemaError",
     "SQLITE_GATE_SESSION_SCHEMA_VERSION",
     "SQLiteGateSessionConflictError",
     "SQLiteGateSessionCreateResult",

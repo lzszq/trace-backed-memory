@@ -43,6 +43,8 @@ Start with:
 - `contracts_v3.py`: strict version-3 identities, mappings, and preflight plans.
 - `authorization_v3.py`: storage-neutral identity, role-binding, repository
   alias, and linked authorization-decision contracts; not active enforcement.
+- `sqlite_authorization_v3.py`: opt-in immutable authorization policy and
+  decision authority; verifies the exact request before durable append.
 - `evidence_v3.py`: storage-neutral content-addressed structured regression
   evidence with independent submitter/verifier provenance.
 - `memory_revision_v3.py`: proposal-only immutable memory revision contract

@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 78 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 79 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -382,8 +382,12 @@ evaluator。policy 把 principal 和 agent client 绑定到精确 canonical repo
 绑定精确 canonical request 与 policy hash，并可通过
 `verify_authorization_decision` 重新计算核验。
 
-这些 hash 是内容身份，不是签名。该契约不认证调用方、不持久化 policy、不签发可
-重用 capability，也不连接 active Store、Agent、MCP 或 GateSession repository。
+这些 hash 是内容身份，不是签名。opt-in 隔离
+`SQLiteAuthorizationV3Repository` 持久化 immutable policy/decision，在追加前
+要求精确 request/policy/decision 核验，强制每个 request 只有一个 decision
+identity，重验已存 descriptor，并在 schema drift 时 fail closed，同时使用
+savepoint 保留调用方事务。它不认证调用方、不签发可重用 capability，也不连接
+active Store、Agent、MCP 或 GateSession repository。
 详见[授权 v3 契约](protocols/authorization-v3.zh-CN.md)。
 
 storage-neutral `tbm.regression-evidence.v3` 是 migration mapping 之外第一层面向

@@ -2,9 +2,9 @@
 
 [English](authorization-v3.md) | **简体中文**
 
-状态：已发布的准备性契约。它尚未接入现行 snapshot-v2 Store、本地 Agent、MCP
-适配器或 GateSession 仓储；这些路径仍保持其他文档所述的进程内或显式 opt-in
-边界。
+状态：已发布的准备性契约，并包含 opt-in 隔离 SQLite authorization
+authority。它尚未接入现行 snapshot-v2 Store、本地 Agent、MCP 适配器或
+GateSession 仓储；这些路径仍保持其他文档所述的进程内或显式 opt-in 边界。
 
 授权 v3 定义未来服务在读取任何租户或仓库数据之前所需的身份、仓库注册表、角色
 绑定、请求与内容派生决策。它不会把适用性匹配变成授权。
@@ -23,6 +23,15 @@
 
 允许决策是一次时点评估，不是长期 capability。每个受保护操作之前都应按当前策略
 重新评估，或确认该精确信任策略仍是权威版本；不得重放旧决策绕过撤销或过期。
+
+`SQLiteAuthorizationV3Repository` 在隔离
+`schemas/sqlite-v3-authorization.sql` schema 中持久化 immutable policy bundle
+与关联 decision。`authorize_and_record()` 先求值再存储；`append_decision()`
+要求精确 policy、request 与 decision，并在单个原子追加前调用
+`verify_authorization_decision()`。request identity 唯一，精确重放幂等，冲突
+重评估会被拒绝；已存 descriptor 会重验，schema drift fail closed，嵌套调用方
+使用 savepoint。该 repository 不认证输入上下文，也尚未成为 active retrieval
+boundary。
 
 ## 注册表与绑定
 

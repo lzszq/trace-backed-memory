@@ -2,9 +2,10 @@
 
 **English** | [简体中文](authorization-v3.zh-CN.md)
 
-Status: published preparation contract. It is not wired into the active
-snapshot-v2 Store, local Agent, MCP adapter, or GateSession repositories.
-Those paths remain process-local or explicitly opt-in as documented elsewhere.
+Status: published preparation contract with an opt-in isolated SQLite
+authorization authority. It is not wired into the active snapshot-v2 Store,
+local Agent, MCP adapter, or GateSession repositories. Those paths remain
+process-local or explicitly opt-in as documented elsewhere.
 
 Authorization v3 defines the identities, repository registry, role bindings,
 requests, and content-derived decisions needed before a future service may
@@ -29,6 +30,16 @@ An allowed decision is a point-in-time evaluation, not a durable capability.
 Before a protected operation, evaluate again against the current policy or
 verify that the exact trusted policy is still authoritative. Revocation and
 expiry must not be bypassed by replaying an older decision.
+
+`SQLiteAuthorizationV3Repository` persists immutable policy bundles and linked
+decisions in the isolated `schemas/sqlite-v3-authorization.sql` schema. Its
+`authorize_and_record()` path evaluates before storage; `append_decision()`
+requires the exact policy, request, and decision and calls
+`verify_authorization_decision()` before one atomic append. Request identity is
+unique, exact replay is idempotent, conflicting reevaluation is rejected, stored
+descriptors are revalidated, schema drift fails closed, and nested callers use
+a savepoint. This repository does not authenticate the supplied context and is
+not yet an active retrieval boundary.
 
 ## Registries and bindings
 

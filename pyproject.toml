@@ -120,6 +120,7 @@ trace_backed_memory = [
     "_resources/schemas/snapshot_v3_migration_mapping.schema.json",
     "_resources/schemas/snapshot_v3_migration_plan.schema.json",
     "_resources/schemas/sqlite-v3-audit.sql",
+    "_resources/schemas/sqlite-v3-authorization.sql",
     "_resources/schemas/sqlite-v3-gate-session.sql",
     "_resources/schemas/sqlite-v3-migration.sql",
     "_resources/schemas/sqlite-v3-replay.sql",

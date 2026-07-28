@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 78 resources. `PackagedResource` descriptions
+The allowlist currently contains 79 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -419,8 +419,11 @@ content-linked allow/deny decisions. Its evaluator keeps authorization
 separate from applicability and is intended to run before any retrieval.
 Identity and target fields must come from authenticated server-owned context;
 decision hashes are content identities, not signatures or reusable
-capabilities. The active Store, Agent, MCP, and GateSession repositories do not
-invoke this evaluator yet. See
+capabilities. `SQLiteAuthorizationV3Repository` is an opt-in isolated authority
+that verifies the exact policy/request/decision triple before atomically
+persisting immutable policies and decisions with unique request identity. The
+active Store, Agent, MCP, and GateSession repositories still do not invoke this
+authority. See
 [the authorization contract](docs/protocols/authorization-v3.md).
 
 The storage-neutral `tbm.regression-evidence.v3` contract replaces no active
@@ -2190,6 +2193,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
 |   |-- snapshot_v3_migration_*.schema.json
+|   |-- sqlite-v3-audit.sql
+|   |-- sqlite-v3-authorization.sql
 |   |-- sqlite-v3-gate-session.sql
 |   |-- sqlite-v3-migration.sql
 |   |-- sqlite-v3-replay.sql
@@ -2243,6 +2248,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- replay_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_audit_v3.py
+|   |-- sqlite_authorization_v3.py
 |   |-- sqlite_gate_session_v3.py
 |   |-- sqlite_replay_v3.py
 |   |-- sqlite_v3.py
@@ -2268,6 +2274,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py
     |-- test_sqlite_audit_v3.py
+    |-- test_sqlite_authorization_v3.py
     |-- test_sqlite_replay_v3.py
     |-- test_quickstart.py
     |-- test_sqlite_v3.py

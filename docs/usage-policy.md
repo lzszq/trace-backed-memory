@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 78 installed resource copies must remain byte-identical to the top-level
+The 79 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -172,9 +172,10 @@ The allowlist includes fresh-install PostgreSQL schema version 2, the
 atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 `schemas/postgres-v2-lock-order-hotfix.sql` operator script. It also includes
 the agent protocol, v3 migration staging, GateSession, and content-addressed
-replay contract Schemas and examples, plus isolated SQLite GateSession DDL and
-  replay/audit-ledger DDL, isolated PostgreSQL GateSession install/rollback,
-  and isolated PostgreSQL replay/audit-ledger install/fail-closed rollback.
+replay contract Schemas and examples, plus isolated SQLite
+GateSession/replay/audit/authorization-ledger DDL, isolated PostgreSQL
+GateSession install/rollback, and isolated PostgreSQL replay/audit-ledger
+install/fail-closed rollback.
 
 CLI resource reads emit deterministic JSON rather than unframed raw content.
 Export is the shell integration path. It must refuse an existing destination
@@ -1115,8 +1116,11 @@ use.
 Decision and policy hashes provide content linkage, not authenticity. Never
 accept an isolated decision as a signature or durable capability. Verify the
 decision against the exact trusted request and policy, and reevaluate after
-policy change, revocation, or expiry. The active Store, Agent, MCP, and
-GateSession repositories do not yet invoke this evaluator and must not claim
+policy change, revocation, or expiry. The opt-in
+`SQLiteAuthorizationV3Repository` may persist only decisions verified against
+their exact request and policy; its request uniqueness is an audit invariant,
+not a reusable authorization capability. The active Store, Agent, MCP, and
+GateSession repositories do not yet invoke this authority and must not claim
 multi-tenant authorization.
 
 ## Version-3 structured evidence policy

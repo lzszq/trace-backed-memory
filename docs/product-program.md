@@ -1401,6 +1401,12 @@ Track:
   evaluation, exact policy/request verification, strict bounded JSON, and
   packaged Schemas/examples. Keep authenticated identity context, persistence,
   and active adapter enforcement outstanding.
+- Add an opt-in isolated SQLite authorization authority that durably stores
+  immutable policy bundles and linked allow/deny decisions, verifies the exact
+  request before append, enforces unique request identity, revalidates stored
+  descriptors, detects exact schema drift, and preserves caller savepoints.
+  Keep caller authentication and active Store/Agent/MCP integration
+  outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

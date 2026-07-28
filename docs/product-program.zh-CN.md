@@ -602,6 +602,10 @@
   global/tenant/repository role binding、时点评估、精确 policy/request 核验、
   有界严格 JSON 和打包 Schema/示例。认证 identity context、持久化与 active
   adapter enforcement 仍待完成。
+- 增加 opt-in 隔离 SQLite authorization authority：持久化 immutable policy
+  bundle 与关联 allow/deny decision，在追加前核验精确 request，强制唯一 request
+  identity，重验已存 descriptor，检测精确 schema drift，并保留调用方
+  savepoint。调用方认证及 active Store/Agent/MCP 集成仍待实现。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 在 retrieval 前集成服务端认证 identity 与已发布授权契约，使 scope 成为可执行的 runtime boundary。

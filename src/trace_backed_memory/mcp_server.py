@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 import sys
@@ -21,13 +22,24 @@ from ._ingestion import (
     CLI_JSON_MAX_NODES,
     decode_bounded_utf8,
     parse_bounded_json,
+    read_bounded_utf8,
 )
+from ._timestamps import utc_timestamp
 from .agent import (
     AGENT_PROTOCOL_VERSION,
     AgentMemoryError,
     LocalAgentMemory,
     agent_capabilities,
     capture_local_trace,
+)
+from .authenticated_agent_v3 import (
+    AuthenticatedAgentPrepareContext,
+    AuthenticatedLocalAgentMemory,
+)
+from .entity_registry_v3 import (
+    ENTITY_REGISTRY_JSON_MAX_BYTES,
+    EntityRegistrySnapshot,
+    loads_entity_registry,
 )
 from .models import MemoryContext, MemoryRunMeasurement
 from .policy import (
@@ -38,6 +50,12 @@ from .policy import (
     METADATA_VALUE_MAX_CHARS,
 )
 from .store import RETRIEVAL_QUERY_MAX_CHARS
+from .service_v3 import (
+    AuthenticatedRetrievalService,
+    AuthenticatedServiceContext,
+    AuthenticatedServiceV3Error,
+)
+from .sqlite_authorization_v3 import SQLiteAuthorizationV3Repository
 
 
 MCP_INPUT_FRAME_MAX_BYTES = CLI_JSON_FILE_MAX_BYTES
@@ -221,32 +239,70 @@ class CancelRunRequest(_StrictRequest):
 
 
 @dataclass(frozen=True)
+class MCPAuthenticationConfiguration:
+    registry_path: Path
+    authorization_sqlite_path: Path
+    principal_id: str
+    agent_client_id: str
+    environment_id: str
+
+
+@dataclass(frozen=True)
 class MCPServerConfiguration:
     repo_path: Path
     storage_mode: StorageMode
     tenant: str | None = None
     sqlite_path: Path | None = None
     postgres_env: str | None = None
+    authentication: MCPAuthenticationConfiguration | None = None
 
 
 @dataclass
 class _MCPApplication:
     configuration: MCPServerConfiguration
     runtime: LocalAgentMemory
+    authenticated_runtime: AuthenticatedLocalAgentMemory | None = None
 
 
 def create_mcp_server(
     configuration: MCPServerConfiguration,
     runtime: LocalAgentMemory,
+    *,
+    authenticated_runtime: AuthenticatedLocalAgentMemory | None = None,
 ) -> FastMCP:
     """Build the runtime-only MCP profile over one process-owned façade."""
     if type(configuration) is not MCPServerConfiguration:
         raise TypeError(
             "configuration must be exactly an MCPServerConfiguration"
         )
+    if configuration.authentication is not None and (
+        type(configuration.authentication)
+        is not MCPAuthenticationConfiguration
+    ):
+        raise TypeError(
+            "authentication must be exactly "
+            "MCPAuthenticationConfiguration or None"
+        )
     if type(runtime) is not LocalAgentMemory:
         raise TypeError("runtime must be exactly a LocalAgentMemory")
-    application = _MCPApplication(configuration, runtime)
+    if authenticated_runtime is not None and (
+        type(authenticated_runtime) is not AuthenticatedLocalAgentMemory
+    ):
+        raise TypeError(
+            "authenticated_runtime must be exactly "
+            "AuthenticatedLocalAgentMemory or None"
+        )
+    if (configuration.authentication is None) != (
+        authenticated_runtime is None
+    ):
+        raise ValueError(
+            "authenticated MCP configuration and runtime must be paired"
+        )
+    application = _MCPApplication(
+        configuration,
+        runtime,
+        authenticated_runtime,
+    )
     server = FastMCP(
         "Trace-backed Memory",
         instructions=MCP_SERVER_INSTRUCTIONS,
@@ -314,7 +370,11 @@ def create_mcp_server(
                 application.configuration.repo_path,
                 run_id=request.run_id,
                 trace_id=request.trace_id,
-                tenant=application.configuration.tenant,
+                tenant=(
+                    None
+                    if application.authenticated_runtime is not None
+                    else application.configuration.tenant
+                ),
                 prompt_version=request.prompt_version,
                 prompt_family=request.prompt_family,
                 tool_schema_version=request.tool_schema_version,
@@ -329,34 +389,62 @@ def create_mcp_server(
                 raise ValueError(
                     "configured repository has no canonical local name"
                 )
-            context = MemoryContext(
-                mode=request.mode,
-                repo=trace.repo,
-                commit_sha=trace.commit_sha,
-                branch=trace.branch,
-                prompt_version=request.prompt_version,
-                prompt_family=request.prompt_family,
-                tool=request.tool,
-                tool_schema_version=request.tool_schema_version,
-                model=request.model,
-                model_family=request.model_family,
-                eval_suite=request.eval_suite,
-                task_type=request.task_type,
-                failure_type=request.failure_type,
-                tenant=application.configuration.tenant,
-                input_hash=request.input_hash,
-            )
-            prepared = application.runtime.prepare_with_git_ancestry(
-                trace,
-                context,
-                repo_path=application.configuration.repo_path,
-                task=request.task,
-                query=request.query,
-                semantic_scores=request.semantic_scores,
-                max_candidates=request.max_candidates,
-                minimum_score=request.minimum_score,
-                context_summary=request.context_summary,
-            )
+            authenticated_runtime = application.authenticated_runtime
+            if authenticated_runtime is None:
+                context = MemoryContext(
+                    mode=request.mode,
+                    repo=trace.repo,
+                    commit_sha=trace.commit_sha,
+                    branch=trace.branch,
+                    prompt_version=request.prompt_version,
+                    prompt_family=request.prompt_family,
+                    tool=request.tool,
+                    tool_schema_version=request.tool_schema_version,
+                    model=request.model,
+                    model_family=request.model_family,
+                    eval_suite=request.eval_suite,
+                    task_type=request.task_type,
+                    failure_type=request.failure_type,
+                    tenant=application.configuration.tenant,
+                    input_hash=request.input_hash,
+                )
+                prepared = application.runtime.prepare_with_git_ancestry(
+                    trace,
+                    context,
+                    repo_path=application.configuration.repo_path,
+                    task=request.task,
+                    query=request.query,
+                    semantic_scores=request.semantic_scores,
+                    max_candidates=request.max_candidates,
+                    minimum_score=request.minimum_score,
+                    context_summary=request.context_summary,
+                )
+            else:
+                prepared = authenticated_runtime.prepare_with_git_ancestry(
+                    trace,
+                    AuthenticatedAgentPrepareContext(
+                        mode=request.mode,
+                        commit_sha=trace.commit_sha,
+                        branch=trace.branch,
+                        prompt_version=request.prompt_version,
+                        prompt_family=request.prompt_family,
+                        tool=request.tool,
+                        tool_schema_version=request.tool_schema_version,
+                        model=request.model,
+                        model_family=request.model_family,
+                        eval_suite=request.eval_suite,
+                        task_type=request.task_type,
+                        failure_type=request.failure_type,
+                        input_hash=request.input_hash,
+                    ),
+                    repo_path=application.configuration.repo_path,
+                    task=request.task,
+                    query=request.query,
+                    semantic_scores=request.semantic_scores,
+                    max_candidates=request.max_candidates,
+                    minimum_score=request.minimum_score,
+                    context_summary=request.context_summary,
+                ).value
             return prepared.to_dict()
         except Exception as error:
             _raise_tool_error(error, "prepare")
@@ -380,7 +468,10 @@ def create_mcp_server(
         request: FinalizeMemoryRequest,
     ) -> dict[str, object]:
         try:
-            finalized = application.runtime.finalize(
+            lifecycle_runtime = (
+                application.authenticated_runtime or application.runtime
+            )
+            finalized = lifecycle_runtime.finalize(
                 request.request_id,
                 {
                     "use_memory": request.use_memory,
@@ -430,7 +521,10 @@ def create_mcp_server(
                 error=request.error,
                 trace_uri=request.trace_uri,
             )
-            completed = application.runtime.complete(
+            lifecycle_runtime = (
+                application.authenticated_runtime or application.runtime
+            )
+            completed = lifecycle_runtime.complete(
                 request.decision_id,
                 measurement,
             )
@@ -456,7 +550,10 @@ def create_mcp_server(
         request: CancelRunRequest,
     ) -> dict[str, object]:
         try:
-            application.runtime.cancel(request.request_id)
+            lifecycle_runtime = (
+                application.authenticated_runtime or application.runtime
+            )
+            lifecycle_runtime.cancel(request.request_id)
             return {
                 "protocol_version": AGENT_PROTOCOL_VERSION,
                 "request_id": request.request_id,
@@ -575,6 +672,13 @@ def _raise_tool_error(
 ) -> NoReturn:
     if isinstance(error, AgentMemoryError):
         public_error = error
+    elif isinstance(error, AuthenticatedServiceV3Error):
+        public_error = AgentMemoryError(
+            error.code,
+            "state",
+            operation,
+            str(error),
+        )
     elif isinstance(error, (TypeError, ValueError, OverflowError)):
         public_error = AgentMemoryError(
             "TBM_AGENT_INVALID_INPUT",
@@ -642,6 +746,28 @@ def _build_parser() -> argparse.ArgumentParser:
             "Read the PostgreSQL conninfo from this environment variable."
         ),
     )
+    parser.add_argument(
+        "--auth-registry",
+        type=Path,
+        help="Trusted bounded entity-registry v3 JSON file.",
+    )
+    parser.add_argument(
+        "--auth-sqlite",
+        type=Path,
+        help="SQLite authorization-v3 authority database.",
+    )
+    parser.add_argument(
+        "--auth-principal-id",
+        help="Authenticated principal selected by trusted server startup.",
+    )
+    parser.add_argument(
+        "--auth-agent-client-id",
+        help="Authenticated agent client selected by trusted server startup.",
+    )
+    parser.add_argument(
+        "--auth-environment-id",
+        help="Server-owned environment target selected from the registry.",
+    )
     return parser
 
 
@@ -661,11 +787,20 @@ def _configuration_from_args(
             "tenant must be a nonblank string at most "
             f"{METADATA_VALUE_MAX_CHARS} characters"
         )
+    authentication = _authentication_configuration_from_args(
+        args,
+        repo_path,
+    )
+    if authentication is not None and tenant is not None:
+        raise ValueError(
+            "--tenant cannot be combined with authenticated MCP mode"
+        )
     if args.memory:
         return MCPServerConfiguration(
             repo_path=repo_path,
             storage_mode="memory",
             tenant=tenant,
+            authentication=authentication,
         )
     if args.sqlite is not None:
         sqlite_path = args.sqlite
@@ -679,6 +814,7 @@ def _configuration_from_args(
             storage_mode="sqlite",
             tenant=tenant,
             sqlite_path=sqlite_path,
+            authentication=authentication,
         )
     postgres_env = args.postgres_env
     if (
@@ -695,6 +831,64 @@ def _configuration_from_args(
         storage_mode="postgres",
         tenant=tenant,
         postgres_env=postgres_env,
+        authentication=authentication,
+    )
+
+
+def _authentication_configuration_from_args(
+    args: argparse.Namespace,
+    repo_path: Path,
+) -> MCPAuthenticationConfiguration | None:
+    values = (
+        args.auth_registry,
+        args.auth_sqlite,
+        args.auth_principal_id,
+        args.auth_agent_client_id,
+        args.auth_environment_id,
+    )
+    if all(value is None for value in values):
+        return None
+    if any(value is None for value in values):
+        raise ValueError(
+            "authenticated MCP mode requires --auth-registry, "
+            "--auth-sqlite, --auth-principal-id, "
+            "--auth-agent-client-id, and --auth-environment-id"
+        )
+    registry_path = args.auth_registry
+    authorization_path = args.auth_sqlite
+    if not registry_path.is_absolute():
+        registry_path = repo_path / registry_path
+    registry_path = registry_path.resolve(strict=True)
+    if not registry_path.is_file():
+        raise ValueError("auth registry must be a regular file")
+    if not authorization_path.is_absolute():
+        authorization_path = repo_path / authorization_path
+    authorization_path = authorization_path.resolve(strict=False)
+    if not authorization_path.parent.is_dir():
+        raise ValueError(
+            "authorization SQLite database parent directory must exist"
+        )
+    identifiers = (
+        args.auth_principal_id,
+        args.auth_agent_client_id,
+        args.auth_environment_id,
+    )
+    if any(
+        type(value) is not str
+        or not value.strip()
+        or len(value) > METADATA_VALUE_MAX_CHARS
+        for value in identifiers
+    ):
+        raise ValueError(
+            "authenticated MCP identity selectors must be nonblank bounded "
+            "strings"
+        )
+    return MCPAuthenticationConfiguration(
+        registry_path=registry_path,
+        authorization_sqlite_path=authorization_path,
+        principal_id=args.auth_principal_id,
+        agent_client_id=args.auth_agent_client_id,
+        environment_id=args.auth_environment_id,
     )
 
 
@@ -724,13 +918,161 @@ def _open_runtime(
     return LocalAgentMemory.open_postgres(conninfo)
 
 
+def _open_authenticated_runtime(
+    configuration: MCPServerConfiguration,
+    runtime: LocalAgentMemory,
+) -> tuple[
+    AuthenticatedLocalAgentMemory,
+    SQLiteAuthorizationV3Repository,
+] | None:
+    authentication = configuration.authentication
+    if authentication is None:
+        return None
+
+    def load_registry() -> EntityRegistrySnapshot:
+        source = read_bounded_utf8(
+            authentication.registry_path,
+            max_bytes=ENTITY_REGISTRY_JSON_MAX_BYTES,
+            description="authenticated MCP entity registry",
+        )
+        return loads_entity_registry(source)
+
+    registry = load_registry()
+    policy = registry.authorization_policy
+    principal = next(
+        (
+            item
+            for item in policy.principals
+            if item.principal_id == authentication.principal_id
+        ),
+        None,
+    )
+    agent_client = next(
+        (
+            item
+            for item in policy.agent_clients
+            if item.agent_client_id == authentication.agent_client_id
+        ),
+        None,
+    )
+    environment = next(
+        (
+            item
+            for item in registry.environments
+            if item.environment_id == authentication.environment_id
+        ),
+        None,
+    )
+    tenant = (
+        None
+        if environment is None
+        else next(
+            (
+                item
+                for item in registry.tenants
+                if item.tenant_id == environment.tenant_id
+            ),
+            None,
+        )
+    )
+    organization = (
+        None
+        if tenant is None
+        else next(
+            (
+                item
+                for item in registry.organizations
+                if item.organization_id == tenant.organization_id
+            ),
+            None,
+        )
+    )
+    if (
+        principal is None
+        or principal.status != "active"
+        or agent_client is None
+        or agent_client.status != "active"
+        or environment is None
+        or environment.status != "active"
+        or environment.repository_id is None
+        or tenant is None
+        or tenant.status != "active"
+        or organization is None
+        or organization.status != "active"
+    ):
+        raise ValueError(
+            "authenticated MCP selectors must resolve to active registry "
+            "identities and a repository-bound environment"
+        )
+    try:
+        decisions = SQLiteAuthorizationV3Repository.connect(
+            authentication.authorization_sqlite_path,
+            initialize=True,
+        )
+    except Exception as error:
+        raise AgentMemoryError(
+            "TBM_MCP_AUTH_STARTUP_FAILED",
+            "persistence",
+            "open",
+            "authenticated MCP authorization authority could not be opened",
+        ) from error
+    try:
+        service = AuthenticatedRetrievalService(
+            registry_provider=load_registry,
+            decision_writer=decisions,
+            clock=utc_timestamp,
+            request_id_factory=lambda: (
+                f"authorization_request_{secrets.token_hex(16)}"
+            ),
+        )
+        facade = AuthenticatedLocalAgentMemory(
+            runtime=runtime,
+            authorization_service=service,
+            service_context=AuthenticatedServiceContext(
+                principal=principal,
+                agent_client=agent_client,
+                tenant_id=environment.tenant_id,
+                repository_reference=environment.repository_id,
+                environment_id=environment.environment_id,
+            ),
+        )
+    except Exception:
+        decisions.close()
+        raise
+    return facade, decisions
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+    runtime: LocalAgentMemory | None = None
+    opened_authentication: tuple[
+        AuthenticatedLocalAgentMemory,
+        SQLiteAuthorizationV3Repository,
+    ] | None = None
     try:
         configuration = _configuration_from_args(args)
         runtime = _open_runtime(configuration)
-    except (AgentMemoryError, OSError, ValueError) as error:
+        opened_authentication = _open_authenticated_runtime(
+            configuration,
+            runtime,
+        )
+    except (
+        AgentMemoryError,
+        OSError,
+        OverflowError,
+        TypeError,
+        ValueError,
+    ) as error:
+        if opened_authentication is not None:
+            opened_authentication[1].close()
+        if runtime is not None:
+            runtime.close()
+        public_message = (
+            "configured MCP path could not be opened"
+            if isinstance(error, OSError)
+            else str(error)[:2_048]
+        )
         message = (
             error.to_dict()
             if isinstance(error, AgentMemoryError)
@@ -739,7 +1081,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "error": {
                     "code": "TBM_MCP_STARTUP_FAILED",
                     "category": "input",
-                    "message": str(error)[:2_048],
+                    "message": public_message,
                     "operation": "open",
                     "retryable": False,
                 },
@@ -757,9 +1099,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 2
     try:
-        server = create_mcp_server(configuration, runtime)
+        authenticated_runtime = (
+            None
+            if opened_authentication is None
+            else opened_authentication[0]
+        )
+        server = create_mcp_server(
+            configuration,
+            runtime,
+            authenticated_runtime=authenticated_runtime,
+        )
         run_stdio_server(server)
     finally:
+        if opened_authentication is not None:
+            opened_authentication[1].close()
         runtime.close()
     return 0
 

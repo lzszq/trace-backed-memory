@@ -176,6 +176,12 @@ MCP 部署必须配置一个固定 checkout root 和一种显式 storage mode。
 提供，不能写入项目配置。可选固定 tenant 在 version 2 中仍是 declared-scope
 适用性，不能宣称为授权。
 
+可选认证本地 profile 要求在可信 server 启动时完整提供全部 `--auth-*` 选择。它只从
+所选 active registry environment 派生 tenant/repository，把每个 allow/deny decision
+持久化到 SQLite authorization authority，并拒绝 `--tenant`。MCP 请求 JSON 绝不能
+提供 identity、target、registry 或 authority 字段。该 profile 是可信 identity 选择
+之后的授权边界，不负责认证 STDIO peer，也不得暴露成不可信共享多租户服务。
+
 每个 STDIO 输入帧在 SDK dispatch 前限制为 8 MiB、100,000 个 JSON nodes 与
 depth 100，并拒绝 duplicate key、非法 UTF-8 与非有限数字。即使配置 durable
 storage，pending request 仍为进程内状态。server 重启后必须重新 prepare，不得
@@ -312,9 +318,10 @@ uniqueness 是 audit invariant，不是可重用授权 capability。PostgreSQL a
 并只在全部检查通过后调用 retrieval。无法返回并重新加载精确 persistence receipt
 的自定义 decision writer 无效。
 
-active Store、Agent、MCP 与 GateSession repository 尚未调用该边界，不得宣称具备
-多租户授权。transport authentication、durable GateSession/RetrievalSnapshot
-linkage、worker 与跨记录 service transaction 仍待完成。
+默认 Store、Agent、MCP 与 GateSession profile 不调用该边界。可选本地 MCP
+`--auth-*` profile 只在可信启动 identity 选择后调用它，不得宣称具备 transport
+authentication 或共享多租户授权。durable GateSession/RetrievalSnapshot linkage、
+worker 与跨记录 service transaction 仍待完成。
 
 需要 durable preparation 时，应使用 `AuthenticatedGateSessionService` 作为下一层
 边界。在 retrieval 前创建并读回 scoped session；既有 idempotency key 不得重复

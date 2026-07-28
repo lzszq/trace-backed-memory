@@ -2,6 +2,7 @@ import io
 import json
 import os
 from pathlib import Path
+import sqlite3
 import sys
 import builtins
 
@@ -52,6 +53,45 @@ def _server_parameters(
         ],
         cwd=str(root),
         env=environment,
+    )
+
+
+def _authenticated_configuration(
+    root: Path,
+    tmp_path: Path,
+    *,
+    allow: bool = True,
+) -> mcp_server.MCPServerConfiguration:
+    registry = json.loads(
+        (root / "examples" / "entity_registry_v3.example.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    if not allow:
+        registry["authorization_policy"]["role_bindings"][0][
+            "status"
+        ] = "revoked"
+    registry_path = tmp_path / (
+        "registry-allow.json" if allow else "registry-deny.json"
+    )
+    registry_path.write_text(
+        json.dumps(registry),
+        encoding="utf-8",
+    )
+    return mcp_server.MCPServerConfiguration(
+        repo_path=root,
+        storage_mode="memory",
+        authentication=mcp_server.MCPAuthenticationConfiguration(
+            registry_path=registry_path,
+            authorization_sqlite_path=tmp_path / (
+                "authorization-allow.sqlite3"
+                if allow
+                else "authorization-deny.sqlite3"
+            ),
+            principal_id="principal_tenant_001",
+            agent_client_id="agent_client_001",
+            environment_id="environment_001",
+        ),
     )
 
 
@@ -184,6 +224,180 @@ def test_mcp_tools_delegate_to_one_runtime_in_process():
         runtime.close()
 
 
+def test_authenticated_mcp_authorizes_and_binds_canonical_scope(
+    tmp_path,
+):
+    root = Path(__file__).resolve().parents[1]
+    configuration = _authenticated_configuration(root, tmp_path)
+    runtime = tbm.LocalAgentMemory.in_memory()
+    opened = mcp_server._open_authenticated_runtime(
+        configuration,
+        runtime,
+    )
+    assert opened is not None
+    authenticated_runtime, decisions = opened
+    server = mcp_server.create_mcp_server(
+        configuration,
+        runtime,
+        authenticated_runtime=authenticated_runtime,
+    )
+
+    async def exercise() -> None:
+        prepared = await server._tool_manager.call_tool(
+            "tbm_prepare_memory",
+            {
+                "request": {
+                    "task": "authenticated MCP retrieval",
+                    "mode": "planning",
+                }
+            },
+        )
+        assert prepared["candidate_memory_ids"] == []
+
+    try:
+        anyio.run(exercise)
+        trace = runtime.snapshot()["traces"][0]
+        assert trace["repo"] == "repository_001"
+        assert trace["tenant"] == "tenant_001"
+        authentication = configuration.authentication
+        assert authentication is not None
+        with sqlite3.connect(
+            authentication.authorization_sqlite_path
+        ) as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM v3_authorization_decisions"
+            ).fetchone()[0]
+        assert count == 1
+    finally:
+        decisions.close()
+        runtime.close()
+
+
+def test_authenticated_mcp_denial_persists_without_trace(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    configuration = _authenticated_configuration(
+        root,
+        tmp_path,
+        allow=False,
+    )
+    runtime = tbm.LocalAgentMemory.in_memory()
+    opened = mcp_server._open_authenticated_runtime(
+        configuration,
+        runtime,
+    )
+    assert opened is not None
+    authenticated_runtime, decisions = opened
+    server = mcp_server.create_mcp_server(
+        configuration,
+        runtime,
+        authenticated_runtime=authenticated_runtime,
+    )
+
+    async def exercise() -> None:
+        with pytest.raises(mcp_server.ToolError) as failure:
+            await server._tool_manager.call_tool(
+                "tbm_prepare_memory",
+                {
+                    "request": {
+                        "task": "denied authenticated MCP retrieval",
+                        "mode": "planning",
+                    }
+                },
+            )
+        assert "TBM_SERVICE_AUTHORIZATION_DENIED" in str(failure.value)
+
+    try:
+        anyio.run(exercise)
+        assert runtime.snapshot()["traces"] == []
+    finally:
+        decisions.close()
+        runtime.close()
+
+
+def test_authenticated_mcp_bootstrap_rejects_inactive_environment(
+    tmp_path,
+):
+    root = Path(__file__).resolve().parents[1]
+    configuration = _authenticated_configuration(root, tmp_path)
+    authentication = configuration.authentication
+    assert authentication is not None
+    registry = json.loads(
+        authentication.registry_path.read_text(encoding="utf-8")
+    )
+    registry["environments"][0]["status"] = "disabled"
+    authentication.registry_path.write_text(
+        json.dumps(registry),
+        encoding="utf-8",
+    )
+    runtime = tbm.LocalAgentMemory.in_memory()
+    try:
+        with pytest.raises(ValueError, match="active registry identities"):
+            mcp_server._open_authenticated_runtime(
+                configuration,
+                runtime,
+            )
+    finally:
+        runtime.close()
+
+
+def test_authenticated_mcp_bootstrap_sanitizes_authority_open_failure(
+    tmp_path,
+    monkeypatch,
+):
+    root = Path(__file__).resolve().parents[1]
+    configuration = _authenticated_configuration(root, tmp_path)
+    runtime = tbm.LocalAgentMemory.in_memory()
+
+    def fail_connect(_cls, *_args, **_kwargs):
+        raise RuntimeError("secret database detail")
+
+    monkeypatch.setattr(
+        mcp_server.SQLiteAuthorizationV3Repository,
+        "connect",
+        classmethod(fail_connect),
+    )
+    try:
+        with pytest.raises(
+            tbm.AgentMemoryError,
+            match="authorization authority could not be opened",
+        ) as failure:
+            mcp_server._open_authenticated_runtime(
+                configuration,
+                runtime,
+            )
+        assert failure.value.code == "TBM_MCP_AUTH_STARTUP_FAILED"
+        assert "secret" not in str(failure.value)
+    finally:
+        runtime.close()
+
+
+def test_authenticated_mcp_request_schema_rejects_identity_fields():
+    schema = mcp_server.PrepareMemoryRequest.model_json_schema()
+    properties = schema["properties"]
+    for field_name in (
+        "principal_id",
+        "agent_client_id",
+        "tenant",
+        "tenant_id",
+        "repo",
+        "repository_id",
+        "repository_reference",
+        "environment_id",
+        "authorization_event_id",
+        "registry_path",
+        "authorization_sqlite_path",
+    ):
+        assert field_name not in properties
+    with pytest.raises(ValueError, match="principal_id"):
+        mcp_server.PrepareMemoryRequest.model_validate(
+            {
+                "task": "must reject identity",
+                "mode": "planning",
+                "principal_id": "attacker",
+            }
+        )
+
+
 def test_mcp_server_rejects_wrong_configuration_types():
     root = Path(__file__).resolve().parents[1]
     runtime = tbm.LocalAgentMemory.in_memory()
@@ -195,6 +409,25 @@ def test_mcp_server_rejects_wrong_configuration_types():
             _configuration(root),
             object(),
         )
+    authenticated_configuration = mcp_server.MCPServerConfiguration(
+        repo_path=root,
+        storage_mode="memory",
+        authentication=mcp_server.MCPAuthenticationConfiguration(
+            registry_path=(
+                root / "examples" / "entity_registry_v3.example.json"
+            ),
+            authorization_sqlite_path=root / ".tbm" / "auth.sqlite3",
+            principal_id="principal_tenant_001",
+            agent_client_id="agent_client_001",
+            environment_id="environment_001",
+        ),
+    )
+    with pytest.raises(ValueError, match="must be paired"):
+        mcp_server.create_mcp_server(
+            authenticated_configuration,
+            runtime,
+        )
+    runtime.close()
 
 
 def test_mcp_frame_parser_is_bounded_and_duplicate_rejecting():
@@ -299,6 +532,73 @@ def test_mcp_configuration_requires_explicit_safe_storage(
     assert postgres.storage_mode == "postgres"
     assert postgres.postgres_env == "TBM_TEST_CONNINFO"
 
+    authenticated = mcp_server._configuration_from_args(
+        parser.parse_args(
+            [
+                "--repo-path",
+                str(root),
+                "--memory",
+                "--auth-registry",
+                str(root / "examples" / "entity_registry_v3.example.json"),
+                "--auth-sqlite",
+                str(tmp_path / "authorization.sqlite3"),
+                "--auth-principal-id",
+                "principal_tenant_001",
+                "--auth-agent-client-id",
+                "agent_client_001",
+                "--auth-environment-id",
+                "environment_001",
+            ]
+        )
+    )
+    assert authenticated.authentication is not None
+    assert (
+        authenticated.authentication.environment_id == "environment_001"
+    )
+
+    with pytest.raises(ValueError, match="requires --auth-registry"):
+        mcp_server._configuration_from_args(
+            parser.parse_args(
+                [
+                    "--repo-path",
+                    str(root),
+                    "--memory",
+                    "--auth-registry",
+                    str(
+                        root
+                        / "examples"
+                        / "entity_registry_v3.example.json"
+                    ),
+                ]
+            )
+        )
+    with pytest.raises(ValueError, match="cannot be combined"):
+        mcp_server._configuration_from_args(
+            parser.parse_args(
+                [
+                    "--repo-path",
+                    str(root),
+                    "--memory",
+                    "--tenant",
+                    "caller-tenant",
+                    "--auth-registry",
+                    str(
+                        root
+                        / "examples"
+                        / "entity_registry_v3.example.json"
+                    ),
+                    "--auth-sqlite",
+                    str(tmp_path / "authorization.sqlite3"),
+                    "--auth-principal-id",
+                    "principal_tenant_001",
+                    "--auth-agent-client-id",
+                    "agent_client_001",
+                    "--auth-environment-id",
+                    "environment_001",
+                ]
+            )
+        )
+
     with pytest.raises(ValueError, match="parent directory"):
         mcp_server._configuration_from_args(
             parser.parse_args(
@@ -308,6 +608,77 @@ def test_mcp_configuration_requires_explicit_safe_storage(
                     "--sqlite",
                     str(tmp_path / "missing" / "memory.sqlite3"),
                 ]
+            )
+        )
+
+
+def test_authenticated_mcp_configuration_validates_relative_paths_and_ids(
+    tmp_path,
+):
+    root = Path(__file__).resolve().parents[1]
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    (repo_path / "registry.json").write_bytes(
+        (root / "examples" / "entity_registry_v3.example.json").read_bytes()
+    )
+    parser = mcp_server._build_parser()
+
+    arguments = [
+        "--repo-path",
+        str(repo_path),
+        "--memory",
+        "--auth-registry",
+        "registry.json",
+        "--auth-sqlite",
+        "authorization.sqlite3",
+        "--auth-principal-id",
+        "principal_tenant_001",
+        "--auth-agent-client-id",
+        "agent_client_001",
+        "--auth-environment-id",
+        "environment_001",
+    ]
+    configuration = mcp_server._configuration_from_args(
+        parser.parse_args(arguments)
+    )
+    authentication = configuration.authentication
+    assert authentication is not None
+    assert authentication.registry_path == repo_path / "registry.json"
+    assert (
+        authentication.authorization_sqlite_path
+        == repo_path / "authorization.sqlite3"
+    )
+
+    invalid_registry = list(arguments)
+    invalid_registry[invalid_registry.index("registry.json")] = "."
+    with pytest.raises(ValueError, match="regular file"):
+        mcp_server._configuration_from_args(
+            parser.parse_args(invalid_registry)
+        )
+
+    invalid_parent = list(arguments)
+    invalid_parent[
+        invalid_parent.index("authorization.sqlite3")
+    ] = "missing/authorization.sqlite3"
+    with pytest.raises(ValueError, match="parent directory"):
+        mcp_server._configuration_from_args(
+            parser.parse_args(invalid_parent)
+        )
+
+    invalid_identity = list(arguments)
+    invalid_identity[
+        invalid_identity.index("principal_tenant_001")
+    ] = ""
+    with pytest.raises(ValueError, match="nonblank bounded"):
+        mcp_server._configuration_from_args(
+            parser.parse_args(invalid_identity)
+        )
+
+    not_directory = repo_path / "registry.json"
+    with pytest.raises(ValueError, match="must be a directory"):
+        mcp_server._configuration_from_args(
+            parser.parse_args(
+                ["--repo-path", str(not_directory), "--memory"]
             )
         )
 
@@ -330,6 +701,15 @@ def test_open_runtime_supports_memory_and_sqlite(
     )
     sqlite.close()
     assert database.is_file()
+    unauthenticated_runtime = tbm.LocalAgentMemory.in_memory()
+    assert (
+        mcp_server._open_authenticated_runtime(
+            _configuration(root),
+            unauthenticated_runtime,
+        )
+        is None
+    )
+    unauthenticated_runtime.close()
 
 
 def test_open_runtime_reads_postgres_only_from_named_environment(
@@ -384,6 +764,54 @@ def test_mcp_main_reports_bounded_startup_failure(tmp_path, capsys):
         "operation": "open",
         "retryable": False,
     }
+
+    secret_path = tmp_path / "secret-missing-repository"
+    result = mcp_server.main(
+        [
+            "--repo-path",
+            str(secret_path),
+            "--memory",
+        ]
+    )
+    assert result == 2
+    payload = json.loads(capsys.readouterr().err)
+    assert payload["error"]["message"] == (
+        "configured MCP path could not be opened"
+    )
+    assert str(secret_path) not in json.dumps(payload)
+
+
+def test_mcp_main_runs_authenticated_profile(tmp_path, monkeypatch):
+    root = Path(__file__).resolve().parents[1]
+    authorization_path = tmp_path / "authorization.sqlite3"
+    observed = []
+
+    monkeypatch.setattr(
+        mcp_server,
+        "run_stdio_server",
+        lambda server: observed.append(server),
+    )
+    result = mcp_server.main(
+        [
+            "--repo-path",
+            str(root),
+            "--memory",
+            "--auth-registry",
+            str(root / "examples" / "entity_registry_v3.example.json"),
+            "--auth-sqlite",
+            str(authorization_path),
+            "--auth-principal-id",
+            "principal_tenant_001",
+            "--auth-agent-client-id",
+            "agent_client_001",
+            "--auth-environment-id",
+            "environment_001",
+        ]
+    )
+
+    assert result == 0
+    assert len(observed) == 1
+    assert authorization_path.is_file()
 
 
 def test_mcp_entry_reports_missing_optional_external_dependency(

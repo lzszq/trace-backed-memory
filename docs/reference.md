@@ -159,6 +159,28 @@ cannot collide with new requests after restart. See the
 [Codex integration guide](integrations/codex.md) for the project
 `.codex/config.toml` and the exact tool sequence.
 
+For an opt-in local authorization boundary, provide all five trusted startup
+selectors together:
+
+```powershell
+tbm-mcp --repo-path . --sqlite .tbm/memory.sqlite3 `
+  --auth-registry examples/entity_registry_v3.example.json `
+  --auth-sqlite .tbm/authorization.sqlite3 `
+  --auth-principal-id principal_tenant_001 `
+  --auth-agent-client-id agent_client_001 `
+  --auth-environment-id environment_001
+```
+
+The bounded registry file supplies the canonical tenant and repository through
+the selected active environment. Every prepare persists and reads back its
+allow/deny decision before Trace registration or retrieval. MCP request
+schemas have no principal, client, tenant, repository, environment, registry,
+or authority fields. These CLI selectors are trusted local bootstrap inputs,
+not transport authentication or reusable credentials; do not expose this
+profile as an untrusted shared multi-tenant service. `--tenant` cannot be
+combined with authenticated mode. This profile uses a SQLite authorization
+authority independently of the selected runtime storage mode.
+
 ## Packaged Resources
 
 Wheel, source-distribution, and editable installs contain byte-identical copies
@@ -426,13 +448,16 @@ capabilities. `SQLiteAuthorizationV3Repository` and
 `PostgresAuthorizationV3Repository` are opt-in isolated authorities that verify
 the exact policy/request/decision triple before atomically persisting immutable
 policies and decisions with unique request identity. PostgreSQL includes
-version-gated install and fail-closed rollback resources. The active Store,
-Agent, MCP, and GateSession repositories still do not invoke either authority.
+version-gated install and fail-closed rollback resources. The default Store,
+Agent, MCP, and GateSession profiles do not invoke either authority; the
+opt-in local MCP `--auth-*` profile invokes the SQLite authority before
+retrieval.
 `AuthenticatedRetrievalService` is the shared storage-neutral ordering kernel:
 trusted service context is matched to the current registry, the exact decision
 is persisted and read back, registry rotation and environment binding are
-rechecked, and only then may a retrieval callback run. Transport
-authentication and active adapter wiring remain outstanding. See
+rechecked, and only then may a retrieval callback run. Trusted local MCP
+bootstrap integration is available; transport authentication and the other
+active adapters remain outstanding. See
 [the authorization contract](protocols/authorization-v3.md) and
 [authenticated service boundary](protocols/authenticated-service-v3.md).
 `AuthenticatedGateSessionService` adds durable `CREATED`-before-preparation

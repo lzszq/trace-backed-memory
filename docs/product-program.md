@@ -1435,8 +1435,10 @@ Track:
   retrieval only after every check passes. Add an opt-in
   `AuthenticatedLocalAgentMemory` facade that authorizes before Trace
   registration and binds canonical server-owned tenant/repository identities.
-  Keep transport authentication and active MCP/CLI/HTTP/SDK integration
-  outstanding.
+  Add an opt-in local `tbm-mcp --auth-*` profile with a bounded trusted
+  registry, SQLite authorization authority, server-selected identities, no
+  request identity fields, and facade-owned lifecycle handles. Keep transport
+  authentication and general CLI/HTTP/SDK integration outstanding.
 - Compose authorization with SQLite/PostgreSQL GateSession authorities through
   `AuthenticatedGateSessionService`: durably create/read back the scoped
   session before preparation, suppress idempotent duplicate retrieval, require
@@ -1463,8 +1465,8 @@ Track:
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
 - Wire transport-authenticated service-owned identities and the published
-  pre-retrieval authorization kernel into active MCP/CLI/HTTP/SDK adapters so
-  scope becomes an enforceable transport boundary.
+  pre-retrieval authorization kernel into shared-service MCP and active
+  CLI/HTTP/SDK adapters so scope becomes an enforceable transport boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
 - Integrate the published retriever/index snapshot and record gate

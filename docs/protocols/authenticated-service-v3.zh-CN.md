@@ -45,8 +45,9 @@ repository 或 environment 字段。调用方传入的 Trace 仍有旧版 `repo`
 runtime，另一个门面也不能 finalize、complete 或 cancel。这些索引仍是进程内状态，
 不是 durable session。
 
-该可选门面不负责 transport authentication，`tbm-mcp`、CLI、HTTP 与 SDK 也尚未
-选择它。可信 bootstrap 代码仍必须派生固定的 `AuthenticatedServiceContext`，请求
-JSON 不得提供其中的 identity ID。Durable GateSession、RetrievalSnapshot、audit
-actor linkage、expiry/recovery worker 与原子的跨记录 service transaction 仍是独立
-后续交付。
+该可选门面不负责 transport authentication。`tbm-mcp` 可通过 all-or-none 的可信
+本地 `--auth-*` 启动 profile 选择它；MCP 请求 JSON 仍不能提供 identity 或 target
+字段。普通 CLI operation、HTTP 与 SDK adapter 尚未选择它。可信 bootstrap 代码仍
+必须派生固定的 `AuthenticatedServiceContext`。Durable GateSession、
+RetrievalSnapshot、audit actor linkage、expiry/recovery worker 与原子的跨记录
+service transaction 仍是独立后续交付。

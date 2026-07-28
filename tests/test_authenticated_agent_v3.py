@@ -344,6 +344,23 @@ def test_authenticated_agent_rejects_invalid_constructor_and_inputs() -> None:
                 authorization_service=service,
                 service_context=context,
             )
+        with pytest.raises(TypeError, match="authorization_service"):
+            AuthenticatedLocalAgentMemory(  # type: ignore[arg-type]
+                runtime=runtime,
+                authorization_service=object(),
+                service_context=context,
+            )
+        with pytest.raises(TypeError, match="service_context"):
+            AuthenticatedLocalAgentMemory(  # type: ignore[arg-type]
+                runtime=runtime,
+                authorization_service=service,
+                service_context=object(),
+            )
+        with pytest.raises(
+            AuthenticatedServiceV3Error,
+            match="input is invalid",
+        ):
+            _prepare_context().bind(object())  # type: ignore[arg-type]
         agent = AuthenticatedLocalAgentMemory(
             runtime=runtime,
             authorization_service=service,

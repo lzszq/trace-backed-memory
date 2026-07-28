@@ -53,9 +53,10 @@ decision handles to the facade that prepared them, so another authenticated
 facade cannot finalize, complete, or cancel them even if both facades share a
 runtime. These indexes remain process-local and are not durable sessions.
 
-This opt-in facade does not authenticate a transport and is not yet selected
-by `tbm-mcp`, CLI, HTTP, or an SDK. Trusted bootstrap code must still derive
-the fixed `AuthenticatedServiceContext`; request JSON must never supply its
-identity IDs. Durable GateSession, RetrievalSnapshot, audit actor linkage,
-expiry/recovery workers, and one atomic cross-record service transaction
-remain separate delivery steps.
+This opt-in facade does not authenticate a transport. `tbm-mcp` can select it
+through the all-or-none trusted local `--auth-*` startup profile; MCP request
+JSON still cannot supply identity or target fields. General CLI operations,
+HTTP, and SDK adapters do not select it yet. Trusted bootstrap code must still
+derive the fixed `AuthenticatedServiceContext`. Durable GateSession,
+RetrievalSnapshot, audit actor linkage, expiry/recovery workers, and one
+atomic cross-record service transaction remain separate delivery steps.

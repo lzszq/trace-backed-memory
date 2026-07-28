@@ -686,6 +686,15 @@ from that root before calling the façade. The adapter does not reproduce Gate
 policy and cannot curate, verify, publish, activate, inspect the raw Store, or
 run migrations.
 
+An all-or-none local `--auth-*` startup profile may additionally wrap that
+runtime in `AuthenticatedLocalAgentMemory`. A bounded trusted registry file
+and SQLite authorization authority select exact active principal, client, and
+environment records at startup. The environment derives canonical tenant and
+repository; request schemas expose none of those fields. Prepare persists and
+reads back authorization before Trace registration, while facade-local owner
+indexes protect finalize/complete/cancel handles. This profile is not
+transport authentication and is not a shared multi-tenant deployment.
+
 The STDIO reader bounds each line before JSON decoding, drains an oversized
 line before accepting another request, and applies the shared duplicate-key,
 finite-number, UTF-8, node, and depth checks. Strict tool request models reject
@@ -1560,7 +1569,8 @@ tenant/repository values are overwritten, authorization completes before
 Trace registration, and the canonical authorized tenant/repository bind both
 Trace and retrieval context. Process-local ownership indexes prevent one
 facade from using another facade's lifecycle handles. It is not transport
-authentication and is not yet selected by MCP, CLI, HTTP, or SDK adapters. See
+authentication. MCP can opt into it through trusted local startup; general
+CLI operations, HTTP, and SDK adapters do not select it yet. See
 [Authenticated retrieval service boundary](protocols/authenticated-service-v3.md).
 
 `gate_service_v3.py` composes that boundary with either GateSession authority.

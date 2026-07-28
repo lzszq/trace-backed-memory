@@ -119,6 +119,8 @@ verify, or activate memory.
 - CLI: `tbm capabilities`, snapshot operations, migration preflight, and
   resource discovery
 - Local MCP: `tbm-mcp` with the optional `mcp` dependency
+- Opt-in authenticated local MCP: trusted startup selects version-3 identity
+  and environment; see the [reference](docs/reference.md#long-running-local-mcp)
 - Persistence: in-memory, SQLite, and PostgreSQL adapters
 - Version-3 preparation: authenticated pre-retrieval boundary, GateSession,
   authorization, entity registry, replay, audit/recovery, structured evidence,

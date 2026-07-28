@@ -178,6 +178,14 @@ prepare 从该 root 捕获 Trace Git provenance 与完整 ancestry，再调用�
 adapter 不复制 Gate policy，也不能 curate、verify、publish、activate、查看原始
 Store 或运行 migration。
 
+all-or-none 的本地 `--auth-*` 启动 profile 可以进一步用
+`AuthenticatedLocalAgentMemory` 包装该 runtime。可信有界 registry 文件与 SQLite
+authorization authority 在启动时选择精确 active principal、client 与 environment
+记录；由 environment 派生 canonical tenant/repository，请求 Schema 不暴露这些
+字段。prepare 在注册 Trace 前持久化并读回授权，而门面本地 ownership 索引保护
+finalize/complete/cancel handle。该 profile 不是 transport authentication，也不是
+共享多租户部署。
+
 STDIO reader 在 JSON 解码前限制每一行；超限行会先完整排空，之后才接受下一
 请求；随后复用 duplicate-key、finite-number、UTF-8、node 与 depth 检查。严格
 工具 request model 拒绝未知字段。transport/request 错误转换为有界 agent
@@ -417,8 +425,8 @@ callback failure 都使用清洗后的稳定错误 fail closed。
 identity 或 target 字段，旧版 Trace 的 tenant/repository 值会被覆盖，授权在 Trace
 注册前完成，并以 canonical authorized tenant/repository 同时绑定 Trace 与
 retrieval context。进程内 ownership 索引阻止一个门面使用另一个门面的 lifecycle
-handle。它不是 transport authentication，MCP、CLI、HTTP 与 SDK adapter 也尚未选择
-它。详见
+handle。它不是 transport authentication；MCP 可通过可信本地启动选择它，普通 CLI
+operation、HTTP 与 SDK adapter 尚未选择它。详见
 [认证 retrieval service 边界](protocols/authenticated-service-v3.zh-CN.md)。
 
 `gate_service_v3.py` 把该边界与任一 GateSession authority 组合起来。它在

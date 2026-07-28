@@ -147,6 +147,25 @@ Pending Gate request 仍为进程内状态，因此 Codex 必须让 server 从 p
 `.codex/config.toml` 与精确工具顺序见
 [Codex 集成指南](integrations/codex.zh-CN.md)。
 
+如需可选的本地授权边界，必须同时提供以下五项可信启动选择：
+
+```powershell
+tbm-mcp --repo-path . --sqlite .tbm/memory.sqlite3 `
+  --auth-registry examples/entity_registry_v3.example.json `
+  --auth-sqlite .tbm/authorization.sqlite3 `
+  --auth-principal-id principal_tenant_001 `
+  --auth-agent-client-id agent_client_001 `
+  --auth-environment-id environment_001
+```
+
+有界 registry 文件通过所选 active environment 提供 canonical tenant 与
+repository。每次 prepare 都会先持久化并读回 allow/deny decision，之后才注册
+Trace 或 retrieval。MCP 请求 Schema 不包含 principal、client、tenant、
+repository、environment、registry 或 authority 字段。这些 CLI 选择是可信本地
+bootstrap 输入，不是 transport authentication 或可重用 credential；不得把此
+profile 暴露成不可信共享多租户服务。认证模式不能与 `--tenant` 组合。此 profile
+使用 SQLite authorization authority，与所选 runtime storage mode 相互独立。
+
 ## 打包资源
 
 wheel、源码分发包和可编辑安装都会提供 `schemas/` 与 `examples/` 下规范运行时文件的字节一致副本，以及规范的失败分类体系和 active lesson YAML 示例。`AGENTS.md` 等贡献者指引不属于运行时资源。资源名来自严格的 POSIX 规范路径白名单，不能借此读取任意文件系统路径。
@@ -277,12 +296,14 @@ principal、agent client、role binding 与内容关联的允许/拒绝 decision
 `SQLiteAuthorizationV3Repository` 与 `PostgresAuthorizationV3Repository`
 提供 opt-in 隔离 authority，在原子持久化 immutable policy/decision 和唯一
 request identity 前核验精确 policy/request/decision 三元组。PostgreSQL 同时
-提供带版本门禁的 install 与 fail-closed rollback 资源。active Store、Agent、
-MCP 与 GateSession repository 仍未调用任一 authority。
+提供带版本门禁的 install 与 fail-closed rollback 资源。默认 Store、Agent、MCP
+与 GateSession profile 不调用任一 authority；可选本地 MCP `--auth-*` profile
+会在 retrieval 前调用 SQLite authority。
 `AuthenticatedRetrievalService` 是共享、与存储无关的顺序 kernel：可信 service
 context 与当前 registry 匹配，精确 decision 会被持久化并读回，registry 轮换与
-environment binding 会被复查，之后 retrieval callback 才能运行。transport
-authentication 与 active adapter 接入仍待完成。详见
+environment binding 会被复查，之后 retrieval callback 才能运行。可信本地 MCP
+bootstrap integration 已可用；transport authentication 与其他 active adapter
+接入仍待完成。详见
 [授权契约](protocols/authorization-v3.zh-CN.md)与
 [认证 service 边界](protocols/authenticated-service-v3.zh-CN.md)。
 `AuthenticatedGateSessionService` 增加 durable

@@ -642,6 +642,15 @@ embedded in project configuration. An optional fixed tenant remains
 declared-scope applicability in version 2 and must not be presented as
 authorization.
 
+The optional authenticated local profile requires all `--auth-*` selectors at
+trusted server startup. It derives tenant and repository only from the selected
+active registry environment, persists every allow/deny decision to the SQLite
+authorization authority, and rejects `--tenant`. MCP request JSON must never
+provide identity, target, registry, or authority fields. This profile is an
+authorization boundary after trusted identity selection; it does not
+authenticate the STDIO peer and must not be exposed as an untrusted shared
+multi-tenant service.
+
 Each STDIO input frame is capped at 8 MiB, 100,000 JSON nodes, and depth 100
 before SDK dispatch. Duplicate keys, invalid UTF-8, and non-finite numbers are
 rejected. Pending requests remain process-local even when durable storage is
@@ -1133,10 +1142,11 @@ canonical repository, and invoke retrieval only after all checks pass. A
 custom decision writer that cannot return and reload an exact persistence
 receipt is invalid.
 
-The active Store, Agent, MCP, and GateSession repositories do not yet invoke
-this boundary and must not claim multi-tenant authorization. Transport
-authentication, durable GateSession and RetrievalSnapshot linkage, workers,
-and a cross-record service transaction remain required.
+The default Store, Agent, MCP, and GateSession profiles do not invoke this
+boundary. The opt-in local MCP `--auth-*` profile invokes it only after trusted
+startup identity selection and must not claim transport authentication or
+shared multi-tenant authorization. Durable GateSession and RetrievalSnapshot
+linkage, workers, and a cross-record service transaction remain required.
 
 `AuthenticatedGateSessionService` is the approved next boundary when durable
 preparation is required. Create and read back the scoped session before

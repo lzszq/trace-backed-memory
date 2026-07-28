@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from pathlib import Path
 from threading import RLock
 from typing import NoReturn
 
@@ -114,6 +115,59 @@ class AuthenticatedLocalAgentMemory:
         context_summary: str = "",
         commit_ancestry: CommitAncestryEvidence | None = None,
     ) -> AuthorizedRetrievalResult[AgentPreparedMemory]:
+        return self._prepare(
+            trace,
+            context,
+            task=task,
+            query=query,
+            semantic_scores=semantic_scores,
+            max_candidates=max_candidates,
+            minimum_score=minimum_score,
+            context_summary=context_summary,
+            commit_ancestry=commit_ancestry,
+            repo_path=None,
+        )
+
+    def prepare_with_git_ancestry(
+        self,
+        trace: Trace,
+        context: AuthenticatedAgentPrepareContext,
+        *,
+        repo_path: str | Path,
+        task: str,
+        query: str | None = None,
+        semantic_scores: Mapping[str, float] | None = None,
+        max_candidates: int | None = None,
+        minimum_score: float | None = None,
+        context_summary: str = "",
+    ) -> AuthorizedRetrievalResult[AgentPreparedMemory]:
+        return self._prepare(
+            trace,
+            context,
+            task=task,
+            query=query,
+            semantic_scores=semantic_scores,
+            max_candidates=max_candidates,
+            minimum_score=minimum_score,
+            context_summary=context_summary,
+            commit_ancestry=None,
+            repo_path=repo_path,
+        )
+
+    def _prepare(
+        self,
+        trace: Trace,
+        context: AuthenticatedAgentPrepareContext,
+        *,
+        task: str,
+        query: str | None,
+        semantic_scores: Mapping[str, float] | None,
+        max_candidates: int | None,
+        minimum_score: float | None,
+        context_summary: str,
+        commit_ancestry: CommitAncestryEvidence | None,
+        repo_path: str | Path | None,
+    ) -> AuthorizedRetrievalResult[AgentPreparedMemory]:
         if (
             type(trace) is not Trace
             or type(context) is not AuthenticatedAgentPrepareContext
@@ -126,9 +180,22 @@ class AuthenticatedLocalAgentMemory:
                 repo=scope.repository_id,
                 tenant=scope.tenant_id,
             )
+            bound_context = context.bind(scope)
+            if repo_path is not None:
+                return self._runtime.prepare_with_git_ancestry(
+                    canonical_trace,
+                    bound_context,
+                    repo_path=repo_path,
+                    task=task,
+                    query=query,
+                    semantic_scores=semantic_scores,
+                    max_candidates=max_candidates,
+                    minimum_score=minimum_score,
+                    context_summary=context_summary,
+                )
             return self._runtime.prepare(
                 canonical_trace,
-                context.bind(scope),
+                bound_context,
                 task=task,
                 query=query,
                 semantic_scores=semantic_scores,

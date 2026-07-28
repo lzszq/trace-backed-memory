@@ -627,7 +627,9 @@
   decision，读回验证，复查完整 registry 轮换与 environment binding，并且只在全部
   检查通过后调用 retrieval。增加可选启用的 `AuthenticatedLocalAgentMemory` 门面，
   在注册 Trace 前完成授权，并绑定服务端 canonical tenant/repository identity。
-  transport authentication 与 active MCP/CLI/HTTP/SDK integration 仍待完成。
+  增加可选本地 `tbm-mcp --auth-*` profile：使用可信有界 registry、SQLite
+  authorization authority、服务端选择的 identity、无请求 identity 字段及门面所有的
+  lifecycle handle。transport authentication 与普通 CLI/HTTP/SDK integration 仍待完成。
 - 通过 `AuthenticatedGateSessionService` 把授权与 SQLite/PostgreSQL GateSession
   authority 组合：preparation 前 durable create/read-back scoped session；阻止
   idempotent duplicate retrieval；要求可信 retrieval/System-Gate evidence 验证；
@@ -649,7 +651,8 @@
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 把 transport-authenticated 服务端 identity 与已发布的 retrieval 前授权 kernel
-  接入 active MCP/CLI/HTTP/SDK adapter，使 scope 成为可执行的 transport boundary。
+  接入 shared-service MCP 与 active CLI/HTTP/SDK adapter，使 scope 成为可执行的
+  transport boundary。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
 - 集成已发布的 retriever/index snapshot，并记录可重放 decision 所需的 gate model/prompt、ancestry、policy、renderer、response 与 snippet version/hash。
 - 用显式 `required`/`disabled` policy 替代可选 ancestry，并审计 bypass reason。

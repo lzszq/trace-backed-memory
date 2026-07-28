@@ -262,6 +262,10 @@ def test_product_and_reference_documents_are_localized_in_pairs():
             "docs/protocols/authenticated-service-v3.md",
             "docs/protocols/authenticated-service-v3.zh-CN.md",
         ),
+        (
+            "docs/protocols/authenticated-gate-service-v3.md",
+            "docs/protocols/authenticated-gate-service-v3.zh-CN.md",
+        ),
             (
                 "docs/protocols/authorization-v3.md",
                 "docs/protocols/authorization-v3.zh-CN.md",

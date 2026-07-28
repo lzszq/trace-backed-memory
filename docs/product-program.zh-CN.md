@@ -627,6 +627,12 @@
   decision，读回验证，复查完整 registry 轮换与 environment binding，并且只在全部
   检查通过后调用 retrieval。transport authentication 与 active
   Agent/MCP/HTTP/SDK integration 仍待完成。
+- 通过 `AuthenticatedGateSessionService` 把授权与 SQLite/PostgreSQL GateSession
+  authority 组合：preparation 前 durable create/read-back scoped session；阻止
+  idempotent duplicate retrieval；要求可信 retrieval/System-Gate evidence 验证；
+  通过 CAS 发布 `PREPARED`；失败时使用带 version 检查的 cancellation 或显式
+  recovery-required state 补偿。后续 lifecycle phase 与 active adapter integration
+  仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 把 transport-authenticated 服务端 identity 与已发布的 retrieval 前授权 kernel

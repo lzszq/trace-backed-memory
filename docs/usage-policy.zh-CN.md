@@ -316,6 +316,14 @@ active Store、Agent、MCP 与 GateSession repository 尚未调用该边界，�
 多租户授权。transport authentication、durable GateSession/RetrievalSnapshot
 linkage、worker 与跨记录 service transaction 仍待完成。
 
+需要 durable preparation 时，应使用 `AuthenticatedGateSessionService` 作为下一层
+边界。在 retrieval 前创建并读回 scoped session；既有 idempotency key 不得重复
+preparation；通过可信 verifier 核验精确 RetrievalSnapshot 与
+SystemGateEvaluation；`PREPARED` transition 必须保留全部 immutable identity
+field。失败时使用带 version 检查的 cancellation，或返回显式 recovery-required
+state。绝不能从 GateSession 重建 Store request token。在两个 authority 尚未共享
+同一 service transaction 前，只能称为有顺序补偿，不能称为 atomic commit。
+
 ## Version-3 结构化 evidence 策略
 
 只能从经过 review 的 Failure Case、关联 fix 与不同的 verification Trace/run 创建

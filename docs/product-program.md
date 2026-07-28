@@ -1434,6 +1434,13 @@ Track:
   rechecks complete registry rotation and environment binding, and invokes
   retrieval only after every check passes. Keep transport authentication and
   active Agent/MCP/HTTP/SDK integration outstanding.
+- Compose authorization with SQLite/PostgreSQL GateSession authorities through
+  `AuthenticatedGateSessionService`: durably create/read back the scoped
+  session before preparation, suppress idempotent duplicate retrieval, require
+  trusted retrieval/System-Gate evidence verification, CAS-publish
+  `PREPARED`, and compensate failures with version-checked cancellation or
+  explicit recovery-required state. Keep later lifecycle phases and active
+  adapter integration outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

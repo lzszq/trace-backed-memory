@@ -435,6 +435,10 @@ rechecked, and only then may a retrieval callback run. Transport
 authentication and active adapter wiring remain outstanding. See
 [the authorization contract](protocols/authorization-v3.md) and
 [authenticated service boundary](protocols/authenticated-service-v3.md).
+`AuthenticatedGateSessionService` adds durable `CREATED`-before-preparation
+ordering, exact replay suppression, trusted retrieval/System-Gate evidence
+verification, `PREPARED` CAS, and explicit cancel-or-recover compensation. See
+[authenticated durable Gate preparation](protocols/authenticated-gate-service-v3.md).
 
 The storage-neutral `tbm.regression-evidence.v3` contract replaces no active
 field; it adds the strict target record needed before immutable memory
@@ -2140,6 +2144,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- authorization-v3.zh-CN.md
 |   |   |-- authenticated-service-v3.md
 |   |   |-- authenticated-service-v3.zh-CN.md
+|   |   |-- authenticated-gate-service-v3.md
+|   |   |-- authenticated-gate-service-v3.zh-CN.md
 |   |   |-- audit-recovery-v3.md
 |   |   |-- audit-recovery-v3.zh-CN.md
 |   |   |-- evidence-v3.md
@@ -2241,6 +2247,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- extraction.py
 |   |-- authorization_v3.py
 |   |-- service_v3.py
+|   |-- gate_service_v3.py
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
@@ -2273,6 +2280,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_agent.py
     |-- test_authorization_v3.py
     |-- test_service_v3.py
+    |-- test_gate_service_v3.py
     |-- test_audit_v3.py
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py

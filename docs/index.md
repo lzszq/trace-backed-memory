@@ -19,6 +19,7 @@ orientation; these documents define the engineering contracts.
 - [Authorization v3 contract](protocols/authorization-v3.md)
 - [Entity registry v3 contract](protocols/entity-registry-v3.md)
 - [Authenticated retrieval service boundary](protocols/authenticated-service-v3.md)
+- [Authenticated durable Gate preparation](protocols/authenticated-gate-service-v3.md)
 - [Append-only audit and recovery v3](protocols/audit-recovery-v3.md)
 - [Structured regression evidence v3](protocols/evidence-v3.md)
 - [Immutable MemoryRevision v3](protocols/memory-revision-v3.md)

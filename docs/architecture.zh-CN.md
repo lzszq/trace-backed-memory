@@ -416,6 +416,14 @@ callback failure 都使用清洗后的稳定错误 fail closed。这是共享 ke
 transport authentication，也尚未接入 active Agent/MCP/HTTP/SDK。详见
 [认证 retrieval service 边界](protocols/authenticated-service-v3.zh-CN.md)。
 
+`gate_service_v3.py` 把该边界与任一 GateSession authority 组合起来。它在
+preparation 前持久化并读回 scoped `CREATED` session；精确 idempotent replay 不会
+重复 preparation；RetrievalSnapshot/SystemGateEvaluation evidence 必须由可信
+verifier 核验；验证后才通过 CAS 发布 `PREPARED`。失败会尝试精确 `CANCELED`
+补偿，并发或异常 durable state 会返回 recovery required。它不持久化 Store token，
+也不宣称跨 authority 原子事务。详见
+[认证 durable Gate preparation](protocols/authenticated-gate-service-v3.zh-CN.md)。
+
 storage-neutral `tbm.regression-evidence.v3` 是 migration mapping 之外第一层面向
 生产的 evidence boundary。其内容派生 identity 绑定不同的 source/verification
 Trace、expected/observed outcome、evaluator/environment provenance、精确

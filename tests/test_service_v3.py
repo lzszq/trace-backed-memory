@@ -562,6 +562,23 @@ def test_service_sanitizes_callback_failures(failure_point: str):
     assert "secret" not in str(raised.value)
 
 
+def test_service_sanitizes_callback_supplied_service_error():
+    registry = _registry()
+    service = _service(registry, _Writer())
+
+    def retrieve(_scope: AuthorizedRetrievalScope) -> None:
+        raise AuthenticatedServiceV3Error(
+            "TBM_UNTRUSTED_CALLBACK",
+            "secret callback token",
+        )
+
+    with pytest.raises(AuthenticatedServiceV3Error) as raised:
+        service.authorize_retrieval(_context(registry), retrieve)
+
+    assert raised.value.code == "TBM_SERVICE_RETRIEVAL_FAILED"
+    assert "secret" not in str(raised.value)
+
+
 def test_service_rejects_invalid_provider_and_request_factory_outputs():
     writer = _Writer()
     invalid_registry = AuthenticatedRetrievalService(

@@ -1558,6 +1558,16 @@ shared kernel boundary, not transport authentication or an active
 Agent/MCP/HTTP/SDK integration. See
 [Authenticated retrieval service boundary](protocols/authenticated-service-v3.md).
 
+`gate_service_v3.py` composes that boundary with either GateSession authority.
+It persists and reads back a scoped `CREATED` session before preparation,
+suppresses duplicate preparation on exact idempotent replay, requires a trusted
+verifier for RetrievalSnapshot/SystemGateEvaluation evidence, and CAS-publishes
+`PREPARED` only after verification. Failures attempt exact `CANCELED`
+compensation; concurrent or abnormal durable state is returned as recovery
+required. It does not persist a Store token and does not claim an atomic
+cross-authority transaction. See
+[Authenticated durable Gate preparation](protocols/authenticated-gate-service-v3.md).
+
 The storage-neutral `tbm.regression-evidence.v3` record is the first
 production-oriented evidence boundary beyond the migration mapping. Its
 content-derived identity binds distinct source and verification traces,

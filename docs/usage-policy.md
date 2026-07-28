@@ -1138,6 +1138,16 @@ this boundary and must not claim multi-tenant authorization. Transport
 authentication, durable GateSession and RetrievalSnapshot linkage, workers,
 and a cross-record service transaction remain required.
 
+`AuthenticatedGateSessionService` is the approved next boundary when durable
+preparation is required. Create and read back the scoped session before
+retrieval, never rerun preparation for an existing idempotency key, verify the
+exact RetrievalSnapshot and SystemGateEvaluation through a trusted verifier,
+and preserve every immutable identity field across the `PREPARED` transition.
+On failure, use version-checked cancellation or return explicit recovery
+required state. Never reconstruct a Store request token from a GateSession.
+Until both authorities share one service transaction, describe this as ordered
+compensation rather than atomic commit.
+
 ## Version-3 structured evidence policy
 
 Create structured regression evidence only from a reviewed Failure Case, a

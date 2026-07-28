@@ -146,6 +146,7 @@ trace_backed_memory = [
     "_resources/schemas/sqlite-v3-gate-session.sql",
     "_resources/schemas/sqlite-v3-memory-revision.sql",
     "_resources/schemas/sqlite-v3-migration.sql",
+    "_resources/schemas/sqlite-v3-outcome-attribution.sql",
     "_resources/schemas/sqlite-v3-outcome.sql",
     "_resources/schemas/sqlite-v3-replay.sql",
     "_resources/schemas/sqlite-v3-semantic-gate-artifacts.sql",

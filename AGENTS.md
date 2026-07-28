@@ -69,6 +69,8 @@ Start with:
   request, receipt, and durable read-back verification.
 - `sqlite_outcome_v3.py`: opt-in atomic SQLite RunOutcome plus `COMPLETED`
   GateSession revision authority; not wired to active Agent/MCP.
+- `sqlite_outcome_attribution_v3.py`: opt-in immutable SQLite multi-claim
+  OutcomeAttribution ledger over completed durable outcomes.
 - `postgres_outcome_v3.py`: opt-in isolated PostgreSQL RunOutcome plus
   `COMPLETED` GateSession transaction with database-time row locking and
   fail-closed rollback; active PostgreSQL schema version 2 remains unchanged.

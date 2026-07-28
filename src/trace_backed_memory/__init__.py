@@ -636,6 +636,16 @@ from .sqlite_outcome_v3 import (
     SQLiteOutcomeV3Repository,
     SQLiteOutcomeV3SchemaError,
 )
+from .sqlite_outcome_attribution_v3 import (
+    SQLITE_OUTCOME_ATTRIBUTION_V3_SCHEMA_VERSION,
+    SQLiteOutcomeAttributionV3ConflictError,
+    SQLiteOutcomeAttributionV3Error,
+    SQLiteOutcomeAttributionV3NotFoundError,
+    SQLiteOutcomeAttributionV3PersistenceError,
+    SQLiteOutcomeAttributionV3Repository,
+    SQLiteOutcomeAttributionV3SchemaError,
+    SQLiteOutcomeAttributionWrite,
+)
 from .sqlite_replay_v3 import (
     SQLITE_REPLAY_V3_SCHEMA_VERSION,
     SQLiteReplayV3ConflictError,
@@ -1100,6 +1110,14 @@ __all__ = [
     "SQLiteGateSessionRepository",
     "SQLiteGateSessionSchemaError",
     "SQLITE_OUTCOME_V3_SCHEMA_VERSION",
+    "SQLITE_OUTCOME_ATTRIBUTION_V3_SCHEMA_VERSION",
+    "SQLiteOutcomeAttributionV3ConflictError",
+    "SQLiteOutcomeAttributionV3Error",
+    "SQLiteOutcomeAttributionV3NotFoundError",
+    "SQLiteOutcomeAttributionV3PersistenceError",
+    "SQLiteOutcomeAttributionV3Repository",
+    "SQLiteOutcomeAttributionV3SchemaError",
+    "SQLiteOutcomeAttributionWrite",
     "SQLiteOutcomeV3ConflictError",
     "SQLiteOutcomeV3Error",
     "SQLiteOutcomeV3NotFoundError",

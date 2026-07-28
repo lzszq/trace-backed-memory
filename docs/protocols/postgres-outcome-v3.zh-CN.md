@@ -59,7 +59,9 @@ byte、从 callback 推导 result，也不会发送 outbox event。
 
 ## 当前边界
 
-OutcomeAttribution persistence、authenticated evaluator derivation、artifact
+SQLite OutcomeAttribution persistence 由独立的
+[immutable SQLite ledger](sqlite-outcome-attribution-v3.zh-CN.md)提供。
+PostgreSQL attribution parity、authenticated evaluator derivation、artifact
 authorization、completion outbox delivery，以及 active Agent/MCP/HTTP/SDK
 integration 仍是后续工作。snapshot version 2、SQLite schema version 1、
 PostgreSQL schema version 2 与 `tbm.agent.v1` 均保持不变。

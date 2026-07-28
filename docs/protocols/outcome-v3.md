@@ -40,9 +40,12 @@ RunOutcome and the matching `EXECUTING` to `COMPLETED` GateSession revision
 atomically with one trusted timestamp, exact replay, schema/catalog guards,
 and pre-commit read-back. See
 [SQLite RunOutcome completion v3](sqlite-outcome-v3.md) and
-[PostgreSQL RunOutcome completion v3](postgres-outcome-v3.md). Attribution
-persistence, evaluator authentication, artifact verification, outbox
-delivery, and active runtime integration remain outstanding.
+[PostgreSQL RunOutcome completion v3](postgres-outcome-v3.md). The opt-in
+[SQLite OutcomeAttribution ledger](sqlite-outcome-attribution-v3.md) provides
+immutable multi-claim persistence with exact durable linkage and content-ID
+replay. PostgreSQL attribution parity, evaluator authentication, artifact
+verification, outbox delivery, and active runtime integration remain
+outstanding.
 
 Canonical schemas:
 

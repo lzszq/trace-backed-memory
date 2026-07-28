@@ -35,8 +35,10 @@ timestamp，在一个 transaction 中原子写入 RunOutcome 与对应的 `EXECU
 commit 前读回。详见
 [SQLite RunOutcome 完成事务 v3](sqlite-outcome-v3.zh-CN.md)与
 [PostgreSQL RunOutcome 完成事务 v3](postgres-outcome-v3.zh-CN.md)。
-attribution persistence、evaluator authentication、artifact verification、
-outbox delivery 与 active runtime integration 仍未完成。
+opt-in [SQLite OutcomeAttribution ledger](sqlite-outcome-attribution-v3.zh-CN.md)
+提供 immutable multi-claim persistence、精确 durable linkage 与 content-ID
+replay。PostgreSQL attribution parity、evaluator authentication、artifact
+verification、outbox delivery 与 active runtime integration 仍未完成。
 
 规范 Schema：
 

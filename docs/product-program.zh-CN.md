@@ -629,8 +629,14 @@
 - 增加 PostgreSQL RunOutcome parity：提供隔离 version-1 install 与 fail-closed
   exact-catalog rollback，在取得 GateSession head lock 后读取数据库时间，通过
   CAS 完成 session、插入 immutable outcome，并支持精确重放/读回、caller
-  savepoint 与并发单写。OutcomeAttribution persistence、authenticated
-  evaluator/artifact 检查、outbox delivery 与 active Agent/MCP/HTTP/SDK 集成
+  savepoint 与并发单写。authenticated evaluator/artifact 检查、outbox delivery
+  与 active Agent/MCP/HTTP/SDK 集成仍待完成。
+- 增加 opt-in 隔离 SQLite OutcomeAttribution ledger：使用独立 version-1 schema，
+  提供精确 content-ID replay、immutable 多 claim 存储、completed
+  outcome/session/usage/revision linkage、canonical descriptor 复验、
+  replacement-write guard、temporary-shadow/schema-drift 检查、caller savepoint
+  与并发幂等。PostgreSQL parity、authenticated evaluator/verifier 派生、trusted-time
+  构造、artifact authorization、outbox delivery 与 active runtime integration
   仍待完成。
 - 发布 storage-neutral `tbm.audit-event.v3` 与
   `tbm.recovery-action.v3` 契约，提供内容派生 identity、精确 stream parent、

@@ -66,7 +66,9 @@ an outbox event.
 
 ## Current boundary
 
-OutcomeAttribution persistence, authenticated evaluator derivation, artifact
-authorization, completion outbox delivery, and active Agent/MCP/HTTP/SDK
-integration remain follow-up work. Snapshot version 2, SQLite schema version 1,
-PostgreSQL schema version 2, and `tbm.agent.v1` remain unchanged.
+SQLite OutcomeAttribution persistence is provided by the separate
+[immutable SQLite ledger](sqlite-outcome-attribution-v3.md). PostgreSQL
+attribution parity, authenticated evaluator derivation, artifact authorization,
+completion outbox delivery, and active Agent/MCP/HTTP/SDK integration remain
+follow-up work. Snapshot version 2, SQLite schema version 1, PostgreSQL schema
+version 2, and `tbm.agent.v1` remain unchanged.

@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 105 installed resource copies must remain byte-identical to the top-level
+The 106 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1296,8 +1296,16 @@ sampling database time, preserve caller transactions with savepoints, and
 fail closed on catalog or rollback drift. Treat `inserted=false` as exact
 replay only after the service has verified both durable read-backs. Do not use
 either authority as proof of evaluator authentication, artifact
-authorization, OutcomeAttribution persistence, outbox delivery, or active
-Agent/MCP completion.
+authorization, outbox delivery, or active Agent/MCP completion.
+
+For opt-in local attribution persistence, construct a canonical
+`OutcomeAttribution` only after a trusted service has supplied authenticated
+evaluator/verifier identities and trusted time. Append it through
+`SQLiteOutcomeAttributionV3Repository`; exact replay is by content ID, and one
+RunOutcome may retain multiple association or causal records. Keep foreign
+keys and recursive triggers enabled. Treat stored identity strings and
+artifact hashes as provenance, not authentication or proof that bytes were
+verified. PostgreSQL attribution parity remains outstanding.
 
 ## Version-3 audit and recovery policy
 

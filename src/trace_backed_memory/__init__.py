@@ -445,6 +445,15 @@ from .sqlite_authorization_v3 import (
     SQLiteAuthorizationV3Repository,
     SQLiteAuthorizationV3SchemaError,
 )
+from .sqlite_entity_registry_v3 import (
+    SQLITE_ENTITY_REGISTRY_V3_MAX_PAGE_SIZE,
+    SQLITE_ENTITY_REGISTRY_V3_SCHEMA_VERSION,
+    SQLiteEntityRegistryV3ConflictError,
+    SQLiteEntityRegistryV3Error,
+    SQLiteEntityRegistryV3PersistenceError,
+    SQLiteEntityRegistryV3Repository,
+    SQLiteEntityRegistryV3SchemaError,
+)
 from .sqlite_gate_session_v3 import (
     SQLITE_GATE_SESSION_SCHEMA_VERSION,
     SQLiteGateSessionConflictError,
@@ -565,6 +574,13 @@ __all__ = [
     "AuthorizationReason",
     "AuthorizationRequest",
     "BindingStatus",
+    "SQLITE_ENTITY_REGISTRY_V3_MAX_PAGE_SIZE",
+    "SQLITE_ENTITY_REGISTRY_V3_SCHEMA_VERSION",
+    "SQLiteEntityRegistryV3ConflictError",
+    "SQLiteEntityRegistryV3Error",
+    "SQLiteEntityRegistryV3PersistenceError",
+    "SQLiteEntityRegistryV3Repository",
+    "SQLiteEntityRegistryV3SchemaError",
     "ENTITY_REGISTRY_CONTRACT_VERSION",
     "ENTITY_REGISTRY_JSON_MAX_BYTES",
     "ENTITY_REGISTRY_JSON_MAX_DEPTH",

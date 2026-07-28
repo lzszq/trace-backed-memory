@@ -28,11 +28,19 @@ RepositoryAlias 与 RoleBinding 记录。
 Principal 与 AgentClient，加载已接受的注册表快照，在 retrieval 之前完成授权，
 并记录授权 decision。仅做 scope matching 不是 tenant security。
 
-active v2 Store、Agent 与 MCP adapter 尚未使用该注册表。规范化 SQLite/PostgreSQL
-注册表和 authenticated service integration 是后续独立交付步骤。
+opt-in `SQLiteEntityRegistryV3Repository` 会安装隔离、side-by-side schema。
+其规范化 snapshot namespace 通过复合外键保存全部 entity、binding、permission 以及
+scope/environment attribute。canonical JSON 只是完整性见证：每次读取都会把每张
+规范化表逐行与 descriptor 复验。所有行不可变；精确重放幂等；version/hash 冲突
+fail closed；每次操作检查 schema drift 与必需 PRAGMA；调用方事务通过 savepoint
+保留。
+
+active v2 Store、Agent 与 MCP adapter 尚未使用该注册表。PostgreSQL 持久化和
+authenticated service integration 是后续独立交付步骤。
 
 ## 资源
 
 - `schemas/entity_registry_v3.schema.json`
 - `examples/entity_registry_v3.example.json`
 - `schemas/authorization_policy_v3.schema.json`
+- `schemas/sqlite-v3-entity-registry.sql`

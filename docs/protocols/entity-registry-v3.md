@@ -33,12 +33,21 @@ AgentClient identities from trusted authentication, load an accepted registry
 snapshot, authorize before retrieval, and record the resulting decision.
 Scope matching alone is not tenant security.
 
+The opt-in `SQLiteEntityRegistryV3Repository` installs an isolated, side-by-side
+schema. Its normalized snapshot namespace stores every entity, binding,
+permission, and scope/environment attribute under composite foreign keys.
+Canonical JSON is an integrity witness: every load compares every normalized
+row back to the descriptor. Rows are immutable, exact replay is idempotent,
+version/hash conflicts fail closed, schema drift and required PRAGMAs are
+checked per operation, and caller transactions are preserved with savepoints.
+
 The active v2 Store, Agent, and MCP adapters do not yet consume this registry.
-Normalized SQLite/PostgreSQL registries and authenticated service integration
-are separate delivery steps.
+PostgreSQL persistence and authenticated service integration are separate
+delivery steps.
 
 ## Resources
 
 - `schemas/entity_registry_v3.schema.json`
 - `examples/entity_registry_v3.example.json`
 - `schemas/authorization_policy_v3.schema.json`
+- `schemas/sqlite-v3-entity-registry.sql`

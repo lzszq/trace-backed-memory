@@ -1418,6 +1418,12 @@ Track:
   alias, and role-binding records. Enforce organization/tenant closure and
   same-tenant environment/repository linkage. Keep normalized persistence and
   authenticated service enforcement outstanding.
+- Add an opt-in isolated SQLite normalized entity-registry authority. Store
+  every snapshot entity, binding, permission, and attribute under composite
+  foreign keys; treat canonical JSON as an integrity witness; revalidate all
+  rows on read; enforce immutable rows, exact replay, schema drift checks, and
+  caller savepoints. Keep PostgreSQL parity and active service integration
+  outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

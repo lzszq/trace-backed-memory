@@ -614,6 +614,10 @@
   的 Principal、AgentClient、canonical Repository、alias 与 role-binding 记录；
   强制 organization/tenant 引用闭包及 environment/repository 同租户关联。
   规范化持久化和 authenticated service enforcement 仍待实现。
+- 增加 opt-in 隔离 SQLite 规范化 entity-registry authority：通过复合外键保存
+  snapshot 的全部 entity、binding、permission 与 attribute；以 canonical JSON
+  作为完整性见证；读取时复验全部行；强制不可变行、精确重放、schema drift 检查与
+  调用方 savepoint。PostgreSQL 对等实现和 active service integration 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 在 retrieval 前集成服务端认证 identity 与已发布授权契约，使 scope 成为可执行的 runtime boundary。

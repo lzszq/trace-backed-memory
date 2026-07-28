@@ -475,6 +475,17 @@ from .postgres_replay_v3 import (
     PostgresReplayV3SchemaError,
     PostgresReplayV3StoreResult,
 )
+from .postgres_semantic_gate_v3 import (
+    POSTGRES_SEMANTIC_GATE_V3_CONTRACT_VERSION,
+    POSTGRES_SEMANTIC_GATE_V3_SCHEMA_VERSION,
+    PostgresSemanticGateV3ConflictError,
+    PostgresSemanticGateV3Error,
+    PostgresSemanticGateV3NotFoundError,
+    PostgresSemanticGateV3PersistenceError,
+    PostgresSemanticGateV3Repository,
+    PostgresSemanticGateV3SchemaError,
+    PostgresSemanticGateV3StoreResult,
+)
 from .replay_v3 import (
     ARTIFACT_MAX_BYTES,
     INJECTION_ARTIFACT_MAX_BYTES,
@@ -910,6 +921,15 @@ __all__ = [
     "PostgresReplayV3Repository",
     "PostgresReplayV3SchemaError",
     "PostgresReplayV3StoreResult",
+    "POSTGRES_SEMANTIC_GATE_V3_CONTRACT_VERSION",
+    "POSTGRES_SEMANTIC_GATE_V3_SCHEMA_VERSION",
+    "PostgresSemanticGateV3ConflictError",
+    "PostgresSemanticGateV3Error",
+    "PostgresSemanticGateV3NotFoundError",
+    "PostgresSemanticGateV3PersistenceError",
+    "PostgresSemanticGateV3Repository",
+    "PostgresSemanticGateV3SchemaError",
+    "PostgresSemanticGateV3StoreResult",
     "PostgresMemoryRepository",
     "PostgresPersistenceError",
     "PostgresSchemaError",

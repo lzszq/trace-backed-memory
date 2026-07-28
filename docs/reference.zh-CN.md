@@ -204,7 +204,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 95 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 97 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -355,6 +355,14 @@ opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS he
 transaction，并在读取时复核完整 chain。它不保存 prompt/response artifact
 字节，也不把 chain 接入 active GateSession/Agent/MCP transaction。详见
 [SQLite Semantic Gate ledger 契约](protocols/sqlite-semantic-gate-v3.zh-CN.md)。
+
+`PostgresSemanticGateV3Repository` 提供隔离 PostgreSQL 对等实现。它先锁 Gate
+evidence parent，再锁每个 evaluation 的 head，通过 row lock 与 exact CAS
+串行化 append，并增加 deferred 数据库侧 chain consistency。operation 在工作
+前后验证完整安全 catalog，通过 savepoint 保留调用方 transaction。配套
+install/rollback 资源受 active-v2 门禁，出现 drift 或 external dependency 时
+rollback fail closed。详见
+[PostgreSQL Semantic Gate ledger 契约](protocols/postgres-semantic-gate-v3.zh-CN.md)。
 
 storage-neutral `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
 把 completed GateSession 绑定到显式 evaluator 与 artifact evidence，并严格
@@ -988,7 +996,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、95 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、97 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 

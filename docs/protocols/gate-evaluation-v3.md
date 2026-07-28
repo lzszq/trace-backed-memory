@@ -49,7 +49,9 @@ complete service must still:
   does this with a unique `(system_gate_evaluation_id, sequence)` key and CAS
   head; the low-level parent verifier checks one link, while
   `verify_semantic_gate_attempt_chain()` verifies the complete bounded chain;
-- provide equivalent PostgreSQL persistence; and
+- use the equivalent
+  [PostgreSQL ledger](postgres-semantic-gate-v3.md) for shared database
+  deployments; and
 - append GateSession references and replay components atomically.
 
 The active snapshot-v2 Store, SQLite-v1/PostgreSQL-v2 adapters, Agent, and MCP

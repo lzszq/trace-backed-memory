@@ -587,8 +587,14 @@
   Gate evidence，通过唯一 sequence 与 CAS head 为每个 System Gate evaluation
   强制一条有界线性 chain，支持精确幂等重放，通过 savepoint 保留调用方
   transaction，检测 canonical schema drift，并在每次读取时复核完整 chain。
-  PostgreSQL 对等实现、artifact 字节校验、GateSession 事务挂接与 active
-  Agent/MCP emission 仍待完成。
+  artifact 字节校验、GateSession 事务挂接与 active Agent/MCP emission
+  仍待完成。
+- 增加隔离 PostgreSQL SemanticGateAttempt 对等实现：active-v2 与 Gate evidence
+  install 门禁、parent-before-head lock、单一 row-locked CAS head、deferred
+  commit-time chain consistency、精确 descriptor/完整 chain 读回、完整安全 catalog
+  fingerprint、调用方 savepoint、并发精确 replay/fork conformance，以及
+  fail-closed `RESTRICT` rollback。artifact 字节、provider 认证、
+  GateSession/replay 事务挂接与 active adapter emission 仍待完成。
 - 发布内容寻址 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
   契约，把 completed GateSession 绑定到显式 evaluator evidence，并严格区分
   观察关联与独立核验的因果结论。durable persistence 与 active service 接入仍

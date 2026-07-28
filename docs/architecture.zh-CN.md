@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 95 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 97 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -451,9 +451,14 @@ rollback。evidence 写入与 GateSession transition 仍是跨 authority 的有�
 evaluation 增加一条不可变有序 SemanticGateAttempt chain。唯一 sequence 与 CAS
 head 拒绝 fork；canonical 读回会核验全部 descriptor 与关系列；完整 chain verifier
 则根据持久化 Gate evidence 重新检查单调缩小规则。它仍是 opt-in、side-by-side
-ledger：PostgreSQL 对等实现、prompt/response artifact 校验、GateSession 事务
-挂接与 active Agent/MCP emission 尚未提供。详见
-[SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.zh-CN.md)。
+ledger。`postgres_semantic_gate_v3.py` 提供隔离 PostgreSQL 对等实现，包含
+active-v2 install 门禁、row-lock 串行化、deferred chain consistency、精确安全
+catalog 校验、调用方 savepoint 与 fail-closed `RESTRICT` rollback。两者均未接入
+active Agent/MCP emission；prompt/response artifact 校验与 GateSession 事务
+挂接尚未提供。详见
+[SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.zh-CN.md)
+与
+[PostgreSQL Semantic Gate attempt ledger v3](protocols/postgres-semantic-gate-v3.zh-CN.md)。
 
 `gate_worker_v3.py` 在两个 GateSession authority 上增加首个有界 recovery
 worker。它预先验证未锁定 due page；只对 session 已到期的

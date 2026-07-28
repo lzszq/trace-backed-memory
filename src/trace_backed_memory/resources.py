@@ -306,6 +306,16 @@ _RESOURCE_SPECS: tuple[
         "application/sql",
     ),
     (
+        "schemas/postgres-v3-semantic-gate-rollback.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres-v3-semantic-gate.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
         "schemas/postgres-v3-staging-rollback.sql",
         "schema",
         "application/sql",

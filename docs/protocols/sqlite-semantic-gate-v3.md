@@ -58,9 +58,11 @@ new repository-owned connection.
 The ledger stores provenance descriptors and artifact hashes, not
 prompt/response artifact bytes. It does not authenticate providers, choose
 trusted timestamps, append GateSession revisions, or emit attempts from the
-active Store, Agent, or MCP path. PostgreSQL parity, artifact validation,
-authorization, retention, and transactionally integrated GateSession/replay
-service operations remain outstanding.
+active Store, Agent, or MCP path. The
+[PostgreSQL peer](postgres-semantic-gate-v3.md) now provides shared-database
+persistence parity; artifact validation, authorization, retention, and
+transactionally integrated GateSession/replay service operations remain
+outstanding.
 
 SQLite database administrators remain inside the local trust boundary.
 Repository operations reject disabled required PRAGMAs, and the insert

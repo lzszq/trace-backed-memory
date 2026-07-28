@@ -43,7 +43,8 @@ GateSession。opt-in
   `(system_gate_evaluation_id, sequence)` 与 CAS head 实现；low-level parent
   verifier 核验单个 link，`verify_semantic_gate_attempt_chain()` 核验完整有界
   chain；
-- 提供对等的 PostgreSQL 持久化；
+- shared database deployment 使用对等的
+  [PostgreSQL ledger](postgres-semantic-gate-v3.zh-CN.md)；
 - 原子追加 GateSession 引用与 replay component。
 
 active snapshot-v2 Store、SQLite-v1/PostgreSQL-v2 adapter、Agent 与 MCP 尚不产生

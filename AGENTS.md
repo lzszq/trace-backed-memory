@@ -55,6 +55,8 @@ Start with:
   Semantic Gate attempt provenance; models can only narrow.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
+- `postgres_semantic_gate_v3.py`: isolated PostgreSQL Semantic Gate attempt
+  peer with row-lock serialization, catalog checks, and fail-closed rollback.
 - `outcome_v3.py`: content-addressed RunOutcome and explicit association versus
   independently verified causal attribution contracts.
 - `audit_v3.py`: append-only AuditEvent chains and explicit RecoveryAction

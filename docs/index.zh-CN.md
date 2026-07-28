@@ -30,6 +30,7 @@
 - [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)
 - [System 与 Semantic Gate evaluation v3](protocols/gate-evaluation-v3.zh-CN.md)
 - [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.zh-CN.md)
+- [PostgreSQL Semantic Gate attempt ledger v3](protocols/postgres-semantic-gate-v3.zh-CN.md)
 - [运行结果与归因 v3](protocols/outcome-v3.zh-CN.md)
 - [Durable GateSession v3 领域契约](protocols/gate-session-v3.zh-CN.md)
 - [内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)

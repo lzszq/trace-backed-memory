@@ -1385,9 +1385,16 @@ Track:
   immutable Gate evidence, enforces one bounded linear chain per System Gate
   evaluation through unique sequence and CAS head, supports exact idempotent
   replay, preserves caller transactions with savepoints, detects canonical
-  schema drift, and revalidates the full chain on every read. Keep PostgreSQL
-  parity, artifact-byte validation, GateSession transaction linkage, and
-  active Agent/MCP emission outstanding.
+  schema drift, and revalidates the full chain on every read. Keep
+  artifact-byte validation, GateSession transaction linkage, and active
+  Agent/MCP emission outstanding.
+- Add the isolated PostgreSQL SemanticGateAttempt peer with active-v2 and Gate
+  evidence install gates, parent-before-head locks, one row-locked CAS head,
+  deferred commit-time chain consistency, exact descriptor/whole-chain
+  read-back, complete security-catalog fingerprinting, caller savepoints,
+  concurrent exact replay/fork conformance, and fail-closed `RESTRICT`
+  rollback. Keep artifact bytes, provider authentication, GateSession/replay
+  transaction linkage, and active adapter emission outstanding.
 - Publish content-addressed `tbm.run-outcome.v3` and
   `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
   explicit evaluator evidence while keeping observed association separate

@@ -407,6 +407,15 @@ active-v2 安装门禁、完整 catalog/ACL fingerprint、不可变 DML/TRUNCATE
 active adapter 尚未使用这两个 authority。详见
 [实体注册表 v3 契约](protocols/entity-registry-v3.zh-CN.md)。
 
+`service_v3.py` 在这些 authority 之上增加首个与存储无关的认证 retrieval
+orchestrator。可信 transport 代码提供精确 Principal/AgentClient record 与服务端持有
+的 tenant、repository、environment context。orchestrator 会求值并持久化授权、读回
+完全相同的 decision、重新加载完整 registry 以检测 policy/entity 轮换、对 canonical
+target 校验 active environment，之后才调用 retrieval。deny、持久化失败、drift 与
+callback failure 都使用清洗后的稳定错误 fail closed。这是共享 kernel 边界，不是
+transport authentication，也尚未接入 active Agent/MCP/HTTP/SDK。详见
+[认证 retrieval service 边界](protocols/authenticated-service-v3.zh-CN.md)。
+
 storage-neutral `tbm.regression-evidence.v3` 是 migration mapping 之外第一层面向
 生产的 evidence boundary。其内容派生 identity 绑定不同的 source/verification
 Trace、expected/observed outcome、evaluator/environment provenance、精确

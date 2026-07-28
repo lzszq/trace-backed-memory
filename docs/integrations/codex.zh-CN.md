@@ -18,15 +18,26 @@ Codex 应先读取根 `AGENTS.md`。修改仓库时选择
 
 ## 安装本地 MCP profile
 
-在 Codex 用来启动 server 的 Python 环境中安装可选 MCP 依赖：
+在 Codex 用来启动 server 的 Python 环境中安装可选 MCP 依赖。
+
+Windows PowerShell：
 
 ```powershell
-python -m pip install -e ".[mcp]"
-New-Item -ItemType Directory -Force .tbm
+py -m pip install -e ".[mcp]"
+New-Item -ItemType Directory -Force .tbm, .codex
+Get-Command tbm-mcp
 ```
 
-替换 checkout 路径后，增加 project-scoped `.codex/config.toml`。Codex
-只会为受信任项目加载项目配置。
+macOS 或 Linux：
+
+```bash
+python3 -m pip install -e '.[mcp]'
+mkdir -p .tbm .codex
+command -v tbm-mcp
+```
+
+Codex Desktop 与 Codex CLI 共用 project-scoped `.codex/config.toml`。替换
+checkout 路径后增加该文件；Codex 只会为受信任项目加载项目配置。
 
 ```toml
 [mcp_servers.trace_backed_memory]
@@ -41,6 +52,11 @@ cwd = "/absolute/path/to/repository"
 startup_timeout_sec = 10.0
 tool_timeout_sec = 60.0
 ```
+
+Windows TOML 路径使用正斜杠，例如 `C:/Users/name/source/repository`。若 Codex
+Desktop 找不到 `tbm-mcp`，把 `command` 改为 `Get-Command` 或 `command -v`
+输出的绝对路径。打开或信任仓库并重启 Codex Desktop，或从配置的 `cwd` 启动新的
+Codex CLI session。
 
 `--repo-path` 必填，并固定 Git provenance root。必须且只能选择一种存储：
 

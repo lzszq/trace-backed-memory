@@ -93,7 +93,7 @@ All caller-owned JSON is checked for duplicate object keys before conversion to 
 5. The harness executes and evaluates the task.
 6. `complete_memory_run()` or `complete_memory_runs()` atomically writes the Trace and decision outcome. Snapshot operators can submit measured results with `tbm complete` or `tbm complete-batch`.
 
-Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Applications that do not need the lower-level Store lifecycle can use `LocalAgentMemory`, which also owns Trace registration, repository synchronization, stable errors, and callback recovery IDs. The optional `tbm-mcp` command exposes only this runtime lifecycle over bounded local STDIO, fixes provenance to a configured checkout root, and captures complete Git ancestry before retrieval. SQLite and PostgreSQL synchronize durable phases; pending requests remain process-local. The `tbm.gate-session.v3` contract defines the target lifecycle, revision, lease, and expiry semantics, with opt-in side-by-side SQLite and isolated PostgreSQL repositories for immutable revisions. The authorization-v3 contract defines the future pre-retrieval policy boundary; opt-in isolated SQLite and PostgreSQL authorities now verify exact policy/request/decision triples and durably record immutable decisions. The active agent/MCP does not yet use those repositories or the evaluator; workers, authenticated service context, and service integration remain outstanding. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
+Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Applications that do not need the lower-level Store lifecycle can use `LocalAgentMemory`, which also owns Trace registration, repository synchronization, stable errors, and callback recovery IDs. The optional `tbm-mcp` command exposes only this runtime lifecycle over bounded local STDIO, fixes provenance to a configured checkout root, and captures complete Git ancestry before retrieval. SQLite and PostgreSQL synchronize durable phases; pending requests remain process-local. The `tbm.gate-session.v3` contract defines the target lifecycle, revision, lease, and expiry semantics, with opt-in side-by-side SQLite and isolated PostgreSQL repositories for immutable revisions. The authorization-v3 contract defines the pre-retrieval policy boundary; opt-in isolated SQLite and PostgreSQL authorities verify exact policy/request/decision triples and durably record immutable decisions. `AuthenticatedRetrievalService` now provides the shared ordering kernel that matches trusted identity records, persists and reloads the decision, rechecks registry rotation and environment binding, and only then calls retrieval. The active agent/MCP does not yet use it; transport authentication, workers, durable session linkage, and active adapter integration remain outstanding. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
 
 ### 5.2 From Failure to Reusable Lesson
 
@@ -231,9 +231,10 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
   high-level requests bind Trace/run identity, and final usage logs persist the
   `request_id`. The version-3 GateSession contract has opt-in SQLite and
   isolated PostgreSQL revision repositories, but they are not yet active
-  agent/MCP state. Authorization-v3 policy and decision contracts are
-  published but not enforced by active adapters; expiry/recovery workers,
-  authenticated service context, and service integration remain out of scope.
+  agent/MCP state. The authenticated retrieval kernel persists and rechecks
+  authorization before its callback, but active adapters do not invoke it;
+  transport authentication, expiry/recovery workers, durable session linkage,
+  and adapter integration remain out of scope.
 - Storage-neutral replay descriptors now define the required retriever/index,
   Gate prompt/response, ancestry, policy, renderer, and exact snippet hashes,
   and the opt-in SQLite replay ledger stores exact bytes/descriptors. Isolated

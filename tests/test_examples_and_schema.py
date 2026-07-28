@@ -233,8 +233,14 @@ def test_readme_and_reference_local_links_resolve():
     assert "](docs/reference.md)" in english
     assert "](docs/reference.zh-CN.md)" in chinese
     for document in (english, chinese):
-        assert 'python -m pip install -e ".[mcp]"' in document
+        assert 'py -m pip install -e ".[mcp]"' in document
+        assert "python3 -m pip install -e '.[mcp]'" in document
+        assert "Windows PowerShell" in document
+        assert "macOS" in document
+        assert "Codex Desktop" in document
+        assert "Codex CLI" in document
         assert "[mcp_servers.trace_backed_memory]" in document
+        assert "enabled = true" in document
         assert 'command = "tbm-mcp"' in document
         assert '"--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"' in document
         assert "capabilities -> prepare -> finalize -> complete" in document
@@ -251,6 +257,10 @@ def test_product_and_reference_documents_are_localized_in_pairs():
         (
             "docs/protocols/agent-v1.md",
             "docs/protocols/agent-v1.zh-CN.md",
+        ),
+        (
+            "docs/protocols/authenticated-service-v3.md",
+            "docs/protocols/authenticated-service-v3.zh-CN.md",
         ),
             (
                 "docs/protocols/authorization-v3.md",

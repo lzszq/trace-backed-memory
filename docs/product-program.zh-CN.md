@@ -622,9 +622,15 @@
   不可变 DML/TRUNCATE guard、完整 catalog/ACL fingerprint、并发精确重放、调用方
   savepoint 与 fail-closed 精确 catalog rollback。active service integration
   仍待完成。
+- 增加与存储无关的 `AuthenticatedRetrievalService` kernel：只接受可信
+  Principal/AgentClient record 与服务端 target context；求值并持久化精确 allow/deny
+  decision，读回验证，复查完整 registry 轮换与 environment binding，并且只在全部
+  检查通过后调用 retrieval。transport authentication 与 active
+  Agent/MCP/HTTP/SDK integration 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
-- 在 retrieval 前集成服务端认证 identity 与已发布授权契约，使 scope 成为可执行的 runtime boundary。
+- 把 transport-authenticated 服务端 identity 与已发布的 retrieval 前授权 kernel
+  接入 active Agent/MCP/HTTP/SDK adapter，使 scope 成为可执行的 runtime boundary。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
 - 集成已发布的 retriever/index snapshot，并记录可重放 decision 所需的 gate model/prompt、ancestry、policy、renderer、response 与 snippet version/hash。
 - 用显式 `required`/`disabled` policy 替代可选 ancestry，并审计 bypass reason。

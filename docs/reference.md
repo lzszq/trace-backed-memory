@@ -428,8 +428,13 @@ the exact policy/request/decision triple before atomically persisting immutable
 policies and decisions with unique request identity. PostgreSQL includes
 version-gated install and fail-closed rollback resources. The active Store,
 Agent, MCP, and GateSession repositories still do not invoke either authority.
-See
-[the authorization contract](protocols/authorization-v3.md).
+`AuthenticatedRetrievalService` is the shared storage-neutral ordering kernel:
+trusted service context is matched to the current registry, the exact decision
+is persisted and read back, registry rotation and environment binding are
+rechecked, and only then may a retrieval callback run. Transport
+authentication and active adapter wiring remain outstanding. See
+[the authorization contract](protocols/authorization-v3.md) and
+[authenticated service boundary](protocols/authenticated-service-v3.md).
 
 The storage-neutral `tbm.regression-evidence.v3` contract replaces no active
 field; it adds the strict target record needed before immutable memory
@@ -2133,6 +2138,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- agent-v1.zh-CN.md
 |   |   |-- authorization-v3.md
 |   |   |-- authorization-v3.zh-CN.md
+|   |   |-- authenticated-service-v3.md
+|   |   |-- authenticated-service-v3.zh-CN.md
 |   |   |-- audit-recovery-v3.md
 |   |   |-- audit-recovery-v3.zh-CN.md
 |   |   |-- evidence-v3.md
@@ -2233,6 +2240,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- execution.py
 |   |-- extraction.py
 |   |-- authorization_v3.py
+|   |-- service_v3.py
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
@@ -2264,6 +2272,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 `-- tests/
     |-- test_agent.py
     |-- test_authorization_v3.py
+    |-- test_service_v3.py
     |-- test_audit_v3.py
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py

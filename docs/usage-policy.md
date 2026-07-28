@@ -1122,9 +1122,21 @@ authorization repositories may persist only decisions verified against their
 exact request and policy; request uniqueness is an audit invariant, not a
 reusable authorization capability. Install or roll back the PostgreSQL
 authority only with its packaged, active-v2-gated resources, and treat catalog
-drift as a failure. The active Store, Agent, MCP, and GateSession repositories
-do not yet invoke either authority and must not claim multi-tenant
-authorization.
+drift as a failure.
+
+`AuthenticatedRetrievalService` is the approved shared ordering boundary for
+new service integrations. A trusted transport authenticator must create its
+exact Principal/AgentClient context; caller JSON is not authentication. The
+boundary must persist and read back the exact decision, recheck the complete
+registry hash after that write, validate the active environment against the
+canonical repository, and invoke retrieval only after all checks pass. A
+custom decision writer that cannot return and reload an exact persistence
+receipt is invalid.
+
+The active Store, Agent, MCP, and GateSession repositories do not yet invoke
+this boundary and must not claim multi-tenant authorization. Transport
+authentication, durable GateSession and RetrievalSnapshot linkage, workers,
+and a cross-record service transaction remain required.
 
 ## Version-3 structured evidence policy
 

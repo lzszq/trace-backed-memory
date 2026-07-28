@@ -17,6 +17,7 @@
 - [本地 Agent 协议 `tbm.agent.v1`](protocols/agent-v1.zh-CN.md)
 - [授权 v3 契约](protocols/authorization-v3.zh-CN.md)
 - [实体注册表 v3 契约](protocols/entity-registry-v3.zh-CN.md)
+- [认证 retrieval service 边界](protocols/authenticated-service-v3.zh-CN.md)
 - [Append-only 审计与恢复 v3](protocols/audit-recovery-v3.zh-CN.md)
 - [结构化 regression evidence v3](protocols/evidence-v3.zh-CN.md)
 - [不可变 MemoryRevision v3](protocols/memory-revision-v3.zh-CN.md)
@@ -47,7 +48,9 @@ version 2 和 Agent 协议 `tbm.agent.v1`。可选 `tbm-mcp` 命令是该协议�
 side-by-side SQLite 和隔离 PostgreSQL revision repository 已经发布，但 active
 Store/MCP、worker 与 service integration 尚未使用它们。与存储实现无关的授权
 v3 policy/evaluator 契约已定义 canonical repository、精确租户别名、认证身份
-位置、role binding 与关联 decision，但尚未接入 active adapter。storage-neutral、
+位置、role binding 与关联 decision。认证 retrieval service kernel 现在会在
+retrieval callback 前持久化并复查这些 decision，但 transport authentication 与
+active Agent/MCP/HTTP/SDK 接入仍待完成。storage-neutral、
 content-addressed 结构化 regression evidence 契约已经发布，但 active v2
 record/adapter 尚未使用它；proposal-only immutable MemoryRevision 契约也已发布。
 内容寻址 RetrievalSnapshot 契约会记录精确的已授权排序输入/结果、索引版本、

@@ -278,8 +278,13 @@ principal、agent client、role binding 与内容关联的允许/拒绝 decision
 提供 opt-in 隔离 authority，在原子持久化 immutable policy/decision 和唯一
 request identity 前核验精确 policy/request/decision 三元组。PostgreSQL 同时
 提供带版本门禁的 install 与 fail-closed rollback 资源。active Store、Agent、
-MCP 与 GateSession repository 仍未调用任一 authority。详见
-[授权契约](protocols/authorization-v3.zh-CN.md)。
+MCP 与 GateSession repository 仍未调用任一 authority。
+`AuthenticatedRetrievalService` 是共享、与存储无关的顺序 kernel：可信 service
+context 与当前 registry 匹配，精确 decision 会被持久化并读回，registry 轮换与
+environment binding 会被复查，之后 retrieval callback 才能运行。transport
+authentication 与 active adapter 接入仍待完成。详见
+[授权契约](protocols/authorization-v3.zh-CN.md)与
+[认证 service 边界](protocols/authenticated-service-v3.zh-CN.md)。
 
 storage-neutral `tbm.regression-evidence.v3` 不会替换任何 active 字段；它补上发布
 immutable memory revision 之前所需的严格目标记录。记录以内容派生 evidence ID
@@ -1004,6 +1009,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |   |-- agent-v1.zh-CN.md
 |   |   |-- authorization-v3.md
 |   |   |-- authorization-v3.zh-CN.md
+|   |   |-- authenticated-service-v3.md
+|   |   |-- authenticated-service-v3.zh-CN.md
 |   |   |-- audit-recovery-v3.md
 |   |   |-- audit-recovery-v3.zh-CN.md
 |   |   |-- evidence-v3.md
@@ -1104,6 +1111,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- execution.py
 |   |-- extraction.py
 |   |-- authorization_v3.py
+|   |-- service_v3.py
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
@@ -1135,6 +1143,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 `-- tests/
     |-- test_agent.py
     |-- test_authorization_v3.py
+    |-- test_service_v3.py
     |-- test_audit_v3.py
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py

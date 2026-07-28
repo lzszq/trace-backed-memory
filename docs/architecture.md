@@ -1546,6 +1546,18 @@ fail-closed rollback that preserves schema-external dependencies. The active
 adapters do not consume either authority yet. See
 [Entity registry v3 contract](protocols/entity-registry-v3.md).
 
+`service_v3.py` adds the first storage-neutral authenticated retrieval
+orchestrator above those authorities. Trusted transport code supplies exact
+Principal/AgentClient records and server-owned tenant, repository, and
+environment context. The orchestrator evaluates and persists authorization,
+reads the exact decision back, reloads the complete registry to detect policy
+or entity rotation, validates the active environment against the canonical
+target, and only then calls retrieval. Denial, persistence failure, drift, and
+callback failure are fail-closed with sanitized stable errors. This is a
+shared kernel boundary, not transport authentication or an active
+Agent/MCP/HTTP/SDK integration. See
+[Authenticated retrieval service boundary](protocols/authenticated-service-v3.md).
+
 The storage-neutral `tbm.regression-evidence.v3` record is the first
 production-oriented evidence boundary beyond the migration mapping. Its
 content-derived identity binds distinct source and verification traces,

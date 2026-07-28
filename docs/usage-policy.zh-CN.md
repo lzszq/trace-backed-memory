@@ -304,8 +304,17 @@ decision 和 policy hash 只提供内容关联，不提供真实性。不得把�
 repository 只能持久化已针对精确 request/policy 核验的 decision；其 request
 uniqueness 是 audit invariant，不是可重用授权 capability。PostgreSQL authority
 只能使用包内、受 active-v2 门禁的资源安装或回滚，catalog drift 必须失败关闭。
-active Store、Agent、MCP 与 GateSession repository 尚未调用任一 authority，
-不得宣称具备多租户授权。
+
+`AuthenticatedRetrievalService` 是新 service integration 可使用的共享顺序边界。
+可信 transport authenticator 必须创建其中精确的 Principal/AgentClient context；
+调用方 JSON 不是 authentication。该边界必须持久化并读回完全相同的 decision，在
+写入后复查完整 registry hash，对 canonical repository 校验 active environment，
+并只在全部检查通过后调用 retrieval。无法返回并重新加载精确 persistence receipt
+的自定义 decision writer 无效。
+
+active Store、Agent、MCP 与 GateSession repository 尚未调用该边界，不得宣称具备
+多租户授权。transport authentication、durable GateSession/RetrievalSnapshot
+linkage、worker 与跨记录 service transaction 仍待完成。
 
 ## Version-3 结构化 evidence 策略
 

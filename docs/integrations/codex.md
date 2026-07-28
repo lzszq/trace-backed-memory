@@ -24,15 +24,27 @@ references needed for that task.
 ## Install the local MCP profile
 
 Install the optional MCP dependency into the Python environment from which
-Codex will launch the server:
+Codex will launch the server.
+
+Windows PowerShell:
 
 ```powershell
-python -m pip install -e ".[mcp]"
-New-Item -ItemType Directory -Force .tbm
+py -m pip install -e ".[mcp]"
+New-Item -ItemType Directory -Force .tbm, .codex
+Get-Command tbm-mcp
 ```
 
-Add a project-scoped `.codex/config.toml` after replacing the checkout path.
-Codex loads project configuration only for trusted projects.
+macOS or Linux:
+
+```bash
+python3 -m pip install -e '.[mcp]'
+mkdir -p .tbm .codex
+command -v tbm-mcp
+```
+
+Codex Desktop and Codex CLI use the same project-scoped `.codex/config.toml`.
+Add it after replacing the checkout path. Codex loads project configuration
+only for trusted projects.
 
 ```toml
 [mcp_servers.trace_backed_memory]
@@ -47,6 +59,12 @@ cwd = "/absolute/path/to/repository"
 startup_timeout_sec = 10.0
 tool_timeout_sec = 60.0
 ```
+
+Use forward slashes in Windows TOML paths, for example
+`C:/Users/name/source/repository`. If Codex Desktop cannot resolve `tbm-mcp`,
+set `command` to the absolute path printed by `Get-Command` or `command -v`.
+Open or trust the repository and restart Codex Desktop, or start a new Codex
+CLI session from the configured `cwd`.
 
 `--repo-path` is mandatory and fixes the Git provenance root. Exactly one
 storage option is mandatory:

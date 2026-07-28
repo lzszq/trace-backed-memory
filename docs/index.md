@@ -18,6 +18,7 @@ orientation; these documents define the engineering contracts.
 - [Local agent protocol `tbm.agent.v1`](protocols/agent-v1.md)
 - [Authorization v3 contract](protocols/authorization-v3.md)
 - [Entity registry v3 contract](protocols/entity-registry-v3.md)
+- [Authenticated retrieval service boundary](protocols/authenticated-service-v3.md)
 - [Append-only audit and recovery v3](protocols/audit-recovery-v3.md)
 - [Structured regression evidence v3](protocols/evidence-v3.md)
 - [Immutable MemoryRevision v3](protocols/memory-revision-v3.md)
@@ -51,8 +52,10 @@ side-by-side SQLite and isolated PostgreSQL revision repositories are
 published, but the active Store/MCP, workers, and service integration do not
 use them yet. The storage-neutral authorization-v3 policy/evaluator contract
 defines canonical repositories, exact tenant aliases, authenticated identity
-slots, role bindings, and linked decisions, but is not wired into active
-adapters. The storage-neutral, content-addressed structured regression
+slots, role bindings, and linked decisions. The authenticated retrieval
+service kernel now persists and rechecks those decisions before a retrieval
+callback, but transport authentication and active Agent/MCP/HTTP/SDK wiring
+remain outstanding. The storage-neutral, content-addressed structured regression
 evidence contract is published, but active v2 records/adapters do not use it
 and the proposal-only immutable MemoryRevision contract is also published.
 The content-addressed RetrievalSnapshot contract records exact authorized

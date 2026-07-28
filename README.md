@@ -80,23 +80,35 @@ For protocol details and lifecycle constraints, read the
 
 ## MCP + Codex in 2 minutes
 
-Install the MCP profile and create local state:
+Install the MCP profile and create project-local state.
+
+Windows PowerShell:
 
 ```powershell
-python -m pip install -e ".[mcp]"
-New-Item -ItemType Directory -Force .tbm
+py -m pip install -e ".[mcp]"
+New-Item -ItemType Directory -Force .tbm, .codex
 ```
 
-Add this project-level configuration to `.codex/config.toml`:
+macOS or Linux:
+
+```bash
+python3 -m pip install -e '.[mcp]'
+mkdir -p .tbm .codex
+```
+
+For both Codex Desktop and Codex CLI, add this project-level configuration to
+`.codex/config.toml`:
 
 ```toml
 [mcp_servers.trace_backed_memory]
+enabled = true
 command = "tbm-mcp"
 args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
 ```
 
-Restart Codex in this repository. Codex can then discover capabilities and use
-the runtime lifecycle in this order:
+Open or trust this repository in Codex, then restart Codex Desktop or start a
+new Codex CLI session from the repository root. Codex can now discover the
+server and use the runtime lifecycle in this order:
 
 ```text
 capabilities -> prepare -> finalize -> complete
@@ -118,9 +130,9 @@ tool sequence, storage choices, troubleshooting, and security boundary.
   resource discovery
 - Local MCP: `tbm-mcp` with the optional `mcp` dependency
 - Persistence: in-memory, SQLite, and PostgreSQL adapters
-- Version-3 preparation: GateSession, authorization, entity registry, replay,
-  audit/recovery, structured evidence, immutable revisions, retrieval
-  snapshots, gate evaluations, and outcomes
+- Version-3 preparation: authenticated pre-retrieval boundary, GateSession,
+  authorization, entity registry, replay, audit/recovery, structured evidence,
+  immutable revisions, retrieval snapshots, gate evaluations, and outcomes
 
 Use the [documentation index](docs/index.md) to reach each protocol, migration,
 integration, and operations guide. Canonical Schemas and examples are

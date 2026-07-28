@@ -79,23 +79,33 @@ with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
 
 ## 两分钟启用 MCP + Codex
 
-安装 MCP 可选依赖并创建本地状态目录：
+安装 MCP 可选依赖并创建项目本地状态目录。
+
+Windows PowerShell：
 
 ```powershell
-python -m pip install -e ".[mcp]"
-New-Item -ItemType Directory -Force .tbm
+py -m pip install -e ".[mcp]"
+New-Item -ItemType Directory -Force .tbm, .codex
 ```
 
-在项目级 `.codex/config.toml` 中加入：
+macOS 或 Linux：
+
+```bash
+python3 -m pip install -e '.[mcp]'
+mkdir -p .tbm .codex
+```
+
+Codex Desktop 与 Codex CLI 共用以下项目级 `.codex/config.toml`：
 
 ```toml
 [mcp_servers.trace_backed_memory]
+enabled = true
 command = "tbm-mcp"
 args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
 ```
 
-在该仓库中重启 Codex。之后 Codex 可发现 capability，并按以下顺序使用 runtime
-lifecycle：
+在 Codex 中打开或信任该仓库，然后重启 Codex Desktop，或从仓库根目录启动新的
+Codex CLI session。之后 Codex 可发现服务，并按以下顺序使用 runtime lifecycle：
 
 ```text
 capabilities -> prepare -> finalize -> complete
@@ -115,8 +125,9 @@ capabilities -> prepare -> finalize -> complete
 - CLI：`tbm capabilities`、snapshot 操作、migration preflight 与资源发现
 - 本地 MCP：安装可选 `mcp` 依赖后使用 `tbm-mcp`
 - 持久化：内存、SQLite 与 PostgreSQL adapter
-- Version-3 准备能力：GateSession、授权、实体注册表、replay、audit/recovery、
-  结构化 evidence、不可变 revision、retrieval snapshot、gate evaluation 与 outcome
+- Version-3 准备能力：认证 retrieval 前边界、GateSession、授权、实体注册表、
+  replay、audit/recovery、结构化 evidence、不可变 revision、retrieval snapshot、
+  gate evaluation 与 outcome
 
 每个协议、migration、integration 与运维指南都可从
 [文档索引](docs/index.zh-CN.md)进入。Canonical Schema 与示例可通过

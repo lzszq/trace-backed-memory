@@ -143,6 +143,16 @@ from .entity_registry_v3 import (
     loads_entity_registry,
     parse_entity_registry,
 )
+from .service_v3 import (
+    AuthenticatedRetrievalService,
+    AuthenticatedServiceContext,
+    AuthenticatedServiceV3Error,
+    AuthorizationAppendReceipt,
+    AuthorizationDecisionWriter,
+    AuthorizationDeniedError,
+    AuthorizedRetrievalResult,
+    AuthorizedRetrievalScope,
+)
 from .memory_revision_v3 import (
     MEMORY_REVISION_CONTRACT_VERSION,
     MEMORY_REVISION_JSON_MAX_BYTES,
@@ -582,6 +592,14 @@ __all__ = [
     "AuthorizationPolicyBundle",
     "AuthorizationReason",
     "AuthorizationRequest",
+    "AuthenticatedRetrievalService",
+    "AuthenticatedServiceContext",
+    "AuthenticatedServiceV3Error",
+    "AuthorizationAppendReceipt",
+    "AuthorizationDecisionWriter",
+    "AuthorizationDeniedError",
+    "AuthorizedRetrievalResult",
+    "AuthorizedRetrievalScope",
     "BindingStatus",
     "POSTGRES_ENTITY_REGISTRY_V3_MAX_PAGE_SIZE",
     "POSTGRES_ENTITY_REGISTRY_V3_SCHEMA_VERSION",

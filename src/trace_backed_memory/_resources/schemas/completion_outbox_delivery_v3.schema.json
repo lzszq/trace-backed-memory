@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-backed-memory.local/schemas/completion_outbox_delivery_v3.schema.json",
+  "title": "CompletionOutboxDelivery v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "delivery_revision_id",
+    "event_id",
+    "version",
+    "status",
+    "attempt_count",
+    "updated_at",
+    "available_at",
+    "worker_id",
+    "lease_expires_at",
+    "delivered_at",
+    "last_error_code",
+    "response_sha256"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.completion-outbox-delivery.v3"
+    },
+    "delivery_revision_id": {
+      "type": "string",
+      "pattern": "^completion_outbox_delivery_sha256_[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^completion_outbox_event_sha256_[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "leased",
+        "retry_wait",
+        "delivered",
+        "dead_letter"
+      ]
+    },
+    "attempt_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000
+    },
+    "updated_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "available_at": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "worker_id": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/identifier"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lease_expires_at": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "delivered_at": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "last_error_code": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^(?!\\s)(?![\\s\\S]*[\\u0000-\\u001f\\u007f])[\\s\\S]*\\S(?![\\s\\S])"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "response_sha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/digest"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(?!\\s)(?![\\s\\S]*[\\u0000-\\u001f\\u007f])[\\s\\S]*\\S(?![\\s\\S])"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?!0000)(?:(?:\\d{4}-(?:(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01]))|(?:(?:0[469]|11)-(?:0[1-9]|[12]\\d|30))|(?:02-(?:0[1-9]|1\\d|2[0-8]))))|(?:(?:[02468][048]00|[13579][26]00|\\d{2}(?:0[48]|[2468][048]|[13579][26]))-02-29))T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{6})?Z(?![\\s\\S])"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "pending"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "version": {
+            "const": 1
+          },
+          "attempt_count": {
+            "const": 0
+          },
+          "available_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "worker_id": {
+            "type": "null"
+          },
+          "lease_expires_at": {
+            "type": "null"
+          },
+          "delivered_at": {
+            "type": "null"
+          },
+          "last_error_code": {
+            "type": "null"
+          },
+          "response_sha256": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "leased"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attempt_count": {
+            "minimum": 1
+          },
+          "available_at": {
+            "type": "null"
+          },
+          "worker_id": {
+            "$ref": "#/$defs/identifier"
+          },
+          "lease_expires_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "delivered_at": {
+            "type": "null"
+          },
+          "last_error_code": {
+            "type": "null"
+          },
+          "response_sha256": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "retry_wait"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attempt_count": {
+            "minimum": 1
+          },
+          "available_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "worker_id": {
+            "type": "null"
+          },
+          "lease_expires_at": {
+            "type": "null"
+          },
+          "delivered_at": {
+            "type": "null"
+          },
+          "last_error_code": {
+            "type": "string"
+          },
+          "response_sha256": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "delivered"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attempt_count": {
+            "minimum": 1
+          },
+          "available_at": {
+            "type": "null"
+          },
+          "worker_id": {
+            "type": "null"
+          },
+          "lease_expires_at": {
+            "type": "null"
+          },
+          "delivered_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "last_error_code": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "dead_letter"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "attempt_count": {
+            "minimum": 1
+          },
+          "available_at": {
+            "type": "null"
+          },
+          "worker_id": {
+            "type": "null"
+          },
+          "lease_expires_at": {
+            "type": "null"
+          },
+          "delivered_at": {
+            "type": "null"
+          },
+          "last_error_code": {
+            "type": "string"
+          },
+          "response_sha256": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

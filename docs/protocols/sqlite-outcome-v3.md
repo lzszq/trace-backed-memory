@@ -56,8 +56,10 @@ PostgreSQL parity is provided by the isolated
 [PostgreSQL completion authority](postgres-outcome-v3.md).
 SQLite OutcomeAttribution persistence is provided by the separate
 [immutable attribution ledger](sqlite-outcome-attribution-v3.md), with isolated
-[PostgreSQL parity](postgres-outcome-attribution-v3.md). Authenticated evaluator
-derivation, artifact authorization, completion outbox delivery, and active
-Agent/MCP/HTTP/SDK integration remain follow-up work. Active snapshot version
-2, SQLite schema version 1, PostgreSQL schema version 2, and `tbm.agent.v1`
-remain unchanged.
+[PostgreSQL parity](postgres-outcome-attribution-v3.md). The opt-in
+[SQLite completion outbox](completion-outbox-v3.md) extends this transaction
+with an immutable event and append-only delivery state. Authenticated evaluator
+derivation, artifact authorization, PostgreSQL outbox parity, network dispatch,
+and active Agent/MCP/HTTP/SDK integration remain follow-up work. Active
+snapshot version 2, SQLite schema version 1, PostgreSQL schema version 2, and
+`tbm.agent.v1` remain unchanged.

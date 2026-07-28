@@ -64,6 +64,8 @@ before constructing the content-addressed record.
 
 The isolated
 [PostgreSQL attribution ledger](postgres-outcome-attribution-v3.md) provides
-database parity. Authenticated evaluator and artifact checks, completion and
-attribution outbox delivery, and active Agent/MCP/HTTP/SDK integration remain
-follow-up work.
+database parity. The separate
+[SQLite completion outbox](completion-outbox-v3.md) publishes completion
+events; attribution outbox delivery, authenticated evaluator and artifact
+checks, PostgreSQL completion-outbox parity, and active Agent/MCP/HTTP/SDK
+integration remain follow-up work.

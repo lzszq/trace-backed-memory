@@ -453,9 +453,14 @@ class SQLiteOutcomeV3Repository:
                 "trusted completion clock moved backwards",
             )
         if parsed_now == parsed_previous:
-            return aware_datetime_to_rfc3339(
-                parsed_previous + timedelta(seconds=1)
-            )
+            try:
+                advanced = parsed_previous + timedelta(seconds=1)
+            except OverflowError as error:
+                raise SQLiteOutcomeV3PersistenceError(
+                    "TBM_SQLITE_OUTCOME_CLOCK",
+                    "trusted completion clock exceeds the supported range",
+                ) from error
+            return aware_datetime_to_rfc3339(advanced)
         return now
 
     @staticmethod

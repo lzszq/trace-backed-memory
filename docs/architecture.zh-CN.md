@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 108 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 113 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -546,12 +546,23 @@ multi-claim ledger；append 与读取都会重新核验 canonical descriptor 以
 outcome/session/usage/final-revision linkage，保留 caller savepoint，并拒绝
 replacement write 或 schema drift。PostgreSQL peer 还提供数据库 content-ID
 重算、row lock、完整 catalog 校验、并发 replay 与 fail-closed rollback。
-evaluator authentication、artifact authorization、outbox delivery 与 active
-runtime emission 仍是独立后续工作。详见
+
+storage-neutral completion-outbox 契约把一条 immutable
+`execution_completed` event 与 append-only delivery revision 分离。opt-in
+`SQLiteCompletionOutboxV3Repository` 扩展 SQLite completion transaction，使
+completed GateSession revision、RunOutcome、event、初始 `pending` delivery
+与 delivery head 一起 commit 或 rollback。claim 使用有界 lease 与 versioned
+head；acknowledgement、retry wait、expired-lease reclaim 和 dead-letter
+transition 都追加新 revision。Delivery 是 at least once，因此 consumer 必须按
+内容派生 event ID 去重。thread-local repository mutation scope 会拒绝 direct
+DML，同一个 SQLite connection 上的 wrapper 共享同一把 re-entrant lock。
+PostgreSQL outbox 对等实现、evaluator authentication、
+artifact authorization 与 active runtime emission 仍是独立后续工作。详见
 [SQLite RunOutcome 完成事务 v3](protocols/sqlite-outcome-v3.zh-CN.md)与
 [PostgreSQL RunOutcome 完成事务 v3](protocols/postgres-outcome-v3.zh-CN.md)，
 以及 [SQLite OutcomeAttribution ledger v3](protocols/sqlite-outcome-attribution-v3.zh-CN.md)
-与 [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.zh-CN.md)。
+与 [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.zh-CN.md)，
+以及 [Completion outbox v3](protocols/completion-outbox-v3.zh-CN.md)。
 
 `tbm.audit-event.v3` 提供内容寻址 append-only stream，绑定精确 parent
 及 actor/reference provenance。配套 `tbm.recovery-action.v3` 记录一次已完成

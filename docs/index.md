@@ -40,6 +40,7 @@ orientation; these documents define the engineering contracts.
 - [SQLite OutcomeAttribution ledger v3](protocols/sqlite-outcome-attribution-v3.md)
 - [PostgreSQL RunOutcome completion v3](protocols/postgres-outcome-v3.md)
 - [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.md)
+- [Completion outbox contract and SQLite authority v3](protocols/completion-outbox-v3.md)
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Content-addressed replay contract v3](protocols/replay-v3.md)
 - [Codex integration](integrations/codex.md)
@@ -85,9 +86,11 @@ gate, or GateSession repository emits them yet.
 The opt-in SQLite and isolated PostgreSQL RunOutcome authorities now atomically
 complete an executing GateSession with one content-addressed outcome. The
 isolated SQLite and PostgreSQL OutcomeAttribution ledgers persist multiple
-independently verified claims with exact durable outcome/session linkage.
-Authenticated evaluator/artifact checks, outbox delivery, and active runtime
-emission remain outstanding.
+independently verified claims with exact durable outcome/session linkage. The
+opt-in SQLite Completion Outbox authority atomically adds one immutable
+completion event and an append-only leased delivery chain to that transaction.
+PostgreSQL outbox parity, authenticated evaluator/artifact checks, and active
+runtime emission remain outstanding.
 Approval, activation, remaining persistence, and active integration remain
 part of the coordinated schema-version-3 program. The
 storage-neutral `tbm.replay.v3` artifact and replay-manifest contract is

@@ -361,6 +361,17 @@ def test_equal_clock_advances_one_second_and_unicode_round_trips():
         assert result.outcome.error_code == "工具失败"
 
 
+def test_equal_clock_at_timestamp_limit_fails_stably():
+    timestamp = "9999-12-31T23:59:59.999999Z"
+    clock = SequenceClock((timestamp,))
+    with _repository(clock=clock) as repository:
+        with pytest.raises(
+            SQLiteOutcomeV3PersistenceError,
+            match="supported range",
+        ):
+            repository._trusted_after(timestamp)
+
+
 def test_completion_preserves_callers_transaction_with_savepoint():
     connection = sqlite3.connect(":memory:")
     connection.execute("PRAGMA foreign_keys = ON")

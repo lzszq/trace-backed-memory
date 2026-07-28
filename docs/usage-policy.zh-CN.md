@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-108 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision contract 资源、隔离 SQLite GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution ledger install/fail-closed rollback。
+113 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision contract 资源、隔离 SQLite GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution ledger install/fail-closed rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -452,6 +452,19 @@ evaluator/verifier identity 与 trusted time 后构造 canonical
 保持 foreign key 与 recursive trigger 开启；PostgreSQL 必须按 GateSession →
 RunOutcome → OutcomeAttribution 顺序安装并以相反顺序回滚。已保存的 identity
 string 与 artifact hash 只是 provenance，不是 authentication 或 bytes 已核验的证明。
+
+使用 opt-in SQLite completion publication 时，应调用
+`SQLiteCompletionOutboxV3Repository.complete_session()`，而不是直接通过底层
+outcome authority 完成。这样 completed GateSession revision、RunOutcome、
+completion event 与初始 delivery state 会处于同一 atomic boundary。Dispatcher
+必须使用有界 page 与 lease 领取任务，只能由相同 worker 对精确 leased revision
+执行 acknowledge 或 fail，并允许过期 lease 被重新领取。Delivery 是 at least
+once，因此 downstream consumer 必须按 immutable `event_id` 去重；response
+digest 只是 audit metadata，不能证明远端副作用 exactly once。outcome 已存在但
+event 缺失时不得静默修补，应调查并恢复被破坏的 transaction boundary。
+PostgreSQL outbox 对等实现与 active Agent/MCP/HTTP/SDK 接入仍不可用。
+SQLite connection owner 属于 privileged boundary：不得暴露 raw connection
+访问，也不得允许调用方替换已注册 function 或 schema trigger。
 
 ## Version-3 审计与恢复策略
 

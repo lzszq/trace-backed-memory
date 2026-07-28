@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 108 installed resource copies must remain byte-identical to the top-level
+The 113 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -174,7 +174,8 @@ atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 the agent protocol, v3 migration staging, GateSession, and content-addressed
 replay, MemoryRevision, and entity-registry contract Schemas and examples, plus
 isolated SQLite GateSession/replay/audit/authorization/MemoryRevision/
-RunOutcome/OutcomeAttribution ledgers and normalized entity-registry DDL,
+RunOutcome/OutcomeAttribution/completion-outbox ledgers and normalized
+entity-registry DDL,
 isolated PostgreSQL GateSession and entity-registry install/rollback, and
 isolated PostgreSQL replay/audit/authorization/MemoryRevision/Semantic Gate
 attempt and artifact/RunOutcome/OutcomeAttribution ledger
@@ -1309,6 +1310,21 @@ foreign keys and recursive triggers enabled, and install/rollback PostgreSQL
 dependencies in GateSession → RunOutcome → OutcomeAttribution order. Treat
 stored identity strings and artifact hashes as provenance, not authentication
 or proof that bytes were verified.
+
+For opt-in SQLite completion publication, use
+`SQLiteCompletionOutboxV3Repository.complete_session()` instead of completing
+through the lower-level outcome authority. This preserves one atomic boundary
+across the completed GateSession revision, RunOutcome, completion event, and
+initial delivery state. Dispatchers must claim bounded pages with bounded
+leases, acknowledge or fail only the exact leased revision and worker, and
+allow expired leases to be reclaimed. Treat delivery as at least once:
+downstream consumers must deduplicate by the immutable `event_id`. A response
+digest is audit metadata and does not establish exactly-once remote effects.
+Do not repair an outcome that exists without its event; investigate and recover
+the violated transaction boundary. PostgreSQL outbox parity and active
+Agent/MCP/HTTP/SDK wiring remain unavailable. Treat the SQLite connection owner
+as privileged: do not expose raw connection access or permit callers to replace
+registered functions or schema triggers.
 
 ## Version-3 audit and recovery policy
 

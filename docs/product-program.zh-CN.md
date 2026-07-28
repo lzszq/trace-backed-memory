@@ -629,15 +629,24 @@
 - 增加 PostgreSQL RunOutcome parity：提供隔离 version-1 install 与 fail-closed
   exact-catalog rollback，在取得 GateSession head lock 后读取数据库时间，通过
   CAS 完成 session、插入 immutable outcome，并支持精确重放/读回、caller
-  savepoint 与并发单写。authenticated evaluator/artifact 检查、outbox delivery
-  与 active Agent/MCP/HTTP/SDK 集成仍待完成。
+  savepoint 与并发单写。authenticated evaluator/artifact 检查、PostgreSQL
+  outbox delivery 与 active Agent/MCP/HTTP/SDK 集成仍待完成。
 - 增加 opt-in 隔离 SQLite 与 PostgreSQL OutcomeAttribution ledger：使用各自独立的
   version-1 schema，提供精确 content-ID replay、immutable 多 claim 存储、
   completed outcome/session/usage/revision linkage、canonical descriptor 复验、
   replacement-write guard、schema/catalog drift 检查、caller savepoint 与并发幂等。
   PostgreSQL 另提供数据库侧校验、row lock 与 fail-closed rollback。authenticated
-  evaluator/verifier 派生、trusted-time 构造、artifact authorization、outbox
-  delivery 与 active runtime integration 仍待完成。
+  evaluator/verifier 派生、trusted-time 构造、artifact authorization、
+  attribution outbox delivery 与 active runtime integration 仍待完成。
+- 发布 storage-neutral `tbm.completion-outbox-event.v3` 与
+  `tbm.completion-outbox-delivery.v3` 契约，并增加 opt-in 隔离 SQLite
+  authority：原子完成 GateSession、插入 RunOutcome 与 immutable event，并创建
+  初始 append-only delivery revision/head。提供有界 claim、过期 lease reclaim、
+  精确 version acknowledgement、retry/dead-letter transition、canonical
+  读回、schema-drift 检查、caller savepoint、并发单 claim 行为与明确的
+  at-least-once consumer 语义。PostgreSQL 对等实现、authenticated
+  evaluator/artifact 校验、network dispatch 及 active Agent/MCP/HTTP/SDK
+  integration 仍待完成。
 - 发布 storage-neutral `tbm.audit-event.v3` 与
   `tbm.recovery-action.v3` 契约，提供内容派生 identity、精确 stream parent、
   authenticated actor slot、typed reference、显式 request digest，以及对照

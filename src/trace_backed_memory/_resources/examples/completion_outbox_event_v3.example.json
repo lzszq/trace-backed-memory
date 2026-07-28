@@ -1,0 +1,14 @@
+{
+  "contract_version": "tbm.completion-outbox-event.v3",
+  "event_type": "execution_completed",
+  "tenant_id": "tenant_001",
+  "repository_id": "repository_001",
+  "session_id": "gate_session_001",
+  "trace_id": "trace_001",
+  "run_id": "run_001",
+  "usage_decision_id": "usage_decision_001",
+  "run_outcome_id": "run_outcome_sha256_c14438cf849ef2d0d2f59934f5bc46c3734072dd1d1ec454c03c65557760b16d",
+  "outcome_descriptor_sha256": "sha256:03c72dd5dfe487be5d911f32b5f56fb1afce62e2316e15ae31260ac2a3fb9a88",
+  "occurred_at": "2026-07-29T00:06:00Z",
+  "event_id": "completion_outbox_event_sha256_852cda853af185f5e1a4d852f64de7d52c6725f6f403b45dcb32d3f8fadc816b"
+}

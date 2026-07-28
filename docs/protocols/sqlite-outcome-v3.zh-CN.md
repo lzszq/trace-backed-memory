@@ -50,8 +50,10 @@ verifier。它不会认证 evaluator、校验 evidence artifact byte，也不会
 PostgreSQL parity。SQLite OutcomeAttribution persistence 由独立的
 [immutable attribution ledger](sqlite-outcome-attribution-v3.zh-CN.md)提供，
 并有隔离的
-[PostgreSQL parity](postgres-outcome-attribution-v3.zh-CN.md)。authenticated
-evaluator derivation、artifact authorization、completion outbox delivery，
-以及 active Agent/MCP/HTTP/SDK 集成仍是后续工作。active snapshot version 2、
-SQLite schema version 1、PostgreSQL schema version 2 与 `tbm.agent.v1`
-均保持不变。
+[PostgreSQL parity](postgres-outcome-attribution-v3.zh-CN.md)。opt-in
+[SQLite completion outbox](completion-outbox-v3.zh-CN.md)会用 immutable event
+与 append-only delivery state 扩展同一 transaction。authenticated evaluator
+derivation、artifact authorization、PostgreSQL outbox 对等实现、network
+dispatch 以及 active Agent/MCP/HTTP/SDK 集成仍是后续工作。active snapshot
+version 2、SQLite schema version 1、PostgreSQL schema version 2 与
+`tbm.agent.v1` 均保持不变。

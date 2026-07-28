@@ -1437,8 +1437,8 @@ Track:
   fail-closed exact-catalog rollback, database-time sampling after the
   GateSession head lock, CAS completion, immutable outcome insertion, exact
   replay/read-back, caller savepoints, and concurrent single-insert behavior.
-  Keep authenticated evaluator/artifact checks, outbox delivery, and active
-  Agent/MCP/HTTP/SDK integration outstanding.
+  Keep authenticated evaluator/artifact checks, PostgreSQL outbox delivery,
+  and active Agent/MCP/HTTP/SDK integration outstanding.
 - Add opt-in isolated SQLite and PostgreSQL OutcomeAttribution ledgers with
   independent version-1 schemas, exact content-ID replay, immutable
   multi-claim storage, completed outcome/session/usage/revision linkage,
@@ -1446,8 +1446,18 @@ Track:
   drift checks, caller savepoints, and concurrent idempotency. PostgreSQL adds
   database-side validation, row locking, and fail-closed rollback. Keep
   authenticated evaluator/verifier derivation, trusted-time construction,
-  artifact authorization, outbox delivery, and active runtime integration
-  outstanding.
+  artifact authorization, attribution outbox delivery, and active runtime
+  integration outstanding.
+- Publish storage-neutral `tbm.completion-outbox-event.v3` and
+  `tbm.completion-outbox-delivery.v3` contracts, then add an opt-in isolated
+  SQLite authority that atomically completes the GateSession, inserts the
+  RunOutcome and immutable event, and creates the initial append-only delivery
+  revision/head. Add bounded claims, expiring lease reclaim, exact-version
+  acknowledgement, retry/dead-letter transitions, canonical read-back,
+  schema-drift checks, caller savepoints, concurrent single-claim behavior,
+  and explicit at-least-once consumer semantics. Keep PostgreSQL parity,
+  authenticated evaluator/artifact verification, network dispatch, and active
+  Agent/MCP/HTTP/SDK integration outstanding.
 - Publish storage-neutral `tbm.audit-event.v3` and
   `tbm.recovery-action.v3` contracts with content-derived identity, exact
   stream parents, authenticated actor slots, typed references, explicit

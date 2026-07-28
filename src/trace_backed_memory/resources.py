@@ -67,6 +67,16 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     (
+        "examples/completion_outbox_delivery_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/completion_outbox_event_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/decision_replay_manifest_v3.example.json",
         "example",
         "application/json",
@@ -186,6 +196,16 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/authorization_policy_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/completion_outbox_delivery_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/completion_outbox_event_v3.schema.json",
         "schema",
         "application/schema+json",
     ),
@@ -400,6 +420,11 @@ _RESOURCE_SPECS: tuple[
     ),
     ("schemas/sqlite-v3-audit.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-authorization.sql", "schema", "application/sql"),
+    (
+        "schemas/sqlite-v3-completion-outbox.sql",
+        "schema",
+        "application/sql",
+    ),
     (
         "schemas/sqlite-v3-entity-registry.sql",
         "schema",

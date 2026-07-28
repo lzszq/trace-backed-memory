@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-backed-memory.local/schemas/completion_outbox_event_v3.schema.json",
+  "title": "CompletionOutboxEvent v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "event_id",
+    "event_type",
+    "tenant_id",
+    "repository_id",
+    "session_id",
+    "trace_id",
+    "run_id",
+    "usage_decision_id",
+    "run_outcome_id",
+    "outcome_descriptor_sha256",
+    "occurred_at"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.completion-outbox-event.v3"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^completion_outbox_event_sha256_[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "event_type": {
+      "const": "execution_completed"
+    },
+    "tenant_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "repository_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "session_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "trace_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "run_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "usage_decision_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "run_outcome_id": {
+      "type": "string",
+      "pattern": "^run_outcome_sha256_[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "outcome_descriptor_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "occurred_at": {
+      "$ref": "#/$defs/timestamp"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(?!\\s)(?![\\s\\S]*[\\u0000-\\u001f\\u007f])[\\s\\S]*\\S(?![\\s\\S])"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?!0000)(?:(?:\\d{4}-(?:(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01]))|(?:(?:0[469]|11)-(?:0[1-9]|[12]\\d|30))|(?:02-(?:0[1-9]|1\\d|2[0-8]))))|(?:(?:[02468][048]00|[13579][26]00|\\d{2}(?:0[48]|[2468][048]|[13579][26]))-02-29))T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{6})?Z(?![\\s\\S])"
+    }
+  }
+}

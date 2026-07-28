@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 108 canonical Schema, SQL/migration, memory-support, and
+the repository's 113 canonical Schema, SQL/migration, memory-support, and
 example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
@@ -1150,7 +1150,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 108 resources.
+contains 113 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1713,13 +1713,25 @@ completed outcomes. Both revalidate canonical descriptors and exact
 outcome/session/usage/final-revision linkage on append and read, preserve caller
 savepoints, and reject replacement writes or schema drift. The PostgreSQL peer
 adds database-side content-ID recomputation, row locking, full catalog
-validation, concurrent replay, and fail-closed rollback. Evaluator
-authentication, artifact authorization, outbox delivery, and active runtime
-emission remain separate work. See
+validation, concurrent replay, and fail-closed rollback.
+
+The storage-neutral completion-outbox contract separates one immutable
+`execution_completed` event from its append-only delivery revisions. The
+opt-in `SQLiteCompletionOutboxV3Repository` extends the SQLite completion
+transaction so the completed GateSession revision, RunOutcome, event, initial
+`pending` delivery, and delivery head commit or roll back together. Claims use
+bounded leases and versioned heads; acknowledgements, retry waits, expired-lease
+reclaims, and dead-letter transitions append new revisions. Delivery is at
+least once, so consumers deduplicate by the content-derived event ID. A
+thread-local repository mutation scope rejects direct DML, while wrappers over
+one SQLite connection share the same re-entrant lock.
+PostgreSQL outbox parity, evaluator authentication, artifact authorization, and
+active runtime emission remain separate work. See
 [SQLite RunOutcome completion v3](protocols/sqlite-outcome-v3.md),
 [PostgreSQL RunOutcome completion v3](protocols/postgres-outcome-v3.md), and
 [SQLite OutcomeAttribution ledger v3](protocols/sqlite-outcome-attribution-v3.md)
-and [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.md).
+and [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.md),
+plus [Completion outbox v3](protocols/completion-outbox-v3.md).
 
 The `tbm.audit-event.v3` contract provides a content-addressed append-only
 stream with exact parent and actor/reference provenance. The paired

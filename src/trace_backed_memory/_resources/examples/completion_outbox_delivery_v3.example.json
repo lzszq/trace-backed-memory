@@ -1,0 +1,15 @@
+{
+  "contract_version": "tbm.completion-outbox-delivery.v3",
+  "event_id": "completion_outbox_event_sha256_852cda853af185f5e1a4d852f64de7d52c6725f6f403b45dcb32d3f8fadc816b",
+  "version": 1,
+  "status": "pending",
+  "attempt_count": 0,
+  "updated_at": "2026-07-29T00:06:00Z",
+  "available_at": "2026-07-29T00:06:00Z",
+  "worker_id": null,
+  "lease_expires_at": null,
+  "delivered_at": null,
+  "last_error_code": null,
+  "response_sha256": null,
+  "delivery_revision_id": "completion_outbox_delivery_sha256_2d4eec667ced6a494bbaffda820d1574d7bbe7c394b923170de558b123208603"
+}

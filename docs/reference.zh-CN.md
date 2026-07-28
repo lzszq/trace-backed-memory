@@ -204,7 +204,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 108 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 113 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -415,6 +415,17 @@ completed-session、usage-decision、finalized-revision 与 timestamp linkage，
 identity 与 artifact provenance，但不认证二者。详见
 [SQLite attribution ledger 契约](protocols/sqlite-outcome-attribution-v3.zh-CN.md)
 与 [PostgreSQL attribution ledger 契约](protocols/postgres-outcome-attribution-v3.zh-CN.md)。
+
+`CompletionOutboxEvent` 与 `CompletionOutboxDelivery` 定义 storage-neutral
+completion notification 和 append-only delivery revision 契约。
+`SQLiteCompletionOutboxV3Repository` 组合 SQLite completion authority，使
+completed GateSession revision、RunOutcome、immutable event、初始 `pending`
+delivery 与 delivery head 处于同一 transaction。它支持有界 due claim、过期
+lease、带 version 检查的 acknowledgement、retry wait、dead letter、精确 replay、
+完整 history 核验、caller savepoint 与 schema-drift 拒绝。Delivery 是 at least
+once；downstream consumer 必须按内容派生 event ID 去重。repository 不发起网络
+请求，也没有接入 active Agent/MCP adapter。详见
+[completion outbox 契约](protocols/completion-outbox-v3.zh-CN.md)。
 
 storage-neutral `tbm.audit-event.v3` 与 `tbm.recovery-action.v3` 增加
 内容寻址 append-only event chain 与显式 recovery-attempt evidence。恢复核验

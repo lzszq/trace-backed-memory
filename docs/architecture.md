@@ -1149,7 +1149,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 100 resources.
+contains 102 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1609,11 +1609,17 @@ metadata to each attempt role without embedding the bytes in JSON. Durable
 SQLite storage is now provided by
 `sqlite_semantic_gate_artifact_v3.py`: one outer transaction composes attempt
 append, exact public/internal bytes, role bindings, SQL digest/descriptor
-guards, and full read-back. PostgreSQL artifact parity, provider
-authentication/trusted time, and GateSession transaction linkage are not yet
-provided. See
+guards, and full read-back. PostgreSQL artifact storage is now provided by
+`postgres_semantic_gate_artifact_v3.py`. Its
+isolated active-v2-gated schema adds database SHA-256/descriptor guards,
+catalog validation, concurrent exact replay, caller savepoints, and
+fail-closed `RESTRICT` rollback. Both byte repositories reject sensitive
+plaintext because neither provides encryption at rest. Provider
+authentication/trusted time, GateSession/replay transaction linkage, and
+active emission are not yet provided. See
 [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md),
 [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md),
+[PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md),
 [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.md)
 and
 [PostgreSQL Semantic Gate attempt ledger v3](protocols/postgres-semantic-gate-v3.md).

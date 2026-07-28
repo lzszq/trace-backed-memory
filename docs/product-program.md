@@ -1393,7 +1393,8 @@ Track:
   deferred commit-time chain consistency, exact descriptor/whole-chain
   read-back, complete security-catalog fingerprinting, caller savepoints,
   concurrent exact replay/fork conformance, and fail-closed `RESTRICT`
-  rollback. Keep artifact bytes, provider authentication, GateSession/replay
+  rollback. Exact bytes are provided by the separate opt-in PostgreSQL
+  repository below; keep provider authentication, GateSession/replay
   transaction linkage, and active adapter emission outstanding.
 - Publish storage-neutral `tbm.semantic-gate-artifact.v3` bindings that join
   exact non-empty prompt/response bytes to one SemanticGateAttempt role and
@@ -1409,8 +1410,18 @@ Track:
   recomputes byte digests and derived IDs, compares every descriptor field,
   enforces role/status/size/media constraints, blocks replacement writes even
   with recursive triggers disabled, and rejects unexpected managed objects.
-  Keep encrypted sensitive storage, PostgreSQL parity, provider trust,
-  GateSession/replay linkage, and active emission outstanding.
+  Keep encrypted sensitive storage, provider trust, GateSession/replay
+  linkage, and active emission outstanding.
+- Add the independent version-1 PostgreSQL Semantic Gate artifact schema and
+  `PostgresSemanticGateArtifactV3Repository`. One outer transaction/savepoint
+  atomically appends the attempt, exact public/internal prompt/response bytes,
+  and role bindings. Database triggers recompute SHA-256 and derived IDs,
+  compare descriptor fields, enforce role/status/size/media constraints, and
+  block mutation. Operations validate the full security catalog, preserve
+  caller transactions, support concurrent exact replay, and ship a
+  fail-closed fingerprinted `RESTRICT` rollback. Keep encrypted sensitive
+  storage, provider authentication/trusted time, GateSession/replay linkage,
+  and active emission outstanding.
 - Publish content-addressed `tbm.run-outcome.v3` and
   `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
   explicit evaluator evidence while keeping observed association separate

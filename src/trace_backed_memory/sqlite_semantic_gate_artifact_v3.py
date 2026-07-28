@@ -16,6 +16,7 @@ from .resources import PackagedResourceError, read_packaged_resource
 from .semantic_gate_artifact_v3 import (
     SEMANTIC_GATE_ARTIFACT_CONTRACT_VERSION,
     SemanticGateArtifactBinding,
+    StoredSemanticGateAttemptArtifacts,
     StoredSemanticGateArtifact,
     dumps_semantic_gate_artifact_binding,
     loads_semantic_gate_artifact_binding,
@@ -104,13 +105,6 @@ class SQLiteSemanticGateArtifactV3StoreResult:
     prompt_binding_inserted: bool
     response_artifact_inserted: bool
     response_binding_inserted: bool
-
-
-@dataclass(frozen=True)
-class StoredSemanticGateAttemptArtifacts:
-    attempt: SemanticGateAttempt
-    prompt: StoredSemanticGateArtifact
-    response: StoredSemanticGateArtifact | None
 
 
 def _synchronized(method: Callable[_P, _R]) -> Callable[_P, _R]:
@@ -790,5 +784,4 @@ __all__ = [
     "SQLiteSemanticGateArtifactV3Repository",
     "SQLiteSemanticGateArtifactV3SchemaError",
     "SQLiteSemanticGateArtifactV3StoreResult",
-    "StoredSemanticGateAttemptArtifacts",
 ]

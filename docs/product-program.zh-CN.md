@@ -593,8 +593,9 @@
   install 门禁、parent-before-head lock、单一 row-locked CAS head、deferred
   commit-time chain consistency、精确 descriptor/完整 chain 读回、完整安全 catalog
   fingerprint、调用方 savepoint、并发精确 replay/fork conformance，以及
-  fail-closed `RESTRICT` rollback。artifact 字节、provider 认证、
-  GateSession/replay 事务挂接与 active adapter emission 仍待完成。
+  fail-closed `RESTRICT` rollback。精确字节由下述独立 opt-in PostgreSQL
+  repository 提供；provider 认证、GateSession/replay 事务挂接与 active adapter
+  emission 仍待完成。
 - 发布存储中立的 `tbm.semantic-gate-artifact.v3` 绑定：把精确非空
   prompt/response 字节连接到一条 SemanticGateAttempt 的对应角色与 digest，保留
   classification/encryption/redaction 元数据，执行 prompt/response 字节上限，拒绝
@@ -606,9 +607,16 @@
   原子追加 attempt、精确 public/internal prompt/response 字节与角色 binding；
   精确 replay 会去重并完整读回。SQL 会重算字节 digest 与派生 ID、比较每个
   descriptor 字段、执行角色/status/长度/媒体约束、即使关闭 recursive trigger
-  也阻止 replacement write，并拒绝意外受管对象。加密敏感存储、PostgreSQL
-  对等实现、provider trust、GateSession/replay linkage 与 active emission
-  仍待完成。
+  也阻止 replacement write，并拒绝意外受管对象。加密敏感存储、provider
+  trust、GateSession/replay linkage 与 active emission 仍待完成。
+- 增加独立 version-1 PostgreSQL Semantic Gate artifact schema 与
+  `PostgresSemanticGateArtifactV3Repository`。一个外层 transaction/savepoint
+  原子追加 attempt、精确 public/internal prompt/response 字节与角色 binding。
+  数据库 trigger 会重算 SHA-256 与派生 ID、比较 descriptor 字段、执行角色/
+  status/长度/媒体约束并阻止 mutation。operation 会验证完整 security catalog、
+  保留调用方 transaction、支持并发精确 replay，并提供带固定指纹、fail-closed
+  的 `RESTRICT` rollback。加密敏感存储、provider 认证/可信时间、
+  GateSession/replay linkage 与 active emission 仍待完成。
 - 发布内容寻址 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
   契约，把 completed GateSession 绑定到显式 evaluator evidence，并严格区分
   观察关联与独立核验的因果结论。durable persistence 与 active service 接入仍

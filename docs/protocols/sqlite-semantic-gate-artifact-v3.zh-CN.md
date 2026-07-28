@@ -51,6 +51,6 @@ encryption key 也会被本仓库拒绝。Artifact descriptor JSON 永不嵌入�
 
 本仓库不认证 provider、不建立可信 timestamp、不执行 retention/access-control
 policy、不追加 GateSession/replay 记录，也不从 active Agent/MCP 路径产生数据。
-PostgreSQL 对等实现与这些 service transaction 仍是后续工作。拥有 DDL 权限的
-SQLite 文件所有者与管理员仍属于信任边界；检测完整离线重写需要外部签名
-checkpoint。
+PostgreSQL 对等实现已单独记录；provider trust 与 active integration 仍是后续
+工作。拥有 DDL 权限的 SQLite 文件所有者与管理员仍属于信任边界；检测完整离线
+重写需要外部签名 checkpoint。

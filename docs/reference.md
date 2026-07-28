@@ -230,7 +230,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 100 resources. `PackagedResource` descriptions
+The allowlist currently contains 102 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -528,6 +528,16 @@ recompute content hashes, compare descriptor fields, block replacement
 writes, and reject unexpected managed triggers/indexes. Sensitive classes are
 rejected because this adapter does not encrypt at rest. See
 [the SQLite Semantic Gate artifact repository contract](protocols/sqlite-semantic-gate-artifact-v3.md).
+
+`PostgresSemanticGateArtifactV3Repository` provides the isolated PostgreSQL
+peer. One outer transaction composes the SemanticGateAttempt append with exact
+public/internal bytes and role bindings, so artifact conflicts also roll back
+new attempts. PostgreSQL independently recomputes byte SHA-256, checks every
+descriptor field, validates the complete security catalog, preserves caller
+transactions, supports concurrent exact replay, and provides a fail-closed
+`RESTRICT` rollback. Sensitive classes remain rejected because the adapter
+does not encrypt at rest. See
+[the PostgreSQL Semantic Gate artifact repository contract](protocols/postgres-semantic-gate-artifact-v3.md).
 
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
 ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
@@ -2287,6 +2297,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- postgres-v3-audit*.sql
 |   |-- postgres-v3-authorization*.sql
 |   |-- postgres-v3-semantic-gate*.sql
+|   |-- postgres-v3-semantic-gate-artifacts*.sql
 |   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
 |   |-- snapshot_v3_migration_*.schema.json

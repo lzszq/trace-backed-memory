@@ -486,6 +486,16 @@ from .postgres_semantic_gate_v3 import (
     PostgresSemanticGateV3SchemaError,
     PostgresSemanticGateV3StoreResult,
 )
+from .postgres_semantic_gate_artifact_v3 import (
+    POSTGRES_SEMANTIC_GATE_ARTIFACT_V3_SCHEMA_VERSION,
+    PostgresSemanticGateArtifactV3ConflictError,
+    PostgresSemanticGateArtifactV3Error,
+    PostgresSemanticGateArtifactV3NotFoundError,
+    PostgresSemanticGateArtifactV3PersistenceError,
+    PostgresSemanticGateArtifactV3Repository,
+    PostgresSemanticGateArtifactV3SchemaError,
+    PostgresSemanticGateArtifactV3StoreResult,
+)
 from .replay_v3 import (
     ARTIFACT_MAX_BYTES,
     INJECTION_ARTIFACT_MAX_BYTES,
@@ -534,6 +544,7 @@ from .semantic_gate_artifact_v3 import (
     SemanticGateArtifactBinding,
     SemanticGateArtifactContractError,
     SemanticGateArtifactRole,
+    StoredSemanticGateAttemptArtifacts,
     StoredSemanticGateArtifact,
     create_semantic_gate_artifact_binding,
     dumps_semantic_gate_artifact_binding,
@@ -628,7 +639,6 @@ from .sqlite_semantic_gate_artifact_v3 import (
     SQLiteSemanticGateArtifactV3Repository,
     SQLiteSemanticGateArtifactV3SchemaError,
     SQLiteSemanticGateArtifactV3StoreResult,
-    StoredSemanticGateAttemptArtifacts,
 )
 from .sqlite_v3 import (
     SQLITE_V3_MIGRATION_SCHEMA_VERSION,
@@ -969,6 +979,14 @@ __all__ = [
     "PostgresSemanticGateV3Repository",
     "PostgresSemanticGateV3SchemaError",
     "PostgresSemanticGateV3StoreResult",
+    "POSTGRES_SEMANTIC_GATE_ARTIFACT_V3_SCHEMA_VERSION",
+    "PostgresSemanticGateArtifactV3ConflictError",
+    "PostgresSemanticGateArtifactV3Error",
+    "PostgresSemanticGateArtifactV3NotFoundError",
+    "PostgresSemanticGateArtifactV3PersistenceError",
+    "PostgresSemanticGateArtifactV3Repository",
+    "PostgresSemanticGateArtifactV3SchemaError",
+    "PostgresSemanticGateArtifactV3StoreResult",
     "PostgresMemoryRepository",
     "PostgresPersistenceError",
     "PostgresSchemaError",

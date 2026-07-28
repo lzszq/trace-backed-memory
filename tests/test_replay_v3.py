@@ -483,6 +483,7 @@ def test_replay_json_round_trip_is_canonical_and_strict():
             created_at="2026-07-27T08:00:00+08:00",
         ),
     )
+    assert offset.artifact.created_at == NOW
     assert offset.to_dict()["rendered_at"] == NOW
 
 

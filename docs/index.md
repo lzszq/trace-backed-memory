@@ -32,6 +32,7 @@ orientation; these documents define the engineering contracts.
 - [System and Semantic Gate evaluation v3](protocols/gate-evaluation-v3.md)
 - [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md)
 - [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md)
+- [PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md)
 - [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.md)
 - [PostgreSQL Semantic Gate attempt ledger v3](protocols/postgres-semantic-gate-v3.md)
 - [Run outcome and attribution v3](protocols/outcome-v3.md)

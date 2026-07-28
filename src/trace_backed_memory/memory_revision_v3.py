@@ -465,6 +465,7 @@ def _parse_artifact(value: object) -> ContentAddressedArtifact:
         }
     )
     item = _strict_object(value, "content_artifact", fields)
+    _timestamp(item["created_at"], "content_artifact.created_at")
     try:
         artifact = ContentAddressedArtifact(
             artifact_id=cast(str, item["artifact_id"]),

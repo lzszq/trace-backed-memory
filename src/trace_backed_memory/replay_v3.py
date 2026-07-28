@@ -147,6 +147,11 @@ class ContentAddressedArtifact:
         ):
             _invalid("classification must be a supported data class")
         _timestamp(self.created_at, "created_at")
+        object.__setattr__(
+            self,
+            "created_at",
+            canonical_rfc3339(self.created_at),
+        )
         _optional_identifier(self.encryption_key_id, "encryption_key_id")
         _optional_identifier(
             self.redaction_policy_id,

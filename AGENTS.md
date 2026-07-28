@@ -61,6 +61,8 @@ Start with:
   exact public/internal prompt/response byte repository.
 - `postgres_semantic_gate_v3.py`: isolated PostgreSQL Semantic Gate attempt
   peer with row-lock serialization, catalog checks, and fail-closed rollback.
+- `postgres_semantic_gate_artifact_v3.py`: opt-in atomic PostgreSQL attempt
+  plus exact public/internal prompt/response byte repository.
 - `outcome_v3.py`: content-addressed RunOutcome and explicit association versus
   independently verified causal attribution contracts.
 - `audit_v3.py`: append-only AuditEvent chains and explicit RecoveryAction

@@ -138,6 +138,45 @@ class StoredSemanticGateArtifact:
             _invalid("content does not match the bound artifact descriptor")
 
 
+@dataclass(frozen=True)
+class StoredSemanticGateAttemptArtifacts:
+    """One attempt paired with its exact prompt and optional response bytes."""
+
+    attempt: SemanticGateAttempt
+    prompt: StoredSemanticGateArtifact
+    response: StoredSemanticGateArtifact | None
+
+    def __post_init__(self) -> None:
+        if type(self.attempt) is not SemanticGateAttempt:
+            _invalid("attempt must be exactly SemanticGateAttempt")
+        if type(self.prompt) is not StoredSemanticGateArtifact:
+            _invalid("prompt must be exactly StoredSemanticGateArtifact")
+        if (
+            self.response is not None
+            and type(self.response) is not StoredSemanticGateArtifact
+        ):
+            _invalid(
+                "response must be exactly StoredSemanticGateArtifact or null"
+            )
+        if not verify_semantic_gate_artifact_binding(
+            self.prompt.binding,
+            self.attempt,
+            self.prompt.content,
+        ):
+            _invalid("prompt does not match Semantic Gate attempt")
+        if self.attempt.status == "succeeded":
+            if self.response is None or not verify_semantic_gate_artifact_binding(
+                self.response.binding,
+                self.attempt,
+                self.response.content,
+            ):
+                _invalid(
+                    "succeeded attempt requires its exact response artifact"
+                )
+        elif self.response is not None:
+            _invalid("failed attempt forbids a response artifact")
+
+
 def create_semantic_gate_artifact_binding(
     attempt: SemanticGateAttempt,
     content: bytes,

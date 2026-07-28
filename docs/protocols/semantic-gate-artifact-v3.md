@@ -41,6 +41,8 @@ bytes, authenticate a provider, establish trusted server timestamps, verify
 encryption at rest, or transactionally append a Semantic Gate ledger row,
 GateSession revision, or replay manifest. The opt-in
 [SQLite repository](sqlite-semantic-gate-artifact-v3.md) now persists exact
-public/internal bytes atomically with their attempt; PostgreSQL parity and the
-authenticated provider invocation service remain follow-up work. Artifact
-hashes prove byte identity, not authorship or truth.
+public/internal bytes atomically with their attempt. The opt-in
+[PostgreSQL repository](postgres-semantic-gate-artifact-v3.md) now provides
+the same atomic exact-byte boundary with catalog-validated install/rollback.
+The authenticated provider invocation service remains follow-up work.
+Artifact hashes prove byte identity, not authorship or truth.

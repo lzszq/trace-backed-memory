@@ -56,6 +56,8 @@ encryption key. Artifact descriptor JSON never embeds the bytes.
 The repository does not authenticate providers, establish trusted timestamps,
 apply retention/access-control policy, append GateSession/replay records, or
 emit from the active Agent/MCP path. PostgreSQL parity and those service
-transactions remain follow-up work. SQLite file owners and administrators
+transactions are separate boundaries; PostgreSQL parity is now documented,
+while provider trust and active integration remain follow-up work. SQLite
+file owners and administrators
 with DDL authority remain trusted; external signed checkpoints are required
 to detect a complete offline rewrite.

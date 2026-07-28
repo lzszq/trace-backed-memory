@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 100 installed resource copies must remain byte-identical to the top-level
+The 102 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -176,7 +176,8 @@ replay, MemoryRevision, and entity-registry contract Schemas and examples, plus
 isolated SQLite GateSession/replay/audit/authorization/MemoryRevision ledgers
 and normalized entity-registry DDL, isolated PostgreSQL GateSession and
 entity-registry install/rollback, and isolated PostgreSQL
-replay/audit/authorization/MemoryRevision ledger install/fail-closed rollback.
+replay/audit/authorization/MemoryRevision/Semantic Gate attempt and artifact
+ledger install/fail-closed rollback.
 
 CLI resource reads emit deterministic JSON rather than unframed raw content.
 Export is the shell integration path. It must refuse an existing destination

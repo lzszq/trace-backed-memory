@@ -204,7 +204,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 100 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 102 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -363,6 +363,14 @@ savepoint；SQL guard 会重算内容 hash、比较 descriptor 字段、阻止 r
 write，并拒绝意外的受管 trigger/index。由于 adapter 不提供静态加密，它会拒绝
 敏感分类。详见
 [SQLite Semantic Gate artifact 仓库契约](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)。
+
+`PostgresSemanticGateArtifactV3Repository` 提供隔离 PostgreSQL 对等实现。一个
+外层 transaction 把 SemanticGateAttempt append、精确 public/internal 字节与
+角色 binding 原子组合，因此 artifact 冲突也会回滚新 attempt。PostgreSQL 会
+独立重算字节 SHA-256、核对每个 descriptor 字段、验证完整 security catalog、
+保留调用方 transaction、支持并发精确 replay，并提供 fail-closed `RESTRICT`
+rollback。由于 adapter 不提供静态加密，敏感分类仍会被拒绝。详见
+[PostgreSQL Semantic Gate artifact 仓库契约](protocols/postgres-semantic-gate-artifact-v3.zh-CN.md)。
 
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的
 opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS head
@@ -1148,6 +1156,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- postgres-v3-audit*.sql
 |   |-- postgres-v3-authorization*.sql
 |   |-- postgres-v3-semantic-gate*.sql
+|   |-- postgres-v3-semantic-gate-artifacts*.sql
 |   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
 |   |-- snapshot_v3_migration_*.schema.json

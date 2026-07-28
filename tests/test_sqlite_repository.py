@@ -185,7 +185,16 @@ def test_sqlite_schema_resource_and_public_docs_are_published():
         "docs/usage-policy.md",
         "docs/usage-policy.zh-CN.md",
     ):
-        document = (ROOT / relative_path).read_text(encoding="utf-8")
+        document_path = (
+            ROOT / "docs" / "reference.md"
+            if relative_path == "README.md"
+            else (
+                ROOT / "docs" / "reference.zh-CN.md"
+                if relative_path == "README.zh-CN.md"
+                else ROOT / relative_path
+            )
+        )
+        document = document_path.read_text(encoding="utf-8")
         assert "SQLiteMemoryRepository" in document
         assert "schemas/sqlite.sql" in document
 

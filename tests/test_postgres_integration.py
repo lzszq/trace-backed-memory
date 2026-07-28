@@ -349,7 +349,7 @@ def test_postgres_source_provenance_cannot_be_rebound_by_direct_sql(
 def test_postgres_cluster_meets_documented_version_floor(
     postgres_cluster: PostgresCluster,
 ):
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     documented_floor = re.search(r"PostgreSQL (\d+)\+", readme)
 
     assert documented_floor is not None

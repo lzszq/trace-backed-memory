@@ -8,6 +8,7 @@ orientation; these documents define the engineering contracts.
 ## Product and architecture
 
 - [Product definition and current capabilities](product.en.md)
+- [Detailed API and operations reference](reference.md)
 - [Reference architecture](architecture.md)
 - [Memory usage policy](usage-policy.md)
 - [Product delivery program](product-program.md)

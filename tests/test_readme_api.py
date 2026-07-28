@@ -39,7 +39,7 @@ from trace_backed_memory import (
 
 
 def test_readme_postgres_repository_example_stays_executable_without_a_database(monkeypatch):
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     match = re.search(
@@ -386,7 +386,7 @@ def test_readme_batch_memory_run_completion_workflow_stays_executable():
 
 
 def test_readme_benchmark_safe_workflow_stays_executable():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     match = re.search(
@@ -486,7 +486,7 @@ def test_readme_git_ancestry_workflow_stays_executable():
 
 
 def test_readme_pr_change_set_workflow_stays_executable():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     match = re.search(
@@ -683,7 +683,7 @@ def test_readme_implemented_public_api_pipeline_still_works(tmp_path):
 
 
 def test_readme_primary_pipeline_uses_captured_metadata_values():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
 
@@ -693,7 +693,7 @@ def test_readme_primary_pipeline_uses_captured_metadata_values():
 
 
 def test_readme_describes_postgres_load_return_type():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     contract = " ".join(readme.split())
@@ -764,7 +764,7 @@ def test_readme_additional_public_helpers_still_work():
 
 
 def test_readme_publishes_snapshot_operations_cli_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
 
@@ -799,7 +799,7 @@ def test_readme_publishes_snapshot_operations_cli_contract():
 
 
 def test_readme_publishes_deferred_outcome_cli_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())
@@ -821,7 +821,7 @@ def test_readme_publishes_deferred_outcome_cli_contract():
 
 
 def test_readme_publishes_active_lessons_cli_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())
@@ -845,7 +845,7 @@ def test_readme_publishes_active_lessons_cli_contract():
 
 
 def test_readme_publishes_memory_obsolescence_cli_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())
@@ -869,7 +869,7 @@ def test_readme_publishes_memory_obsolescence_cli_contract():
 
 
 def test_readme_publishes_atomic_batch_obsolescence_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())
@@ -893,7 +893,7 @@ def test_readme_publishes_atomic_batch_obsolescence_contract():
 
 
 def test_readme_publishes_measured_completion_cli_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())
@@ -915,7 +915,7 @@ def test_readme_publishes_measured_completion_cli_contract():
 
 
 def test_readme_publishes_batch_measured_completion_cli_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())
@@ -937,7 +937,7 @@ def test_readme_publishes_batch_measured_completion_cli_contract():
 
 
 def test_readme_publishes_and_executes_packaged_resource_contract(tmp_path):
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())
@@ -981,7 +981,7 @@ def test_readme_publishes_and_executes_packaged_resource_contract(tmp_path):
 
 
 def test_readme_publishes_callback_memory_run_execution_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())
@@ -1013,7 +1013,7 @@ def test_readme_publishes_callback_memory_run_execution_contract():
 
 
 def test_readme_publishes_atomic_lesson_yaml_persistence_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())
@@ -1033,7 +1033,7 @@ def test_readme_publishes_atomic_lesson_yaml_persistence_contract():
 
 
 def test_readme_publishes_bounded_local_document_ingestion_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())
@@ -1060,7 +1060,7 @@ def test_readme_publishes_bounded_local_document_ingestion_contract():
 
 
 def test_readme_publishes_pr_report_cli_contract():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(
+    readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"
     )
     normalized = " ".join(readme.split())

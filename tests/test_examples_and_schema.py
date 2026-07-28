@@ -57,7 +57,7 @@ def test_postgres_adapter_dependencies_are_optional():
 
 def test_public_product_document_and_mit_metadata_stay_aligned():
     product = _doc("product.md")
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     pyproject = tomllib.loads(
         (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     )
@@ -86,7 +86,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
     ]:
         assert contract in product
 
-    assert "[Product Overview and Current Capabilities](docs/product.en.md)" in readme
+    assert "[Product Overview and Current Capabilities](product.en.md)" in readme
     assert project["readme"] == "README.md"
     assert project["license"] == "MIT"
     assert project["license-files"] == ["LICENSE"]
@@ -113,7 +113,7 @@ def test_public_product_document_and_mit_metadata_stay_aligned():
 
 def test_current_docs_publish_postgres_v2_and_43_resource_contracts():
     current_english_documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.en.md": _doc("product.en.md"),
@@ -138,7 +138,7 @@ def test_current_docs_publish_postgres_v2_and_43_resource_contracts():
             for name, document in current_english_documents.items()
             if name != "docs/product-program.md"
         },
-        "README.zh-CN.md": (ROOT / "README.zh-CN.md").read_text(
+        "README.zh-CN.md": (ROOT / "docs" / "reference.zh-CN.md").read_text(
             encoding="utf-8"
         ),
         "docs/architecture.zh-CN.md": _doc("architecture.zh-CN.md"),
@@ -206,6 +206,32 @@ def test_readme_language_versions_stay_linked_and_structurally_aligned():
         for target in targets:
             assert f"]({target})" in document
             assert (ROOT / target).is_file()
+
+
+def test_readme_and_reference_local_links_resolve():
+    documents = (
+        ROOT / "README.md",
+        ROOT / "README.zh-CN.md",
+        ROOT / "docs" / "reference.md",
+        ROOT / "docs" / "reference.zh-CN.md",
+    )
+    for document in documents:
+        source = document.read_text(encoding="utf-8")
+        for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", source):
+            if (
+                target.startswith(("https://", "http://", "mailto:", "#"))
+                or " " in target
+            ):
+                continue
+            path = target.split("#", 1)[0]
+            assert (document.parent / path).resolve().exists(), (
+                f"{document.relative_to(ROOT)} has a broken link: {target}"
+            )
+
+    english = (ROOT / "README.md").read_text(encoding="utf-8")
+    chinese = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
+    assert "](docs/reference.md)" in english
+    assert "](docs/reference.zh-CN.md)" in chinese
 
 
 def test_product_and_reference_documents_are_localized_in_pairs():
@@ -314,7 +340,7 @@ def test_postgres_schema_publishes_adapter_version():
 def test_postgres_jsonpath_schema_publishes_supported_version_floor():
     schema = _postgres_schema()
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/product-program.md": _doc("product-program.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
@@ -331,7 +357,7 @@ def test_postgres_jsonpath_schema_publishes_supported_version_floor():
 
 
 def test_docs_publish_postgres_repository_operational_boundaries():
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     architecture = _doc("architecture.md")
     architecture_contract = " ".join(architecture.split())
     roadmap = _doc("product-program.md")
@@ -413,7 +439,7 @@ def test_docs_publish_postgres_repository_operational_boundaries():
 
 
 def test_docs_publish_pr_change_set_ephemeral_persistence_contract():
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     architecture = _doc("architecture.md")
     usage_policy = _doc("usage-policy.md")
     readme_contract = " ".join(readme.split())
@@ -441,7 +467,7 @@ def test_docs_publish_pr_change_set_ephemeral_persistence_contract():
 
 def test_docs_publish_exact_postgres_transaction_ownership_contract():
     documents = [
-        (ROOT / "README.md").read_text(encoding="utf-8"),
+        (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         _doc("architecture.md"),
         _doc("usage-policy.md"),
         _doc("superpowers/specs/2026-07-12-postgres-runtime-adapter-design.md"),
@@ -1332,7 +1358,7 @@ def test_docs_describe_shared_runtime_memory_id_namespace_and_usage_id_arrays_pr
 
 
 def test_docs_describe_memory_decision_consistency_contract():
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     architecture = _doc("architecture.md")
     usage_policy = _doc("usage-policy.md")
 
@@ -1395,7 +1421,7 @@ def test_memory_context_schema_requires_complete_input_hash_identity_pair():
 
 def test_docs_publish_benchmark_leakage_contract_and_persistence_boundaries():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1448,7 +1474,7 @@ def test_docs_publish_benchmark_leakage_contract_and_persistence_boundaries():
 
 def test_docs_publish_outcome_aware_metrics_and_ephemeral_boundary():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1486,7 +1512,7 @@ def test_docs_publish_outcome_aware_metrics_and_ephemeral_boundary():
 
 def test_docs_publish_per_memory_outcome_metrics_and_noncausal_boundary():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1531,7 +1557,7 @@ def test_docs_publish_per_memory_outcome_metrics_and_noncausal_boundary():
 
 def test_docs_publish_declared_trace_provenance_binding_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1569,7 +1595,7 @@ def test_docs_publish_declared_trace_provenance_binding_and_compatibility():
 
 def test_docs_publish_deferred_outcome_sealing_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1613,7 +1639,7 @@ def test_docs_publish_deferred_outcome_sealing_and_compatibility():
 
 def test_docs_publish_deferred_trace_completion_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1667,7 +1693,7 @@ def test_docs_publish_deferred_trace_completion_and_compatibility():
 
 def test_docs_publish_atomic_memory_run_completion_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1709,7 +1735,7 @@ def test_docs_publish_atomic_memory_run_completion_and_compatibility():
 
 def test_docs_publish_memory_run_audits_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1757,7 +1783,7 @@ def test_docs_publish_memory_run_audits_and_compatibility():
 
 def test_docs_publish_memory_run_recovery_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1804,7 +1830,7 @@ def test_docs_publish_memory_run_recovery_and_compatibility():
 
 def test_docs_publish_memory_run_metrics_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1851,7 +1877,7 @@ def test_docs_publish_memory_run_metrics_and_compatibility():
 
 def test_docs_publish_atomic_batch_memory_run_recovery_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1901,7 +1927,7 @@ def test_docs_publish_atomic_batch_memory_run_recovery_and_compatibility():
 
 def test_docs_publish_atomic_batch_memory_run_completion_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -1950,7 +1976,7 @@ def test_docs_publish_atomic_batch_memory_run_completion_and_compatibility():
 
 def test_docs_publish_memory_run_remediation_plan_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -2002,7 +2028,7 @@ def test_docs_publish_memory_run_remediation_plan_and_compatibility():
 
 def test_docs_publish_ready_memory_run_recovery_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -2049,7 +2075,7 @@ def test_docs_publish_ready_memory_run_recovery_and_compatibility():
 
 def test_docs_publish_snapshot_operations_cli_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -2109,7 +2135,7 @@ def test_docs_publish_snapshot_operations_cli_and_compatibility():
 
 def test_docs_publish_memory_run_execution_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -2156,7 +2182,7 @@ def test_docs_publish_memory_run_execution_and_compatibility():
 
 def test_docs_publish_packaged_resources_and_persistence_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -2197,7 +2223,7 @@ def test_docs_publish_packaged_resources_and_persistence_compatibility():
 
 def test_docs_publish_evidence_ingestion_integrity_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -2236,7 +2262,7 @@ def test_docs_publish_conservative_failure_extraction_accuracy():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2273,7 +2299,7 @@ def test_docs_publish_linear_snapshot_usage_log_validation():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2311,7 +2337,7 @@ def test_docs_publish_indexed_usage_log_operations():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2349,7 +2375,7 @@ def test_docs_publish_indexed_run_to_trace_lookup():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2388,7 +2414,7 @@ def test_docs_publish_referenced_live_memory_id_validation():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2426,7 +2452,7 @@ def test_docs_publish_single_pass_store_metrics():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2464,7 +2490,7 @@ def test_docs_publish_single_pass_memory_run_metrics():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2504,7 +2530,7 @@ def test_docs_publish_serialized_snapshot_cli_writes():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2546,7 +2572,7 @@ def test_docs_publish_active_only_lesson_imports():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2588,7 +2614,7 @@ def test_docs_publish_bounded_pr_change_sets():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2628,7 +2654,7 @@ def test_docs_publish_linear_legacy_pr_warnings():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2673,7 +2699,7 @@ def test_docs_publish_bounded_git_capture():
     )
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2716,7 +2742,7 @@ def test_docs_publish_durable_atomic_publish():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2755,7 +2781,7 @@ def test_docs_publish_bounded_semantic_top_k():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2794,7 +2820,7 @@ def test_docs_publish_public_snapshot_write_lock():
     from trace_backed_memory import packaged_resources, snapshot_write_lock
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2836,7 +2862,7 @@ def test_docs_publish_bounded_runtime_trace_json():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2884,7 +2910,7 @@ def test_docs_publish_postgres_loaded_row_payloads():
     from trace_backed_memory import packaged_resources, postgres
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2937,7 +2963,7 @@ def test_docs_publish_snapshot_lock_sidecar_safety():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -2990,7 +3016,7 @@ def test_docs_publish_git_metadata_output_validation():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -3041,7 +3067,7 @@ def test_docs_publish_explicit_failure_text_classification():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -3087,7 +3113,7 @@ def test_docs_publish_explicit_failure_text_classification():
 
 def test_docs_publish_measured_completion_cli_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -3128,7 +3154,7 @@ def test_docs_publish_measured_completion_cli_and_compatibility():
 
 def test_docs_publish_lesson_yaml_persistence_integrity_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -3166,7 +3192,7 @@ def test_docs_publish_lesson_yaml_persistence_integrity_and_compatibility():
 
 def test_docs_publish_batch_measured_completion_cli_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -3208,7 +3234,7 @@ def test_docs_publish_batch_measured_completion_cli_and_compatibility():
 
 def test_docs_publish_bounded_local_document_ingestion_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/product.md": _doc("product.md"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
@@ -3246,7 +3272,7 @@ def test_docs_publish_bounded_local_document_ingestion_and_compatibility():
 
 def test_docs_publish_pr_report_cli_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/product.md": _doc("product.md"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
@@ -3295,7 +3321,7 @@ def test_docs_publish_pr_report_cli_and_compatibility():
 
 def test_docs_publish_active_lessons_cli_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/product.md": _doc("product.md"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
@@ -3351,7 +3377,7 @@ def test_docs_publish_active_lessons_cli_and_compatibility():
 
 def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/product.md": _doc("product.md"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
@@ -3414,7 +3440,7 @@ def test_docs_publish_atomic_batch_obsolescence_and_compatibility():
 
 
 def test_docs_publish_required_postgres_and_windows_ci_coverage():
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    readme = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
     product = _doc("product.md")
     architecture = _doc("architecture.md")
     usage_policy = _doc("usage-policy.md")
@@ -3453,7 +3479,7 @@ def test_docs_publish_required_postgres_and_windows_ci_coverage():
 
 def test_docs_publish_deferred_outcome_cli_and_compatibility():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -3507,7 +3533,7 @@ def test_docs_publish_deferred_outcome_cli_and_compatibility():
 
 def test_docs_publish_postgres_consistency_hardening_without_schema_change():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -3563,7 +3589,7 @@ def test_docs_publish_postgres_consistency_hardening_without_schema_change():
 
 def test_docs_publish_postgres_bounded_load_before_materialization():
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -3613,7 +3639,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
     )
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -3668,7 +3694,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -3733,7 +3759,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -3784,7 +3810,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -3849,7 +3875,7 @@ def test_docs_publish_recover_attribution_final_delimiter():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -3904,7 +3930,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -3990,7 +4016,7 @@ def test_docs_publish_public_project_policy_obsolescence_export():
     from trace_backed_memory import lifecycle, packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/product.md": _doc("product.md"),
         "docs/product-program.md": _doc("product-program.md"),
@@ -4025,7 +4051,7 @@ def test_docs_publish_postgres_compatible_trace_latency_range():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -4103,7 +4129,7 @@ def test_docs_publish_postgres_bounded_load_payloads():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),
@@ -4161,7 +4187,7 @@ def test_docs_publish_portable_nonblank_persisted_strings():
     from trace_backed_memory import packaged_resources
 
     documents = {
-        "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "README.md": (ROOT / "docs" / "reference.md").read_text(encoding="utf-8"),
         "docs/architecture.md": _doc("architecture.md"),
         "docs/usage-policy.md": _doc("usage-policy.md"),
         "docs/product.md": _doc("product.md"),

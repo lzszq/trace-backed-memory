@@ -7,6 +7,7 @@
 ## 产品与架构
 
 - [产品定义与当前能力](product.md)
+- [详细 API 与运维参考](reference.zh-CN.md)
 - [参考架构](architecture.zh-CN.md)
 - [记忆使用策略](usage-policy.zh-CN.md)
 - [产品交付计划](product-program.zh-CN.md)

@@ -204,7 +204,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 97 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 99 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -348,6 +348,14 @@ prompt/response 内容。跨记录核验要求精确 snapshot 覆盖，并强制
 System Gate 结果；失败调用仍是 immutable、仅 provenance 的 attempt。active
 Store/Agent/MCP 尚不产生这些记录。详见
 [门禁评估契约](protocols/gate-evaluation-v3.zh-CN.md)。
+
+`SemanticGateArtifactBinding` 把一段精确非空 prompt 或 response 字节连接到
+匹配的 `SemanticGateAttempt` 角色与 digest。它复用通用
+`ContentAddressedArtifact` 描述符，保留 classification、encryption-key 与
+redaction 元数据，执行 Gate prompt/response 字节上限，拒绝失败 attempt 的
+response，并提供不嵌入原始字节的严格有界 JSON。它不是字节仓库或 provider
+认证边界。详见
+[Semantic Gate artifact 绑定契约](protocols/semantic-gate-artifact-v3.zh-CN.md)。
 
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的
 opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS head
@@ -996,7 +1004,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、97 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、99 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -1107,6 +1115,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- memory_revision_v3.example.json
 |   |-- retrieval_snapshot_v3.example.json
 |   |-- recovery_action_v3.example.json
+|   |-- semantic_gate_artifact_v3.example.json
 |   |-- semantic_gate_attempt_v3.example.json
 |   |-- system_gate_evaluation_v3.example.json
 |   |-- project_policy.example.json
@@ -1152,6 +1161,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- memory_revision_v3.schema.json
 |   |-- retrieval_snapshot_v3.schema.json
 |   |-- recovery_action_v3.schema.json
+|   |-- semantic_gate_artifact_v3.schema.json
 |   |-- semantic_gate_attempt_v3.schema.json
 |   |-- system_gate_evaluation_v3.schema.json
 |   `-- memory_decision.schema.json

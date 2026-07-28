@@ -14,6 +14,7 @@
 | Immutable MemoryRevision v3 | `memory_revision_v3.py` | revision Schema/example, lineage/artifact/evidence rejection tests, protocol docs |
 | Replayable retrieval v3 | `retrieval_v3.py` | snapshot Schema/example, rank/hash/version/truncation rejection tests, protocol docs |
 | Gate evaluation v3 | `gate_evaluation_v3.py` | System/Semantic Gate Schemas/examples, monotonicity/provenance/retry-shape tests, protocol docs |
+| Semantic Gate artifact v3 | `semantic_gate_artifact_v3.py` | exact prompt/response byte binding, classification/encryption metadata, strict JSON/schema/example tests, protocol docs |
 | SQLite Semantic Gate v3 ledger | `sqlite_semantic_gate_v3.py`, `schemas/sqlite-v3-semantic-gate.sql` | Gate evidence linkage, linear head CAS, exact replay, schema-drift/savepoint/concurrency tests, protocol docs |
 | PostgreSQL Semantic Gate v3 ledger | `postgres_semantic_gate_v3.py`, `schemas/postgres-v3-semantic-gate*.sql` | row-lock linearization, deferred chain consistency, exact catalog/rollback/savepoint/concurrency tests, protocol docs |
 | Run outcome and attribution v3 | `outcome_v3.py` | outcome/attribution Schemas/examples, completed-session linkage and causal-boundary tests, protocol docs |

@@ -595,6 +595,12 @@
   fingerprint、调用方 savepoint、并发精确 replay/fork conformance，以及
   fail-closed `RESTRICT` rollback。artifact 字节、provider 认证、
   GateSession/replay 事务挂接与 active adapter emission 仍待完成。
+- 发布存储中立的 `tbm.semantic-gate-artifact.v3` 绑定：把精确非空
+  prompt/response 字节连接到一条 SemanticGateAttempt 的对应角色与 digest，保留
+  classification/encryption/redaction 元数据，执行 prompt/response 字节上限，拒绝
+  为失败 attempt 绑定 response，并提供有界、拒绝重复键的 JSON 以及规范
+  Schema/example 资源。字节仓库、provider 认证、可信时间戳、GateSession/replay
+  事务与 active emission 仍待完成。
 - 发布内容寻址 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
   契约，把 completed GateSession 绑定到显式 evaluator evidence，并严格区分
   观察关联与独立核验的因果结论。durable persistence 与 active service 接入仍

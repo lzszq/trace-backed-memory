@@ -230,7 +230,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 97 resources. `PackagedResource` descriptions
+The allowlist currently contains 99 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -511,6 +511,15 @@ enforces the permanent rule that a model may only narrow System Gate results.
 Failed calls remain immutable provenance-only attempts. Active Store/Agent/MCP
 paths do not emit these records yet. See
 [the gate evaluation contract](protocols/gate-evaluation-v3.md).
+
+`SemanticGateArtifactBinding` joins one exact non-empty prompt or response
+byte sequence to the matching `SemanticGateAttempt` role and digest. It reuses
+the generic `ContentAddressedArtifact` descriptor, retains classification,
+encryption-key and redaction metadata, applies the Gate prompt/response byte
+limits, rejects responses for failed attempts, and provides strict bounded
+JSON without embedding the bytes. It is not a byte repository or provider
+authentication boundary. See
+[the Semantic Gate artifact binding contract](protocols/semantic-gate-artifact-v3.md).
 
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
 ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
@@ -2118,7 +2127,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 97 canonical Schemas, examples, and memory
+  explicit atomic export for all 99 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2244,6 +2253,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- memory_revision_v3.example.json
 |   |-- retrieval_snapshot_v3.example.json
 |   |-- recovery_action_v3.example.json
+|   |-- semantic_gate_artifact_v3.example.json
 |   |-- semantic_gate_attempt_v3.example.json
 |   |-- system_gate_evaluation_v3.example.json
 |   |-- project_policy.example.json
@@ -2289,6 +2299,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- memory_revision_v3.schema.json
 |   |-- retrieval_snapshot_v3.schema.json
 |   |-- recovery_action_v3.schema.json
+|   |-- semantic_gate_artifact_v3.schema.json
 |   |-- semantic_gate_attempt_v3.schema.json
 |   |-- system_gate_evaluation_v3.schema.json
 |   `-- memory_decision.schema.json

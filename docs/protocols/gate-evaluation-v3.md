@@ -35,15 +35,18 @@ but can never reopen it.
 
 ## Trust and persistence boundary
 
-The contracts do not call a model, authenticate the provider, validate artifact
-bytes, or attach themselves transactionally to GateSession. The opt-in
+The evaluation contracts do not call a model, authenticate the provider, or
+attach themselves transactionally to GateSession. The storage-neutral
+[Semantic Gate artifact binding](semantic-gate-artifact-v3.md) now verifies
+that exact prompt/response bytes match the role-specific attempt digests, but
+does not persist those bytes. The opt-in
 [SQLite Semantic Gate attempt ledger](sqlite-semantic-gate-v3.md) now persists
 an exact ordered retry chain beside the SQLite Gate evidence authority. A
 complete service must still:
 
 - authorize and validate the RetrievalSnapshot/System Gate references;
-- store prompt/response artifacts under classification, encryption, retention,
-  and access-control policy;
+- persist verified prompt/response artifacts under classification,
+  encryption, retention, and access-control policy;
 - verify provider identity and trusted server timestamps;
 - enforce one linear sequence per System Gate authority. The SQLite ledger
   does this with a unique `(system_gate_evaluation_id, sequence)` key and CAS

@@ -1395,6 +1395,14 @@ Track:
   concurrent exact replay/fork conformance, and fail-closed `RESTRICT`
   rollback. Keep artifact bytes, provider authentication, GateSession/replay
   transaction linkage, and active adapter emission outstanding.
+- Publish storage-neutral `tbm.semantic-gate-artifact.v3` bindings that join
+  exact non-empty prompt/response bytes to one SemanticGateAttempt role and
+  digest, retain classification/encryption/redaction metadata, enforce the
+  prompt and response byte limits, reject response artifacts for failed
+  attempts, and provide bounded duplicate-key-rejecting JSON plus canonical
+  Schema/example resources. Keep byte repositories, provider authentication,
+  trusted timestamps, GateSession/replay transactions, and active emission
+  outstanding.
 - Publish content-addressed `tbm.run-outcome.v3` and
   `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
   explicit evaluator evidence while keeping observed association separate

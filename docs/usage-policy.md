@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 97 installed resource copies must remain byte-identical to the top-level
+The 99 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1252,8 +1252,12 @@ The opt-in SQLite Semantic Gate ledger may persist this retry chain only after
 reloading and verifying the exact RetrievalSnapshot/SystemGateEvaluation
 pair. It must enforce one bounded linear head, reject forks and direct
 replacement writes, preserve caller transactions with savepoints, and
-revalidate the complete chain on every read. Ledger presence does not
-authenticate a provider, validate artifact bytes, or authorize finalization;
+revalidate the complete chain on every read. Before persistence, use
+`SemanticGateArtifactBinding` to verify exact non-empty prompt/response bytes,
+the attempt role and digest, size, classification, and required encryption
+metadata. Do not log or embed those bytes in descriptor JSON. Binding presence
+does not authenticate a provider, prove encryption at rest, or authorize
+finalization;
 active Agent/MCP integration remains separate work. The isolated PostgreSQL
 peer must preserve the same chain rules through parent-before-head row locks,
 exact CAS, deferred commit checks, caller savepoints, and fail-closed catalog

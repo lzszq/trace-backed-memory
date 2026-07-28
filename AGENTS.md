@@ -53,6 +53,8 @@ Start with:
   contracts for explainable replay; ranking evidence is never authorization.
 - `gate_evaluation_v3.py`: immutable deterministic System Gate and monotonic
   Semantic Gate attempt provenance; models can only narrow.
+- `semantic_gate_artifact_v3.py`: storage-neutral exact prompt/response byte
+  bindings for Semantic Gate attempts; not an artifact repository.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
 - `postgres_semantic_gate_v3.py`: isolated PostgreSQL Semantic Gate attempt

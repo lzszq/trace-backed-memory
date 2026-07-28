@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 97 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 99 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1149,7 +1149,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 97 resources.
+contains 99 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1603,8 +1603,12 @@ side-by-side ledger. `postgres_semantic_gate_v3.py` provides the isolated
 PostgreSQL peer with active-v2 install gating, row-lock serialization,
 deferred chain consistency, exact security-catalog validation, caller
 savepoints, and fail-closed `RESTRICT` rollback. Both remain outside active
-Agent/MCP emission; prompt/response artifact validation and GateSession
+Agent/MCP emission. `semantic_gate_artifact_v3.py` now binds exact non-empty
+prompt/response bytes, content-derived IDs, classifications, and encryption
+metadata to each attempt role without embedding the bytes in JSON. Durable
+artifact repositories, provider authentication/trusted time, and GateSession
 transaction linkage are not yet provided. See
+[Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md),
 [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.md)
 and
 [PostgreSQL Semantic Gate attempt ledger v3](protocols/postgres-semantic-gate-v3.md).

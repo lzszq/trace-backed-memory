@@ -116,6 +116,11 @@ _RESOURCE_SPECS: tuple[
     ),
     ("examples/run_outcome_v3.example.json", "example", "application/json"),
     (
+        "examples/semantic_gate_artifact_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/semantic_gate_attempt_v3.example.json",
         "example",
         "application/json",
@@ -335,6 +340,11 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/run_outcome_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/semantic_gate_artifact_v3.schema.json",
         "schema",
         "application/schema+json",
     ),

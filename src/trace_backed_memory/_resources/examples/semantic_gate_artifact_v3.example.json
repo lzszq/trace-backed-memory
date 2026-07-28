@@ -1,0 +1,16 @@
+{
+  "artifact": {
+    "artifact_id": "artifact_sha256_5555555555555555555555555555555555555555555555555555555555555555",
+    "classification": "internal",
+    "content_sha256": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+    "created_at": "2026-07-27T08:02:00Z",
+    "encryption_key_id": null,
+    "media_type": "text/plain; charset=utf-8",
+    "redaction_policy_id": null,
+    "size_bytes": 33
+  },
+  "artifact_kind": "semantic_gate",
+  "artifact_role": "prompt",
+  "attempt_id": "semantic_attempt_sha256_3d6dc1c63badedcc600e43c565e39e1a9af77711a37e74c5beb0ddbbe51b70ba",
+  "contract_version": "tbm.semantic-gate-artifact.v3"
+}

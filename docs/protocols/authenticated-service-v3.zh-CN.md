@@ -34,8 +34,19 @@ persistence、clock、request factory 与 retrieval callback failure。
 
 ## 当前集成边界
 
-该边界是可复用 kernel module，尚未接入 `LocalAgentMemory`、`tbm-mcp`、CLI、
-HTTP 或 SDK。transport 仍需 authenticator 派生精确 service context，不得从请求
-JSON 接受 identity ID。Durable GateSession、RetrievalSnapshot、audit actor
-linkage、expiry/recovery worker 与原子的跨记录 service transaction 仍是独立后续
-交付。
+`AuthenticatedLocalAgentMemory` 是可选启用的本地应用集成。它包装一个精确的
+`LocalAgentMemory` 实例，并让 `prepare` 先经过此授权边界。
+`AuthenticatedAgentPrepareContext` 有意不提供 principal、client、tenant、
+repository 或 environment 字段。调用方传入的 Trace 仍有旧版 `repo`/`tenant`
+字段，但该门面会忽略并覆盖两者。授权通过后，门面把
+`AuthorizedRetrievalScope` 中的 canonical tenant/repository 同时绑定到 Trace 与
+`MemoryContext`；拒绝或授权持久化失败发生在注册 Trace 之前。私有 ownership
+索引把 request/decision handle 绑定到执行 prepare 的门面；即使两个鉴权门面共享
+runtime，另一个门面也不能 finalize、complete 或 cancel。这些索引仍是进程内状态，
+不是 durable session。
+
+该可选门面不负责 transport authentication，`tbm-mcp`、CLI、HTTP 与 SDK 也尚未
+选择它。可信 bootstrap 代码仍必须派生固定的 `AuthenticatedServiceContext`，请求
+JSON 不得提供其中的 identity ID。Durable GateSession、RetrievalSnapshot、audit
+actor linkage、expiry/recovery worker 与原子的跨记录 service transaction 仍是独立
+后续交付。

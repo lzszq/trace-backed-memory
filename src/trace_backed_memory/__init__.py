@@ -14,6 +14,10 @@ from .agent import (
     agent_capabilities,
     capture_local_trace,
 )
+from .authenticated_agent_v3 import (
+    AuthenticatedAgentPrepareContext,
+    AuthenticatedLocalAgentMemory,
+)
 from .capture import (
     COMMIT_ANCESTRY_MAX_ANCHORS,
     CommitAncestryCaptureError,
@@ -621,6 +625,8 @@ __all__ = [
     "AgentMemoryError",
     "AgentPreparedMemory",
     "AgentRunResult",
+    "AuthenticatedAgentPrepareContext",
+    "AuthenticatedLocalAgentMemory",
     "AUTHORIZATION_DECISION_VERSION",
     "AUTHORIZATION_JSON_MAX_BYTES",
     "AUTHORIZATION_JSON_MAX_DEPTH",

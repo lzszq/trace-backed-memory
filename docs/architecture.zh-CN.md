@@ -412,8 +412,13 @@ orchestrator。可信 transport 代码提供精确 Principal/AgentClient record 
 的 tenant、repository、environment context。orchestrator 会求值并持久化授权、读回
 完全相同的 decision、重新加载完整 registry 以检测 policy/entity 轮换、对 canonical
 target 校验 active environment，之后才调用 retrieval。deny、持久化失败、drift 与
-callback failure 都使用清洗后的稳定错误 fail closed。这是共享 kernel 边界，不是
-transport authentication，也尚未接入 active Agent/MCP/HTTP/SDK。详见
+callback failure 都使用清洗后的稳定错误 fail closed。
+`authenticated_agent_v3.py` 提供可选启用的 active 本地 Agent 门面：调用方输入不含
+identity 或 target 字段，旧版 Trace 的 tenant/repository 值会被覆盖，授权在 Trace
+注册前完成，并以 canonical authorized tenant/repository 同时绑定 Trace 与
+retrieval context。进程内 ownership 索引阻止一个门面使用另一个门面的 lifecycle
+handle。它不是 transport authentication，MCP、CLI、HTTP 与 SDK adapter 也尚未选择
+它。详见
 [认证 retrieval service 边界](protocols/authenticated-service-v3.zh-CN.md)。
 
 `gate_service_v3.py` 把该边界与任一 GateSession authority 组合起来。它在

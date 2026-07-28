@@ -1553,9 +1553,14 @@ environment context. The orchestrator evaluates and persists authorization,
 reads the exact decision back, reloads the complete registry to detect policy
 or entity rotation, validates the active environment against the canonical
 target, and only then calls retrieval. Denial, persistence failure, drift, and
-callback failure are fail-closed with sanitized stable errors. This is a
-shared kernel boundary, not transport authentication or an active
-Agent/MCP/HTTP/SDK integration. See
+callback failure are fail-closed with sanitized stable errors.
+`authenticated_agent_v3.py` provides an opt-in active local-agent facade:
+the prepare context contains no identity or target fields, legacy Trace
+tenant/repository values are overwritten, authorization completes before
+Trace registration, and the canonical authorized tenant/repository bind both
+Trace and retrieval context. Process-local ownership indexes prevent one
+facade from using another facade's lifecycle handles. It is not transport
+authentication and is not yet selected by MCP, CLI, HTTP, or SDK adapters. See
 [Authenticated retrieval service boundary](protocols/authenticated-service-v3.md).
 
 `gate_service_v3.py` composes that boundary with either GateSession authority.

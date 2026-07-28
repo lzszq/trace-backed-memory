@@ -40,9 +40,22 @@ callback failures.
 
 ## Current integration boundary
 
-The boundary is a reusable kernel module; it is not yet wired into
-`LocalAgentMemory`, `tbm-mcp`, CLI, HTTP, or an SDK. The transport still needs
-an authenticator that derives the exact service context instead of accepting
-identity IDs from request JSON. Durable GateSession, RetrievalSnapshot, audit
-actor linkage, expiry/recovery workers, and one atomic cross-record service
-transaction remain separate delivery steps.
+`AuthenticatedLocalAgentMemory` is the opt-in local application integration.
+It wraps one exact `LocalAgentMemory` instance and runs `prepare` through this
+authorization boundary. Its `AuthenticatedAgentPrepareContext` intentionally
+has no principal, client, tenant, repository, or environment fields. The
+caller-facing Trace still has legacy `repo` and `tenant` fields, but this
+facade ignores and overwrites both. After authorization, it binds the
+canonical tenant and repository from `AuthorizedRetrievalScope` into both the
+Trace and `MemoryContext`; denial or authorization-persistence failure occurs
+before the Trace is registered. Private ownership indexes bind request and
+decision handles to the facade that prepared them, so another authenticated
+facade cannot finalize, complete, or cancel them even if both facades share a
+runtime. These indexes remain process-local and are not durable sessions.
+
+This opt-in facade does not authenticate a transport and is not yet selected
+by `tbm-mcp`, CLI, HTTP, or an SDK. Trusted bootstrap code must still derive
+the fixed `AuthenticatedServiceContext`; request JSON must never supply its
+identity IDs. Durable GateSession, RetrievalSnapshot, audit actor linkage,
+expiry/recovery workers, and one atomic cross-record service transaction
+remain separate delivery steps.

@@ -1432,8 +1432,11 @@ Track:
   only trusted Principal/AgentClient records and server-owned target context,
   evaluates and persists the exact allow/deny decision, reads it back,
   rechecks complete registry rotation and environment binding, and invokes
-  retrieval only after every check passes. Keep transport authentication and
-  active Agent/MCP/HTTP/SDK integration outstanding.
+  retrieval only after every check passes. Add an opt-in
+  `AuthenticatedLocalAgentMemory` facade that authorizes before Trace
+  registration and binds canonical server-owned tenant/repository identities.
+  Keep transport authentication and active MCP/CLI/HTTP/SDK integration
+  outstanding.
 - Compose authorization with SQLite/PostgreSQL GateSession authorities through
   `AuthenticatedGateSessionService`: durably create/read back the scoped
   session before preparation, suppress idempotent duplicate retrieval, require
@@ -1460,8 +1463,8 @@ Track:
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
 - Wire transport-authenticated service-owned identities and the published
-  pre-retrieval authorization kernel into active Agent/MCP/HTTP/SDK adapters
-  so scope becomes an enforceable runtime boundary.
+  pre-retrieval authorization kernel into active MCP/CLI/HTTP/SDK adapters so
+  scope becomes an enforceable transport boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
 - Integrate the published retriever/index snapshot and record gate

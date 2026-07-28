@@ -113,6 +113,8 @@ trace_backed_memory = [
     "_resources/schemas/postgres-v3-authorization.sql",
     "_resources/schemas/postgres-v3-entity-registry-rollback.sql",
     "_resources/schemas/postgres-v3-entity-registry.sql",
+    "_resources/schemas/postgres-v3-gate-evidence-rollback.sql",
+    "_resources/schemas/postgres-v3-gate-evidence.sql",
     "_resources/schemas/postgres-v3-gate-session-rollback.sql",
     "_resources/schemas/postgres-v3-gate-session.sql",
     "_resources/schemas/postgres-v3-replay-rollback.sql",

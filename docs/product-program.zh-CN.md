@@ -640,8 +640,11 @@
 - 增加 opt-in、immutable SQLite RetrievalSnapshot/SystemGateEvaluation
   authority 与 storage-neutral durable evidence verifier：原子保存每个精确记录对，
   通过 recursive trigger 阻止 replacement-delete 绕过，并把 PREPARED evidence
-  绑定到已授权 session、Trace、run 与 identity scope。PostgreSQL 对等实现和 active
-  adapter emission 仍待完成。
+  绑定到已授权 session、Trace、run 与 identity scope。
+- 增加 immutable RetrievalSnapshot/SystemGateEvaluation evidence 的 PostgreSQL
+  对等实现：提供 active-v2 安装门禁、精确 descriptor 读回、并发幂等重放、完整安全
+  catalog fingerprint、不可变 DML/TRUNCATE guard、调用方 savepoint 与 fail-closed
+  `RESTRICT` rollback。active adapter emission 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 把 transport-authenticated 服务端 identity 与已发布的 retrieval 前授权 kernel

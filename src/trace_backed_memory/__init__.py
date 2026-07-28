@@ -402,6 +402,17 @@ from .postgres_entity_registry_v3 import (
     PostgresEntityRegistryV3Repository,
     PostgresEntityRegistryV3SchemaError,
 )
+from .postgres_gate_evidence_v3 import (
+    POSTGRES_GATE_EVIDENCE_V3_CONTRACT_VERSION,
+    POSTGRES_GATE_EVIDENCE_V3_SCHEMA_VERSION,
+    PostgresGateEvidenceV3ConflictError,
+    PostgresGateEvidenceV3Error,
+    PostgresGateEvidenceV3NotFoundError,
+    PostgresGateEvidenceV3PersistenceError,
+    PostgresGateEvidenceV3Repository,
+    PostgresGateEvidenceV3SchemaError,
+    PostgresGateEvidenceV3StoreResult,
+)
 from .postgres_gate_session_v3 import (
     POSTGRES_GATE_SESSION_SCHEMA_VERSION,
     PostgresGateSessionConflictError,
@@ -803,6 +814,15 @@ __all__ = [
     "PostgresAuthorizationV3PersistenceError",
     "PostgresAuthorizationV3Repository",
     "PostgresAuthorizationV3SchemaError",
+    "POSTGRES_GATE_EVIDENCE_V3_CONTRACT_VERSION",
+    "POSTGRES_GATE_EVIDENCE_V3_SCHEMA_VERSION",
+    "PostgresGateEvidenceV3ConflictError",
+    "PostgresGateEvidenceV3Error",
+    "PostgresGateEvidenceV3NotFoundError",
+    "PostgresGateEvidenceV3PersistenceError",
+    "PostgresGateEvidenceV3Repository",
+    "PostgresGateEvidenceV3SchemaError",
+    "PostgresGateEvidenceV3StoreResult",
     "POSTGRES_GATE_SESSION_SCHEMA_VERSION",
     "PostgresGateSessionConflictError",
     "PostgresGateSessionCreateResult",

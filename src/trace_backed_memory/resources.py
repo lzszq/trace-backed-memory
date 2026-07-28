@@ -256,6 +256,16 @@ _RESOURCE_SPECS: tuple[
         "application/sql",
     ),
     (
+        "schemas/postgres-v3-gate-evidence-rollback.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres-v3-gate-evidence.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
         "schemas/postgres-v3-gate-session-rollback.sql",
         "schema",
         "application/sql",

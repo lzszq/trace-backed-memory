@@ -1,4 +1,4 @@
-# SQLite Gate Evidence v3
+# SQLite 与 PostgreSQL Gate Evidence v3
 
 这个 opt-in、side-by-side authority 会持久化一个 GateSession preparation
 实际使用的精确 `RetrievalSnapshot` 与 `SystemGateEvaluation` 对。它不会替代
@@ -15,6 +15,14 @@ transaction 中保存两份 canonical JSON descriptor。完全相同的记录可
 canonical schema 会启用 foreign key 与 recursive trigger。因此 immutable
 update/delete trigger 也会拒绝 `INSERT OR REPLACE` 触发的替换删除。
 repository 每次读写前都会核验 schema metadata 与全部具名 schema definition。
+
+`PostgresGateEvidenceV3Repository` 在隔离的
+`trace_backed_memory_v3_gate_evidence` schema 中提供相同的精确记录对契约。
+安装受 active PostgreSQL schema version 2 门禁；每次操作都会锁定两份 schema
+metadata，拒绝 catalog、ACL、RLS、policy、rule、relation-kind、function 或 trigger
+drift，并在 `ON CONFLICT DO NOTHING` 后读回 canonical descriptor。并发写入完全相同
+的记录时保持幂等；同一 snapshot 对应不同 evaluation 时整个 transaction 原子冲突。
+配套 rollback 会锁定 authority、校验安全 catalog，并使用 `RESTRICT`。
 
 ## PREPARED 桥接
 
@@ -33,5 +41,6 @@ atomic transaction；service compensation 与 recovery 语义仍然适用。
 
 ## 当前边界
 
-本版本只提供 SQLite storage。PostgreSQL 对等实现、实际产生这些记录的 active
-retriever，以及 Agent/MCP/HTTP/SDK 集成仍是后续工作。
+本版本提供 SQLite 与 PostgreSQL authority。实际产生这些记录的 active retriever
+以及 Agent/MCP/HTTP/SDK 集成仍是后续工作。PostgreSQL owner 与 superuser 属于
+数据库管理信任边界；runtime role 不得拥有或修改该 schema。

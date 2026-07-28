@@ -1450,8 +1450,12 @@ Track:
   authority and a storage-neutral durable evidence verifier. Store each exact
   pair atomically, prevent replacement-delete bypasses with recursive
   triggers, and bind PREPARED evidence to the authorized session, Trace, run,
-  and identity scope. Keep PostgreSQL parity and active adapter emission
-  outstanding.
+  and identity scope.
+- Add PostgreSQL parity for immutable RetrievalSnapshot/SystemGateEvaluation
+  evidence with active-v2 install gating, exact descriptor read-back,
+  concurrent idempotent replay, complete security-catalog fingerprinting,
+  immutable DML/TRUNCATE guards, caller savepoints, and fail-closed
+  `RESTRICT` rollback. Keep active adapter emission outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

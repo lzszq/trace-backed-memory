@@ -1,4 +1,4 @@
-# SQLite Gate Evidence v3
+# SQLite and PostgreSQL Gate Evidence v3
 
 This opt-in, side-by-side authority durably stores the exact
 `RetrievalSnapshot` and `SystemGateEvaluation` pair used to prepare one
@@ -18,6 +18,15 @@ update/delete triggers therefore also reject `INSERT OR REPLACE` replacement
 deletes. Repository operations validate schema metadata and every named schema
 definition before reading or writing.
 
+`PostgresGateEvidenceV3Repository` provides the same exact-pair contract in
+the isolated `trace_backed_memory_v3_gate_evidence` schema. Installation is
+gated on active PostgreSQL schema version 2. Every operation locks both schema
+metadata rows, rejects catalog, ACL, RLS, policy, rule, relation-kind,
+function, or trigger drift, and reloads the canonical descriptor after
+`ON CONFLICT DO NOTHING`. Concurrent exact writes are idempotent; a different
+evaluation for the same snapshot conflicts atomically. The companion rollback
+locks the authority, validates its security catalog, and uses `RESTRICT`.
+
 ## PREPARED bridge
 
 `DurablePreparedGateEvidenceVerifier` is the standard storage-neutral verifier
@@ -36,6 +45,7 @@ and recovery semantics still apply.
 
 ## Current boundary
 
-This release provides SQLite storage only. PostgreSQL parity, an active
-retriever that emits these records, and Agent/MCP/HTTP/SDK integration remain
-future work.
+This release provides SQLite and PostgreSQL authorities. An active retriever
+that emits these records and Agent/MCP/HTTP/SDK integration remain future
+work. PostgreSQL owner and superuser roles remain inside the database
+administration trust boundary; runtime roles must not own or alter the schema.

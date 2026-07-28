@@ -1568,14 +1568,16 @@ required. It does not persist a Store token and does not claim an atomic
 cross-authority transaction. See
 [Authenticated durable Gate preparation](protocols/authenticated-gate-service-v3.md).
 
-`sqlite_gate_evidence_v3.py` supplies the first immutable evidence authority
-behind that verifier. It atomically stores one exact RetrievalSnapshot/System
-Gate pair, rejects replacement writes through recursive immutable triggers,
-and reads both records back before the storage-neutral verifier binds them to
-the authorized session, Trace, run, and identity scope. The evidence write and
-GateSession transition remain ordered compensation across authorities, not one
-atomic transaction. See
-[SQLite Gate evidence v3](protocols/sqlite-gate-evidence-v3.md).
+`sqlite_gate_evidence_v3.py` and `postgres_gate_evidence_v3.py` supply
+immutable evidence authorities behind that verifier. Each atomically stores
+one exact RetrievalSnapshot/System Gate pair and reads both records back
+before the storage-neutral verifier binds them to the authorized session,
+Trace, run, and identity scope. SQLite rejects replacement writes through
+recursive immutable triggers. PostgreSQL adds active-v2 install gating,
+complete security-catalog fingerprinting, concurrent exact replay, and a
+fail-closed `RESTRICT` rollback. The evidence write and GateSession transition
+remain ordered compensation across authorities, not one atomic transaction.
+See [SQLite and PostgreSQL Gate evidence v3](protocols/sqlite-gate-evidence-v3.md).
 
 `gate_worker_v3.py` adds the first bounded recovery worker over both
 GateSession authorities. It prevalidates the unlocked due page, expires only

@@ -12,8 +12,10 @@ transaction 中保存两份 canonical JSON descriptor。完全相同的记录可
 重放。每个 snapshot 只能对应一个 System Gate evaluation；任何 immutable
 内容冲突都会 fail closed。
 
-canonical schema 会启用 foreign key 与 recursive trigger。因此 immutable
-update/delete trigger 也会拒绝 `INSERT OR REPLACE` 触发的替换删除。
+canonical schema 会启用 foreign key 与 recursive trigger。parent scope trigger
+要求每个 System Gate evaluation 的 session/authorization event 与其 retrieval
+snapshot 一致，直接 SQL insert 也不能绕过。immutable update/delete trigger 也会
+拒绝 `INSERT OR REPLACE` 触发的替换删除。
 repository 每次读写前都会核验 schema metadata 与全部具名 schema definition。
 
 `PostgresGateEvidenceV3Repository` 在隔离的
@@ -28,7 +30,8 @@ drift，并在 `ON CONFLICT DO NOTHING` 后读回 canonical descriptor。并发�
 
 `DurablePreparedGateEvidenceVerifier` 是供
 `AuthenticatedGateSessionService` 使用的标准、storage-neutral verifier。
-它会从 authority 重新加载两个 ID，复核内容哈希与有序候选覆盖，然后要求下列
+它会先在任何 authority lookup 前拒绝畸形或超长的内容寻址 ID，再从 authority
+重新加载两个 ID，复核内容哈希与有序候选覆盖，然后要求下列
 信息完全一致：
 
 - GateSession、Trace 与 run ID；

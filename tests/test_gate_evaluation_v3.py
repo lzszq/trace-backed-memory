@@ -21,6 +21,7 @@ from trace_backed_memory.gate_evaluation_v3 import (
     parse_semantic_gate_attempt,
     parse_system_gate_evaluation,
     verify_semantic_gate_attempt,
+    verify_semantic_gate_attempt_chain,
     verify_semantic_gate_attempt_parent,
     verify_system_gate_evaluation,
 )
@@ -353,6 +354,27 @@ def test_retry_parent_chain_is_exact_and_monotonic():
 
     verify_semantic_gate_attempt_parent(parent, None)
     verify_semantic_gate_attempt_parent(child, parent)
+    verify_semantic_gate_attempt_chain(
+        (parent, child),
+        _system(),
+        _snapshot(),
+    )
+    assert tbm.verify_semantic_gate_attempt_chain is (
+        verify_semantic_gate_attempt_chain
+    )
+
+    with pytest.raises(GateEvaluationContractError, match="parent"):
+        verify_semantic_gate_attempt_chain(
+            (child,),
+            _system(),
+            _snapshot(),
+        )
+    with pytest.raises(GateEvaluationContractError, match="bounded tuple"):
+        verify_semantic_gate_attempt_chain(  # type: ignore[arg-type]
+            [parent],
+            _system(),
+            _snapshot(),
+        )
 
     with pytest.raises(GateEvaluationContractError, match="parent identity"):
         verify_semantic_gate_attempt_parent(
@@ -415,6 +437,10 @@ def test_parsers_reject_malformed_nested_and_status_records():
     attempt["extra"] = True
     with pytest.raises(GateEvaluationContractError, match="fields"):
         parse_semantic_gate_attempt(attempt)
+    with pytest.raises(GateEvaluationContractError, match="fields"):
+        parse_system_gate_evaluation(
+            {str(index): None for index in range(10_000)}
+        )
 
 
 @pytest.mark.parametrize(
@@ -431,6 +457,8 @@ def test_json_ingestion_rejects_duplicate_nonfinite_deep_and_wrong_shape(loader)
     ):
         with pytest.raises(GateEvaluationContractError):
             loader(document)
+    with pytest.raises(GateEvaluationContractError):
+        loader("x" * (tbm.GATE_EVALUATION_JSON_MAX_BYTES + 1))
 
 
 def test_wrong_record_types_fail_closed():

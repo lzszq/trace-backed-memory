@@ -43,14 +43,17 @@ A future service must:
 - store prompt/response artifacts under classification, encryption, retention,
   and access-control policy;
 - verify provider identity and trusted server timestamps;
-- enforce `(session_id, sequence)` uniqueness (the public parent verifier
-  checks exact previous-attempt linkage, sequence, chain identity, and time);
+- enforce `(session_id, sequence)` uniqueness. The low-level parent verifier
+  checks one exact link; `verify_semantic_gate_attempt_chain()` verifies a
+  complete, bounded sequence from attempt 1 against the same System Gate and
+  retrieval snapshot;
   and
 - append GateSession references and replay components atomically.
 
 The active snapshot-v2 Store, SQLite-v1/PostgreSQL-v2 adapters, Agent, and MCP
 do not emit these records yet.
 
-The runtime parser also enforces cross-field invariants that structural JSON
+The runtime parser rejects oversized strings before UTF-8 encoding and also
+enforces cross-field invariants that structural JSON
 Schema cannot express: unique System decisions, sorted/disjoint final sets,
 timestamp ordering, content-derived IDs, and exact cross-record linkage.

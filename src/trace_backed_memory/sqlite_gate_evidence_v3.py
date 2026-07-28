@@ -36,6 +36,7 @@ _SCHEMA_OBJECT_NAMES = (
     "v3_system_gate_evaluations",
     "v3_system_gate_evaluations_immutable_delete",
     "v3_system_gate_evaluations_immutable_update",
+    "v3_system_gate_evaluations_parent_match",
     "v3_system_gate_evaluations_session",
 )
 _P = ParamSpec("_P")

@@ -544,6 +544,24 @@ def verify_semantic_gate_attempt_parent(
         _invalid("semantic retry must not precede parent completion")
 
 
+def verify_semantic_gate_attempt_chain(
+    attempts: tuple[SemanticGateAttempt, ...],
+    evaluation: SystemGateEvaluation,
+    snapshot: RetrievalSnapshot,
+) -> None:
+    if (
+        type(attempts) is not tuple
+        or not attempts
+        or len(attempts) > GATE_EVALUATION_MAX_DECISIONS
+    ):
+        _invalid("semantic attempt chain must be a non-empty bounded tuple")
+    parent: SemanticGateAttempt | None = None
+    for attempt in attempts:
+        verify_semantic_gate_attempt(attempt, evaluation, snapshot)
+        verify_semantic_gate_attempt_parent(attempt, parent)
+        parent = attempt
+
+
 def dumps_system_gate_evaluation(evaluation: SystemGateEvaluation) -> str:
     return _dumps_exact(evaluation, SystemGateEvaluation, "evaluation")
 
@@ -642,6 +660,8 @@ def _loads_object(document: str | bytes, label: str) -> dict[str, object]:
     try:
         if type(source) is not str:
             raise ValueError(f"{label} source must be str or bytes")
+        if len(source) > GATE_EVALUATION_JSON_MAX_BYTES:
+            raise ValueError(f"{label} exceeds character limit")
         if len(source.encode("utf-8")) > GATE_EVALUATION_JSON_MAX_BYTES:
             raise ValueError(f"{label} exceeds byte limit")
         payload = parse_bounded_json(
@@ -722,6 +742,8 @@ def _strict_object(
     if type(value) is not dict:
         _invalid(f"{label} must be an object")
     item = cast(dict[object, object], value)
+    if len(item) != len(fields):
+        _invalid(f"{label} fields do not match the contract")
     if any(type(key) is not str for key in item):
         _invalid(f"{label} keys must be strings")
     if frozenset(cast(dict[str, object], item)) != fields:

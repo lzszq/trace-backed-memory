@@ -257,6 +257,7 @@ from .gate_evaluation_v3 import (
     semantic_gate_attempt_id,
     system_gate_evaluation_id,
     verify_semantic_gate_attempt,
+    verify_semantic_gate_attempt_chain,
     verify_semantic_gate_attempt_parent,
     verify_system_gate_evaluation,
 )
@@ -1038,6 +1039,7 @@ __all__ = [
     "verify_injection_artifact",
     "verify_memory_revision_evidence",
     "verify_semantic_gate_attempt",
+    "verify_semantic_gate_attempt_chain",
     "verify_semantic_gate_attempt_parent",
     "verify_system_gate_evaluation",
     "verify_authorization_decision",

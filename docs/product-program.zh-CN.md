@@ -566,8 +566,9 @@
 - 发布内容寻址 System Gate evaluation 与 Semantic Gate attempt 契约，绑定精确
   retrieval/policy/provider/model/prompt/response provenance、success/failure
   shape、有序 retry parent 与有界 metrics；跨记录核验保证 semantic decision
-  只能缩小确定性 System Gate 结果。artifact 校验、持久化与 active runtime 接入
-  仍是后续工作。
+  只能缩小确定性 System Gate 结果。增加严格有界的完整 chain verifier，并在产生
+  可避免的分配前拒绝超大 direct-parser 输入。artifact 校验、持久化与 active
+  runtime 接入仍是后续工作。
 - 发布内容寻址 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
   契约，把 completed GateSession 绑定到显式 evaluator evidence，并严格区分
   观察关联与独立核验的因果结论。durable persistence 与 active service 接入仍

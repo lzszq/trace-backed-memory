@@ -175,6 +175,44 @@ def test_sqlite_gate_evidence_replace_cannot_bypass_immutability():
     assert repository.load_snapshot(snapshot.snapshot_id) == snapshot
 
 
+def test_sqlite_gate_evidence_direct_insert_requires_parent_scope_match():
+    snapshot, evaluation = _records()
+    connection = sqlite3.connect(":memory:")
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA recursive_triggers = ON")
+    connection.executescript(
+        (ROOT / "schemas" / "sqlite-v3-gate-evidence.sql").read_text(
+            encoding="utf-8"
+        )
+    )
+    connection.execute(
+        "INSERT INTO v3_retrieval_snapshots ("
+        "snapshot_id, session_id, authorization_event_id, descriptor"
+        ") VALUES (?, ?, ?, ?)",
+        (
+            snapshot.snapshot_id,
+            snapshot.session_id,
+            snapshot.authorization_event_id,
+            tbm.dumps_retrieval_snapshot(snapshot),
+        ),
+    )
+    with pytest.raises(sqlite3.IntegrityError, match="parent scope"):
+        connection.execute(
+            "INSERT INTO v3_system_gate_evaluations ("
+            "evaluation_id, session_id, retrieval_snapshot_id, "
+            "authorization_event_id, descriptor"
+            ") VALUES (?, ?, ?, ?, ?)",
+            (
+                evaluation.evaluation_id,
+                "different_session",
+                evaluation.retrieval_snapshot_id,
+                evaluation.authorization_event_id,
+                tbm.dumps_system_gate_evaluation(evaluation),
+            ),
+        )
+    connection.close()
+
+
 def test_sqlite_gate_evidence_rejects_invalid_inputs_and_missing_records():
     snapshot, evaluation = _records()
     with pytest.raises(ValueError, match="sqlite3.Connection"):
@@ -338,6 +376,27 @@ def test_durable_verifier_sanitizes_unavailable_and_invalid_authorities():
             scope,
             session,
             object(),  # type: ignore[arg-type]
+        )
+
+    class _MustNotRead:
+        def load_snapshot(self, _snapshot_id: str):
+            raise AssertionError("reader must not receive invalid identifiers")
+
+        def load_evaluation(self, _evaluation_id: str):
+            raise AssertionError("reader must not receive invalid identifiers")
+
+    with pytest.raises(
+        GateEvidenceV3VerificationError,
+        match="identifiers",
+    ):
+        DurablePreparedGateEvidenceVerifier(_MustNotRead())(
+            scope,
+            session,
+            PreparedGateEvidence(
+                "x" * 1_000_000,
+                evaluation.evaluation_id,
+                "prepared",
+            ),
         )
 
 

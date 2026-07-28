@@ -36,12 +36,14 @@ blocked。任何被模型省略的 System-allowed 候选都必须显式放入 fi
 - 按 classification、encryption、retention 与 access-control policy 保存
   prompt/response artifact；
 - 验证 provider 身份与可信 server 时间；
-- 执行 `(session_id, sequence)` 唯一性；public parent verifier 会核验精确
-  previous-attempt linkage、sequence、chain identity 与时间；
+- 执行 `(session_id, sequence)` 唯一性。low-level parent verifier 核验一个精确
+  link；`verify_semantic_gate_attempt_chain()` 会从 attempt 1 开始，对同一 System
+  Gate 与 retrieval snapshot 核验完整、有界序列；
 - 原子追加 GateSession 引用与 replay component。
 
 active snapshot-v2 Store、SQLite-v1/PostgreSQL-v2 adapter、Agent 与 MCP 尚不产生
 这些记录。
 
-runtime parser 还执行结构 JSON Schema 无法表达的跨字段不变量：唯一 System
+runtime parser 会在 UTF-8 encode 前拒绝超大字符串，并执行结构 JSON Schema 无法
+表达的跨字段不变量：唯一 System
 decision、有序且不相交的 final set、时间顺序、内容派生 ID 与精确跨记录 linkage。

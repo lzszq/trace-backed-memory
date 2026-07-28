@@ -1360,8 +1360,10 @@ Track:
   contracts with exact retrieval/policy/provider/model/prompt/response
   provenance, success/failure shapes, ordered retry parents, bounded metrics,
   and cross-record verification that semantic decisions can only narrow
-  deterministic System Gate results. Keep artifact validation, persistence,
-  and active runtime integration outstanding.
+  deterministic System Gate results. Add a strict bounded whole-chain
+  verifier and reject oversized direct-parser inputs before avoidable
+  allocation. Keep artifact validation, persistence, and active runtime
+  integration outstanding.
 - Publish content-addressed `tbm.run-outcome.v3` and
   `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
   explicit evaluator evidence while keeping observed association separate

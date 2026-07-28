@@ -13,8 +13,10 @@ stores both canonical JSON descriptors in one SQLite transaction. Replaying
 the same pair is idempotent. A snapshot may have exactly one System Gate
 evaluation; conflicting immutable content fails closed.
 
-The canonical schema enables foreign keys and recursive triggers. Immutable
-update/delete triggers therefore also reject `INSERT OR REPLACE` replacement
+The canonical schema enables foreign keys and recursive triggers. A parent
+scope trigger requires every System Gate evaluation to match its retrieval
+snapshot's session and authorization event even for direct SQL inserts.
+Immutable update/delete triggers also reject `INSERT OR REPLACE` replacement
 deletes. Repository operations validate schema metadata and every named schema
 definition before reading or writing.
 
@@ -31,6 +33,8 @@ locks the authority, validates its security catalog, and uses `RESTRICT`.
 
 `DurablePreparedGateEvidenceVerifier` is the standard storage-neutral verifier
 for `AuthenticatedGateSessionService`. It reloads both IDs from the authority,
+rejects malformed or oversized content-addressed IDs before any authority
+lookup,
 revalidates their content hashes and ordered candidate coverage, then requires
 exact agreement on:
 

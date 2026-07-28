@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Protocol
 
 from .gate_evaluation_v3 import (
@@ -10,6 +11,10 @@ from .gate_service_v3 import PreparedGateEvidence
 from .gate_session_v3 import GateSession
 from .retrieval_v3 import RetrievalSnapshot
 from .service_v3 import AuthorizedRetrievalScope
+
+
+_SNAPSHOT_ID_RE = re.compile(r"^retrieval_snapshot_sha256_[0-9a-f]{64}$")
+_SYSTEM_ID_RE = re.compile(r"^system_gate_sha256_[0-9a-f]{64}$")
 
 
 class GateEvidenceV3VerificationError(ValueError):
@@ -45,6 +50,15 @@ class DurablePreparedGateEvidenceVerifier:
             or type(evidence) is not PreparedGateEvidence
         ):
             _invalid("prepared Gate evidence verification input is invalid")
+        if (
+            type(evidence.retrieval_snapshot_id) is not str
+            or _SNAPSHOT_ID_RE.fullmatch(evidence.retrieval_snapshot_id)
+            is None
+            or type(evidence.system_gate_evaluation_id) is not str
+            or _SYSTEM_ID_RE.fullmatch(evidence.system_gate_evaluation_id)
+            is None
+        ):
+            _invalid("prepared Gate evidence identifiers are invalid")
         try:
             snapshot = self._reader.load_snapshot(
                 evidence.retrieval_snapshot_id

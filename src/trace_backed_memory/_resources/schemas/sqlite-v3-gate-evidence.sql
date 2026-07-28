@@ -64,6 +64,23 @@ CREATE TABLE IF NOT EXISTS v3_system_gate_evaluations (
 CREATE INDEX IF NOT EXISTS v3_system_gate_evaluations_session
 ON v3_system_gate_evaluations(session_id, authorization_event_id);
 
+CREATE TRIGGER IF NOT EXISTS v3_system_gate_evaluations_parent_match
+BEFORE INSERT ON v3_system_gate_evaluations
+FOR EACH ROW
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM v3_retrieval_snapshots AS snapshot
+    WHERE snapshot.snapshot_id = NEW.retrieval_snapshot_id
+      AND snapshot.session_id = NEW.session_id
+      AND snapshot.authorization_event_id = NEW.authorization_event_id
+)
+BEGIN
+    SELECT RAISE(
+        ABORT,
+        'v3 System Gate evaluation parent scope does not match'
+    );
+END;
+
 CREATE TRIGGER IF NOT EXISTS v3_retrieval_snapshots_immutable_update
 BEFORE UPDATE ON v3_retrieval_snapshots
 FOR EACH ROW

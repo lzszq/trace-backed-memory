@@ -54,8 +54,10 @@ session identity 精确关联，并禁止 update/delete/truncate。insert trigge
 比较所有存储列、验证 completed session，并拒绝 managed catalog drift。
 
 `GateSessionCompletionService` 仍是 storage-neutral receipt 与持久化读回
-verifier。它和该 repository 都不会认证 evaluator、授权 evidence artifact
-byte、从 callback 推导 result，也不会发送 outbox event。
+verifier。它和该底层 repository 都不会认证 evaluator、授权 evidence artifact
+byte、从 callback 推导 result，也不会发送 outbox event。需要原子 completion
+publication 的应用应使用配套
+[`PostgresCompletionOutboxV3Repository`](completion-outbox-v3.zh-CN.md)。
 
 ## 当前边界
 
@@ -63,6 +65,6 @@ SQLite OutcomeAttribution persistence 由独立的
 [immutable SQLite ledger](sqlite-outcome-attribution-v3.zh-CN.md)提供，并由隔离的
 [PostgreSQL attribution ledger](postgres-outcome-attribution-v3.zh-CN.md)
 提供 database parity。authenticated evaluator derivation、artifact
-authorization、completion outbox delivery，以及 active Agent/MCP/HTTP/SDK
-integration 仍是后续工作。snapshot version 2、SQLite schema version 1、
+authorization、network dispatch，以及 active Agent/MCP/HTTP/SDK integration
+仍是后续工作。snapshot version 2、SQLite schema version 1、
 PostgreSQL schema version 2 与 `tbm.agent.v1` 均保持不变。

@@ -281,6 +281,16 @@ _RESOURCE_SPECS: tuple[
         "application/sql",
     ),
     (
+        "schemas/postgres-v3-completion-outbox-rollback.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres-v3-completion-outbox.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
         "schemas/postgres-v3-entity-registry-rollback.sql",
         "schema",
         "application/sql",

@@ -81,6 +81,9 @@ Start with:
   leased delivery-state contracts with bounded retry/dead-letter transitions.
 - `sqlite_completion_outbox_v3.py`: opt-in atomic SQLite completion, outcome,
   outbox-event, and delivery authority; not wired to active Agent/MCP.
+- `postgres_completion_outbox_v3.py`: isolated PostgreSQL completion outbox
+  peer with database-time leases, row-locked claims, exact catalog validation,
+  and fail-closed rollback; not wired to active Agent/MCP.
 - `audit_v3.py`: append-only AuditEvent chains and explicit RecoveryAction
   evidence verified against existing lifecycle sources of truth.
 - `sqlite_audit_v3.py`: opt-in isolated append-only AuditEvent/RecoveryAction

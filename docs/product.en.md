@@ -74,8 +74,8 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Immutable revision preparation | Content-derived MemoryRevision proposals bind stable identity, exact parent, artifact, scope, evidence, and proposer context; isolated SQLite/PostgreSQL ledgers atomically persist verified bundles with linear history and exact replay, while approval/activation remain separate service work |
 | Replayable retrieval preparation | Content-derived RetrievalSnapshot records authorized context/query digests, retriever/index versions, ordered immutable revision hits, candidate hashes, finite stage/fusion scores, bounds, and truncation reasons; active retrieval does not emit it yet |
 | Replayable gate preparation | Content-derived System Gate evaluations and Semantic Gate attempts bind deterministic rule outcomes and provider/model provenance while enforcing that a model can only narrow; exact prompt/response bindings verify role digests, an opt-in SQLite repository atomically stores public/internal bytes, and SQLite/PostgreSQL ledgers persist one immutable linear attempt chain, while active policy does not emit it |
-| Durable completion preparation | A storage-neutral completion service plus opt-in SQLite and isolated PostgreSQL authorities atomically bind one content-addressed RunOutcome to the `EXECUTING` → `COMPLETED` GateSession revision; companion immutable OutcomeAttribution ledgers retain multiple verified association/causal claims; an opt-in SQLite completion outbox atomically adds one immutable event and an append-only leased retry/dead-letter delivery chain; PostgreSQL outbox parity and active runtime integration remain outstanding |
-| Distribution resources | 113 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
+| Durable completion preparation | A storage-neutral completion service plus opt-in SQLite and isolated PostgreSQL authorities atomically bind one content-addressed RunOutcome to the `EXECUTING` → `COMPLETED` GateSession revision; companion immutable OutcomeAttribution ledgers retain multiple verified association/causal claims; opt-in SQLite and isolated PostgreSQL completion outboxes atomically add one immutable event and an append-only leased retry/dead-letter delivery chain; active runtime integration remains outstanding |
+| Distribution resources | 115 byte-identical packaged Schemas, SQL and migration files, taxonomy files, and examples with discovery, exact-byte reads, metadata, and export |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
 | PR/CI | Historical failures, source/fix provenance, regression suggestions, endpoint matching, and JSON CLI reports |
@@ -180,7 +180,7 @@ The product fails closed:
 
 ## 8. Product Maturity
 
-The current release implements roadmap Phases 0 through 73, the local agent/MCP integration increment, and the delivered contract/isolated-authority portions of Phase 74, including the opt-in SQLite completion outbox. The main product path has executable README examples, JSON Schemas, SQL invariants, and pytest coverage across Python 3.11, 3.12, 3.13, Windows, SQLite, and required PostgreSQL CI.
+The current release implements roadmap Phases 0 through 73, the local agent/MCP integration increment, and the delivered contract/isolated-authority portions of Phase 74, including opt-in SQLite and isolated PostgreSQL completion outboxes. The main product path has executable README examples, JSON Schemas, SQL invariants, and pytest coverage across Python 3.11, 3.12, 3.13, Windows, SQLite, and required PostgreSQL CI.
 
 The implemented hardening includes:
 

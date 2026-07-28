@@ -56,7 +56,6 @@ content-addressed record 前派生 authenticated identity 与 trusted time。
 隔离的
 [PostgreSQL attribution ledger](postgres-outcome-attribution-v3.zh-CN.md)提供
 database parity。独立的
-[SQLite completion outbox](completion-outbox-v3.zh-CN.md)发布 completion
-event；attribution outbox delivery、authenticated evaluator/artifact checks、
-PostgreSQL completion-outbox 对等实现及 active Agent/MCP/HTTP/SDK
-integration 仍是后续工作。
+[SQLite 与 PostgreSQL completion outbox](completion-outbox-v3.zh-CN.md)
+发布 completion event；attribution outbox delivery、authenticated
+evaluator/artifact checks 及 active Agent/MCP/HTTP/SDK integration 仍是后续工作。

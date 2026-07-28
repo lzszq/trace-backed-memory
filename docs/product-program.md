@@ -1437,8 +1437,8 @@ Track:
   fail-closed exact-catalog rollback, database-time sampling after the
   GateSession head lock, CAS completion, immutable outcome insertion, exact
   replay/read-back, caller savepoints, and concurrent single-insert behavior.
-  Keep authenticated evaluator/artifact checks, PostgreSQL outbox delivery,
-  and active Agent/MCP/HTTP/SDK integration outstanding.
+  Keep authenticated evaluator/artifact checks and active
+  Agent/MCP/HTTP/SDK integration outstanding.
 - Add opt-in isolated SQLite and PostgreSQL OutcomeAttribution ledgers with
   independent version-1 schemas, exact content-ID replay, immutable
   multi-claim storage, completed outcome/session/usage/revision linkage,
@@ -1449,13 +1449,14 @@ Track:
   artifact authorization, attribution outbox delivery, and active runtime
   integration outstanding.
 - Publish storage-neutral `tbm.completion-outbox-event.v3` and
-  `tbm.completion-outbox-delivery.v3` contracts, then add an opt-in isolated
-  SQLite authority that atomically completes the GateSession, inserts the
-  RunOutcome and immutable event, and creates the initial append-only delivery
-  revision/head. Add bounded claims, expiring lease reclaim, exact-version
-  acknowledgement, retry/dead-letter transitions, canonical read-back,
-  schema-drift checks, caller savepoints, concurrent single-claim behavior,
-  and explicit at-least-once consumer semantics. Keep PostgreSQL parity,
+  `tbm.completion-outbox-delivery.v3` contracts, then add opt-in isolated
+  SQLite and PostgreSQL authorities that atomically complete the GateSession,
+  insert the RunOutcome and immutable event, and create the initial append-only
+  delivery revision/head. Add bounded claims, expiring lease reclaim,
+  exact-version acknowledgement, retry/dead-letter transitions, canonical
+  read-back, schema/catalog-drift checks, caller savepoints, concurrent
+  single-claim behavior, PostgreSQL database-time/row-lock/CAS parity and
+  fail-closed rollback, and explicit at-least-once consumer semantics. Keep
   authenticated evaluator/artifact verification, network dispatch, and active
   Agent/MCP/HTTP/SDK integration outstanding.
 - Publish storage-neutral `tbm.audit-event.v3` and

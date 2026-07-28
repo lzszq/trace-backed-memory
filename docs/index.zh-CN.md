@@ -39,7 +39,7 @@
 - [SQLite OutcomeAttribution ledger v3](protocols/sqlite-outcome-attribution-v3.zh-CN.md)
 - [PostgreSQL RunOutcome 完成事务 v3](protocols/postgres-outcome-v3.zh-CN.md)
 - [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.zh-CN.md)
-- [Completion outbox 契约与 SQLite authority v3](protocols/completion-outbox-v3.zh-CN.md)
+- [Completion outbox 契约与 SQLite/PostgreSQL authority v3](protocols/completion-outbox-v3.zh-CN.md)
 - [Durable GateSession v3 领域契约](protocols/gate-session-v3.zh-CN.md)
 - [内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)
 - [Codex 集成](integrations/codex.zh-CN.md)
@@ -80,9 +80,9 @@ activation。
 opt-in SQLite 与隔离 PostgreSQL RunOutcome authority 现在都可以用一份
 content-addressed outcome 原子完成 executing GateSession。隔离 SQLite
 与 PostgreSQL OutcomeAttribution ledger 会用精确 durable outcome/session
-linkage 持久化多条独立核验的 claim。opt-in SQLite Completion Outbox
-authority 会在同一 transaction 原子增加一条 immutable completion event 与
-append-only leased delivery chain。PostgreSQL outbox 对等实现、authenticated
+linkage 持久化多条独立核验的 claim。opt-in SQLite 与隔离 PostgreSQL
+Completion Outbox authority 会在同一 transaction 原子增加一条 immutable
+completion event 与 append-only leased delivery chain。authenticated
 evaluator/artifact 检查与 active runtime emission 仍待完成。
 approval、activation、其余 persistence 与 active integration 仍属于统一推进的
 schema version 3 计划。与存储实现无关的

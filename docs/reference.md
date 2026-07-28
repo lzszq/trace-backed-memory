@@ -230,7 +230,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 113 resources. `PackagedResource` descriptions
+The allowlist currently contains 115 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -592,14 +592,17 @@ and [the PostgreSQL attribution ledger contract](protocols/postgres-outcome-attr
 
 `CompletionOutboxEvent` and `CompletionOutboxDelivery` define the
 storage-neutral completion notification and append-only delivery revision
-contracts. `SQLiteCompletionOutboxV3Repository` composes the SQLite completion
-authority so the completed GateSession revision, RunOutcome, immutable event,
-initial `pending` delivery, and delivery head are one transaction. It supports
-bounded due claims, expiring leases, version-checked acknowledgement, retry
-waits, dead letter, exact replay, full history verification, caller savepoints,
-and schema-drift rejection. Delivery is at least once; downstream consumers
-must deduplicate by the content-derived event ID. The repository emits no
-network traffic and is not wired to active Agent/MCP adapters. See
+contracts. `SQLiteCompletionOutboxV3Repository` and
+`PostgresCompletionOutboxV3Repository` compose the corresponding completion
+authorities so the completed GateSession revision, RunOutcome, immutable
+event, initial `pending` delivery, and delivery head are one transaction. They
+support bounded due claims, expiring leases, version-checked acknowledgement,
+retry waits, dead letter, exact replay, full history verification, caller
+savepoints, and schema/catalog-drift rejection. PostgreSQL adds database time,
+row-locked `SKIP LOCKED` claims, canonical insert triggers, exact catalog
+checks, and fail-closed rollback. Delivery is at least once; downstream
+consumers must deduplicate by the content-derived event ID. Neither repository
+emits network traffic or is wired to active Agent/MCP adapters. See
 [the completion outbox contract](protocols/completion-outbox-v3.md).
 
 The storage-neutral `tbm.audit-event.v3` and `tbm.recovery-action.v3`
@@ -2182,7 +2185,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 113 canonical Schemas, examples, and memory
+  explicit atomic export for all 115 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned

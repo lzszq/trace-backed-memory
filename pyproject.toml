@@ -119,6 +119,8 @@ trace_backed_memory = [
     "_resources/schemas/postgres-v3-audit.sql",
     "_resources/schemas/postgres-v3-authorization-rollback.sql",
     "_resources/schemas/postgres-v3-authorization.sql",
+    "_resources/schemas/postgres-v3-completion-outbox-rollback.sql",
+    "_resources/schemas/postgres-v3-completion-outbox.sql",
     "_resources/schemas/postgres-v3-entity-registry-rollback.sql",
     "_resources/schemas/postgres-v3-entity-registry.sql",
     "_resources/schemas/postgres-v3-gate-evidence-rollback.sql",

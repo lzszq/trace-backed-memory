@@ -25,7 +25,7 @@ Completion outbox 为一条 durable RunOutcome 发布一条 immutable
 - `examples/completion_outbox_event_v3.example.json`；
 - `examples/completion_outbox_delivery_v3.example.json`。
 
-## SQLite authority
+## SQLite 与 PostgreSQL authority
 
 `SQLiteCompletionOutboxV3Repository` 组合隔离的 SQLite
 RunOutcome/GateSession authority。`complete_session()` 在一个 outer transaction
@@ -55,17 +55,32 @@ transaction 保留，并使用 repository-scoped mutation guard。同一个 conn
 上的多个 repository wrapper 共享一把 re-entrant lock 与一个 thread-local
 mutation scope。通过 repository 所有 connection 执行的 direct DML 会被拒绝。
 
+`PostgresCompletionOutboxV3Repository` 通过
+`schemas/postgres-v3-completion-outbox*.sql` 提供相同的 completion、claim、
+acknowledgement、failure 与读取接口。它保持 GateSession → RunOutcome →
+completion outbox 的依赖锁顺序，在数据库时间完成之前锁定 GateSession head，并在
+一个 transaction 或调用方 savepoint 内提交 completed revision、RunOutcome、
+event、初始 delivery revision 与 head。Worker claim 使用 `FOR UPDATE ... SKIP
+LOCKED` 锁定到期 head；acknowledgement、retry、reclaim 与 dead-letter transition
+追加 revision，并对精确 head version 执行 compare-and-swap。
+
+PostgreSQL insert trigger 会重建 canonical descriptor bytes、重新计算两个
+content ID、核验 completed session/outcome 的精确 linkage，并拒绝非法状态转换。
+运行时读取会对照保留 descriptor 复核投影列。Adapter 与 rollback script 都会在
+catalog drift 时 fail closed，覆盖 relation、index、constraint、function、
+trigger、privilege 与 policy 变化。
+
 ## Delivery 语义与边界
 
 Delivery 是 **at least once**。Worker 可能已经成功发布，却在 acknowledge 前崩溃，
 之后 lease 会被重新领取。因此 consumer 必须按 `event_id` 去重；response digest
 只是审计 metadata，不是远端副作用 exactly once 的证明。
 
-这是 opt-in、side-by-side SQLite authority。它不会改变 active SQLite schema
-version 1，不会发起网络请求、认证 evaluator、授权 artifact byte、创建
-OutcomeAttribution event，也不会把 durable completion 接入 active
-Agent/MCP/HTTP/SDK lifecycle。PostgreSQL 对等实现与 active adapter integration
-仍属于统一推进的 version-3 计划。
+这是 opt-in、side-by-side SQLite 与隔离 PostgreSQL authority。它们不会改变
+active SQLite schema version 1 或 PostgreSQL schema version 2，不会发起网络
+请求、认证 evaluator、授权 artifact byte、创建 OutcomeAttribution event，也
+不会把 durable completion 接入 active Agent/MCP/HTTP/SDK lifecycle。Active
+adapter integration 仍属于统一推进的 version-3 计划。
 SQLite connection owner 仍是可信 operator boundary：能够替换已注册 SQLite
 function 或删除并重建 trigger 的代码同样能够改写数据库，不得把这种能力暴露给
 不可信调用方。

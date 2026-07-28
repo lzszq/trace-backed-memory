@@ -27,7 +27,7 @@ The canonical portable resources are:
 - `examples/completion_outbox_event_v3.example.json`;
 - `examples/completion_outbox_delivery_v3.example.json`.
 
-## SQLite authority
+## SQLite and PostgreSQL authorities
 
 `SQLiteCompletionOutboxV3Repository` composes the isolated SQLite
 RunOutcome/GateSession authority. `complete_session()` performs all of the
@@ -59,6 +59,23 @@ repository-scoped mutation guard. Multiple repository wrappers over the same
 connection share one re-entrant lock and one thread-local mutation scope.
 Direct DML through a repository-owned connection is rejected.
 
+`PostgresCompletionOutboxV3Repository` exposes the same completion, claim,
+acknowledgement, failure, and read surface over
+`schemas/postgres-v3-completion-outbox*.sql`. It preserves the dependency lock
+order GateSession → RunOutcome → completion outbox, locks the GateSession
+head before database-time completion, and commits the completed revision,
+RunOutcome, event, initial delivery revision, and head in one transaction or
+caller savepoint. Worker claims lock due heads with `FOR UPDATE ... SKIP
+LOCKED`; acknowledgement, retry, reclaim, and dead-letter transitions append a
+revision and compare-and-swap the exact head version.
+
+The PostgreSQL insert triggers reconstruct canonical descriptor bytes,
+recompute both content identifiers, verify exact completed-session/outcome
+linkage, and reject invalid state transitions. Runtime reads verify projected
+columns against the retained descriptor. The adapter and rollback script both
+fail closed on catalog drift, including relation, index, constraint, function,
+trigger, privilege, and policy changes.
+
 ## Delivery semantics and boundary
 
 Delivery is **at least once**. A worker can publish successfully and crash
@@ -66,11 +83,12 @@ before acknowledgement, after which the lease is reclaimed. Consumers must
 therefore deduplicate by `event_id`; a response digest is audit metadata, not
 proof that a remote side effect occurred exactly once.
 
-This is an opt-in, side-by-side SQLite authority. It does not change active
-SQLite schema version 1, emit network traffic, authenticate an evaluator,
-authorize artifact bytes, create an OutcomeAttribution event, or wire durable
-completion into the active Agent/MCP/HTTP/SDK lifecycle. PostgreSQL parity and
-active adapter integration remain part of the coordinated version-3 program.
+These are opt-in, side-by-side SQLite and isolated PostgreSQL authorities.
+They do not change active SQLite schema version 1 or PostgreSQL schema version
+2, emit network traffic, authenticate an evaluator, authorize artifact bytes,
+create an OutcomeAttribution event, or wire durable completion into the active
+Agent/MCP/HTTP/SDK lifecycle. Active adapter integration remains part of the
+coordinated version-3 program.
 The SQLite connection owner remains a trusted operator boundary: code that can
 replace registered SQLite functions or drop and recreate triggers can also
 rewrite the database and must not be exposed to untrusted callers.

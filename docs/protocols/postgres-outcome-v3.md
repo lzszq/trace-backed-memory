@@ -60,9 +60,11 @@ the descriptor, recompute its content ID, compare every stored column, verify
 the completed session, and reject managed-catalog drift.
 
 `GateSessionCompletionService` remains the storage-neutral receipt and durable
-read-back verifier. Neither it nor this repository authenticates the evaluator,
-authorizes evidence artifact bytes, derives a result from callbacks, or emits
-an outbox event.
+read-back verifier. Neither it nor this lower-level repository authenticates
+the evaluator, authorizes evidence artifact bytes, derives a result from
+callbacks, or emits an outbox event. Applications requiring atomic completion
+publication use the companion
+[`PostgresCompletionOutboxV3Repository`](completion-outbox-v3.md).
 
 ## Current boundary
 
@@ -70,6 +72,6 @@ SQLite OutcomeAttribution persistence is provided by the separate
 [immutable SQLite ledger](sqlite-outcome-attribution-v3.md), with the isolated
 [PostgreSQL attribution ledger](postgres-outcome-attribution-v3.md) providing
 database parity. Authenticated evaluator derivation, artifact authorization,
-completion outbox delivery, and active Agent/MCP/HTTP/SDK integration remain
-follow-up work. Snapshot version 2, SQLite schema version 1, PostgreSQL schema
+network dispatch, and active Agent/MCP/HTTP/SDK integration remain follow-up
+work. Snapshot version 2, SQLite schema version 1, PostgreSQL schema
 version 2, and `tbm.agent.v1` remain unchanged.

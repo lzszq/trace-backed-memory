@@ -52,6 +52,19 @@ The worker surface is deliberately bounded:
   retry_delay_seconds, max_attempts)`;
 - exact event, current delivery, and delivery-history reads.
 
+`CompletionOutboxDeliveryWorker.run_once()` is the storage-neutral dispatcher
+over that surface. It claims at most one bounded page, validates the complete
+claim batch before invoking any consumer callback, and accepts only a
+`CompletionOutboxConsumerReceipt` with an optional canonical response digest.
+`CompletionOutboxConsumerError` persists only its bounded error code; other
+callback exceptions become `TBM_COMPLETION_OUTBOX_CONSUMER_FAILED`, never raw
+exception text. Successful callbacks use exact-version acknowledgement.
+Failures use the configured retry delay and maximum attempts. Each result is
+classified as `delivered`, `retry_wait`, `dead_letter`, `superseded`, or
+`recovery_required`, and every successful state write is read back exactly.
+Malformed claims, transition-invalid receipts, or a different configured retry
+delay fail closed.
+
 The SQLite schema uses immutable event and delivery-revision rows, one
 compare-and-swap head, canonical descriptor validation, integer-microsecond due
 ordering, schema-drift detection, caller-transaction preservation, and a
@@ -82,6 +95,12 @@ Delivery is **at least once**. A worker can publish successfully and crash
 before acknowledgement, after which the lease is reclaimed. Consumers must
 therefore deduplicate by `event_id`; a response digest is audit metadata, not
 proof that a remote side effect occurred exactly once.
+The configured lease must cover the consumer's maximum processing time.
+Lease expiry during a callback may allow another worker to invoke the consumer
+for the same event before the first worker can acknowledge it. A
+`recovery_required` result means the callback completed but the leased
+revision remains current after an acknowledgement or failure-write error;
+`superseded` means another durable revision now owns the truth.
 
 These are opt-in, side-by-side SQLite and isolated PostgreSQL authorities.
 They do not change active SQLite schema version 1 or PostgreSQL schema version

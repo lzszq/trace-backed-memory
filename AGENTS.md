@@ -79,6 +79,9 @@ Start with:
   row-lock linkage, savepoint safety, concurrency, and fail-closed rollback.
 - `completion_outbox_v3.py`: content-addressed completion event and append-only
   leased delivery-state contracts with bounded retry/dead-letter transitions.
+- `completion_outbox_worker_v3.py`: storage-neutral bounded at-least-once
+  dispatcher with sanitized consumer failures, exact acknowledgement
+  read-back, and explicit superseded/recovery-required outcomes.
 - `sqlite_completion_outbox_v3.py`: opt-in atomic SQLite completion, outcome,
   outbox-event, and delivery authority; not wired to active Agent/MCP.
 - `postgres_completion_outbox_v3.py`: isolated PostgreSQL completion outbox

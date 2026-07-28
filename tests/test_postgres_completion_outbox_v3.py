@@ -143,6 +143,42 @@ def test_postgres_completion_outbox_flow_and_rollback(
         assert result.returncode == 0, result.stderr
 
 
+def test_postgres_completion_outbox_worker_dispatches_real_claim(
+    postgres_cluster: PostgresCluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    import trace_backed_memory as tbm
+
+    _install(postgres_cluster)
+    with psycopg.connect(
+        **postgres_cluster.connection_kwargs()
+    ) as connection:
+        repository = tbm.PostgresCompletionOutboxV3Repository(connection)
+        _executing(repository)
+        completed = repository.complete_session(_request())
+        seen: list[str] = []
+        worker = tbm.CompletionOutboxDeliveryWorker(
+            repository,
+            lambda event: (
+                seen.append(event.event_id)
+                or tbm.CompletionOutboxConsumerReceipt(DIGEST_B)
+            ),
+        )
+
+        result = worker.run_once(
+            worker_id="dispatcher_001",
+            lease_seconds=60,
+        )
+
+        assert seen == [completed.event.event_id]
+        assert len(result) == 1
+        assert result[0].outcome == "delivered"
+        assert result[0].current.response_sha256 == DIGEST_B
+        assert repository.get_delivery(
+            completed.event.event_id
+        ) == result[0].current
+
+
 def test_postgres_completion_outbox_retry_and_concurrent_claim(
     postgres_cluster: PostgresCluster,
 ):

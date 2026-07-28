@@ -559,7 +559,13 @@ transition 都追加新 revision。Delivery 是 at least once，因此 consumer 
 lock；PostgreSQL 使用 database-time transition、row-locked `SKIP LOCKED`
 claim、CAS head、canonical database trigger、精确 catalog 校验与 fail-closed
 rollback。evaluator authentication、artifact authorization 与 active runtime
-emission 仍是独立后续工作。详见
+emission 仍是独立后续工作。storage-neutral
+`CompletionOutboxDeliveryWorker` 可以在任一 authority 上执行一次有界 dispatch：
+在 consumer side effect 前校验整个 claim page，只持久化清洗后的 consumer error
+code，使用精确 version 写入 acknowledgement/failure，核验完整 transition 与
+durable read-back，并明确报告 delivered、retry、dead-letter、superseded 或
+recovery-required 状态。它不提供 network client；调用方 consumer 必须按 event ID
+幂等，并选择能够覆盖最长处理时间的 lease。详见
 [SQLite RunOutcome 完成事务 v3](protocols/sqlite-outcome-v3.zh-CN.md)与
 [PostgreSQL RunOutcome 完成事务 v3](protocols/postgres-outcome-v3.zh-CN.md)，
 以及 [SQLite OutcomeAttribution ledger v3](protocols/sqlite-outcome-attribution-v3.zh-CN.md)

@@ -1728,6 +1728,14 @@ event ID. SQLite uses a thread-local repository mutation scope and shared
 connection lock. PostgreSQL uses database-time transitions, row-locked
 `SKIP LOCKED` claims, compare-and-swap heads, canonical database triggers,
 exact catalog validation, and fail-closed rollback.
+The storage-neutral `CompletionOutboxDeliveryWorker` performs one bounded
+dispatch pass over either authority. It validates a whole claim page before
+consumer side effects, persists only sanitized consumer error codes, uses
+exact-version acknowledgement/failure writes, verifies transition semantics
+and durable read-back, and reports delivered, retry, dead-letter, superseded,
+or recovery-required state explicitly. It does not provide a network client;
+the caller-owned consumer must be idempotent by event ID and must choose a
+lease that covers its maximum processing time.
 Evaluator authentication, artifact authorization, and active runtime emission
 remain separate work. See
 [SQLite RunOutcome completion v3](protocols/sqlite-outcome-v3.md),

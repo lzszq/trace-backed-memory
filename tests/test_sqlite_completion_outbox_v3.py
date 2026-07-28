@@ -181,6 +181,85 @@ def test_sqlite_completion_outbox_replay_returns_current_delivery_state():
         assert replay.delivery.status == "delivered"
 
 
+def test_sqlite_completion_outbox_worker_dispatches_real_claim():
+    with _repository() as repository:
+        completed = _completed(repository)
+        seen: list[str] = []
+        worker = tbm.CompletionOutboxDeliveryWorker(
+            repository,
+            lambda event: (
+                seen.append(event.event_id)
+                or tbm.CompletionOutboxConsumerReceipt(DIGEST_B)
+            ),
+        )
+
+        result = worker.run_once(
+            worker_id="dispatcher_001",
+            lease_seconds=60,
+        )
+
+        assert seen == [completed.event.event_id]
+        assert len(result) == 1
+        assert result[0].outcome == "delivered"
+        assert result[0].current.response_sha256 == DIGEST_B
+        assert repository.get_delivery(
+            completed.event.event_id
+        ) == result[0].current
+        assert worker.run_once(worker_id="dispatcher_001") == ()
+
+
+def test_sqlite_completion_outbox_worker_bounds_pages_and_dead_letters():
+    with _repository() as repository:
+        _executing(repository, suffix="001")
+        first = repository.complete_session(_request(suffix="001"))
+        _executing(repository, suffix="002")
+        second = repository.complete_session(_request(suffix="002"))
+        seen: list[str] = []
+        worker = tbm.CompletionOutboxDeliveryWorker(
+            repository,
+            lambda event: (
+                seen.append(event.event_id)
+                or tbm.CompletionOutboxConsumerReceipt()
+            ),
+        )
+
+        first_page = worker.run_once(
+            worker_id="dispatcher_001",
+            limit=1,
+        )
+        second_page = worker.run_once(
+            worker_id="dispatcher_001",
+            limit=1,
+        )
+
+        assert len(first_page) == len(second_page) == 1
+        assert set(seen) == {first.event.event_id, second.event.event_id}
+        assert all(
+            result.outcome == "delivered"
+            for result in first_page + second_page
+        )
+
+    with _repository() as repository:
+        completed = _completed(repository)
+        worker = tbm.CompletionOutboxDeliveryWorker(
+            repository,
+            lambda _event: (_ for _ in ()).throw(
+                tbm.CompletionOutboxConsumerError("PERMANENT")
+            ),
+        )
+
+        result = worker.run_once(
+            worker_id="dispatcher_001",
+            max_attempts=1,
+        )[0]
+
+        assert result.outcome == "dead_letter"
+        assert result.current.last_error_code == "PERMANENT"
+        assert repository.get_delivery(
+            completed.event.event_id
+        ) == result.current
+
+
 def test_sqlite_completion_outbox_preserves_caller_transaction():
     connection = sqlite3.connect(":memory:")
     connection.execute("PRAGMA foreign_keys = ON")

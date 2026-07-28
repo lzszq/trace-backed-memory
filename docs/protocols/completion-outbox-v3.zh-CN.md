@@ -49,6 +49,17 @@ Worker 接口被明确限制为：
   retry_delay_seconds, max_attempts)`；
 - event、当前 delivery 与 delivery history 的精确读取。
 
+`CompletionOutboxDeliveryWorker.run_once()` 是建立在该接口之上的
+storage-neutral dispatcher。它每次最多领取一个有界 page，在调用任何 consumer
+callback 前先校验完整 claim batch，并且只接受带可选 canonical response digest
+的 `CompletionOutboxConsumerReceipt`。`CompletionOutboxConsumerError` 只持久化
+其有界 error code；其他 callback exception 会统一映射为
+`TBM_COMPLETION_OUTBOX_CONSUMER_FAILED`，绝不保存原始 exception text。callback
+成功后使用精确 version acknowledgement；失败时使用配置的 retry delay 与最大
+attempt 数。每项结果明确分类为 `delivered`、`retry_wait`、`dead_letter`、
+`superseded` 或 `recovery_required`，所有成功状态写入都必须精确读回。畸形
+claim、违反 transition 的 receipt 或与配置不同的 retry delay 一律 fail closed。
+
 SQLite schema 使用 immutable event/delivery revision、单个 compare-and-swap
 head、canonical descriptor 校验、整数微秒级 due 排序、schema drift 检测与调用方
 transaction 保留，并使用 repository-scoped mutation guard。同一个 connection
@@ -75,6 +86,11 @@ trigger、privilege 与 policy 变化。
 Delivery 是 **at least once**。Worker 可能已经成功发布，却在 acknowledge 前崩溃，
 之后 lease 会被重新领取。因此 consumer 必须按 `event_id` 去重；response digest
 只是审计 metadata，不是远端副作用 exactly once 的证明。
+配置的 lease 必须覆盖 consumer 的最长处理时间。callback 执行期间 lease 到期时，
+另一个 worker 可能在第一个 worker acknowledge 前再次调用同一 event 的 consumer。
+`recovery_required` 表示 callback 已完成，但 acknowledgement 或 failure write
+报错后原 leased revision 仍是当前状态；`superseded` 表示另一个 durable revision
+已经成为事实来源。
 
 这是 opt-in、side-by-side SQLite 与隔离 PostgreSQL authority。它们不会改变
 active SQLite schema version 1 或 PostgreSQL schema version 2，不会发起网络

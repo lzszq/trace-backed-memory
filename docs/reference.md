@@ -601,8 +601,13 @@ retry waits, dead letter, exact replay, full history verification, caller
 savepoints, and schema/catalog-drift rejection. PostgreSQL adds database time,
 row-locked `SKIP LOCKED` claims, canonical insert triggers, exact catalog
 checks, and fail-closed rollback. Delivery is at least once; downstream
-consumers must deduplicate by the content-derived event ID. Neither repository
-emits network traffic or is wired to active Agent/MCP adapters. See
+consumers must deduplicate by the content-derived event ID.
+`CompletionOutboxDeliveryWorker` adds one bounded storage-neutral dispatch
+pass, strict whole-page claim validation, sanitized consumer errors, exact
+receipt/read-back verification, and explicit delivered/retry/dead-letter/
+superseded/recovery-required results. Its caller-owned consumer may perform
+network I/O, but neither repository supplies a network transport or is wired
+to active Agent/MCP adapters. See
 [the completion outbox contract](protocols/completion-outbox-v3.md).
 
 The storage-neutral `tbm.audit-event.v3` and `tbm.recovery-action.v3`
@@ -2393,6 +2398,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- gate_service_v3.py
 |   |-- gate_completion_v3.py
 |   |-- gate_worker_v3.py
+|   |-- completion_outbox_v3.py
+|   |-- completion_outbox_worker_v3.py
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
@@ -2407,8 +2414,10 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- outcome_v3.py
 |   |-- sqlite_outcome_attribution_v3.py
 |   |-- sqlite_outcome_v3.py
+|   |-- sqlite_completion_outbox_v3.py
 |   |-- postgres_outcome_v3.py
 |   |-- postgres_outcome_attribution_v3.py
+|   |-- postgres_completion_outbox_v3.py
 |   |-- retrieval_v3.py
 |   |-- policy.py
 |   |-- postgres.py
@@ -2431,6 +2440,8 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_service_v3.py
     |-- test_gate_service_v3.py
     |-- test_gate_worker_v3.py
+    |-- test_completion_outbox_v3.py
+    |-- test_completion_outbox_worker_v3.py
     |-- test_audit_v3.py
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py
@@ -2442,8 +2453,10 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_outcome_v3.py
     |-- test_sqlite_outcome_attribution_v3.py
     |-- test_sqlite_outcome_v3.py
+    |-- test_sqlite_completion_outbox_v3.py
     |-- test_postgres_outcome_v3.py
     |-- test_postgres_outcome_attribution_v3.py
+    |-- test_postgres_completion_outbox_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_postgres_replay_v3.py

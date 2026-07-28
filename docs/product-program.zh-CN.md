@@ -645,8 +645,12 @@
   lease reclaim、精确 version acknowledgement、retry/dead-letter transition、
   canonical 读回、schema/catalog-drift 检查、caller savepoint、并发单 claim、
   PostgreSQL database-time/row-lock/CAS 对等能力与 fail-closed rollback，以及
-  明确的 at-least-once consumer 语义。authenticated evaluator/artifact 校验、
-  network dispatch 及 active Agent/MCP/HTTP/SDK integration 仍待完成。
+  明确的 at-least-once consumer 语义。增加 storage-neutral 有界 delivery
+  worker：callback 前校验完整 claim page，只持久化清洗后的 consumer error code，
+  核验精确 transition/read-back receipt，执行配置的 retry/dead-letter 限制，并
+  报告 superseded 或 recovery-required 写入不确定性。具体 network transport、
+  authenticated evaluator/artifact 校验及 active Agent/MCP/HTTP/SDK integration
+  仍待完成。
 - 发布 storage-neutral `tbm.audit-event.v3` 与
   `tbm.recovery-action.v3` 契约，提供内容派生 identity、精确 stream parent、
   authenticated actor slot、typed reference、显式 request digest，以及对照

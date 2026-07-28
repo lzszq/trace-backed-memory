@@ -468,6 +468,15 @@ Active Agent/MCP/HTTP/SDK 接入仍不可用。每个 database connection/schema
 都属于 privileged boundary：不得暴露 raw connection，也不得允许调用方替换
 function、trigger 或 catalog object。
 
+共享有界 dispatch loop 应使用
+`CompletionOutboxDeliveryWorker.run_once()`。lease 必须覆盖 consumer 的最长
+处理时间，每个 consumer 都必须按 `event_id` 幂等。成功时只能返回
+`CompletionOutboxConsumerReceipt`；预期失败应抛出只携带有界、非敏感 code 的
+`CompletionOutboxConsumerError`。error code 中绝不能包含 exception message、
+response body、credential 或 raw evidence。`recovery_required` 表示 observed
+lease 仍保留且写入结果不确定；`superseded` 表示另一个 revision 已成为权威状态。
+两种结果都不能证明外部副作用已经发生或没有发生。
+
 ## Version-3 审计与恢复策略
 
 AuditEvent 必须按精确 stream sequence 与 parent append；不得 update、delete、

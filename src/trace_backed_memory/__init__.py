@@ -351,6 +351,17 @@ from .completion_outbox_v3 import (
     verify_completion_outbox_delivery_transition,
     verify_completion_outbox_event,
 )
+from .completion_outbox_worker_v3 import (
+    COMPLETION_OUTBOX_WORKER_MAX_PAGE_SIZE,
+    CompletionOutboxClaimRecord,
+    CompletionOutboxConsumerError,
+    CompletionOutboxConsumerReceipt,
+    CompletionOutboxDeliveryRepository,
+    CompletionOutboxDeliveryWorker,
+    CompletionOutboxWorkerError,
+    CompletionOutboxWorkerOutcome,
+    CompletionOutboxWorkerResult,
+)
 from .lifecycle import (
     draft_failure_case,
     lesson_from_failure_case,
@@ -838,6 +849,15 @@ __all__ = [
     "parse_completion_outbox_event",
     "verify_completion_outbox_delivery_transition",
     "verify_completion_outbox_event",
+    "COMPLETION_OUTBOX_WORKER_MAX_PAGE_SIZE",
+    "CompletionOutboxClaimRecord",
+    "CompletionOutboxConsumerError",
+    "CompletionOutboxConsumerReceipt",
+    "CompletionOutboxDeliveryRepository",
+    "CompletionOutboxDeliveryWorker",
+    "CompletionOutboxWorkerError",
+    "CompletionOutboxWorkerOutcome",
+    "CompletionOutboxWorkerResult",
     "AGENT_PROTOCOL_VERSION",
     "AGENT_ERROR_MESSAGE_MAX_CHARS",
     "AgentCapabilities",

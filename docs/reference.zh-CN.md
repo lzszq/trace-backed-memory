@@ -426,7 +426,11 @@ lease、带 version 检查的 acknowledgement、retry wait、dead letter、精�
 完整 history 核验、caller savepoint 与 schema/catalog-drift 拒绝。PostgreSQL
 还提供 database time、row-locked `SKIP LOCKED` claim、canonical insert trigger、
 精确 catalog 校验与 fail-closed rollback。Delivery 是 at least once；downstream
-consumer 必须按内容派生 event ID 去重。两者都不发起网络请求，也没有接入 active
+consumer 必须按内容派生 event ID 去重。`CompletionOutboxDeliveryWorker` 增加
+一次有界、storage-neutral dispatch pass、严格的整页 claim 校验、清洗后的
+consumer error、精确 receipt/read-back 校验，以及明确的 delivered/retry/
+dead-letter/superseded/recovery-required 结果。调用方 consumer 可以执行 network
+I/O，但两个 repository 都不提供 network transport，也没有接入 active
 Agent/MCP adapter。详见
 [completion outbox 契约](protocols/completion-outbox-v3.zh-CN.md)。
 
@@ -1249,6 +1253,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- gate_service_v3.py
 |   |-- gate_completion_v3.py
 |   |-- gate_worker_v3.py
+|   |-- completion_outbox_v3.py
+|   |-- completion_outbox_worker_v3.py
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
@@ -1263,8 +1269,10 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- outcome_v3.py
 |   |-- sqlite_outcome_attribution_v3.py
 |   |-- sqlite_outcome_v3.py
+|   |-- sqlite_completion_outbox_v3.py
 |   |-- postgres_outcome_v3.py
 |   |-- postgres_outcome_attribution_v3.py
+|   |-- postgres_completion_outbox_v3.py
 |   |-- retrieval_v3.py
 |   |-- policy.py
 |   |-- postgres.py
@@ -1287,6 +1295,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_service_v3.py
     |-- test_gate_service_v3.py
     |-- test_gate_worker_v3.py
+    |-- test_completion_outbox_v3.py
+    |-- test_completion_outbox_worker_v3.py
     |-- test_audit_v3.py
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py
@@ -1298,8 +1308,10 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_outcome_v3.py
     |-- test_sqlite_outcome_attribution_v3.py
     |-- test_sqlite_outcome_v3.py
+    |-- test_sqlite_completion_outbox_v3.py
     |-- test_postgres_outcome_v3.py
     |-- test_postgres_outcome_attribution_v3.py
+    |-- test_postgres_completion_outbox_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_postgres_replay_v3.py

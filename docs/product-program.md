@@ -1456,9 +1456,13 @@ Track:
   exact-version acknowledgement, retry/dead-letter transitions, canonical
   read-back, schema/catalog-drift checks, caller savepoints, concurrent
   single-claim behavior, PostgreSQL database-time/row-lock/CAS parity and
-  fail-closed rollback, and explicit at-least-once consumer semantics. Keep
-  authenticated evaluator/artifact verification, network dispatch, and active
-  Agent/MCP/HTTP/SDK integration outstanding.
+  fail-closed rollback, and explicit at-least-once consumer semantics. Add a
+  storage-neutral bounded delivery worker that validates the full claim page
+  before callbacks, persists sanitized consumer error codes, verifies exact
+  transition/read-back receipts, applies configured retry/dead-letter limits,
+  and reports superseded or recovery-required write uncertainty. Keep a
+  concrete network transport, authenticated evaluator/artifact verification,
+  and active Agent/MCP/HTTP/SDK integration outstanding.
 - Publish storage-neutral `tbm.audit-event.v3` and
   `tbm.recovery-action.v3` contracts with content-derived identity, exact
   stream parents, authenticated actor slots, typed references, explicit

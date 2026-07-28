@@ -1328,6 +1328,16 @@ boundary. Active Agent/MCP/HTTP/SDK wiring remains unavailable. Treat each
 database connection/schema owner as privileged; do not expose raw connection
 access or permit callers to replace functions, triggers, or catalog objects.
 
+Use `CompletionOutboxDeliveryWorker.run_once()` for the shared bounded dispatch
+loop. Give it a lease that covers the consumer's maximum processing time and
+keep every consumer idempotent by `event_id`. Return only a
+`CompletionOutboxConsumerReceipt`; raise `CompletionOutboxConsumerError` with a
+bounded non-sensitive code for expected failures. Never include exception
+messages, response bodies, credentials, or raw evidence in an error code.
+Treat `recovery_required` as an uncertain write that retains the observed
+lease, and `superseded` as evidence that another revision is now authoritative.
+Neither result proves that an external side effect did or did not occur.
+
 ## Version-3 audit and recovery policy
 
 Append AuditEvents with an exact stream sequence and parent; never update,

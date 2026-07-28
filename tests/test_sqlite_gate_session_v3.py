@@ -113,6 +113,23 @@ def test_sqlite_gate_session_default_clock_has_transition_precision():
     repository.close()
 
 
+def test_sqlite_gate_session_equal_clock_advances_one_second():
+    repository = tbm.SQLiteGateSessionRepository.connect(
+        ":memory:",
+        initialize=True,
+        clock=Clock([NOW, NOW]),
+    )
+    created = _create(repository).session
+    canceled = repository.transition(
+        created.session_id,
+        "canceled",
+        expected_version=1,
+        terminal_reason="cancel",
+    )
+    assert canceled.updated_at == "2026-07-27T00:00:01Z"
+    repository.close()
+
+
 def test_sqlite_gate_session_rejects_backwards_trusted_clock():
     repository = tbm.SQLiteGateSessionRepository.connect(
         ":memory:",

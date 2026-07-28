@@ -65,6 +65,10 @@ Start with:
   plus exact public/internal prompt/response byte repository.
 - `outcome_v3.py`: content-addressed RunOutcome and explicit association versus
   independently verified causal attribution contracts.
+- `gate_completion_v3.py`: storage-neutral RunOutcome/GateSession completion
+  request, receipt, and durable read-back verification.
+- `sqlite_outcome_v3.py`: opt-in atomic SQLite RunOutcome plus `COMPLETED`
+  GateSession revision authority; not wired to active Agent/MCP.
 - `audit_v3.py`: append-only AuditEvent chains and explicit RecoveryAction
   evidence verified against existing lifecycle sources of truth.
 - `sqlite_audit_v3.py`: opt-in isolated append-only AuditEvent/RecoveryAction

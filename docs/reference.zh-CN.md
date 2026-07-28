@@ -204,7 +204,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 102 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 103 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -392,6 +392,15 @@ storage-neutral `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
 区分观察 association 与 causal claim。因果归因必须采用非观察性方法并由独立
 verifier 核验；异常或 score 不能被自动提升为因果。active v2 outcome 字段保持
 不变。详见[结果契约](protocols/outcome-v3.zh-CN.md)。
+
+`GateSessionCompletionService` 与 `SQLiteOutcomeV3Repository` 基于
+`schemas/sqlite-v3-outcome.sql` 增加 opt-in SQLite completion authority。
+authority 从 durable executing GateSession 派生全部 linkage，使用同一个可信
+timestamp，并在一个 transaction/savepoint 中通过 CAS 与精确读回写入
+content-addressed RunOutcome 及 `COMPLETED` revision。同一 measurement 重放
+返回 `inserted=false`；不同 terminal measurement 冲突。它不会在 Store、Agent
+或 MCP 中激活 v3 生命周期。详见
+[SQLite 完成事务契约](protocols/sqlite-outcome-v3.zh-CN.md)。
 
 storage-neutral `tbm.audit-event.v3` 与 `tbm.recovery-action.v3` 增加
 内容寻址 append-only event chain 与显式 recovery-attempt evidence。恢复核验
@@ -1101,6 +1110,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |   |-- gate-evaluation-v3.zh-CN.md
 |   |   |-- outcome-v3.md
 |   |   |-- outcome-v3.zh-CN.md
+|   |   |-- sqlite-outcome-v3.md
+|   |   |-- sqlite-outcome-v3.zh-CN.md
 |   |   |-- retrieval-snapshot-v3.md
 |   |   |-- retrieval-snapshot-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
@@ -1163,6 +1174,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- sqlite-v3-audit.sql
 |   |-- sqlite-v3-authorization.sql
 |   |-- sqlite-v3-gate-session.sql
+|   |-- sqlite-v3-outcome.sql
 |   |-- sqlite-v3-migration.sql
 |   |-- sqlite-v3-replay.sql
 |   |-- sqlite-v3-semantic-gate-artifacts.sql
@@ -1199,6 +1211,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- authorization_v3.py
 |   |-- service_v3.py
 |   |-- gate_service_v3.py
+|   |-- gate_completion_v3.py
 |   |-- gate_worker_v3.py
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
@@ -1212,6 +1225,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- models.py
 |   |-- memory_revision_v3.py
 |   |-- outcome_v3.py
+|   |-- sqlite_outcome_v3.py
 |   |-- retrieval_v3.py
 |   |-- policy.py
 |   |-- postgres.py
@@ -1243,6 +1257,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_migration_v3.py
     |-- test_memory_revision_v3.py
     |-- test_outcome_v3.py
+    |-- test_sqlite_outcome_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_postgres_replay_v3.py

@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 102 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 103 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -526,6 +526,19 @@ artifact evidence 与测量值。OutcomeAttribution 刻意保持独立：runtime
 observation 只能产生 association；causal 结论必须使用非观察性方法并由独立
 verifier 核验。active Store 仍以既有 v2 outcome 字段为准，不能静默升级。
 详见[运行结果与归因 v3](protocols/outcome-v3.zh-CN.md)。
+
+opt-in `SQLiteOutcomeV3Repository` 与 `schemas/sqlite-v3-outcome.sql`
+提供了第一条持久化 completion transaction。repository 与 side-by-side
+GateSession authority 共用同一 connection 与 lock，从当前 `EXECUTING` session
+派生 trace/run/usage identity，用同一个可信 timestamp 构造两条记录，通过 CAS
+追加 `COMPLETED`、插入 immutable RunOutcome，并在 commit 前精确读回。调用方
+拥有的 transaction 使用 savepoint。相同 terminal replay 幂等；不同
+measurement、stale version、时钟倒退、trigger 失败或 read-back mismatch 会回滚
+整个操作。`GateSessionCompletionService` 会验证返回记录对与持久化读回，而不
+复制 lifecycle policy。PostgreSQL parity、attribution persistence、
+evaluator authentication、artifact authorization、outbox delivery 与 active
+runtime emission 仍是独立后续工作。详见
+[SQLite RunOutcome 完成事务 v3](protocols/sqlite-outcome-v3.zh-CN.md)。
 
 `tbm.audit-event.v3` 提供内容寻址 append-only stream，绑定精确 parent
 及 actor/reference provenance。配套 `tbm.recovery-action.v3` 记录一次已完成

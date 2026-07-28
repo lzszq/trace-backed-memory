@@ -248,6 +248,13 @@ from .gate_service_v3 import (
     GateSessionWriter,
     PreparedGateEvidence,
 )
+from .gate_completion_v3 import (
+    GateCompletionRequest,
+    GateCompletionResult,
+    GateCompletionV3Error,
+    GateSessionCompletionAuthority,
+    GateSessionCompletionService,
+)
 from .gate_worker_v3 import (
     GateSessionDueRepository,
     GateSessionRecoveryOutcome,
@@ -611,6 +618,15 @@ from .sqlite_gate_session_v3 import (
     SQLiteGateSessionRepository,
     SQLiteGateSessionSchemaError,
 )
+from .sqlite_outcome_v3 import (
+    SQLITE_OUTCOME_V3_SCHEMA_VERSION,
+    SQLiteOutcomeV3ConflictError,
+    SQLiteOutcomeV3Error,
+    SQLiteOutcomeV3NotFoundError,
+    SQLiteOutcomeV3PersistenceError,
+    SQLiteOutcomeV3Repository,
+    SQLiteOutcomeV3SchemaError,
+)
 from .sqlite_replay_v3 import (
     SQLITE_REPLAY_V3_SCHEMA_VERSION,
     SQLiteReplayV3ConflictError,
@@ -818,6 +834,11 @@ __all__ = [
     "AuthenticatedGateServiceV3Error",
     "AuthenticatedGateSessionService",
     "AuthenticatedPreparedGateResult",
+    "GateCompletionRequest",
+    "GateCompletionResult",
+    "GateCompletionV3Error",
+    "GateSessionCompletionAuthority",
+    "GateSessionCompletionService",
     "GatePreparationFailedError",
     "GatePreparationRecoveryRequiredError",
     "GatePreparationRequest",
@@ -1062,6 +1083,13 @@ __all__ = [
     "SQLiteGateSessionPersistenceError",
     "SQLiteGateSessionRepository",
     "SQLiteGateSessionSchemaError",
+    "SQLITE_OUTCOME_V3_SCHEMA_VERSION",
+    "SQLiteOutcomeV3ConflictError",
+    "SQLiteOutcomeV3Error",
+    "SQLiteOutcomeV3NotFoundError",
+    "SQLiteOutcomeV3PersistenceError",
+    "SQLiteOutcomeV3Repository",
+    "SQLiteOutcomeV3SchemaError",
     "SQLITE_REPLAY_V3_SCHEMA_VERSION",
     "SQLiteReplayV3ConflictError",
     "SQLiteReplayV3Error",

@@ -35,6 +35,13 @@ artifact bytes, use a trusted time source, enforce immutable uniqueness, and
 write the outcome, session transition, and any attribution atomically. Raw
 tool output and secrets belong in controlled artifacts, not these records.
 
+The opt-in SQLite completion authority now writes one RunOutcome and the
+matching `EXECUTING` to `COMPLETED` GateSession revision atomically with one
+trusted timestamp, exact replay, schema guards, and pre-commit read-back. See
+[SQLite RunOutcome completion v3](sqlite-outcome-v3.md). PostgreSQL parity,
+attribution persistence, evaluator authentication, artifact verification,
+outbox delivery, and active runtime integration remain outstanding.
+
 Canonical schemas:
 
 - `schemas/run_outcome_v3.schema.json`

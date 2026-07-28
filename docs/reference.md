@@ -230,7 +230,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 102 resources. `PackagedResource` descriptions
+The allowlist currently contains 103 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -564,6 +564,16 @@ from causal claims. Causal attribution requires a non-observational method and
 an independent verifier; no exception or score is promoted automatically.
 Active v2 outcome fields remain unchanged. See
 [the outcome contract](protocols/outcome-v3.md).
+
+`GateSessionCompletionService` and `SQLiteOutcomeV3Repository` add an opt-in
+SQLite completion authority over `schemas/sqlite-v3-outcome.sql`. The
+authority derives all linkage from the durable executing GateSession, uses a
+single trusted timestamp, and writes the content-addressed RunOutcome plus
+`COMPLETED` revision in one transaction/savepoint with CAS and exact
+read-back. Same-measurement replay returns `inserted=false`; a different
+terminal measurement conflicts. This does not activate the v3 lifecycle in
+the Store, Agent, or MCP. See
+[the SQLite completion contract](protocols/sqlite-outcome-v3.md).
 
 The storage-neutral `tbm.audit-event.v3` and `tbm.recovery-action.v3`
 contracts add a content-addressed append-only event chain and explicit
@@ -2242,6 +2252,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- gate-evaluation-v3.zh-CN.md
 |   |   |-- outcome-v3.md
 |   |   |-- outcome-v3.zh-CN.md
+|   |   |-- sqlite-outcome-v3.md
+|   |   |-- sqlite-outcome-v3.zh-CN.md
 |   |   |-- retrieval-snapshot-v3.md
 |   |   |-- retrieval-snapshot-v3.zh-CN.md
 |   |   |-- gate-session-v3.md
@@ -2304,6 +2316,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- sqlite-v3-audit.sql
 |   |-- sqlite-v3-authorization.sql
 |   |-- sqlite-v3-gate-session.sql
+|   |-- sqlite-v3-outcome.sql
 |   |-- sqlite-v3-migration.sql
 |   |-- sqlite-v3-replay.sql
 |   |-- sqlite-v3-semantic-gate-artifacts.sql
@@ -2340,6 +2353,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- authorization_v3.py
 |   |-- service_v3.py
 |   |-- gate_service_v3.py
+|   |-- gate_completion_v3.py
 |   |-- gate_worker_v3.py
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
@@ -2353,6 +2367,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- models.py
 |   |-- memory_revision_v3.py
 |   |-- outcome_v3.py
+|   |-- sqlite_outcome_v3.py
 |   |-- retrieval_v3.py
 |   |-- policy.py
 |   |-- postgres.py
@@ -2384,6 +2399,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_migration_v3.py
     |-- test_memory_revision_v3.py
     |-- test_outcome_v3.py
+    |-- test_sqlite_outcome_v3.py
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_postgres_replay_v3.py

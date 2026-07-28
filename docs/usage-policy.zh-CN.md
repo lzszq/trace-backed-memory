@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-102 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision contract 资源、隔离 SQLite GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision/Semantic Gate attempt 与 artifact ledger install/fail-closed rollback。
+103 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision contract 资源、隔离 SQLite GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision/Semantic Gate attempt 与 artifact ledger install/fail-closed rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -430,6 +430,17 @@ memory 出现在运行中只能记录为采用 `runtime_observation` 的 `associ
 `memory_caused_failure` 默认值转成因果结论。`causal` attribution 必须来自
 受控实验、人工复核或外部评估，带 evidence artifact 和确定 effect，并由不同于
 evaluator 的 verifier 核验。adapter 写入前必须校验精确 linkage 与时间。
+
+在 opt-in SQLite v3 路径中，只能在执行产生显式 measurement 后构造
+`GateCompletionRequest`，并针对与 executing GateSession 共用同一 connection
+的 `SQLiteOutcomeV3Repository` 调用
+`GateSessionCompletionService.complete()`。caller 不得提供
+session/Trace/run/usage linkage 或 measurement timestamp：authority 必须从
+durable state 派生 linkage，并用自己的可信时钟同时生成 outcome 与
+`COMPLETED` revision。只有 service 校验两份持久化读回后，才能把
+`inserted=false` 解释为精确重放。不得把该本地 authority 当作 evaluator
+authentication、artifact authorization、OutcomeAttribution persistence 或
+active Agent/MCP completion 的证明。
 
 ## Version-3 审计与恢复策略
 

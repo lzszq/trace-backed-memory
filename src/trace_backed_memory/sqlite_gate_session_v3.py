@@ -206,14 +206,18 @@ class SQLiteGateSessionRepository:
         *,
         owns_connection: bool = False,
         clock: Callable[[], str] = _service_timestamp,
+        allow_direct_completion: bool = True,
     ) -> None:
         if not isinstance(connection, sqlite3.Connection):
             raise ValueError("connection must be a sqlite3.Connection")
         if not callable(clock):
             raise ValueError("clock must be callable")
+        if type(allow_direct_completion) is not bool:
+            raise ValueError("allow_direct_completion must be a boolean")
         self._connection = connection
         self._owns_connection = owns_connection
         self._clock = clock
+        self._allow_direct_completion = allow_direct_completion
         self._lock = RLock()
         self._closed = False
         self._savepoint_number = 0
@@ -449,7 +453,7 @@ class SQLiteGateSessionRepository:
             )
         if parsed_now == parsed_previous:
             return aware_datetime_to_rfc3339(
-                parsed_previous + timedelta(microseconds=1)
+                parsed_previous + timedelta(seconds=1)
             )
         return now
 
@@ -790,6 +794,11 @@ class SQLiteGateSessionRepository:
         terminal_reason: str | None = None,
     ) -> GateSession:
         self._require_open()
+        if target_status == "completed" and not self._allow_direct_completion:
+            raise SQLiteGateSessionConflictError(
+                "TBM_SQLITE_GATE_SESSION_COMPLETION_AUTHORITY",
+                "GateSession completion requires the RunOutcome authority",
+            )
         try:
             with self._transaction(write=True):
                 with closing(self._connection.cursor()) as cursor:

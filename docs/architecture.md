@@ -1149,7 +1149,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 102 resources.
+contains 103 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1689,6 +1689,21 @@ an association, while a causal claim requires a non-observational method and
 an independent verifier. Existing v2 outcome fields remain authoritative for
 the active Store and are not silently upgraded. See
 [Run outcome and attribution v3](protocols/outcome-v3.md).
+
+The opt-in `SQLiteOutcomeV3Repository` and
+`schemas/sqlite-v3-outcome.sql` now provide the first durable completion
+transaction. The repository shares one connection and lock with its
+side-by-side GateSession authority, derives trace/run/usage identities from
+the current `EXECUTING` session, uses one trusted timestamp for both records,
+CAS-appends `COMPLETED`, inserts the immutable RunOutcome, and exactly reads
+both back before commit. Caller-owned transactions use savepoints. Exact
+terminal replay is idempotent; mismatched measurement, stale version, clock
+rollback, trigger failure, or read-back mismatch rolls back the whole
+operation. `GateSessionCompletionService` verifies the returned pair and
+durable read-back without reproducing lifecycle policy. PostgreSQL parity,
+attribution persistence, evaluator authentication, artifact authorization,
+outbox delivery, and active runtime emission remain separate work. See
+[SQLite RunOutcome completion v3](protocols/sqlite-outcome-v3.md).
 
 The `tbm.audit-event.v3` contract provides a content-addressed append-only
 stream with exact parent and actor/reference provenance. The paired

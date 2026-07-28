@@ -1425,8 +1425,16 @@ Track:
 - Publish content-addressed `tbm.run-outcome.v3` and
   `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
   explicit evaluator evidence while keeping observed association separate
-  from independently verified causal claims. Keep durable persistence and
-  active service integration outstanding.
+  from independently verified causal claims.
+- Add `GateSessionCompletionService`, the isolated version-1 SQLite
+  RunOutcome schema, and `SQLiteOutcomeV3Repository`. One trusted timestamp
+  and one outer transaction/savepoint build the content-addressed outcome,
+  CAS-append the `EXECUTING` to `COMPLETED` session revision, insert the
+  immutable outcome, and read both records back. Exact terminal replay is
+  idempotent; conflicting measurements, schema drift, clock rollback, or
+  partial writes fail closed. Keep PostgreSQL parity, OutcomeAttribution
+  persistence, authenticated evaluator/artifact checks, outbox delivery, and
+  active Agent/MCP/HTTP/SDK integration outstanding.
 - Publish storage-neutral `tbm.audit-event.v3` and
   `tbm.recovery-action.v3` contracts with content-derived identity, exact
   stream parents, authenticated actor slots, typed references, explicit

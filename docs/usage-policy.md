@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 102 installed resource copies must remain byte-identical to the top-level
+The 103 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1283,6 +1283,18 @@ requires a controlled experiment, manual review, or external evaluation,
 evidence artifacts, a known effect, and a verifier distinct from the
 evaluator. Adapters must validate exact linkage and timestamps before storing
 either record.
+
+For the opt-in SQLite v3 path, construct `GateCompletionRequest` only after
+execution has produced an explicit measurement. Call
+`GateSessionCompletionService.complete()` against the
+`SQLiteOutcomeV3Repository` that owns the same connection as the executing
+GateSession. Do not caller-supply session/Trace/run/usage linkage or a
+measurement timestamp: the authority derives linkage from durable state and
+uses its trusted clock for both the outcome and `COMPLETED` revision. Treat
+`inserted=false` as exact replay only after the service has verified both
+durable read-backs. Do not use this local authority as proof of evaluator
+authentication, artifact authorization, OutcomeAttribution persistence, or
+active Agent/MCP completion.
 
 ## Version-3 audit and recovery policy
 

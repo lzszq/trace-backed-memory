@@ -619,8 +619,15 @@
   GateSession/replay linkage 与 active emission 仍待完成。
 - 发布内容寻址 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
   契约，把 completed GateSession 绑定到显式 evaluator evidence，并严格区分
-  观察关联与独立核验的因果结论。durable persistence 与 active service 接入仍
-  是后续工作。
+  观察关联与独立核验的因果结论。
+- 增加 `GateSessionCompletionService`、隔离 version-1 SQLite RunOutcome
+  schema 与 `SQLiteOutcomeV3Repository`。同一个可信 timestamp 与外层
+  transaction/savepoint 会构造 content-addressed outcome、通过 CAS 追加
+  `EXECUTING` → `COMPLETED` session revision、插入 immutable outcome，并精确
+  读回两条记录。完全相同的 terminal replay 幂等；不同 measurement、schema
+  drift、时钟倒退或 partial write 均 fail closed。PostgreSQL parity、
+  OutcomeAttribution persistence、authenticated evaluator/artifact 检查、
+  outbox delivery 与 active Agent/MCP/HTTP/SDK 集成仍待完成。
 - 发布 storage-neutral `tbm.audit-event.v3` 与
   `tbm.recovery-action.v3` 契约，提供内容派生 identity、精确 stream parent、
   authenticated actor slot、typed reference、显式 request digest，以及对照

@@ -323,6 +323,16 @@ from .postgres import (
     PostgresSyncCounts,
     PostgresSyncResult,
 )
+from .postgres_audit_v3 import (
+    POSTGRES_AUDIT_V3_MAX_PAGE_SIZE,
+    POSTGRES_AUDIT_V3_SCHEMA_VERSION,
+    PostgresAuditV3AppendResult,
+    PostgresAuditV3ConflictError,
+    PostgresAuditV3Error,
+    PostgresAuditV3PersistenceError,
+    PostgresAuditV3Repository,
+    PostgresAuditV3SchemaError,
+)
 from .postgres_gate_session_v3 import (
     POSTGRES_GATE_SESSION_SCHEMA_VERSION,
     PostgresGateSessionConflictError,
@@ -625,6 +635,14 @@ __all__ = [
     "PostgresAdapterError",
     "PostgresConflictError",
     "PostgresDependencyError",
+    "POSTGRES_AUDIT_V3_MAX_PAGE_SIZE",
+    "POSTGRES_AUDIT_V3_SCHEMA_VERSION",
+    "PostgresAuditV3AppendResult",
+    "PostgresAuditV3ConflictError",
+    "PostgresAuditV3Error",
+    "PostgresAuditV3PersistenceError",
+    "PostgresAuditV3Repository",
+    "PostgresAuditV3SchemaError",
     "POSTGRES_GATE_SESSION_SCHEMA_VERSION",
     "PostgresGateSessionConflictError",
     "PostgresGateSessionCreateResult",

@@ -32,6 +32,15 @@ parent-linked event，原子追加一条 RecoveryAction 及其匹配的成功/�
 也不包含底层 Store/GateSession transition；service integration 必须补齐这些检查
 和更大的原子 unit of work，才能把 append 视为已授权 recovery。
 
+opt-in `PostgresAuditV3Repository` 通过 `schemas/postgres-v3-audit.sql`
+及其 fail-closed rollback 提供匹配的隔离多进程 ledger。它使用 stream-head
+row lock 串行化 writer，通过精确 CAS 推进 head，借助 psycopg savepoint 保留
+调用方 transaction，并在每次操作核验 metadata、relation、index、constraint、
+column、trigger 绑定/状态及 canonical 固定 `search_path` function body。
+deferred database check 要求每个 event 都提交到对应 head，且每个
+RecoveryAction 形成唯一精确匹配 pair。这不会扩大 authorization 或 service
+transaction boundary。
+
 现有派生 `MemoryRunAudit`、`MemoryRunRemediation`、health metrics 与 version-2
 usage log 保持不变。event ledger 是操作证据，不是另一套 lifecycle/outcome
 authority。
@@ -41,3 +50,5 @@ authority。
 - `schemas/audit_event_v3.schema.json`
 - `schemas/recovery_action_v3.schema.json`
 - `schemas/sqlite-v3-audit.sql`
+- `schemas/postgres-v3-audit.sql`
+- `schemas/postgres-v3-audit-rollback.sql`

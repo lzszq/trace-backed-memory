@@ -216,6 +216,16 @@ _RESOURCE_SPECS: tuple[
         "application/sql",
     ),
     (
+        "schemas/postgres-v3-audit-rollback.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres-v3-audit.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
         "schemas/postgres-v3-gate-session-rollback.sql",
         "schema",
         "application/sql",

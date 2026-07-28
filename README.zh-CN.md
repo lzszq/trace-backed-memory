@@ -176,7 +176,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 76 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 78 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -308,10 +308,12 @@ verifier 核验；异常或 score 不能被自动提升为因果。active v2 out
 storage-neutral `tbm.audit-event.v3` 与 `tbm.recovery-action.v3` 增加
 内容寻址 append-only event chain 与显式 recovery-attempt evidence。恢复核验
 复用派生 `MemoryRunRemediation` 和不可变 GateSession version，不创建第二套
-lifecycle authority。`SQLiteAuditV3Repository` 增加 opt-in 隔离 ledger，提供
-精确 stream-head CAS、immutable event、RecoveryAction/event 原子追加、
-session-scoped request digest 唯一性、有界读取、schema-drift 检查、调用方
-savepoint 与并发幂等。它尚未接入 active Store/Agent/MCP，也不执行授权或底层
+lifecycle authority。`SQLiteAuditV3Repository` 与
+`PostgresAuditV3Repository` 增加 opt-in 隔离 ledger，提供精确 stream-head
+CAS、immutable event、RecoveryAction/event 原子追加、session-scoped request
+digest 唯一性、有界读取、schema-drift 检查、调用方 savepoint 与并发幂等。
+PostgreSQL adapter 还提供行锁共享数据库 CAS，以及精确的安装和回滚目录校验。
+两种 adapter 均尚未接入 active Store/Agent/MCP，也不执行授权或底层
 GateSession/remediation transition。详见
 [审计与恢复契约](docs/protocols/audit-recovery-v3.zh-CN.md)。
 
@@ -929,7 +931,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、76 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、78 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 
@@ -1054,6 +1056,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- postgres-v2-lock-order-hotfix.sql
 |   |-- postgres-v3-gate-session*.sql
 |   |-- postgres-v3-replay*.sql
+|   |-- postgres-v3-audit*.sql
 |   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
 |   |-- snapshot_v3_migration_*.schema.json
@@ -1106,6 +1109,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- postgres.py
 |   |-- postgres_gate_session_v3.py
 |   |-- postgres_replay_v3.py
+|   |-- postgres_audit_v3.py
 |   |-- replay_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_audit_v3.py
@@ -1130,6 +1134,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_retrieval_v3.py
     |-- test_postgres_gate_session_v3.py
     |-- test_postgres_replay_v3.py
+    |-- test_postgres_audit_v3.py
     |-- test_replay_v3.py
     |-- test_sqlite_gate_session_v3.py
     |-- test_sqlite_audit_v3.py

@@ -105,6 +105,8 @@ trace_backed_memory = [
     "_resources/schemas/outcome_attribution_v3.schema.json",
     "_resources/schemas/postgres-v1-to-v2.sql",
     "_resources/schemas/postgres-v2-lock-order-hotfix.sql",
+    "_resources/schemas/postgres-v3-audit-rollback.sql",
+    "_resources/schemas/postgres-v3-audit.sql",
     "_resources/schemas/postgres-v3-gate-session-rollback.sql",
     "_resources/schemas/postgres-v3-gate-session.sql",
     "_resources/schemas/postgres-v3-replay-rollback.sql",

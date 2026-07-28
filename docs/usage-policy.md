@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 76 installed resource copies must remain byte-identical to the top-level
+The 78 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -173,8 +173,8 @@ atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 `schemas/postgres-v2-lock-order-hotfix.sql` operator script. It also includes
 the agent protocol, v3 migration staging, GateSession, and content-addressed
 replay contract Schemas and examples, plus isolated SQLite GateSession DDL and
-replay-ledger DDL, isolated PostgreSQL GateSession install/rollback, and
-isolated PostgreSQL replay-ledger install/fail-closed rollback.
+  replay/audit-ledger DDL, isolated PostgreSQL GateSession install/rollback,
+  and isolated PostgreSQL replay/audit-ledger install/fail-closed rollback.
 
 CLI resource reads emit deterministic JSON rather than unframed raw content.
 Export is the shell integration path. It must refuse an existing destination
@@ -1214,12 +1214,15 @@ expected revision. Write the underlying transition, RecoveryAction, and
 matching success/failure AuditEvent atomically. A stale plan, request-hash
 collision, missing explicit attribution, or unauthorized actor fails closed.
 
-The opt-in SQLite audit ledger may persist exact event streams and atomically
+The opt-in SQLite and PostgreSQL audit ledgers may persist exact event streams and atomically
 append a RecoveryAction with its matching event. Its session-scoped request
 digest uniqueness is replay protection, not authorization. Until a service
 unit of work derives actor identity and includes the underlying GateSession or
 remediation transition in the same transaction, callers must not present a
 successful ledger append as proof that recovery was authorized or executed.
+The PostgreSQL ledger additionally requires its version-gated isolated
+install, exact catalog/function checks, deterministic stream-head lock order,
+and fail-closed rollback; it does not change active schema version 2.
 
 ## Version-3 replay artifact policy
 

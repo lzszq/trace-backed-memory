@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 76 resources.
+contains 78 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1581,6 +1581,20 @@ schema drift. This repository is evidence storage, not a replacement Store
 lifecycle, authorization service, authenticated actor boundary, or atomic
 GateSession/remediation transition. See
 [Audit event and recovery action v3](protocols/audit-recovery-v3.md).
+
+`PostgresAuditV3Repository` and `schemas/postgres-v3-audit*.sql` provide the
+matching opt-in multi-process ledger without changing active PostgreSQL schema
+version 2. Installation takes the active-metadata lock first, then creates
+bounded stream heads, immutable events, exact RecoveryAction/event pairs,
+fixed-search-path triggers, and deferred consistency checks atomically.
+Repository appends lock one stream head, revalidate the current parent, insert
+the event/action, and advance the head through exact CAS. Every operation
+verifies relation, index, constraint, column, trigger binding/state, function
+configuration/body, and metadata catalogs. Rollback locks the ledger and
+refuses catalog drift or external dependencies before `RESTRICT` removal.
+Psycopg nested transactions preserve caller ownership through savepoints.
+Like the SQLite ledger, this remains evidence storage rather than an
+authorization or Store/GateSession transition boundary.
 
 ## Non-goals
 

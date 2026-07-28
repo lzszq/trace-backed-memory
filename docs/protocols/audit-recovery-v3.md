@@ -38,6 +38,16 @@ derive authenticated actors or include the underlying Store/GateSession
 transition; service integration must add those checks and the wider atomic
 unit of work before treating an append as authorized recovery.
 
+The opt-in `PostgresAuditV3Repository` provides the matching isolated
+multi-process ledger through `schemas/postgres-v3-audit.sql` and its
+fail-closed rollback. It serializes writers with a stream-head row lock,
+advances the head through exact CAS, preserves caller transactions through
+psycopg savepoints, and verifies metadata, relations, indexes, constraints,
+columns, trigger bindings/state, and canonical fixed-search-path function
+bodies on every operation. Deferred database checks require each event to be
+committed to its head and each RecoveryAction to form one exact matching pair.
+This does not widen the authorization or service-transaction boundary.
+
 The existing derived `MemoryRunAudit`, `MemoryRunRemediation`, health metrics,
 and version-2 usage log remain unchanged. An event ledger is evidence about
 operations, not a competing lifecycle or outcome authority.
@@ -47,3 +57,5 @@ Canonical schemas:
 - `schemas/audit_event_v3.schema.json`
 - `schemas/recovery_action_v3.schema.json`
 - `schemas/sqlite-v3-audit.sql`
+- `schemas/postgres-v3-audit.sql`
+- `schemas/postgres-v3-audit-rollback.sql`

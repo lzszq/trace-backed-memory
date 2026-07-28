@@ -1377,7 +1377,13 @@ Track:
   request-digest uniqueness, canonical read revalidation, schema-drift
   detection, caller savepoints, and concurrent idempotency. Keep authenticated
   actor derivation, the underlying GateSession/remediation transition,
-  PostgreSQL parity, and active service integration outstanding.
+  and active service integration outstanding.
+- Add the matching opt-in PostgreSQL audit ledger with version-gated isolated
+  install, fail-closed exact-catalog rollback, deterministic collation,
+  row-lock stream CAS, deferred stream and RecoveryAction/event consistency,
+  canonical read revalidation, caller savepoints, concurrent idempotency, and
+  catalog/function-body drift checks. Keep active PostgreSQL schema version 2,
+  authenticated actor derivation, and the wider service transaction unchanged.
 - Add an opt-in side-by-side SQLite GateSession repository with append-only
   canonical revisions, a scoped atomic idempotency index, trusted-clock CAS
   transitions and lease renewal, schema-drift detection, caller savepoints,

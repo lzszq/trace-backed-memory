@@ -580,7 +580,13 @@
   parent/head CAS、RecoveryAction/event 原子追加、session-scoped request-digest
   唯一性、canonical 读取复核、schema-drift 检测、调用方 savepoint 与并发幂等。
   authenticated actor 派生、底层 GateSession/remediation transition、
-  PostgreSQL 对等实现与 active service integration 仍是后续工作。
+  active service integration 仍是后续工作。
+- 增加匹配的 opt-in PostgreSQL audit ledger：version-gated 隔离安装、
+  fail-closed 精确 catalog rollback、确定性 collation、row-lock stream CAS、
+  deferred stream 与 RecoveryAction/event consistency、canonical 读取复核、
+  调用方 savepoint、并发幂等及 catalog/function-body drift 检查。active
+  PostgreSQL schema version 2、authenticated actor 派生与更宽的 service
+  transaction 保持不变。
 - 增加 opt-in、side-by-side SQLite GateSession repository，提供 append-only
   canonical revision、scoped 原子 idempotency index、可信时钟 CAS transition 与
   lease renewal、schema-drift 检测、调用方 savepoint、并发测试和有界 due

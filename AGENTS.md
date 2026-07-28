@@ -57,6 +57,8 @@ Start with:
   evidence verified against existing lifecycle sources of truth.
 - `sqlite_audit_v3.py`: opt-in isolated append-only AuditEvent/RecoveryAction
   ledger; not wired to active authorization, GateSession transitions, or MCP.
+- `postgres_audit_v3.py`: opt-in isolated PostgreSQL AuditEvent/RecoveryAction
+  ledger with row-lock CAS, exact catalog checks, and fail-closed rollback.
 - `gate_session_v3.py`: persistence-neutral durable-session contract and
   explicit lifecycle transitions; not an active repository.
 - `sqlite_gate_session_v3.py`: opt-in side-by-side append-only GateSession

@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 76 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 78 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -435,6 +435,18 @@ schema drift 时 fail closed。该 repository 只是 evidence storage，不替�
 lifecycle、authorization service、authenticated actor boundary 或原子的
 GateSession/remediation transition。详见
 [审计事件与恢复动作 v3](protocols/audit-recovery-v3.zh-CN.md)。
+
+`PostgresAuditV3Repository` 与 `schemas/postgres-v3-audit*.sql` 提供匹配的
+opt-in 多进程 ledger，且不改变 active PostgreSQL schema version 2。安装先锁定
+active metadata，再原子创建有界 stream head、immutable event、精确
+RecoveryAction/event 配对、固定 `search_path` trigger 与 deferred consistency
+check。repository append 会锁定单一 stream head、复核当前 parent、插入
+event/action，并通过精确 CAS 推进 head。每次操作都会核验 relation、index、
+constraint、column、trigger 绑定/状态、function 配置/body 与 metadata catalog。
+rollback 锁定 ledger，并在 `RESTRICT` 删除前拒绝 catalog drift 或外部依赖。
+psycopg nested transaction 通过 savepoint 保留调用方 ownership。与 SQLite
+ledger 相同，它仍只是 evidence storage，不是 authorization 或
+Store/GateSession transition boundary。
 
 ## 非目标
 

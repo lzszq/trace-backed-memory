@@ -89,8 +89,14 @@ such as branch, model family, or task type. The evaluator intentionally ignores
 those attributes. They narrow applicability later; they never grant access.
 
 Repository permissions require both tenant and repository targets.
-`tenant:audit_read` requires only a tenant. Global policy and platform audit
-permissions forbid tenant and repository targets.
+Publication permissions are deliberately scoped differently:
+`memory:review` and `memory:activate` require a tenant and may optionally name
+one exact repository. A tenant-scoped request can only match a tenant or global
+binding; a repository-scoped request may also match its exact repository
+binding. `tenant:audit_read` requires only a tenant. Global policy permissions
+are targetless; the current contract separates `policy:create_global` from
+`policy:approve_global`. Platform audit permissions also forbid tenant and
+repository targets.
 
 ## Wire resources and limits
 

@@ -304,6 +304,11 @@ binding，以及不在 inclusive `valid_from` / exclusive `expires_at` 区间内
 binding 都必须 fail closed。`platform:admin` 是全局超级用户权限，必须审计其分配
 与使用。
 
+`memory:review` 与 `memory:activate` 只能使用服务端持有的租户目标，并可选缩小到
+一个精确仓库；repository binding 绝不能授权租户级请求。全局策略创建与批准必须
+保持无目标且可独立分配，分别使用 `policy:create_global` 与
+`policy:approve_global`。
+
 decision 和 policy hash 只提供内容关联，不提供真实性。不得把孤立 decision 当作
 签名或长期 capability；必须针对精确信任 request 与 policy 验证，并在 policy
 变化、撤销或过期后重新求值。opt-in SQLite 与 PostgreSQL authorization

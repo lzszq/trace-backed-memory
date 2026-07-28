@@ -71,8 +71,12 @@ rollback 会拒绝 catalog drift 与外部依赖。这些 repository 不认证�
 授权作用域可携带现有的有界适用性属性，例如 branch、model family 或 task type。
 求值器有意忽略这些属性：它们只能在后续缩小适用范围，永远不能授予访问权。
 
-仓库权限要求同时提供租户与仓库目标；`tenant:audit_read` 只要求租户；全局策略与
-平台审计权限禁止携带租户或仓库目标。
+发布权限采用独立的作用域规则：`memory:review` 与 `memory:activate` 必须提供
+租户，并可选提供一个精确仓库。租户级请求只能匹配 tenant 或 global binding；
+仓库级请求还可匹配对应的精确 repository binding。`tenant:audit_read` 只要求
+租户。全局策略权限禁止携带租户或仓库目标；当前契约使用
+`policy:create_global` 与 `policy:approve_global` 分离创建和批准职责。平台审计
+权限同样禁止携带租户或仓库目标。
 
 ## 线协议资源与边界
 

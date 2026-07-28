@@ -133,6 +133,45 @@ def test_postgres_authorization_v3_public_exports_are_intentional():
     assert "PostgresAuthorizationV3Repository" in tbm.__all__
 
 
+def test_postgres_authorization_v3_persists_tenant_publication_decision(
+    postgres_cluster: PostgresCluster,
+):
+    _install(postgres_cluster)
+    policy = _policy()
+    policy = replace(
+        policy,
+        role_bindings=(
+            replace(
+                policy.role_bindings[0],
+                scope=AuthorizationScope(
+                    kind="tenant",
+                    tenant_id="tenant_001",
+                ),
+                permissions=("memory:review", "memory:activate"),
+            ),
+        ),
+    )
+    request = replace(
+        _request(),
+        repository_reference=None,
+        permission="memory:review",
+    )
+    repository = _repository(postgres_cluster)
+    try:
+        decision, result = repository.authorize_and_record(
+            policy,
+            request,
+            decided_at="2026-07-28T00:00:01Z",
+        )
+
+        assert decision.allowed is True
+        assert decision.repository_id is None
+        assert result.decision_inserted is True
+        assert repository.load_decision(decision.authorization_event_id) == decision
+    finally:
+        repository.close()
+
+
 def test_postgres_authorization_canonical_function_resource_failures(
     monkeypatch: pytest.MonkeyPatch,
 ):

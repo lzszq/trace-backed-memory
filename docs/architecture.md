@@ -1517,6 +1517,10 @@ future service boundary. A policy binds principals and agent clients to exact
 canonical repositories, tenant-scoped aliases, explicit permissions, and
 global/tenant/repository role scopes. Policy construction validates registry
 uniqueness and every cross-record target before a request can be evaluated.
+Repository operations require an exact tenant/repository target, while
+`memory:review` and `memory:activate` accept either an exact repository target
+or the enclosing tenant target. Global policy creation and approval remain
+separate targetless permissions.
 
 The evaluator is deliberately ordered before retrieval: authenticated
 server-owned identity context, status and tenant checks, exact repository

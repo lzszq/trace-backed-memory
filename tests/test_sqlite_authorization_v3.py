@@ -140,6 +140,42 @@ def test_sqlite_authorization_v3_authorizes_persists_and_replays():
         assert replay_result.decision_inserted is False
 
 
+def test_sqlite_authorization_v3_persists_tenant_publication_decision():
+    policy = _policy()
+    policy = replace(
+        policy,
+        role_bindings=(
+            replace(
+                policy.role_bindings[0],
+                scope=AuthorizationScope(
+                    kind="tenant",
+                    tenant_id="tenant_001",
+                ),
+                permissions=("memory:review", "memory:activate"),
+            ),
+        ),
+    )
+    request = replace(
+        _request(),
+        repository_reference=None,
+        permission="memory:activate",
+    )
+
+    with SQLiteAuthorizationV3Repository.connect(
+        initialize=True,
+    ) as repository:
+        decision, result = repository.authorize_and_record(
+            policy,
+            request,
+            decided_at="2026-07-28T00:00:01Z",
+        )
+
+        assert decision.allowed is True
+        assert decision.repository_id is None
+        assert result.decision_inserted is True
+        assert repository.load_decision(decision.authorization_event_id) == decision
+
+
 def test_sqlite_authorization_v3_denial_is_durable():
     policy = _policy()
     request = replace(_request(), principal_id="missing_principal")

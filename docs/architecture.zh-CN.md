@@ -383,6 +383,9 @@ GateSession linkage、access control、encryption、retention 或 runtime author
 evaluator。policy 把 principal 和 agent client 绑定到精确 canonical repository、
 租户作用域 alias、显式 permission，以及 global/tenant/repository role scope。
 策略构造会在任何请求求值前校验注册表唯一性与全部跨记录目标。
+仓库操作要求精确 tenant/repository 目标；`memory:review` 与
+`memory:activate` 可面向精确仓库或其所属租户。全局策略的创建与批准使用彼此
+分离且不携带目标的权限。
 
 求值器有意先于检索运行：先取得服务端认证 identity context，再检查状态与租户、
 精确解析 repository，最后求值 active binding。scope attribute 复用有界适用性

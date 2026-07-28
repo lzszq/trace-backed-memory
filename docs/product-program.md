@@ -1497,6 +1497,11 @@ Track:
   evaluation, exact policy/request verification, strict bounded JSON, and
   packaged Schemas/examples. Keep authenticated identity context, persistence,
   and active adapter enforcement outstanding.
+- Extend publication authorization without broadening ordinary repository
+  operations: tenant-owned review and activation may target the tenant or one
+  exact repository, repository bindings cannot authorize tenant-wide requests,
+  and existing targetless global policy creation and approval remain
+  independently assignable.
 - Add an opt-in isolated SQLite authorization authority that durably stores
   immutable policy bundles and linked allow/deny decisions, verifies the exact
   request before append, enforces unique request identity, revalidates stored

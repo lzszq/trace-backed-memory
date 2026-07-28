@@ -1126,6 +1126,12 @@ cross-tenant targets, revoked bindings, and bindings outside their inclusive
 `platform:admin` as a global superuser permission and audit its assignment and
 use.
 
+Use `memory:review` and `memory:activate` only with a server-owned tenant
+target, optionally narrowed to one exact repository. A repository binding must
+never authorize a tenant-wide request. Keep global policy creation, approval,
+and their permissions targetless and independently assignable through
+`policy:create_global` and `policy:approve_global`.
+
 Decision and policy hashes provide content linkage, not authenticity. Never
 accept an isolated decision as a signature or durable capability. Verify the
 decision against the exact trusted request and policy, and reevaluate after

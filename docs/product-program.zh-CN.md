@@ -681,6 +681,9 @@
   global/tenant/repository role binding、时点评估、精确 policy/request 核验、
   有界严格 JSON 和打包 Schema/示例。认证 identity context、持久化与 active
   adapter enforcement 仍待完成。
+- 在不扩大普通仓库操作权限的前提下扩展发布授权：租户持有的 review 与
+  activation 可面向租户或一个精确仓库；repository binding 不能授权租户级请求；
+  现有无目标的全局策略创建和批准仍可独立分配。
 - 增加 opt-in 隔离 SQLite authorization authority：持久化 immutable policy
   bundle 与关联 allow/deny decision，在追加前核验精确 request，强制唯一 request
   identity，重验已存 descriptor，检测精确 schema drift，并保留调用方

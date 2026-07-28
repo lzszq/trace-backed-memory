@@ -72,13 +72,15 @@ _REPOSITORY_PERMISSIONS = {
     "memory:retrieve",
     "memory:inject",
     "memory:create",
-    "memory:review",
     "memory:verify",
-    "memory:activate",
     "gate_session:create",
     "gate_session:transition",
     "artifact:read",
     "artifact:write",
+}
+_TENANT_OR_REPOSITORY_PERMISSIONS = {
+    "memory:review",
+    "memory:activate",
 }
 _TENANT_PERMISSIONS = {"tenant:audit_read"}
 _GLOBAL_PERMISSIONS = {
@@ -90,6 +92,7 @@ _ADMIN_PERMISSION = "platform:admin"
 AUTHORIZATION_PERMISSIONS = tuple(
     sorted(
         _REPOSITORY_PERMISSIONS
+        | _TENANT_OR_REPOSITORY_PERMISSIONS
         | _TENANT_PERMISSIONS
         | _GLOBAL_PERMISSIONS
         | {_ADMIN_PERMISSION}
@@ -338,7 +341,9 @@ class RoleBinding:
                 _invalid("expires_at must be later than valid_from")
         if self.scope.kind == "repository":
             invalid = set(self.permissions) - (
-                _REPOSITORY_PERMISSIONS | {_ADMIN_PERMISSION}
+                _REPOSITORY_PERMISSIONS
+                | _TENANT_OR_REPOSITORY_PERMISSIONS
+                | {_ADMIN_PERMISSION}
             )
             if invalid:
                 _invalid("repository binding contains a broader permission")
@@ -532,6 +537,11 @@ class AuthorizationRequest:
             if self.tenant_id is None or self.repository_reference is None:
                 _invalid(
                     "repository permission requires tenant and repository"
+                )
+        elif self.permission in _TENANT_OR_REPOSITORY_PERMISSIONS:
+            if self.tenant_id is None:
+                _invalid(
+                    "tenant or repository permission requires tenant_id"
                 )
         elif self.permission in _TENANT_PERMISSIONS:
             if self.tenant_id is None or self.repository_reference is not None:

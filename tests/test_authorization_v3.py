@@ -331,6 +331,85 @@ def test_global_permission_forbids_tenant_identity_and_target():
         )
 
 
+@pytest.mark.parametrize("permission", ("memory:review", "memory:activate"))
+def test_publication_permission_accepts_tenant_or_repository_target(
+    permission: str,
+):
+    tenant_binding = _binding(
+        scope=AuthorizationScope(
+            kind="tenant",
+            tenant_id="tenant_001",
+        ),
+        permissions=(permission,),
+    )
+    policy = _policy(bindings=(tenant_binding,))
+
+    tenant_decision = authorize(
+        policy,
+        _request(
+            repository_reference=None,
+            permission=permission,
+        ),
+        decided_at=LATER,
+    )
+    repository_decision = authorize(
+        policy,
+        _request(permission=permission),
+        decided_at=LATER,
+    )
+
+    assert tenant_decision.allowed is True
+    assert tenant_decision.repository_id is None
+    assert repository_decision.allowed is True
+    assert repository_decision.repository_id == "repository_001"
+
+
+@pytest.mark.parametrize("permission", ("memory:review", "memory:activate"))
+def test_publication_permission_requires_tenant_and_exact_repository_if_given(
+    permission: str,
+):
+    with pytest.raises(
+        AuthorizationContractError,
+        match="tenant or repository permission requires tenant_id",
+    ):
+        _request(
+            tenant_id=None,
+            repository_reference=None,
+            permission=permission,
+        )
+
+    repository_binding = _binding(permissions=(permission,))
+    tenant_decision = authorize(
+        _policy(bindings=(repository_binding,)),
+        _request(
+            repository_reference=None,
+            permission=permission,
+        ),
+        decided_at=LATER,
+    )
+    assert tenant_decision.allowed is False
+    assert tenant_decision.reason == "no_matching_binding"
+
+    repository_decision = authorize(
+        _policy(bindings=(repository_binding,)),
+        _request(permission=permission),
+        decided_at=LATER,
+    )
+    assert repository_decision.allowed is True
+    assert repository_decision.repository_id == "repository_001"
+
+    unknown = authorize(
+        _policy(bindings=(repository_binding,)),
+        _request(
+            repository_reference="repository_missing",
+            permission=permission,
+        ),
+        decided_at=LATER,
+    )
+    assert unknown.allowed is False
+    assert unknown.reason == "unknown_repository"
+
+
 def test_policy_rejects_duplicate_and_dangling_registry_entries():
     with pytest.raises(
         AuthorizationContractError,

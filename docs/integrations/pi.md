@@ -18,17 +18,21 @@ py -m pip install -e ".[mcp]"
 
 On macOS or Linux, use `python3` and `command -v tbm-mcp`.
 
-Install Pi if needed, then install the adapter from Pi's package catalog:
+Install Pi if needed, then install the
+[`pi-mcp-adapter` MCP client](https://pi.dev/packages/pi-mcp-adapter?name=mcp):
 
 ```bash
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 pi install npm:pi-mcp-adapter
 ```
 
-Review the package's current version and source before accepting the install,
-then restart Pi. Open `/mcp` for the first-run notice. If no standard MCP file
-exists yet, run `/mcp setup` to create one; the explicit configuration below
-is the resulting project-local form.
+Before accepting the install, review the current package version in the catalog
+and the adapter's [upstream source repository](https://github.com/nicobailon/pi-mcp-adapter),
+then restart Pi. The adapter reads a project `.mcp.json` automatically. Open
+`/mcp` for its first-run status; if you only have another host's configuration,
+or no standard MCP file exists yet, run `/mcp setup` and review its preview
+before it writes the project file. The explicit configuration below is the
+project-local form used to connect Trace-backed Memory.
 
 ## Connect Pi
 
@@ -80,10 +84,11 @@ Do not restart the MCP process between prepare and finalize or cancel.
 
 Pi's extension and trust model is documented in the
 [official Pi documentation](https://pi.dev/docs/latest) and
-[security guide](https://pi.dev/docs/latest/security). Adapter installation,
-client installation, setup, configuration, commands, and lifecycle options
-come from the
-[`pi-mcp-adapter` entry in Pi's package catalog](https://pi.dev/packages/pi-mcp-adapter?name=mcp).
-The catalog marks it as third-party executable code; it is not part of Pi core.
+[security guide](https://pi.dev/docs/latest/security). This tutorial uses the
+MCP client named in the
+[`pi-mcp-adapter` package catalog entry](https://pi.dev/packages/pi-mcp-adapter?name=mcp);
+its setup, configuration, commands, and lifecycle behavior are documented by
+the [adapter's upstream project](https://github.com/nicobailon/pi-mcp-adapter).
+It is third-party executable code, not part of Pi core or Trace-backed Memory.
 
 Other clients: [Codex](codex.md) | [Claude Code](claude-code.md)

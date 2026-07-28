@@ -1110,9 +1110,15 @@ def test_mcp_client_guides_publish_install_and_lifecycle_contracts():
     assert "claude mcp get trace-backed-memory" in claude
 
     pi = english_guides[2].read_text(encoding="utf-8")
+    pi_chinese = chinese_guides[2].read_text(encoding="utf-8")
     assert "uses `pi-mcp-adapter` as Pi's MCP client" in pi
     assert "pi install npm:pi-mcp-adapter" in pi
     assert "https://pi.dev/packages/pi-mcp-adapter?name=mcp" in pi
+    assert "https://github.com/nicobailon/pi-mcp-adapter" in pi
+    assert "not part of Pi core or Trace-backed Memory" in pi
+    assert "https://pi.dev/packages/pi-mcp-adapter?name=mcp" in pi_chinese
+    assert "https://github.com/nicobailon/pi-mcp-adapter" in pi_chinese
+    assert "不属于 Pi core，也不属于 Trace-backed Memory" in pi_chinese
     assert "/mcp setup" in pi
     assert "/mcp reconnect trace-backed-memory" in pi
     assert '"lifecycle": "keep-alive"' in pi

@@ -17,15 +17,19 @@ py -m pip install -e ".[mcp]"
 
 macOS 或 Linux 使用 `python3` 与 `command -v tbm-mcp`。
 
-如尚未安装 Pi，先安装 Pi，再从 Pi package catalog 安装 adapter：
+如尚未安装 Pi，先安装 Pi，再安装
+[`pi-mcp-adapter` MCP 客户端](https://pi.dev/packages/pi-mcp-adapter?name=mcp)：
 
 ```bash
 npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 pi install npm:pi-mcp-adapter
 ```
 
-接受安装前应检查 package 当前版本并审查源码，然后重启 Pi。首次打开 `/mcp` 时确认
-提示；若尚无标准 MCP 配置文件，运行 `/mcp setup` 创建。下面是最终生成的项目级显式配置。
+接受安装前，应在 catalog 检查 package 当前版本，并审查 adapter 的
+[上游源码仓库](https://github.com/nicobailon/pi-mcp-adapter)，然后重启 Pi。adapter 会自动读取项目
+`.mcp.json`。首次打开 `/mcp` 时检查状态；若当前只有其他 host 的配置，或尚无标准 MCP
+配置文件，则运行 `/mcp setup`，确认写入预览后再生成项目文件。下面是连接
+Trace-backed Memory 时使用的项目级显式配置。
 
 ## 连接 Pi
 
@@ -75,9 +79,10 @@ cancel 之间重启 MCP process。
 
 Pi 的 extension 与 trust model 见
 [Pi 官方文档](https://pi.dev/docs/latest)和
-[安全指南](https://pi.dev/docs/latest/security)。MCP 客户端的安装、setup、配置、
-命令与 lifecycle 选项来自
-[Pi package catalog 中的 `pi-mcp-adapter`](https://pi.dev/packages/pi-mcp-adapter?name=mcp)。
-catalog 将它标记为可执行第三方代码，并非 Pi core 的一部分。
+[安全指南](https://pi.dev/docs/latest/security)。本教程使用
+[Pi package catalog 中列出的 `pi-mcp-adapter` MCP 客户端](https://pi.dev/packages/pi-mcp-adapter?name=mcp)；
+它的 setup、配置、命令与 lifecycle 行为以
+[adapter 上游项目](https://github.com/nicobailon/pi-mcp-adapter)为准。它是可执行第三方代码，
+不属于 Pi core，也不属于 Trace-backed Memory。
 
 其他客户端：[Codex](codex.zh-CN.md) | [Claude Code](claude-code.zh-CN.md)

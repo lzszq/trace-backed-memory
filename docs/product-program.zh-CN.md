@@ -561,8 +561,9 @@
   该契约。
 - 发布内容寻址 `tbm.retrieval-snapshot.v3` 以及嵌套 RetrievalHit/IndexVersion，
   绑定精确 authorization/context/query、有序 revision 命中、候选哈希、有限的
-  stage/fusion 分数、retriever/index 版本、边界与截断原因。System/Semantic
-  Gate 结果保持独立，active Store/GateSession 接入仍是后续工作。
+  stage/fusion 分数、retriever/index 版本、边界与截断原因。在 UTF-8 编码前拒绝
+  超大字符串，并在产生可避免的分配前校验 direct-parser object shape 与集合基数。
+  System/Semantic Gate 结果保持独立，active Store/GateSession 接入仍是后续工作。
 - 发布内容寻址 System Gate evaluation 与 Semantic Gate attempt 契约，绑定精确
   retrieval/policy/provider/model/prompt/response provenance、success/failure
   shape、有序 retry parent 与有界 metrics；跨记录核验保证 semantic decision

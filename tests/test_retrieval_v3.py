@@ -314,6 +314,56 @@ def test_parser_rejects_malformed_stages_reasons_and_object_shape():
         parse_retrieval_snapshot(payload)
 
 
+def test_direct_parser_rejects_oversized_arrays_before_conversion():
+    payload = _snapshot().to_dict()
+    payload["index_versions"] = []
+    with pytest.raises(
+        RetrievalSnapshotContractError,
+        match="index_versions must be a nonempty bounded array",
+    ):
+        parse_retrieval_snapshot(payload)
+
+    payload = _snapshot().to_dict()
+    payload["index_versions"] = [payload["index_versions"][0]] * 17
+    with pytest.raises(
+        RetrievalSnapshotContractError,
+        match="index_versions must be a nonempty bounded array",
+    ):
+        parse_retrieval_snapshot(payload)
+
+    payload = _snapshot().to_dict()
+    payload["hits"] = [payload["hits"][0]] * 101
+    with pytest.raises(
+        RetrievalSnapshotContractError,
+        match="hits must be a bounded array",
+    ):
+        parse_retrieval_snapshot(payload)
+
+    payload = _snapshot().to_dict()
+    hit = dict(payload["hits"][0])
+    hit["selected_stages"] = [object()] * 6
+    payload["hits"] = [hit]
+    with pytest.raises(
+        RetrievalSnapshotContractError,
+        match="selected_stages must be a nonempty bounded array",
+    ):
+        parse_retrieval_snapshot(payload)
+
+    payload = _snapshot().to_dict()
+    payload["index_versions"] = [None]
+    payload["truncation_reasons"] = ["top_k"] * 17
+    with pytest.raises(
+        RetrievalSnapshotContractError,
+        match="truncation_reasons must be a bounded array",
+    ):
+        parse_retrieval_snapshot(payload)
+
+
+def test_direct_parser_rejects_oversized_object_shape():
+    with pytest.raises(RetrievalSnapshotContractError, match="fields"):
+        parse_retrieval_snapshot({str(index): None for index in range(10_000)})
+
+
 @pytest.mark.parametrize(
     "document",
     [
@@ -333,7 +383,10 @@ def test_snapshot_json_rejects_duplicate_nonfinite_and_deep_input(
 def test_snapshot_json_rejects_invalid_utf8_size_type_and_shape():
     for document in (
         b"\xff",
-        "x" * (RETRIEVAL_SNAPSHOT_JSON_MAX_BYTES + 1),
+        '"' + ("x" * RETRIEVAL_SNAPSHOT_JSON_MAX_BYTES) + '"',
+        '"'
+        + ("🙂" * ((RETRIEVAL_SNAPSHOT_JSON_MAX_BYTES // 4) + 1))
+        + '"',
         1,
     ):
         with pytest.raises(RetrievalSnapshotContractError) as captured:

@@ -29,6 +29,11 @@ representational order and timestamps; the immutable snapshot hash detects
 semantic changes. These cross-field invariants are enforced by the runtime
 parser in addition to the structural JSON Schema.
 
+The JSON loader rejects an oversized string before UTF-8 encoding. The public
+direct parser also checks top-level object shape and every bounded collection
+before tuple conversion or nested-record construction, so callers cannot
+bypass the loader's allocation guards by supplying an already-decoded object.
+
 ## Trust boundary
 
 Authorization must occur before retrieval. `authorization_event_id` is a

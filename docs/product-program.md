@@ -1353,9 +1353,10 @@ Track:
 - Publish content-addressed `tbm.retrieval-snapshot.v3` and nested
   RetrievalHit/IndexVersion records with exact authorization/context/query
   linkage, ordered revision hits, candidate hashes, finite stage/fusion scores,
-  retriever/index versions, bounds, and truncation reasons. Keep System and
-  Semantic Gate outcomes separate and active Store/GateSession integration
-  outstanding.
+  retriever/index versions, bounds, and truncation reasons. Reject oversized
+  strings before UTF-8 encoding and validate direct-parser object shape and
+  collection cardinality before avoidable allocation. Keep System and Semantic
+  Gate outcomes separate and active Store/GateSession integration outstanding.
 - Publish content-addressed System Gate evaluation and Semantic Gate attempt
   contracts with exact retrieval/policy/provider/model/prompt/response
   provenance, success/failure shapes, ordered retry parents, bounded metrics,

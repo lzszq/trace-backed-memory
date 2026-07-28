@@ -24,6 +24,10 @@ index provenance；hybrid hit 至少使用两个排序 stage，候选总数
 上限为 1,000,000。builder 只规范表示顺序和时间戳；任何语义变化都会被不可变
 快照哈希检测。这些跨字段不变量由 runtime parser 在结构 JSON Schema 之外执行。
 
+JSON loader 会在 UTF-8 编码前拒绝超大字符串。公开 direct parser 还会在 tuple
+转换或嵌套记录构造前检查顶层对象 shape 及每个有界集合，因此调用方不能通过传入
+已解码对象绕过 loader 的分配防护。
+
 ## 信任边界
 
 授权必须先于检索。`authorization_event_id` 只是授权决定的引用，不证明调用方

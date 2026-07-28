@@ -493,6 +493,8 @@ def loads_retrieval_snapshot(document: str | bytes) -> RetrievalSnapshot:
     try:
         if type(source) is not str:
             raise ValueError("retrieval snapshot source must be str or bytes")
+        if len(source) > RETRIEVAL_SNAPSHOT_JSON_MAX_BYTES:
+            raise ValueError("retrieval snapshot exceeds character limit")
         if len(source.encode("utf-8")) > RETRIEVAL_SNAPSHOT_JSON_MAX_BYTES:
             raise ValueError("retrieval snapshot exceeds byte limit")
         payload = parse_bounded_json(
@@ -519,11 +521,20 @@ def parse_retrieval_snapshot(
     hit_values = item["hits"]
     if type(index_values) is not list:
         _invalid("index_versions must be an array")
+    if (
+        not index_values
+        or len(index_values) > RETRIEVAL_SNAPSHOT_MAX_INDEX_VERSIONS
+    ):
+        _invalid("index_versions must be a nonempty bounded array")
     if type(hit_values) is not list:
         _invalid("hits must be an array")
+    if len(hit_values) > RETRIEVAL_SNAPSHOT_MAX_HITS:
+        _invalid("hits must be a bounded array")
+    reasons = _parse_truncation_reasons(item["truncation_reasons"])
+    for hit_value in hit_values:
+        _preflight_hit_collections(hit_value)
     indexes = tuple(_parse_index(value) for value in index_values)
     hits = tuple(_parse_hit(value) for value in hit_values)
-    reasons = _parse_truncation_reasons(item["truncation_reasons"])
     return RetrievalSnapshot(
         snapshot_id=cast(str, item["snapshot_id"]),
         session_id=cast(str, item["session_id"]),
@@ -559,9 +570,7 @@ def _parse_index(value: object) -> IndexVersion:
 
 def _parse_hit(value: object) -> RetrievalHit:
     item = _strict_object(value, "retrieval hit", _HIT_FIELDS)
-    stages = item["selected_stages"]
-    if type(stages) is not list or any(type(stage) is not str for stage in stages):
-        _invalid("selected_stages must be an array of strings")
+    stages = _preflight_selected_stages(item["selected_stages"])
     return RetrievalHit(
         memory_id=cast(str, item["memory_id"]),
         memory_revision_id=cast(str, item["memory_revision_id"]),
@@ -576,8 +585,28 @@ def _parse_hit(value: object) -> RetrievalHit:
     )
 
 
+def _preflight_hit_collections(value: object) -> None:
+    item = _strict_object(value, "retrieval hit", _HIT_FIELDS)
+    _preflight_selected_stages(item["selected_stages"])
+
+
+def _preflight_selected_stages(value: object) -> list[object]:
+    stages = value
+    if type(stages) is not list:
+        _invalid("selected_stages must be an array of strings")
+    if not stages or len(stages) > len(_STAGES):
+        _invalid("selected_stages must be a nonempty bounded array")
+    if any(type(stage) is not str for stage in stages):
+        _invalid("selected_stages must be an array of strings")
+    return cast(list[object], stages)
+
+
 def _parse_truncation_reasons(value: object) -> tuple[TruncationReason, ...]:
-    if type(value) is not list or any(type(item) is not str for item in value):
+    if type(value) is not list:
+        _invalid("truncation_reasons must be an array of strings")
+    if len(value) > RETRIEVAL_SNAPSHOT_MAX_TRUNCATION_REASONS:
+        _invalid("truncation_reasons must be a bounded array")
+    if any(type(item) is not str for item in value):
         _invalid("truncation_reasons must be an array of strings")
     return cast(tuple[TruncationReason, ...], tuple(value))
 
@@ -659,6 +688,8 @@ def _strict_object(
     if type(value) is not dict:
         _invalid(f"{label} must be an object")
     item = cast(dict[object, object], value)
+    if len(item) != len(fields):
+        _invalid(f"{label} fields do not match the contract")
     if any(type(key) is not str for key in item):
         _invalid(f"{label} keys must be strings")
     if frozenset(cast(dict[str, object], item)) != fields:

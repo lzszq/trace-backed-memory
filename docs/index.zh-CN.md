@@ -19,6 +19,7 @@
 - [实体注册表 v3 契约](protocols/entity-registry-v3.zh-CN.md)
 - [认证 retrieval service 边界](protocols/authenticated-service-v3.zh-CN.md)
 - [认证 durable Gate preparation](protocols/authenticated-gate-service-v3.zh-CN.md)
+- [GateSession recovery worker](protocols/gate-recovery-worker-v3.zh-CN.md)
 - [Append-only 审计与恢复 v3](protocols/audit-recovery-v3.zh-CN.md)
 - [结构化 regression evidence v3](protocols/evidence-v3.zh-CN.md)
 - [不可变 MemoryRevision v3](protocols/memory-revision-v3.zh-CN.md)

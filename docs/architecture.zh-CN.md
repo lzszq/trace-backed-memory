@@ -424,6 +424,13 @@ verifier 核验；验证后才通过 CAS 发布 `PREPARED`。失败会尝试精�
 也不宣称跨 authority 原子事务。详见
 [认证 durable Gate preparation](protocols/authenticated-gate-service-v3.zh-CN.md)。
 
+`gate_worker_v3.py` 在两个 GateSession authority 上增加首个有界 recovery
+worker。它预先验证未锁定 due page；只对 session 已到期的
+`PREPARED`/`AWAITING_DECISION` head 执行精确 CAS 与读回；lease-only 与 state
+graph 不允许的状态返回 recovery required；并发 head 移动标记为 superseded。
+每个 candidate 是独立 operation，而不是一个 batch transaction。详见
+[GateSession recovery worker](protocols/gate-recovery-worker-v3.zh-CN.md)。
+
 storage-neutral `tbm.regression-evidence.v3` 是 migration mapping 之外第一层面向
 生产的 evidence boundary。其内容派生 identity 绑定不同的 source/verification
 Trace、expected/observed outcome、evaluator/environment provenance、精确

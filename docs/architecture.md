@@ -1568,6 +1568,14 @@ required. It does not persist a Store token and does not claim an atomic
 cross-authority transaction. See
 [Authenticated durable Gate preparation](protocols/authenticated-gate-service-v3.md).
 
+`gate_worker_v3.py` adds the first bounded recovery worker over both
+GateSession authorities. It prevalidates the unlocked due page, expires only
+session-expired `PREPARED`/`AWAITING_DECISION` heads with exact CAS and
+read-back, reports lease-only and graph-blocked states as recovery required,
+and classifies concurrent head movement as superseded. Each candidate is an
+independent operation rather than one batch transaction. See
+[GateSession recovery worker](protocols/gate-recovery-worker-v3.md).
+
 The storage-neutral `tbm.regression-evidence.v3` record is the first
 production-oriented evidence boundary beyond the migration mapping. Its
 content-derived identity binds distinct source and verification traces,

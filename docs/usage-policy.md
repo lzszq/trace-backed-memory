@@ -1148,6 +1148,13 @@ required state. Never reconstruct a Store request token from a GateSession.
 Until both authorities share one service transaction, describe this as ordered
 compensation rather than atomic commit.
 
+Run `GateSessionRecoveryWorker` only as a bounded, repeated scan. Validate the
+whole returned page before mutation and treat each candidate as an independent
+CAS operation. Only session-expired `PREPARED` or `AWAITING_DECISION` records
+may become `EXPIRED`; lease-only, `DECIDED`, `FINALIZED`, and `EXECUTING`
+records require explicit recovery under the current graph. Never retry a
+superseded version blindly or describe one pass as an all-or-nothing batch.
+
 ## Version-3 structured evidence policy
 
 Create structured regression evidence only from a reviewed Failure Case, a

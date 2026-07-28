@@ -324,6 +324,12 @@ field。失败时使用带 version 检查的 cancellation，或返回显式 reco
 state。绝不能从 GateSession 重建 Store request token。在两个 authority 尚未共享
 同一 service transaction 前，只能称为有顺序补偿，不能称为 atomic commit。
 
+`GateSessionRecoveryWorker` 只能作为有界、重复 scan 运行。mutation 前验证完整
+返回 page，并把每个 candidate 当作独立 CAS operation。只有 session 已到期的
+`PREPARED` 或 `AWAITING_DECISION` 才能转为 `EXPIRED`；在当前 graph 下，
+lease-only、`DECIDED`、`FINALIZED` 与 `EXECUTING` 必须进入显式 recovery。不得
+盲目重试 superseded version，也不得把一次 pass 描述为 all-or-nothing batch。
+
 ## Version-3 结构化 evidence 策略
 
 只能从经过 review 的 Failure Case、关联 fix 与不同的 verification Trace/run 创建

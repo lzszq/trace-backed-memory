@@ -633,6 +633,10 @@
   通过 CAS 发布 `PREPARED`；失败时使用带 version 检查的 cancellation 或显式
   recovery-required state 补偿。后续 lifecycle phase 与 active adapter integration
   仍待完成。
+- 在 SQLite/PostgreSQL due discovery 上增加与存储无关的有界
+  `GateSessionRecoveryWorker`：预先验证完整 page；只通过精确 CAS/read-back
+  expire session 已到期的 prepared/awaiting head；lease-only 与 graph-blocked
+  state 进入显式 recovery；并发 revision 标记 superseded，不盲目重试。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 把 transport-authenticated 服务端 identity 与已发布的 retrieval 前授权 kernel

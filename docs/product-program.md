@@ -1441,6 +1441,11 @@ Track:
   `PREPARED`, and compensate failures with version-checked cancellation or
   explicit recovery-required state. Keep later lifecycle phases and active
   adapter integration outstanding.
+- Add a storage-neutral bounded `GateSessionRecoveryWorker` over SQLite and
+  PostgreSQL due discovery. Prevalidate each complete page, expire only
+  session-expired prepared/awaiting heads with exact CAS/read-back, report
+  lease-only and graph-blocked states for explicit recovery, and classify
+  concurrent revisions as superseded without blind retry.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

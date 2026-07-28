@@ -289,6 +289,10 @@ authentication 与 active adapter 接入仍待完成。详见
 `CREATED`-before-preparation 顺序、精确 replay 抑制、可信 retrieval/System-Gate
 evidence 核验、`PREPARED` CAS 与显式 cancel-or-recover 补偿。详见
 [认证 durable Gate preparation](protocols/authenticated-gate-service-v3.zh-CN.md)。
+`GateSessionRecoveryWorker` 执行有界 due scan，包含精确 expiry CAS、durable
+read-back、superseded version 分类，以及 lease-only 或 graph-blocked state 的
+显式 recovery-required 结果。详见
+[GateSession recovery worker](protocols/gate-recovery-worker-v3.zh-CN.md)。
 
 storage-neutral `tbm.regression-evidence.v3` 不会替换任何 active 字段；它补上发布
 immutable memory revision 之前所需的严格目标记录。记录以内容派生 evidence ID
@@ -1017,6 +1021,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |   |-- authenticated-service-v3.zh-CN.md
 |   |   |-- authenticated-gate-service-v3.md
 |   |   |-- authenticated-gate-service-v3.zh-CN.md
+|   |   |-- gate-recovery-worker-v3.md
+|   |   |-- gate-recovery-worker-v3.zh-CN.md
 |   |   |-- audit-recovery-v3.md
 |   |   |-- audit-recovery-v3.zh-CN.md
 |   |   |-- evidence-v3.md
@@ -1119,6 +1125,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- authorization_v3.py
 |   |-- service_v3.py
 |   |-- gate_service_v3.py
+|   |-- gate_worker_v3.py
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
@@ -1152,6 +1159,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_authorization_v3.py
     |-- test_service_v3.py
     |-- test_gate_service_v3.py
+    |-- test_gate_worker_v3.py
     |-- test_audit_v3.py
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py

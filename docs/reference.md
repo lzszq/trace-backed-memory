@@ -439,6 +439,10 @@ authentication and active adapter wiring remain outstanding. See
 ordering, exact replay suppression, trusted retrieval/System-Gate evidence
 verification, `PREPARED` CAS, and explicit cancel-or-recover compensation. See
 [authenticated durable Gate preparation](protocols/authenticated-gate-service-v3.md).
+`GateSessionRecoveryWorker` performs bounded due scans with exact expiry CAS,
+durable read-back, superseded-version classification, and explicit
+recovery-required results for lease-only or graph-blocked states. See
+[GateSession recovery worker](protocols/gate-recovery-worker-v3.md).
 
 The storage-neutral `tbm.regression-evidence.v3` contract replaces no active
 field; it adds the strict target record needed before immutable memory
@@ -2146,6 +2150,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- authenticated-service-v3.zh-CN.md
 |   |   |-- authenticated-gate-service-v3.md
 |   |   |-- authenticated-gate-service-v3.zh-CN.md
+|   |   |-- gate-recovery-worker-v3.md
+|   |   |-- gate-recovery-worker-v3.zh-CN.md
 |   |   |-- audit-recovery-v3.md
 |   |   |-- audit-recovery-v3.zh-CN.md
 |   |   |-- evidence-v3.md
@@ -2248,6 +2254,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- authorization_v3.py
 |   |-- service_v3.py
 |   |-- gate_service_v3.py
+|   |-- gate_worker_v3.py
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
@@ -2281,6 +2288,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_authorization_v3.py
     |-- test_service_v3.py
     |-- test_gate_service_v3.py
+    |-- test_gate_worker_v3.py
     |-- test_audit_v3.py
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py

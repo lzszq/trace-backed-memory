@@ -218,6 +218,13 @@ from .gate_service_v3 import (
     GateSessionWriter,
     PreparedGateEvidence,
 )
+from .gate_worker_v3 import (
+    GateSessionDueRepository,
+    GateSessionRecoveryOutcome,
+    GateSessionRecoveryResult,
+    GateSessionRecoveryWorker,
+    GateSessionRecoveryWorkerError,
+)
 from .gate_evaluation_v3 import (
     GATE_EVALUATION_JSON_MAX_BYTES,
     GATE_EVALUATION_JSON_MAX_DEPTH,
@@ -687,6 +694,11 @@ __all__ = [
     "GateSessionReplayError",
     "GateSessionWriter",
     "PreparedGateEvidence",
+    "GateSessionDueRepository",
+    "GateSessionRecoveryOutcome",
+    "GateSessionRecoveryResult",
+    "GateSessionRecoveryWorker",
+    "GateSessionRecoveryWorkerError",
     "GATE_EVALUATION_JSON_MAX_BYTES",
     "GATE_EVALUATION_JSON_MAX_DEPTH",
     "GATE_EVALUATION_JSON_MAX_NODES",

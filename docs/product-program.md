@@ -1424,6 +1424,10 @@ Track:
   rows on read; enforce immutable rows, exact replay, schema drift checks, and
   caller savepoints. Keep PostgreSQL parity and active service integration
   outstanding.
+- Add PostgreSQL parity for the normalized entity registry with active-v2
+  install gating, immutable DML/TRUNCATE guards, complete catalog and ACL
+  fingerprinting, concurrent exact replay, caller savepoints, and fail-closed
+  exact-catalog rollback. Keep active service integration outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

@@ -35,8 +35,14 @@ scope/environment attribute。canonical JSON 只是完整性见证：每次读�
 fail closed；每次操作检查 schema drift 与必需 PRAGMA；调用方事务通过 savepoint
 保留。
 
-active v2 Store、Agent 与 MCP adapter 尚未使用该注册表。PostgreSQL 持久化和
-authenticated service integration 是后续独立交付步骤。
+`PostgresEntityRegistryV3Repository` 在受 active-v2 门禁的隔离 PostgreSQL schema
+中提供同等规范化 authority。每次操作都会锁定两份 metadata，并校验覆盖 constraint、
+index、column、function、trigger 以及 schema/relation/column/function ACL 的完整
+catalog fingerprint。它保留 UPDATE/DELETE/TRUNCATE 不可变 guard、并发精确重放、
+调用方 savepoint 与 fail-closed 精确 catalog rollback。
+
+active v2 Store、Agent 与 MCP adapter 尚未使用该注册表。authenticated service
+integration 是后续独立交付步骤。
 
 ## 资源
 
@@ -44,3 +50,5 @@ authenticated service integration 是后续独立交付步骤。
 - `examples/entity_registry_v3.example.json`
 - `schemas/authorization_policy_v3.schema.json`
 - `schemas/sqlite-v3-entity-registry.sql`
+- `schemas/postgres-v3-entity-registry.sql`
+- `schemas/postgres-v3-entity-registry-rollback.sql`

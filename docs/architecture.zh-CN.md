@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 84 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 86 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -401,7 +401,10 @@ environment 也必须与 repository 处于同一 tenant。这是引用完整性�
 或授权。opt-in 隔离 `SQLiteEntityRegistryV3Repository` 会把全部 record、permission
 与 attribute 物化为带复合外键的规范化不可变行，并在每次读取时对照 canonical
 descriptor 字节复验；它通过 savepoint 保留调用方事务，并在 schema drift 时
-fail closed。active adapter 尚未使用该注册表。详见
+fail closed。`PostgresEntityRegistryV3Repository` 提供匹配的规范化持久化，包括
+active-v2 安装门禁、完整 catalog/ACL fingerprint、不可变 DML/TRUNCATE guard、
+并发精确重放、调用方 savepoint，以及保留 schema 外部依赖的 fail-closed rollback。
+active adapter 尚未使用这两个 authority。详见
 [实体注册表 v3 契约](protocols/entity-registry-v3.zh-CN.md)。
 
 storage-neutral `tbm.regression-evidence.v3` 是 migration mapping 之外第一层面向

@@ -359,6 +359,15 @@ from .postgres_authorization_v3 import (
     PostgresAuthorizationV3Repository,
     PostgresAuthorizationV3SchemaError,
 )
+from .postgres_entity_registry_v3 import (
+    POSTGRES_ENTITY_REGISTRY_V3_MAX_PAGE_SIZE,
+    POSTGRES_ENTITY_REGISTRY_V3_SCHEMA_VERSION,
+    PostgresEntityRegistryV3ConflictError,
+    PostgresEntityRegistryV3Error,
+    PostgresEntityRegistryV3PersistenceError,
+    PostgresEntityRegistryV3Repository,
+    PostgresEntityRegistryV3SchemaError,
+)
 from .postgres_gate_session_v3 import (
     POSTGRES_GATE_SESSION_SCHEMA_VERSION,
     PostgresGateSessionConflictError,
@@ -574,6 +583,13 @@ __all__ = [
     "AuthorizationReason",
     "AuthorizationRequest",
     "BindingStatus",
+    "POSTGRES_ENTITY_REGISTRY_V3_MAX_PAGE_SIZE",
+    "POSTGRES_ENTITY_REGISTRY_V3_SCHEMA_VERSION",
+    "PostgresEntityRegistryV3ConflictError",
+    "PostgresEntityRegistryV3Error",
+    "PostgresEntityRegistryV3PersistenceError",
+    "PostgresEntityRegistryV3Repository",
+    "PostgresEntityRegistryV3SchemaError",
     "SQLITE_ENTITY_REGISTRY_V3_MAX_PAGE_SIZE",
     "SQLITE_ENTITY_REGISTRY_V3_SCHEMA_VERSION",
     "SQLiteEntityRegistryV3ConflictError",

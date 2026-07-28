@@ -618,6 +618,10 @@
   snapshot 的全部 entity、binding、permission 与 attribute；以 canonical JSON
   作为完整性见证；读取时复验全部行；强制不可变行、精确重放、schema drift 检查与
   调用方 savepoint。PostgreSQL 对等实现和 active service integration 仍待完成。
+- 增加 PostgreSQL 规范化 entity registry 对等实现：提供 active-v2 安装门禁、
+  不可变 DML/TRUNCATE guard、完整 catalog/ACL fingerprint、并发精确重放、调用方
+  savepoint 与 fail-closed 精确 catalog rollback。active service integration
+  仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 在 retrieval 前集成服务端认证 identity 与已发布授权契约，使 scope 成为可执行的 runtime boundary。

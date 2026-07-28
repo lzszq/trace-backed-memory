@@ -41,9 +41,15 @@ row back to the descriptor. Rows are immutable, exact replay is idempotent,
 version/hash conflicts fail closed, schema drift and required PRAGMAs are
 checked per operation, and caller transactions are preserved with savepoints.
 
+`PostgresEntityRegistryV3Repository` provides the same normalized authority in
+an active-v2-gated isolated PostgreSQL schema. Every operation locks both
+metadata records and verifies a full catalog fingerprint covering constraints,
+indexes, columns, functions, triggers, and schema/relation/column/function
+ACLs. Immutable UPDATE/DELETE/TRUNCATE guards, concurrent exact replay,
+caller-owned savepoints, and fail-closed exact-catalog rollback are preserved.
+
 The active v2 Store, Agent, and MCP adapters do not yet consume this registry.
-PostgreSQL persistence and authenticated service integration are separate
-delivery steps.
+Authenticated service integration is a separate delivery step.
 
 ## Resources
 
@@ -51,3 +57,5 @@ delivery steps.
 - `examples/entity_registry_v3.example.json`
 - `schemas/authorization_policy_v3.schema.json`
 - `schemas/sqlite-v3-entity-registry.sql`
+- `schemas/postgres-v3-entity-registry.sql`
+- `schemas/postgres-v3-entity-registry-rollback.sql`

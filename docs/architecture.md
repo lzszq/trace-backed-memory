@@ -1140,7 +1140,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 84 resources.
+contains 86 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1539,7 +1539,11 @@ integrity, not caller authentication or authorization. The opt-in isolated
 attribute into normalized immutable rows with composite foreign keys, then
 revalidates those rows against canonical descriptor bytes on every read. It
 preserves caller transactions through savepoints and fails closed on schema
-drift. The active adapters do not consume it yet. See
+drift. `PostgresEntityRegistryV3Repository` provides matching normalized
+persistence with active-v2 install gating, full catalog/ACL fingerprinting,
+immutable DML/TRUNCATE guards, concurrent exact replay, caller savepoints, and
+fail-closed rollback that preserves schema-external dependencies. The active
+adapters do not consume either authority yet. See
 [Entity registry v3 contract](protocols/entity-registry-v3.md).
 
 The storage-neutral `tbm.regression-evidence.v3` record is the first

@@ -78,50 +78,40 @@ with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
 For protocol details and lifecycle constraints, read the
 [`tbm.agent.v1` guide](docs/protocols/agent-v1.md).
 
-## MCP + Codex in 2 minutes
+## MCP clients in 2 minutes
 
-Install the MCP profile and create project-local state.
+Install the MCP profile and create project-local state:
 
 Windows PowerShell:
 
 ```powershell
 py -m pip install -e ".[mcp]"
-New-Item -ItemType Directory -Force .tbm, .codex
+New-Item -ItemType Directory -Force .tbm
 ```
 
 macOS or Linux:
 
 ```bash
 python3 -m pip install -e '.[mcp]'
-mkdir -p .tbm .codex
+mkdir -p .tbm
 ```
 
-For both Codex Desktop and Codex CLI, add this project-level configuration to
-`.codex/config.toml`:
+Then connect the client you use:
 
-```toml
-[mcp_servers.trace_backed_memory]
-enabled = true
-command = "tbm-mcp"
-args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
-```
+- **Codex Desktop and Codex CLI:** add the project-level
+  [Codex configuration](docs/integrations/codex.md), then reopen
+  the trusted repository.
+- **Claude Code:** run the
+  [one-command setup](docs/integrations/claude-code.md#connect-claude-code),
+  verify it with `claude mcp get trace-backed-memory`, and open `/mcp`.
+- **Pi + `pi-mcp-adapter`:** install the adapter as Pi's MCP client, then follow
+  the [Pi client tutorial](docs/integrations/pi.md#connect-pi). Review the
+  executable adapter before granting project trust.
 
-Open or trust this repository in Codex, then restart Codex Desktop or start a
-new Codex CLI session from the repository root. Codex can now discover the
-server and use the runtime lifecycle in this order:
-
-```text
-capabilities -> prepare -> finalize -> complete
-                           `-> cancel
-```
-
-`tbm-mcp` is a long-running local STDIO server. Keep the same server process
-alive from `prepare` through `finalize` or `cancel`; pending requests are
-process-local in the current schema. The server exposes runtime operations
-only—it cannot review, verify, or activate memory.
-
-See the [Codex integration guide](docs/integrations/codex.md) for the complete
-tool sequence, storage choices, troubleshooting, and security boundary.
+All clients must keep `tbm-mcp` alive for the complete
+`prepare -> finalize -> complete` lifecycle, or call `cancel` before
+finalization. The server exposes runtime operations only; it cannot review,
+verify, or activate memory.
 
 ## Interfaces
 

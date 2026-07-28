@@ -230,6 +230,12 @@ def test_readme_and_reference_local_links_resolve():
 
     english = (ROOT / "README.md").read_text(encoding="utf-8")
     chinese = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
+    codex = (ROOT / "docs" / "integrations" / "codex.md").read_text(
+        encoding="utf-8"
+    )
+    codex_chinese = (
+        ROOT / "docs" / "integrations" / "codex.zh-CN.md"
+    ).read_text(encoding="utf-8")
     assert "](docs/reference.md)" in english
     assert "](docs/reference.zh-CN.md)" in chinese
     for document in (english, chinese):
@@ -239,11 +245,15 @@ def test_readme_and_reference_local_links_resolve():
         assert "macOS" in document
         assert "Codex Desktop" in document
         assert "Codex CLI" in document
+        assert "Claude Code" in document
+        assert "Pi" in document
+    for document in (codex, codex_chinese):
         assert "[mcp_servers.trace_backed_memory]" in document
         assert "enabled = true" in document
         assert 'command = "tbm-mcp"' in document
-        assert '"--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"' in document
-        assert "capabilities -> prepare -> finalize -> complete" in document
+        assert '"--repo-path", "/absolute/path/to/repository"' in document
+        assert "tbm_prepare_memory" in document
+        assert "tbm_finalize_memory" in document
 
 
 def test_product_and_reference_documents_are_localized_in_pairs():

@@ -77,47 +77,38 @@ with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
 协议细节与生命周期约束见
 [`tbm.agent.v1` 指南](docs/protocols/agent-v1.zh-CN.md)。
 
-## 两分钟启用 MCP + Codex
+## 两分钟连接 MCP 客户端
 
-安装 MCP 可选依赖并创建项目本地状态目录。
+安装 MCP 可选依赖并创建项目本地状态目录：
 
 Windows PowerShell：
 
 ```powershell
 py -m pip install -e ".[mcp]"
-New-Item -ItemType Directory -Force .tbm, .codex
+New-Item -ItemType Directory -Force .tbm
 ```
 
 macOS 或 Linux：
 
 ```bash
 python3 -m pip install -e '.[mcp]'
-mkdir -p .tbm .codex
+mkdir -p .tbm
 ```
 
-Codex Desktop 与 Codex CLI 共用以下项目级 `.codex/config.toml`：
+然后连接你使用的客户端：
 
-```toml
-[mcp_servers.trace_backed_memory]
-enabled = true
-command = "tbm-mcp"
-args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
-```
+- **Codex Desktop 与 Codex CLI：**添加项目级
+  [Codex 配置](docs/integrations/codex.zh-CN.md)，然后重新打开受信任仓库。
+- **Claude Code：**执行
+  [单命令配置](docs/integrations/claude-code.zh-CN.md#连接-claude-code)，用
+  `claude mcp get trace-backed-memory` 验证，再打开 `/mcp`。
+- **Pi + `pi-mcp-adapter`：**把该 adapter 安装为 Pi 的 MCP 客户端，再按
+  [Pi 客户端教程](docs/integrations/pi.zh-CN.md#连接-pi)完成配置；授予项目信任前
+  应先审查这个可执行 adapter。
 
-在 Codex 中打开或信任该仓库，然后重启 Codex Desktop，或从仓库根目录启动新的
-Codex CLI session。之后 Codex 可发现服务，并按以下顺序使用 runtime lifecycle：
-
-```text
-capabilities -> prepare -> finalize -> complete
-                           `-> cancel
-```
-
-`tbm-mcp` 是长驻本地 STDIO server。从 `prepare` 到 `finalize` 或 `cancel` 必须保持
-同一 server process 存活；当前 schema 的 pending request 是进程内状态。该服务只
-暴露 runtime operation，不能 review、verify 或 activate memory。
-
-完整 tool 顺序、存储选择、故障排查与安全边界见
-[Codex 集成指南](docs/integrations/codex.zh-CN.md)。
+所有客户端都必须让 `tbm-mcp` 在完整的
+`prepare -> finalize -> complete` 生命周期内保持存活；若不再执行，则应在 finalize
+前调用 `cancel`。该服务只暴露 runtime operation，不能 review、verify 或 activate memory。
 
 ## 接口
 

@@ -30,6 +30,8 @@
 - [Durable GateSession v3 领域契约](protocols/gate-session-v3.zh-CN.md)
 - [内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)
 - [Codex 集成](integrations/codex.zh-CN.md)
+- [Claude Code 集成](integrations/claude-code.zh-CN.md)
+- [Pi 集成](integrations/pi.zh-CN.md)
 - 仓库技能：`.agents/skills/maintain-trace-backed-memory/` 与
   `.agents/skills/use-trace-backed-memory/`
 

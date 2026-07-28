@@ -1059,6 +1059,65 @@ def test_readme_publishes_bounded_local_document_ingestion_contract():
         assert contract.lower() in normalized.lower()
 
 
+def test_readmes_link_all_supported_mcp_client_guides():
+    root = Path(__file__).resolve().parents[1]
+    english = (root / "README.md").read_text(encoding="utf-8")
+    chinese = (root / "README.zh-CN.md").read_text(encoding="utf-8")
+
+    for client, link in [
+        ("Codex", "docs/integrations/codex.md"),
+        ("Claude Code", "docs/integrations/claude-code.md#connect-claude-code"),
+        ("Pi", "docs/integrations/pi.md#connect-pi"),
+    ]:
+        assert client in english
+        assert link in english
+
+    for client, link in [
+        ("Codex", "docs/integrations/codex.zh-CN.md"),
+        ("Claude Code", "docs/integrations/claude-code.zh-CN.md#连接-claude-code"),
+        ("Pi", "docs/integrations/pi.zh-CN.md#连接-pi"),
+    ]:
+        assert client in chinese
+        assert link in chinese
+
+
+def test_mcp_client_guides_publish_install_and_lifecycle_contracts():
+    integrations = Path(__file__).resolve().parents[1] / "docs" / "integrations"
+    english_guides = [
+        integrations / "codex.md",
+        integrations / "claude-code.md",
+        integrations / "pi.md",
+    ]
+    chinese_guides = [
+        integrations / "codex.zh-CN.md",
+        integrations / "claude-code.zh-CN.md",
+        integrations / "pi.zh-CN.md",
+    ]
+
+    for path in [*english_guides, *chinese_guides]:
+        guide = path.read_text(encoding="utf-8")
+        for contract in [
+            'pip install -e ".[mcp]"',
+            "tbm_prepare_memory",
+            "tbm_finalize_memory",
+            "tbm_complete_run",
+            "tbm_cancel_run",
+        ]:
+            assert contract in guide
+
+    claude = english_guides[1].read_text(encoding="utf-8")
+    assert "claude mcp add --transport stdio --scope project" in claude
+    assert "claude mcp get trace-backed-memory" in claude
+
+    pi = english_guides[2].read_text(encoding="utf-8")
+    assert "uses `pi-mcp-adapter` as Pi's MCP client" in pi
+    assert "pi install npm:pi-mcp-adapter" in pi
+    assert "https://pi.dev/packages/pi-mcp-adapter?name=mcp" in pi
+    assert "/mcp setup" in pi
+    assert "/mcp reconnect trace-backed-memory" in pi
+    assert '"lifecycle": "keep-alive"' in pi
+
+
 def test_readme_publishes_pr_report_cli_contract():
     readme = (Path(__file__).resolve().parents[1] / "docs/reference.md").read_text(
         encoding="utf-8"

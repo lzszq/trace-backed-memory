@@ -36,6 +36,8 @@ mkdir -p .tbm .codex
 command -v tbm-mcp
 ```
 
+## 连接 Codex
+
 Codex Desktop 与 Codex CLI 共用 project-scoped `.codex/config.toml`。替换
 checkout 路径后增加该文件；Codex 只会为受信任项目加载项目配置。
 
@@ -57,6 +59,8 @@ Windows TOML 路径使用正斜杠，例如 `C:/Users/name/source/repository`。
 Desktop 找不到 `tbm-mcp`，把 `command` 改为 `Get-Command` 或 `command -v`
 输出的绝对路径。打开或信任仓库并重启 Codex Desktop，或从配置的 `cwd` 启动新的
 Codex CLI session。
+
+其他客户端：[Claude Code](claude-code.zh-CN.md) | [Pi](pi.zh-CN.md)
 
 `--repo-path` 必填，并固定 Git provenance root。必须且只能选择一种存储：
 

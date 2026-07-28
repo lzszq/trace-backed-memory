@@ -42,6 +42,8 @@ mkdir -p .tbm .codex
 command -v tbm-mcp
 ```
 
+## Connect Codex
+
 Codex Desktop and Codex CLI use the same project-scoped `.codex/config.toml`.
 Add it after replacing the checkout path. Codex loads project configuration
 only for trusted projects.
@@ -65,6 +67,8 @@ Use forward slashes in Windows TOML paths, for example
 set `command` to the absolute path printed by `Get-Command` or `command -v`.
 Open or trust the repository and restart Codex Desktop, or start a new Codex
 CLI session from the configured `cwd`.
+
+Other clients: [Claude Code](claude-code.md) | [Pi](pi.md)
 
 `--repo-path` is mandatory and fixes the Git provenance root. Exactly one
 storage option is mandatory:

@@ -31,6 +31,8 @@ orientation; these documents define the engineering contracts.
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Content-addressed replay contract v3](protocols/replay-v3.md)
 - [Codex integration](integrations/codex.md)
+- [Claude Code integration](integrations/claude-code.md)
+- [Pi integration](integrations/pi.md)
 - Repository skills:
   `.agents/skills/maintain-trace-backed-memory/` and
   `.agents/skills/use-trace-backed-memory/`

@@ -53,6 +53,8 @@ Start with:
   contracts for explainable replay; ranking evidence is never authorization.
 - `gate_evaluation_v3.py`: immutable deterministic System Gate and monotonic
   Semantic Gate attempt provenance; models can only narrow.
+- `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
+  chain with one CAS head per System Gate evaluation; not active runtime state.
 - `outcome_v3.py`: content-addressed RunOutcome and explicit association versus
   independently verified causal attribution contracts.
 - `audit_v3.py`: append-only AuditEvent chains and explicit RecoveryAction

@@ -581,8 +581,14 @@
   retrieval/policy/provider/model/prompt/response provenance、success/failure
   shape、有序 retry parent 与有界 metrics；跨记录核验保证 semantic decision
   只能缩小确定性 System Gate 结果。增加严格有界的完整 chain verifier，并在产生
-  可避免的分配前拒绝超大 direct-parser 输入。artifact 校验、持久化与 active
-  runtime 接入仍是后续工作。
+  可避免的分配前拒绝超大 direct-parser 输入。artifact 校验、durable adapter
+  对等实现与 active runtime 接入仍是后续工作。
+- 增加 opt-in、side-by-side SQLite SemanticGateAttempt ledger：依赖 immutable
+  Gate evidence，通过唯一 sequence 与 CAS head 为每个 System Gate evaluation
+  强制一条有界线性 chain，支持精确幂等重放，通过 savepoint 保留调用方
+  transaction，检测 canonical schema drift，并在每次读取时复核完整 chain。
+  PostgreSQL 对等实现、artifact 字节校验、GateSession 事务挂接与 active
+  Agent/MCP emission 仍待完成。
 - 发布内容寻址 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
   契约，把 completed GateSession 绑定到显式 evaluator evidence，并严格区分
   观察关联与独立核验的因果结论。durable persistence 与 active service 接入仍

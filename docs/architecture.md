@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 94 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 95 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1149,7 +1149,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 94 resources.
+contains 95 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1593,6 +1593,16 @@ complete security-catalog fingerprinting, concurrent exact replay, and a
 fail-closed `RESTRICT` rollback. The evidence write and GateSession transition
 remain ordered compensation across authorities, not one atomic transaction.
 See [SQLite and PostgreSQL Gate evidence v3](protocols/sqlite-gate-evidence-v3.md).
+
+`sqlite_semantic_gate_v3.py` extends that SQLite evidence boundary with one
+immutable ordered SemanticGateAttempt chain per System Gate evaluation. A
+unique sequence and CAS head reject forks, canonical read-back verifies every
+descriptor and relational column, and the whole-chain verifier rechecks
+monotonic narrowing against the stored Gate evidence. It remains an opt-in
+side-by-side ledger: PostgreSQL parity, prompt/response artifact validation,
+GateSession transaction linkage, and active Agent/MCP emission are not yet
+provided. See
+[SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.md).
 
 `gate_worker_v3.py` adds the first bounded recovery worker over both
 GateSession authorities. It prevalidates the unlocked due page, expires only

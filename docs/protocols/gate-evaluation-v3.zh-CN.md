@@ -29,20 +29,25 @@ blocked。任何被模型省略的 System-allowed 候选都必须显式放入 fi
 
 ## 信任与持久化边界
 
-契约本身不调用模型、不认证 provider、不校验 artifact 字节、不持久化 retry，也不
-以事务挂接 GateSession。未来服务必须：
+契约本身不调用模型、不认证 provider、不校验 artifact 字节，也不以事务挂接
+GateSession。opt-in
+[SQLite Semantic Gate attempt ledger](sqlite-semantic-gate-v3.zh-CN.md)
+现已在 SQLite Gate evidence authority 旁持久化精确有序的 retry chain。完整服务
+仍必须：
 
 - 授权并验证 RetrievalSnapshot/System Gate 引用；
 - 按 classification、encryption、retention 与 access-control policy 保存
   prompt/response artifact；
 - 验证 provider 身份与可信 server 时间；
-- 执行 `(session_id, sequence)` 唯一性。low-level parent verifier 核验一个精确
-  link；`verify_semantic_gate_attempt_chain()` 会从 attempt 1 开始，对同一 System
-  Gate 与 retrieval snapshot 核验完整、有界序列；
+- 为每个 System Gate authority 强制一条线性 sequence。SQLite ledger 通过唯一
+  `(system_gate_evaluation_id, sequence)` 与 CAS head 实现；low-level parent
+  verifier 核验单个 link，`verify_semantic_gate_attempt_chain()` 核验完整有界
+  chain；
+- 提供对等的 PostgreSQL 持久化；
 - 原子追加 GateSession 引用与 replay component。
 
 active snapshot-v2 Store、SQLite-v1/PostgreSQL-v2 adapter、Agent 与 MCP 尚不产生
-这些记录。
+这些记录；side-by-side SQLite ledger 不改变该 active compatibility boundary。
 
 runtime parser 会在 UTF-8 encode 前拒绝超大字符串，并执行结构 JSON Schema 无法
 表达的跨字段不变量：唯一 System

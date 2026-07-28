@@ -30,6 +30,7 @@ orientation; these documents define the engineering contracts.
 - [PostgreSQL MemoryRevision proposal ledger v3](protocols/postgres-memory-revision-v3.md)
 - [Replayable RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.md)
 - [System and Semantic Gate evaluation v3](protocols/gate-evaluation-v3.md)
+- [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.md)
 - [Run outcome and attribution v3](protocols/outcome-v3.md)
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Content-addressed replay contract v3](protocols/replay-v3.md)

@@ -230,7 +230,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 94 resources. `PackagedResource` descriptions
+The allowlist currently contains 95 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -511,6 +511,15 @@ enforces the permanent rule that a model may only narrow System Gate results.
 Failed calls remain immutable provenance-only attempts. Active Store/Agent/MCP
 paths do not emit these records yet. See
 [the gate evaluation contract](protocols/gate-evaluation-v3.md).
+
+`SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
+ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
+schema, enforces one bounded linear sequence through a CAS head, supports
+exact idempotent replay, preserves caller transactions with savepoints, and
+revalidates the entire chain on reads. It does not store prompt/response
+artifact bytes or integrate the chain with active GateSession/Agent/MCP
+transactions. See
+[the SQLite Semantic Gate ledger contract](protocols/sqlite-semantic-gate-v3.md).
 
 The storage-neutral `tbm.run-outcome.v3` and
 `tbm.outcome-attribution.v3` contracts bind completed GateSessions to explicit
@@ -2100,7 +2109,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 94 canonical Schemas, examples, and memory
+  explicit atomic export for all 95 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned

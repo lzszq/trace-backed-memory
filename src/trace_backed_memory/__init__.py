@@ -580,6 +580,16 @@ from .sqlite_replay_v3 import (
     SQLiteReplayV3SchemaError,
     SQLiteReplayV3StoreResult,
 )
+from .sqlite_semantic_gate_v3 import (
+    SQLITE_SEMANTIC_GATE_V3_SCHEMA_VERSION,
+    SQLiteSemanticGateV3ConflictError,
+    SQLiteSemanticGateV3Error,
+    SQLiteSemanticGateV3NotFoundError,
+    SQLiteSemanticGateV3PersistenceError,
+    SQLiteSemanticGateV3Repository,
+    SQLiteSemanticGateV3SchemaError,
+    SQLiteSemanticGateV3StoreResult,
+)
 from .sqlite_v3 import (
     SQLITE_V3_MIGRATION_SCHEMA_VERSION,
     SQLiteV3MigrationConflictError,
@@ -982,6 +992,14 @@ __all__ = [
     "SQLiteReplayV3Repository",
     "SQLiteReplayV3SchemaError",
     "SQLiteReplayV3StoreResult",
+    "SQLITE_SEMANTIC_GATE_V3_SCHEMA_VERSION",
+    "SQLiteSemanticGateV3ConflictError",
+    "SQLiteSemanticGateV3Error",
+    "SQLiteSemanticGateV3NotFoundError",
+    "SQLiteSemanticGateV3PersistenceError",
+    "SQLiteSemanticGateV3Repository",
+    "SQLiteSemanticGateV3SchemaError",
+    "SQLiteSemanticGateV3StoreResult",
     "SQLITE_V3_MIGRATION_SCHEMA_VERSION",
     "SQLiteV3MigrationConflictError",
     "SQLiteV3MigrationError",

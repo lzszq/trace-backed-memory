@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 94 installed resource copies must remain byte-identical to the top-level
+The 95 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1247,6 +1247,17 @@ Verify cross-record linkage before finalization. A successful semantic result
 must cover every System Gate candidate, may allow only System-approved
 revisions, and must preserve every System block. A retry is a new immutable
 attempt with the next sequence and exact parent; never overwrite an attempt.
+
+The opt-in SQLite Semantic Gate ledger may persist this retry chain only after
+reloading and verifying the exact RetrievalSnapshot/SystemGateEvaluation
+pair. It must enforce one bounded linear head, reject forks and direct
+replacement writes, preserve caller transactions with savepoints, and
+revalidate the complete chain on every read. Ledger presence does not
+authenticate a provider, validate artifact bytes, or authorize finalization;
+active Agent/MCP integration and PostgreSQL parity remain separate work.
+Treat the SQLite file owner as trusted: local DDL cannot prove history against
+a fully self-consistent offline rewrite. That threat requires an external
+signed audit/checkpoint authority.
 
 ## Version-3 outcome and attribution policy
 

@@ -1379,8 +1379,15 @@ Track:
   and cross-record verification that semantic decisions can only narrow
   deterministic System Gate results. Add a strict bounded whole-chain
   verifier and reject oversized direct-parser inputs before avoidable
-  allocation. Keep artifact validation, persistence, and active runtime
-  integration outstanding.
+  allocation. Keep artifact validation, durable adapter parity, and active
+  runtime integration outstanding.
+- Add an opt-in side-by-side SQLite SemanticGateAttempt ledger that depends on
+  immutable Gate evidence, enforces one bounded linear chain per System Gate
+  evaluation through unique sequence and CAS head, supports exact idempotent
+  replay, preserves caller transactions with savepoints, detects canonical
+  schema drift, and revalidates the full chain on every read. Keep PostgreSQL
+  parity, artifact-byte validation, GateSession transaction linkage, and
+  active Agent/MCP emission outstanding.
 - Publish content-addressed `tbm.run-outcome.v3` and
   `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
   explicit evaluator evidence while keeping observed association separate

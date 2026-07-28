@@ -77,6 +77,38 @@ with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
 协议细节与生命周期约束见
 [`tbm.agent.v1` 指南](docs/protocols/agent-v1.zh-CN.md)。
 
+## 两分钟启用 MCP + Codex
+
+安装 MCP 可选依赖并创建本地状态目录：
+
+```powershell
+python -m pip install -e ".[mcp]"
+New-Item -ItemType Directory -Force .tbm
+```
+
+在项目级 `.codex/config.toml` 中加入：
+
+```toml
+[mcp_servers.trace_backed_memory]
+command = "tbm-mcp"
+args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
+```
+
+在该仓库中重启 Codex。之后 Codex 可发现 capability，并按以下顺序使用 runtime
+lifecycle：
+
+```text
+capabilities -> prepare -> finalize -> complete
+                           `-> cancel
+```
+
+`tbm-mcp` 是长驻本地 STDIO server。从 `prepare` 到 `finalize` 或 `cancel` 必须保持
+同一 server process 存活；当前 schema 的 pending request 是进程内状态。该服务只
+暴露 runtime operation，不能 review、verify 或 activate memory。
+
+完整 tool 顺序、存储选择、故障排查与安全边界见
+[Codex 集成指南](docs/integrations/codex.zh-CN.md)。
+
 ## 接口
 
 - Python：`TraceBackedMemoryStore` 与 `LocalAgentMemory`
@@ -89,7 +121,6 @@ with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
 每个协议、migration、integration 与运维指南都可从
 [文档索引](docs/index.zh-CN.md)进入。Canonical Schema 与示例可通过
 `tbm resource list` 或 Python resource API 获取。
-Codex 配置见 [Codex 集成指南](docs/integrations/codex.zh-CN.md)。
 
 ## 当前边界
 

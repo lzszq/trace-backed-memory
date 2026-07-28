@@ -78,6 +78,39 @@ with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
 For protocol details and lifecycle constraints, read the
 [`tbm.agent.v1` guide](docs/protocols/agent-v1.md).
 
+## MCP + Codex in 2 minutes
+
+Install the MCP profile and create local state:
+
+```powershell
+python -m pip install -e ".[mcp]"
+New-Item -ItemType Directory -Force .tbm
+```
+
+Add this project-level configuration to `.codex/config.toml`:
+
+```toml
+[mcp_servers.trace_backed_memory]
+command = "tbm-mcp"
+args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
+```
+
+Restart Codex in this repository. Codex can then discover capabilities and use
+the runtime lifecycle in this order:
+
+```text
+capabilities -> prepare -> finalize -> complete
+                           `-> cancel
+```
+
+`tbm-mcp` is a long-running local STDIO server. Keep the same server process
+alive from `prepare` through `finalize` or `cancel`; pending requests are
+process-local in the current schema. The server exposes runtime operations
+only—it cannot review, verify, or activate memory.
+
+See the [Codex integration guide](docs/integrations/codex.md) for the complete
+tool sequence, storage choices, troubleshooting, and security boundary.
+
 ## Interfaces
 
 - Python: `TraceBackedMemoryStore` and `LocalAgentMemory`
@@ -92,7 +125,6 @@ For protocol details and lifecycle constraints, read the
 Use the [documentation index](docs/index.md) to reach each protocol, migration,
 integration, and operations guide. Canonical Schemas and examples are
 available through `tbm resource list` or the Python resource API.
-For Codex setup, see the [Codex integration guide](docs/integrations/codex.md).
 
 ## Current boundary
 

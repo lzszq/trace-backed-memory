@@ -232,6 +232,12 @@ def test_readme_and_reference_local_links_resolve():
     chinese = (ROOT / "README.zh-CN.md").read_text(encoding="utf-8")
     assert "](docs/reference.md)" in english
     assert "](docs/reference.zh-CN.md)" in chinese
+    for document in (english, chinese):
+        assert 'python -m pip install -e ".[mcp]"' in document
+        assert "[mcp_servers.trace_backed_memory]" in document
+        assert 'command = "tbm-mcp"' in document
+        assert '"--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"' in document
+        assert "capabilities -> prepare -> finalize -> complete" in document
 
 
 def test_product_and_reference_documents_are_localized_in_pairs():

@@ -1446,6 +1446,12 @@ Track:
   session-expired prepared/awaiting heads with exact CAS/read-back, report
   lease-only and graph-blocked states for explicit recovery, and classify
   concurrent revisions as superseded without blind retry.
+- Add an opt-in immutable SQLite RetrievalSnapshot/SystemGateEvaluation
+  authority and a storage-neutral durable evidence verifier. Store each exact
+  pair atomically, prevent replacement-delete bypasses with recursive
+  triggers, and bind PREPARED evidence to the authorized session, Trace, run,
+  and identity scope. Keep PostgreSQL parity and active adapter emission
+  outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

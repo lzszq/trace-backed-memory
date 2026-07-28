@@ -443,6 +443,10 @@ verification, `PREPARED` CAS, and explicit cancel-or-recover compensation. See
 durable read-back, superseded-version classification, and explicit
 recovery-required results for lease-only or graph-blocked states. See
 [GateSession recovery worker](protocols/gate-recovery-worker-v3.md).
+The opt-in SQLite evidence authority atomically retains the exact retrieval
+and System Gate pair, while the shared durable verifier binds both records to
+the authorized session before `PREPARED`. See
+[SQLite Gate evidence v3](protocols/sqlite-gate-evidence-v3.md).
 
 The storage-neutral `tbm.regression-evidence.v3` contract replaces no active
 field; it adds the strict target record needed before immutable memory
@@ -2152,6 +2156,8 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- authenticated-gate-service-v3.zh-CN.md
 |   |   |-- gate-recovery-worker-v3.md
 |   |   |-- gate-recovery-worker-v3.zh-CN.md
+|   |   |-- sqlite-gate-evidence-v3.md
+|   |   |-- sqlite-gate-evidence-v3.zh-CN.md
 |   |   |-- audit-recovery-v3.md
 |   |   |-- audit-recovery-v3.zh-CN.md
 |   |   |-- evidence-v3.md

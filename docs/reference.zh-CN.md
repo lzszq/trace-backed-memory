@@ -293,6 +293,9 @@ evidence 核验、`PREPARED` CAS 与显式 cancel-or-recover 补偿。详见
 read-back、superseded version 分类，以及 lease-only 或 graph-blocked state 的
 显式 recovery-required 结果。详见
 [GateSession recovery worker](protocols/gate-recovery-worker-v3.zh-CN.md)。
+opt-in SQLite evidence authority 会原子保留精确 retrieval/System Gate 记录对，
+共享 durable verifier 则在 `PREPARED` 前把两者绑定到已授权 session。详见
+[SQLite Gate evidence v3](protocols/sqlite-gate-evidence-v3.zh-CN.md)。
 
 storage-neutral `tbm.regression-evidence.v3` 不会替换任何 active 字段；它补上发布
 immutable memory revision 之前所需的严格目标记录。记录以内容派生 evidence ID
@@ -1023,6 +1026,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |   |-- authenticated-gate-service-v3.zh-CN.md
 |   |   |-- gate-recovery-worker-v3.md
 |   |   |-- gate-recovery-worker-v3.zh-CN.md
+|   |   |-- sqlite-gate-evidence-v3.md
+|   |   |-- sqlite-gate-evidence-v3.zh-CN.md
 |   |   |-- audit-recovery-v3.md
 |   |   |-- audit-recovery-v3.zh-CN.md
 |   |   |-- evidence-v3.md

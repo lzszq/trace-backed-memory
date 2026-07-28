@@ -1148,6 +1148,14 @@ required state. Never reconstruct a Store request token from a GateSession.
 Until both authorities share one service transaction, describe this as ordered
 compensation rather than atomic commit.
 
+When SQLite is the Gate evidence authority, write the exact
+RetrievalSnapshot/SystemGateEvaluation pair with
+`SQLiteGateEvidenceV3Repository.store_bundle()` and inject
+`DurablePreparedGateEvidenceVerifier` into the Gate service. Do not accept
+caller-provided IDs without durable readback and exact scope verification.
+Foreign keys and recursive triggers must remain enabled; disabling either
+invalidates the authority.
+
 Run `GateSessionRecoveryWorker` only as a bounded, repeated scan. Validate the
 whole returned page before mutation and treat each candidate as an independent
 CAS operation. Only session-expired `PREPARED` or `AWAITING_DECISION` records

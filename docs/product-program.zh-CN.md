@@ -637,6 +637,11 @@
   `GateSessionRecoveryWorker`：预先验证完整 page；只通过精确 CAS/read-back
   expire session 已到期的 prepared/awaiting head；lease-only 与 graph-blocked
   state 进入显式 recovery；并发 revision 标记 superseded，不盲目重试。
+- 增加 opt-in、immutable SQLite RetrievalSnapshot/SystemGateEvaluation
+  authority 与 storage-neutral durable evidence verifier：原子保存每个精确记录对，
+  通过 recursive trigger 阻止 replacement-delete 绕过，并把 PREPARED evidence
+  绑定到已授权 session、Trace、run 与 identity scope。PostgreSQL 对等实现和 active
+  adapter emission 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 把 transport-authenticated 服务端 identity 与已发布的 retrieval 前授权 kernel

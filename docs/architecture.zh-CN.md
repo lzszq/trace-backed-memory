@@ -424,6 +424,14 @@ verifier 核验；验证后才通过 CAS 发布 `PREPARED`。失败会尝试精�
 也不宣称跨 authority 原子事务。详见
 [认证 durable Gate preparation](protocols/authenticated-gate-service-v3.zh-CN.md)。
 
+`sqlite_gate_evidence_v3.py` 为该 verifier 提供首个 immutable evidence
+authority。它在一个 transaction 中保存精确的 RetrievalSnapshot/System Gate
+记录对，通过 recursive immutable trigger 拒绝 replacement write，并在
+storage-neutral verifier 将记录绑定到已授权 session、Trace、run 与 identity scope
+之前读回两份记录。evidence 写入与 GateSession transition 仍是跨 authority 的有序
+补偿，而不是一个 atomic transaction。详见
+[SQLite Gate evidence v3](protocols/sqlite-gate-evidence-v3.zh-CN.md)。
+
 `gate_worker_v3.py` 在两个 GateSession authority 上增加首个有界 recovery
 worker。它预先验证未锁定 due page；只对 session 已到期的
 `PREPARED`/`AWAITING_DECISION` head 执行精确 CAS 与读回；lease-only 与 state

@@ -225,6 +225,11 @@ from .gate_worker_v3 import (
     GateSessionRecoveryWorker,
     GateSessionRecoveryWorkerError,
 )
+from .gate_evidence_v3 import (
+    DurablePreparedGateEvidenceVerifier,
+    GateEvidenceV3Reader,
+    GateEvidenceV3VerificationError,
+)
 from .gate_evaluation_v3 import (
     GATE_EVALUATION_JSON_MAX_BYTES,
     GATE_EVALUATION_JSON_MAX_DEPTH,
@@ -492,6 +497,16 @@ from .sqlite_entity_registry_v3 import (
     SQLiteEntityRegistryV3Repository,
     SQLiteEntityRegistryV3SchemaError,
 )
+from .sqlite_gate_evidence_v3 import (
+    SQLITE_GATE_EVIDENCE_V3_SCHEMA_VERSION,
+    SQLiteGateEvidenceV3ConflictError,
+    SQLiteGateEvidenceV3Error,
+    SQLiteGateEvidenceV3NotFoundError,
+    SQLiteGateEvidenceV3PersistenceError,
+    SQLiteGateEvidenceV3Repository,
+    SQLiteGateEvidenceV3SchemaError,
+    SQLiteGateEvidenceV3StoreResult,
+)
 from .sqlite_gate_session_v3 import (
     SQLITE_GATE_SESSION_SCHEMA_VERSION,
     SQLiteGateSessionConflictError,
@@ -699,6 +714,9 @@ __all__ = [
     "GateSessionRecoveryResult",
     "GateSessionRecoveryWorker",
     "GateSessionRecoveryWorkerError",
+    "DurablePreparedGateEvidenceVerifier",
+    "GateEvidenceV3Reader",
+    "GateEvidenceV3VerificationError",
     "GATE_EVALUATION_JSON_MAX_BYTES",
     "GATE_EVALUATION_JSON_MAX_DEPTH",
     "GATE_EVALUATION_JSON_MAX_NODES",
@@ -851,6 +869,14 @@ __all__ = [
     "SQLiteAuthorizationV3PersistenceError",
     "SQLiteAuthorizationV3Repository",
     "SQLiteAuthorizationV3SchemaError",
+    "SQLITE_GATE_EVIDENCE_V3_SCHEMA_VERSION",
+    "SQLiteGateEvidenceV3ConflictError",
+    "SQLiteGateEvidenceV3Error",
+    "SQLiteGateEvidenceV3NotFoundError",
+    "SQLiteGateEvidenceV3PersistenceError",
+    "SQLiteGateEvidenceV3Repository",
+    "SQLiteGateEvidenceV3SchemaError",
+    "SQLiteGateEvidenceV3StoreResult",
     "SQLITE_GATE_SESSION_SCHEMA_VERSION",
     "SQLiteGateSessionConflictError",
     "SQLiteGateSessionCreateResult",

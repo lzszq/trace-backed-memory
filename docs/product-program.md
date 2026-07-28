@@ -1344,6 +1344,12 @@ Track:
   provenance, expected/observed outcomes, artifact hashes, and attestation.
   This does not replace the active v2 boolean or authorize publication; the
   immutable MemoryRevision and service integration remain later work.
+- Publish `tbm.fix-evidence.v3` as a storage-neutral, content-addressed record
+  with exact case/Trace and source/fix commit linkage, verified ancestry,
+  bounded artifact hashes, and independent submitter/reviewer principals.
+  Add a strict MemoryRevision evidence-bundle preflight that binds fix and
+  regression evidence to the same case, source Trace, and commits. Keep
+  persistence, approval, and activation as later service work.
 - Publish proposal-only `tbm.memory-revision.v3` as a storage-neutral,
   content-derived immutable revision with exact parent, content artifact,
   canonical scope, case/fix/structured-evidence references, and server-owned

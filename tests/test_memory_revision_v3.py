@@ -15,6 +15,7 @@ from trace_backed_memory.evidence_v3 import (
     StructuredRegressionEvidence,
     build_structured_regression_evidence,
 )
+from trace_backed_memory.fix_evidence_v3 import FixEvidence, build_fix_evidence
 from trace_backed_memory.memory_revision_v3 import (
     MEMORY_REVISION_JSON_MAX_BYTES,
     MemoryRevision,
@@ -24,6 +25,7 @@ from trace_backed_memory.memory_revision_v3 import (
     loads_memory_revision,
     parse_memory_revision,
     verify_memory_revision_evidence,
+    verify_memory_revision_evidence_bundle,
 )
 from trace_backed_memory.replay_v3 import create_content_addressed_artifact
 
@@ -77,12 +79,36 @@ def _evidence(
     )
 
 
+def _fix_evidence(*, source_trace_id: str = "trace_source") -> FixEvidence:
+    return build_fix_evidence(
+        case_id="case_001",
+        source_trace_id=source_trace_id,
+        source_commit_sha="abc123",
+        fix_commit_sha="def456",
+        source_to_fix=CommitRelationEvidence(
+            "abc123",
+            "def456",
+            "ancestor",
+            "git_verifier",
+            "2026-07-27T00:01:00Z",
+        ),
+        artifact_hashes=("sha256:" + "d" * 64,),
+        submitter_id="fix_submitter",
+        submitted_at="2026-07-27T00:02:00Z",
+        reviewer_id="fix_reviewer",
+        reviewed_at="2026-07-27T00:03:00Z",
+        attestation_sha256="sha256:" + "e" * 64,
+    )
+
+
 def _revision(
     *,
     evidence: StructuredRegressionEvidence | None = None,
+    fix_evidence: FixEvidence | None = None,
     proposed_by: str = "revision_proposer",
 ) -> MemoryRevision:
     evidence = evidence or _evidence()
+    fix_evidence = fix_evidence or _fix_evidence()
     content = b'{"memory_text":"Prefer the verified workflow."}'
     artifact = create_content_addressed_artifact(
         content,
@@ -108,7 +134,7 @@ def _revision(
         eval_leaking=False,
         source_case_id="case_001",
         source_case_revision_id="case_revision_001",
-        fix_evidence_id="fix_evidence_001",
+        fix_evidence_id=fix_evidence.evidence_id,
         regression_evidence_ids=(evidence.evidence_id,),
         proposed_by=proposed_by,
         proposed_via_client_id="agent_client_001",
@@ -289,6 +315,58 @@ def test_structured_evidence_verification_accepts_independent_passing_record():
         revision,
         {evidence.evidence_id: evidence},
     )
+
+
+def test_evidence_bundle_binds_fix_and_regression_to_revision():
+    fix_evidence = _fix_evidence()
+    regression = _evidence()
+    revision = _revision(evidence=regression, fix_evidence=fix_evidence)
+
+    verify_memory_revision_evidence_bundle(
+        revision,
+        {fix_evidence.evidence_id: fix_evidence},
+        {regression.evidence_id: regression},
+    )
+
+    with pytest.raises(MemoryRevisionContractError, match="missing fix"):
+        verify_memory_revision_evidence_bundle(
+            revision,
+            {},
+            {regression.evidence_id: regression},
+        )
+    with pytest.raises(MemoryRevisionContractError, match="independent"):
+        conflicted = _revision(
+            evidence=regression,
+            fix_evidence=fix_evidence,
+            proposed_by=fix_evidence.reviewer_id,
+        )
+        verify_memory_revision_evidence_bundle(
+            conflicted,
+            {fix_evidence.evidence_id: fix_evidence},
+            {regression.evidence_id: regression},
+        )
+    with pytest.raises(MemoryRevisionContractError, match="independent"):
+        relation_conflicted = _revision(
+            evidence=regression,
+            fix_evidence=fix_evidence,
+            proposed_by=fix_evidence.source_to_fix.verified_by,
+        )
+        verify_memory_revision_evidence_bundle(
+            relation_conflicted,
+            {fix_evidence.evidence_id: fix_evidence},
+            {regression.evidence_id: regression},
+        )
+    mismatched = _fix_evidence(source_trace_id="other_trace")
+    mismatched_revision = _revision(
+        evidence=regression,
+        fix_evidence=mismatched,
+    )
+    with pytest.raises(MemoryRevisionContractError, match="source traces"):
+        verify_memory_revision_evidence_bundle(
+            mismatched_revision,
+            {mismatched.evidence_id: mismatched},
+            {regression.evidence_id: regression},
+        )
 
 
 def test_structured_evidence_verification_fails_closed():

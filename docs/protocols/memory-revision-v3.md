@@ -14,9 +14,13 @@ server-owned proposer/client/attestation context. Lesson proposals require all
 case, fix, and regression references. Project-policy proposals forbid those
 case-bound references and require `policy` memory type.
 
-`verify_memory_revision_evidence` resolves every lesson evidence ID, requires
-passing evidence for the same Failure Case, and rejects a proposer who also
-submitted or verified that evidence. This is only a proposal preflight:
+`verify_memory_revision_evidence_bundle` resolves the exact
+[FixEvidence](fix-evidence-v3.md) and every lesson regression-evidence ID. It
+requires the same Failure Case, source Trace, source commit, and fix commit,
+passing regression evidence, and a proposer independent from all evidence
+actors. The older `verify_memory_revision_evidence` helper checks only
+regression evidence and is not sufficient for publication. This is only a
+proposal preflight:
 evidence hashes and attestation hashes are content identities, not signatures
 or authorization. Approval and activation require separate authenticated
 service operations, current authorization decisions, and append-only audit

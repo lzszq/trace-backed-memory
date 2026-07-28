@@ -24,6 +24,7 @@ orientation; these documents define the engineering contracts.
 - [SQLite and PostgreSQL Gate evidence v3](protocols/sqlite-gate-evidence-v3.md)
 - [Append-only audit and recovery v3](protocols/audit-recovery-v3.md)
 - [Structured regression evidence v3](protocols/evidence-v3.md)
+- [FixEvidence v3](protocols/fix-evidence-v3.md)
 - [Immutable MemoryRevision v3](protocols/memory-revision-v3.md)
 - [Replayable RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.md)
 - [System and Semantic Gate evaluation v3](protocols/gate-evaluation-v3.md)
@@ -60,9 +61,11 @@ defines canonical repositories, exact tenant aliases, authenticated identity
 slots, role bindings, and linked decisions. The authenticated retrieval
 service kernel now persists and rechecks those decisions before a retrieval
 callback, but transport authentication and active Agent/MCP/HTTP/SDK wiring
-remain outstanding. The storage-neutral, content-addressed structured regression
-evidence contract is published, but active v2 records/adapters do not use it
-and the proposal-only immutable MemoryRevision contract is also published.
+remain outstanding. The storage-neutral, content-addressed FixEvidence and
+structured regression evidence contracts are published with a strict
+cross-record MemoryRevision preflight, but active v2 records/adapters do not
+use them and the proposal-only immutable MemoryRevision contract is not
+persisted.
 The content-addressed RetrievalSnapshot contract records exact authorized
 ranking inputs/results, index versions, scores, hashes, and truncation reasons,
 while immutable System/Semantic Gate records bind deterministic policy and

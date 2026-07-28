@@ -13,9 +13,12 @@ sensitivity metadata、source FailureCase/Fix 引用、结构化 regression-evid
 全部 case、fix 与 regression 引用；Project-policy proposal 禁止这些 case-bound
 引用，并必须使用 `policy` memory type。
 
-`verify_memory_revision_evidence` 会解析每个 lesson evidence ID，要求同一 Failure
-Case 的 passing evidence，并拒绝同时提交或验证该 evidence 的 proposer。这只是
-proposal preflight：evidence/attestation hash 是内容身份，不是签名或授权。approval
+`verify_memory_revision_evidence_bundle` 会解析精确
+[FixEvidence](fix-evidence-v3.zh-CN.md) 与每个 lesson regression-evidence ID，
+要求相同的 Failure Case、source Trace、source/fix commit、passing regression
+evidence，并确保 proposer 独立于全部 evidence actor。旧的
+`verify_memory_revision_evidence` 只检查 regression evidence，不足以用于发布。
+这只是 proposal preflight：evidence/attestation hash 是内容身份，不是签名或授权。approval
 与 activation 需要独立认证 service operation、当前 authorization decision 与
 append-only AuditEvent。模型可以 propose revision，但不能 verify 或 activate。
 

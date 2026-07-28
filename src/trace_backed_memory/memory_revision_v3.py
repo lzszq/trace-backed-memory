@@ -10,6 +10,7 @@ from ._ingestion import decode_bounded_utf8, parse_bounded_json
 from ._timestamps import canonical_rfc3339, parse_rfc3339
 from .contracts_v3 import AuthorizationScope, canonical_sha256
 from .evidence_v3 import StructuredRegressionEvidence
+from .fix_evidence_v3 import FixEvidence
 from .replay_v3 import ContentAddressedArtifact
 
 
@@ -330,6 +331,39 @@ def verify_memory_revision_evidence(
             evidence.verifier_id,
         }:
             _invalid("revision proposer must be independent of evidence actors")
+
+
+def verify_memory_revision_evidence_bundle(
+    revision: MemoryRevision,
+    fix_evidence_by_id: Mapping[str, FixEvidence],
+    regression_evidence_by_id: Mapping[str, StructuredRegressionEvidence],
+) -> None:
+    verify_memory_revision_evidence(revision, regression_evidence_by_id)
+    if revision.memory_kind != "lesson":
+        if revision.fix_evidence_id is not None:
+            _invalid("project_policy revision forbids fix evidence")
+        return
+    fix_evidence = fix_evidence_by_id.get(cast(str, revision.fix_evidence_id))
+    if type(fix_evidence) is not FixEvidence:
+        _invalid(f"missing fix evidence: {revision.fix_evidence_id}")
+    if fix_evidence.evidence_id != revision.fix_evidence_id:
+        _invalid("fix evidence identity does not match reference")
+    if fix_evidence.case_id != revision.source_case_id:
+        _invalid("fix evidence does not match source_case_id")
+    if revision.proposed_by in {
+        fix_evidence.submitter_id,
+        fix_evidence.reviewer_id,
+        fix_evidence.source_to_fix.verified_by,
+    }:
+        _invalid("revision proposer must be independent of fix evidence actors")
+    for evidence_id in revision.regression_evidence_ids:
+        regression = regression_evidence_by_id[evidence_id]
+        if regression.source_trace_id != fix_evidence.source_trace_id:
+            _invalid("regression and fix evidence source traces do not match")
+        if regression.source_commit_sha != fix_evidence.source_commit_sha:
+            _invalid("regression and fix evidence source commits do not match")
+        if regression.fix_commit_sha != fix_evidence.fix_commit_sha:
+            _invalid("regression evidence does not verify the recorded fix commit")
 
 
 def dumps_memory_revision(revision: MemoryRevision) -> str:

@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 86 installed resource copies must remain byte-identical to the top-level
+The 91 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1193,9 +1193,11 @@ boolean are compatibility inputs, not substitutes for this contract.
 Create a `MemoryRevision` only as a proposal after case review, fix evidence,
 and structured regression evidence exist. Verify the exact content artifact,
 canonical authorization scope, parent revision, and server-owned proposer and
-client context. For lessons, resolve every evidence ID and require the same
-Failure Case, a passing result, and a proposer distinct from the evidence
-submitter and verifier.
+client context. For lessons, resolve the content-addressed FixEvidence and
+every regression evidence ID. Require the same Failure Case, source Trace,
+source commit, and fix commit across them, a passing result, and a proposer
+distinct from all evidence submitters, reviewers, and verifiers. The
+regression-only compatibility helper is not a publication preflight.
 
 Do not interpret a valid revision hash as approval or activation. The active
 runtime exposes no revision publication operation. Approval and activation

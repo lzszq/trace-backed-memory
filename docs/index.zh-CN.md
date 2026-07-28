@@ -23,6 +23,7 @@
 - [SQLite 与 PostgreSQL Gate evidence v3](protocols/sqlite-gate-evidence-v3.zh-CN.md)
 - [Append-only 审计与恢复 v3](protocols/audit-recovery-v3.zh-CN.md)
 - [结构化 regression evidence v3](protocols/evidence-v3.zh-CN.md)
+- [FixEvidence v3](protocols/fix-evidence-v3.zh-CN.md)
 - [不可变 MemoryRevision v3](protocols/memory-revision-v3.zh-CN.md)
 - [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)
 - [System 与 Semantic Gate evaluation v3](protocols/gate-evaluation-v3.zh-CN.md)
@@ -55,9 +56,10 @@ Store/MCP、worker 与 service integration 尚未使用它们。与存储实现�
 v3 policy/evaluator 契约已定义 canonical repository、精确租户别名、认证身份
 位置、role binding 与关联 decision。认证 retrieval service kernel 现在会在
 retrieval callback 前持久化并复查这些 decision，但 transport authentication 与
-active Agent/MCP/HTTP/SDK 接入仍待完成。storage-neutral、
-content-addressed 结构化 regression evidence 契约已经发布，但 active v2
-record/adapter 尚未使用它；proposal-only immutable MemoryRevision 契约也已发布。
+active Agent/MCP/HTTP/SDK 接入仍待完成。storage-neutral、content-addressed
+FixEvidence 与结构化 regression evidence 契约已经发布，并提供严格的跨记录
+MemoryRevision preflight；但 active v2 record/adapter 尚未使用它们，
+proposal-only immutable MemoryRevision 契约也尚未持久化。
 内容寻址 RetrievalSnapshot 契约会记录精确的已授权排序输入/结果、索引版本、
 分数、哈希与截断原因；不可变 System/Semantic Gate 记录以单调缩小规则绑定确定性
 策略与模型 attempt provenance。active retriever/gate/GateSession repository

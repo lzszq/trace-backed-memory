@@ -554,6 +554,11 @@
   关系、evaluator/environment provenance、expected/observed outcome、artifact hash
   与 attestation。它不替代 active v2 boolean，也不授予发布权限；immutable
   MemoryRevision 与 service integration 仍是后续工作。
+- 发布 `tbm.fix-evidence.v3` storage-neutral、content-addressed 记录，绑定精确的
+  case/Trace、source/fix commit、已验证 ancestry、有限 artifact hash 与相互独立的
+  submitter/reviewer principal。增加严格 MemoryRevision evidence-bundle preflight，
+  要求 fix/regression evidence 具有相同 case、source Trace 与 commit。持久化、
+  approval 和 activation 仍是后续 service 工作。
 - 发布 proposal-only `tbm.memory-revision.v3` storage-neutral、内容派生 immutable
   revision，绑定精确 parent、content artifact、canonical scope、case/fix/structured
   evidence 引用与 server-owned proposer/client attestation context。在认证

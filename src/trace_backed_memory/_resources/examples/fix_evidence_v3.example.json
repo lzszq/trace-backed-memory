@@ -1,0 +1,23 @@
+{
+  "artifact_hashes": [
+    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  ],
+  "attestation_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "case_id": "case_001",
+  "contract_version": "tbm.fix-evidence.v3",
+  "evidence_id": "fix_evidence_sha256_c91cc2de98a2252d3cfba33dca49eda31b005ca8173ea33108be0cf108bc6584",
+  "fix_commit_sha": "def456",
+  "reviewed_at": "2026-07-27T00:03:00Z",
+  "reviewer_id": "reviewer_001",
+  "source_commit_sha": "abc123",
+  "source_to_fix": {
+    "from_commit_sha": "abc123",
+    "relation": "ancestor",
+    "to_commit_sha": "def456",
+    "verified_at": "2026-07-27T00:01:00Z",
+    "verified_by": "git_verifier"
+  },
+  "source_trace_id": "trace_source_001",
+  "submitted_at": "2026-07-27T00:02:00Z",
+  "submitter_id": "engineer_001"
+}

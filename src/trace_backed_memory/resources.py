@@ -77,6 +77,11 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     ("examples/failure_case.example.json", "example", "application/json"),
+    (
+        "examples/fix_evidence_v3.example.json",
+        "example",
+        "application/json",
+    ),
     ("examples/gate_session_v3.example.json", "example", "application/json"),
     (
         "examples/injection_artifact_v3.example.json",
@@ -190,6 +195,11 @@ _RESOURCE_SPECS: tuple[
         "application/schema+json",
     ),
     ("schemas/failure_case.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/fix_evidence_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     ("schemas/gate_session_v3.schema.json", "schema", "application/schema+json"),
     (
         "schemas/injection_artifact_v3.schema.json",

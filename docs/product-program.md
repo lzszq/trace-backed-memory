@@ -1361,6 +1361,11 @@ Track:
   parent/revision continuity, supports exact idempotent replay and caller
   savepoints, and reads back before commit. Keep approval, activation, active
   v2 projection, authorization, and retention outside this ledger.
+- Add the isolated PostgreSQL peer with an install/fail-closed rollback pair,
+  exact catalog fingerprint validation, caller-compatible transactions,
+  immutable evidence closure, linear parent continuity, and replay that
+  rejects rather than repairs tampered stored proposals. Keep it proposal-only
+  and outside active v2 projection, approval, activation, and authorization.
 - Publish content-addressed `tbm.retrieval-snapshot.v3` and nested
   RetrievalHit/IndexVersion records with exact authorization/context/query
   linkage, ordered revision hits, candidate hashes, finite stage/fusion scores,

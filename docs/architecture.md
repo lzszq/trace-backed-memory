@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 92 canonical Schema, SQL/migration, memory-support, and example files. Its
+the repository's 94 canonical Schema, SQL/migration, memory-support, and example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -1149,7 +1149,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 92 resources.
+contains 94 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1619,6 +1619,17 @@ non-passing, cross-case, or proposer-conflicted evidence. It deliberately has
 no approval or activation state: those require authenticated authorization,
 transactional parent/sequence checks, and append-only audit service operations.
 See [Immutable MemoryRevision v3](protocols/memory-revision-v3.md).
+
+Opt-in isolated SQLite and PostgreSQL proposal ledgers persist that revision
+with its exact FixEvidence and ordered regression-evidence closure. Both
+validate the complete stored bundle on replay before inserting anything, so
+tampered records are rejected rather than repaired. The PostgreSQL peer adds
+active-metadata lock ordering, a catalog/ACL fingerprint, immutable
+UPDATE/DELETE/TRUNCATE triggers, caller-compatible transactions, and a
+fail-closed rollback resource. Neither ledger performs approval, activation,
+authorization, retention, or active-v2 projection. See the
+[SQLite](protocols/sqlite-memory-revision-v3.md) and
+[PostgreSQL](protocols/postgres-memory-revision-v3.md) ledger contracts.
 
 The storage-neutral `tbm.retrieval-snapshot.v3` contract records the exact
 authorized retrieval result referenced by a prepared GateSession. It binds the

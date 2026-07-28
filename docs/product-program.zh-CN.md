@@ -568,6 +568,10 @@
   精确 FixEvidence/regression bundle，强制线性 parent/revision continuity，支持
   精确幂等 replay 与 caller savepoint，并在 commit 前读回。approval、activation、
   active v2 projection、authorization 与 retention 保持在该 ledger 之外。
+- 增加隔离的 PostgreSQL 对等实现及 install/fail-closed rollback：校验精确 catalog
+  fingerprint，兼容 caller transaction，保存 immutable evidence 闭包，强制线性
+  parent continuity，并在 replay 时拒绝而不是修补被篡改的 proposal。它仍只保存
+  proposal，不接入 active v2 projection、approval、activation 或 authorization。
 - 发布内容寻址 `tbm.retrieval-snapshot.v3` 以及嵌套 RetrievalHit/IndexVersion，
   绑定精确 authorization/context/query、有序 revision 命中、候选哈希、有限的
   stage/fusion 分数、retriever/index 版本、边界与截断原因。在 UTF-8 编码前拒绝

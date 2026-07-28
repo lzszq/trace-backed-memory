@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 92 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 94 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -468,6 +468,16 @@ evidence preflight 会拒绝缺失、未通过、跨 case 或 proposer 冲突的
 不包含 approval/activation state；这些需要认证 authorization、事务化 parent/sequence
 检查与 append-only audit service operation。详见
 [不可变 MemoryRevision v3](protocols/memory-revision-v3.zh-CN.md)。
+
+Opt-in、隔离的 SQLite 与 PostgreSQL proposal ledger 会把该 revision 连同精确
+FixEvidence 和有序 regression-evidence 闭包一起持久化。两者在 replay 时都会先
+验证完整存储 bundle，再执行任何插入，因此会拒绝而不是修补被篡改的记录。
+PostgreSQL 对等实现还提供 active-metadata 锁顺序、catalog/ACL fingerprint、
+immutable UPDATE/DELETE/TRUNCATE trigger、caller-compatible transaction 与
+fail-closed rollback 资源。两种 ledger 都不执行 approval、activation、
+authorization、retention 或 active-v2 projection。详见
+[SQLite](protocols/sqlite-memory-revision-v3.zh-CN.md)与
+[PostgreSQL](protocols/postgres-memory-revision-v3.zh-CN.md) ledger 契约。
 
 storage-neutral `tbm.retrieval-snapshot.v3` 契约记录 prepared GateSession
 引用的精确已授权检索结果。它在内容派生身份下绑定授权事件、context/query 摘要、

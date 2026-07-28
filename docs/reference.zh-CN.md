@@ -196,11 +196,15 @@ sqlite_sql = read_packaged_resource("schemas/sqlite.sql")
 postgres_migration_sql = read_packaged_resource("schemas/postgres-v1-to-v2.sql")
 postgres_hotfix_sql = read_packaged_resource("schemas/postgres-v2-lock-order-hotfix.sql")
 postgres_sql = read_packaged_resource("schemas/postgres.sql")
+postgres_revision_sql = read_packaged_resource("schemas/postgres-v3-memory-revision.sql")
+postgres_revision_rollback_sql = read_packaged_resource(
+    "schemas/postgres-v3-memory-revision-rollback.sql"
+)
 export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 92 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 94 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -977,7 +981,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 - 由 System Gate 与 LLM Gate 组成的不可绕过两级运行时门控。
 - 关键字检索、有界调用方语义分数、Git ancestry 过滤和端点感知 PR 报告。
 - 单项/批量 Memory Run 原子完成、审计、补救、就绪扫描与安全恢复。
-- 严格 JSON 快照、简单 active lesson YAML、92 项 zip-safe 包资源和原子文件发布。
+- 严格 JSON 快照、简单 active lesson YAML、94 项 zip-safe 包资源和原子文件发布。
 - 快照 advisory lock，以及 SQLite schema 版本 `1` / PostgreSQL schema 版本 `2` 的增量事务存储库。
 - JSON Schema、PostgreSQL 约束、快照与发行包的跨层契约测试。
 

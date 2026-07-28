@@ -286,6 +286,16 @@ _RESOURCE_SPECS: tuple[
         "application/sql",
     ),
     (
+        "schemas/postgres-v3-memory-revision-rollback.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres-v3-memory-revision.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
         "schemas/postgres-v3-replay-rollback.sql",
         "schema",
         "application/sql",

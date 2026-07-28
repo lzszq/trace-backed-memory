@@ -6,6 +6,7 @@ import pytest
 
 import trace_backed_memory as tbm
 import trace_backed_memory.cli as cli
+import trace_backed_memory.migration_v3 as migration_v3
 
 
 def _empty_mapping(
@@ -471,3 +472,130 @@ def test_v3_bundle_public_exports_are_intentional():
         "verify_snapshot_v3_migration_bundle",
     ):
         assert name in tbm.__all__
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("bundle_version", "bad"),
+        ("source_snapshot_version", 1),
+        ("target_snapshot_version", 2),
+        ("state", "invalid"),
+        ("state", "blocked"),
+        ("bundle_id", "invalid"),
+        ("mapping", object()),
+        ("plan", object()),
+        ("_source_snapshot_json", object()),
+        ("_source_snapshot_json", '{"snapshot_version":1}'),
+    ],
+)
+def test_v3_bundle_record_rejects_invalid_field_shapes(field, value):
+    bundle = _empty_bundle()
+    with pytest.raises(tbm.V3MigrationBundleError):
+        replace(bundle, **{field: value})
+
+
+@pytest.mark.parametrize("field", ["source_snapshot", "mapping", "plan"])
+def test_v3_bundle_parser_requires_nested_objects(field):
+    payload = _empty_bundle().to_dict()
+    payload[field] = None
+    with pytest.raises(tbm.V3MigrationBundleError):
+        tbm.parse_snapshot_v3_migration_bundle(payload)
+
+
+def test_v3_bundle_public_helpers_reject_wrong_types_and_missing_files(
+    tmp_path,
+):
+    with pytest.raises(tbm.V3MigrationBundleError):
+        tbm.dumps_snapshot_v3_migration_bundle(object())
+    with pytest.raises(tbm.V3MigrationBundleError):
+        tbm.verify_snapshot_v3_migration_bundle(object())
+    with pytest.raises(tbm.V3MigrationBundleError, match="failed to read"):
+        tbm.load_snapshot_v3_migration_bundle(tmp_path / "missing.json")
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        lambda: migration_v3._freeze_source_snapshot(object()),
+        lambda: migration_v3._freeze_source_snapshot(
+            {"snapshot_version": 1}
+        ),
+        lambda: migration_v3._freeze_source_snapshot(
+            {"snapshot_version": 2, "traces": "invalid"}
+        ),
+        lambda: migration_v3._freeze_mapping(object()),
+        lambda: migration_v3._freeze_mapping({"mapping_version": "bad"}),
+        lambda: migration_v3._freeze_object(
+            {"value": object()},
+            "test",
+        ),
+        lambda: migration_v3._bundle_sha256(object()),
+        lambda: migration_v3._canonical_json(float("nan")),
+        lambda: migration_v3._canonical_json(object()),
+        lambda: migration_v3._parse_json_object(
+            "[]",
+            description="test",
+            max_bytes=100,
+            max_nodes=100,
+        ),
+        lambda: migration_v3._parse_json_object(
+            "NaN",
+            description="test",
+            max_bytes=100,
+            max_nodes=100,
+        ),
+        lambda: migration_v3._validate_json_tree(
+            json.loads("[" * 102 + "null" + "]" * 102),
+            description="test",
+            max_nodes=200,
+        ),
+        lambda: migration_v3._validate_json_tree(
+            [1, 2],
+            description="test",
+            max_nodes=1,
+        ),
+        lambda: migration_v3._validate_json_tree(
+            "\ud800",
+            description="test",
+            max_nodes=10,
+        ),
+        lambda: migration_v3._validate_json_tree(
+            {1: "value"},
+            description="test",
+            max_nodes=10,
+        ),
+        lambda: migration_v3._validate_json_tree(
+            {"\ud800": "value"},
+            description="test",
+            max_nodes=10,
+        ),
+        lambda: migration_v3._closed_object(
+            object(),
+            "test",
+            {"field"},
+        ),
+        lambda: migration_v3._closed_object({}, "test", {"field"}),
+        lambda: migration_v3._closed_object(
+            {"field": 1, "extra": 2},
+            "test",
+            {"field"},
+        ),
+        lambda: migration_v3._required_string("", "field"),
+        lambda: migration_v3._required_integer("1", "field"),
+        lambda: migration_v3._bundle_digest("invalid", "field"),
+        lambda: migration_v3._bounded_text(
+            "\ud800",
+            description="test",
+            max_bytes=10,
+        ),
+        lambda: migration_v3._bounded_text(
+            "too long",
+            description="test",
+            max_bytes=1,
+        ),
+    ],
+)
+def test_v3_bundle_strict_helpers_fail_closed(operation):
+    with pytest.raises(tbm.V3MigrationBundleError):
+        operation()

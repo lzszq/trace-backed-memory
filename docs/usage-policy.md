@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 92 installed resource copies must remain byte-identical to the top-level
+The 94 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -172,11 +172,11 @@ The allowlist includes fresh-install PostgreSQL schema version 2, the
 atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 `schemas/postgres-v2-lock-order-hotfix.sql` operator script. It also includes
 the agent protocol, v3 migration staging, GateSession, and content-addressed
-replay and entity-registry contract Schemas and examples, plus isolated SQLite
-GateSession/replay/audit/authorization-ledger and normalized entity-registry
-DDL, isolated PostgreSQL
-GateSession/entity-registry install/rollback, and isolated PostgreSQL
-replay/audit/authorization-ledger install/fail-closed rollback.
+replay, MemoryRevision, and entity-registry contract Schemas and examples, plus
+isolated SQLite GateSession/replay/audit/authorization/MemoryRevision ledgers
+and normalized entity-registry DDL, isolated PostgreSQL GateSession and
+entity-registry install/rollback, and isolated PostgreSQL
+replay/audit/authorization/MemoryRevision ledger install/fail-closed rollback.
 
 CLI resource reads emit deterministic JSON rather than unframed raw content.
 Export is the shell integration path. It must refuse an existing destination
@@ -1205,11 +1205,12 @@ must be separate authenticated, authorized, append-only service events with
 transactional parent/sequence and current-policy checks. Corrections create a
 new revision; they never mutate an existing one.
 
-The isolated SQLite proposal ledger may persist only a fully verified exact
-evidence bundle. Require linear parent/revision continuity, immutable
-idempotent replay, and exact read-back before commit. Its presence is not
-publication authority and it must never project proposals into active v2
-memory.
+The isolated SQLite and PostgreSQL proposal ledgers may persist only a fully
+verified exact evidence bundle. Require linear parent/revision continuity,
+immutable idempotent replay, and exact read-back before commit. PostgreSQL
+installation and rollback must validate the isolated schema catalog and ACLs.
+Ledger presence is not publication authority and proposals must never be
+projected into active v2 memory.
 
 ## Version-3 retrieval snapshot policy
 

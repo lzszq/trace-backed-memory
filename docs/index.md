@@ -27,6 +27,7 @@ orientation; these documents define the engineering contracts.
 - [FixEvidence v3](protocols/fix-evidence-v3.md)
 - [Immutable MemoryRevision v3](protocols/memory-revision-v3.md)
 - [SQLite MemoryRevision proposal ledger v3](protocols/sqlite-memory-revision-v3.md)
+- [PostgreSQL MemoryRevision proposal ledger v3](protocols/postgres-memory-revision-v3.md)
 - [Replayable RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.md)
 - [System and Semantic Gate evaluation v3](protocols/gate-evaluation-v3.md)
 - [Run outcome and attribution v3](protocols/outcome-v3.md)
@@ -64,9 +65,9 @@ service kernel now persists and rechecks those decisions before a retrieval
 callback, but transport authentication and active Agent/MCP/HTTP/SDK wiring
 remain outstanding. The storage-neutral, content-addressed FixEvidence and
 structured regression evidence contracts are published with a strict
-cross-record MemoryRevision preflight, but active v2 records/adapters do not
-use them and the proposal-only immutable MemoryRevision contract is not
-persisted.
+cross-record MemoryRevision preflight and opt-in isolated SQLite/PostgreSQL
+proposal ledgers. Active v2 records/adapters do not use these ledgers, and
+proposal persistence does not approve or activate memory.
 The content-addressed RetrievalSnapshot contract records exact authorized
 ranking inputs/results, index versions, scores, hashes, and truncation reasons,
 while immutable System/Semantic Gate records bind deterministic policy and

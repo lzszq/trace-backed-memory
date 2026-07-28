@@ -222,11 +222,15 @@ sqlite_sql = read_packaged_resource("schemas/sqlite.sql")
 postgres_migration_sql = read_packaged_resource("schemas/postgres-v1-to-v2.sql")
 postgres_hotfix_sql = read_packaged_resource("schemas/postgres-v2-lock-order-hotfix.sql")
 postgres_sql = read_packaged_resource("schemas/postgres.sql")
+postgres_revision_sql = read_packaged_resource("schemas/postgres-v3-memory-revision.sql")
+postgres_revision_rollback_sql = read_packaged_resource(
+    "schemas/postgres-v3-memory-revision-rollback.sql"
+)
 export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 92 resources. `PackagedResource` descriptions
+The allowlist currently contains 94 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -2096,7 +2100,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 92 canonical Schemas, examples, and memory
+  explicit atomic export for all 94 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned

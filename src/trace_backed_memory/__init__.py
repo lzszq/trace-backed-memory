@@ -333,6 +333,16 @@ from .postgres_audit_v3 import (
     PostgresAuditV3Repository,
     PostgresAuditV3SchemaError,
 )
+from .postgres_authorization_v3 import (
+    POSTGRES_AUTHORIZATION_V3_MAX_PAGE_SIZE,
+    POSTGRES_AUTHORIZATION_V3_SCHEMA_VERSION,
+    PostgresAuthorizationV3AppendResult,
+    PostgresAuthorizationV3ConflictError,
+    PostgresAuthorizationV3Error,
+    PostgresAuthorizationV3PersistenceError,
+    PostgresAuthorizationV3Repository,
+    PostgresAuthorizationV3SchemaError,
+)
 from .postgres_gate_session_v3 import (
     POSTGRES_GATE_SESSION_SCHEMA_VERSION,
     PostgresGateSessionConflictError,
@@ -653,6 +663,14 @@ __all__ = [
     "PostgresAuditV3PersistenceError",
     "PostgresAuditV3Repository",
     "PostgresAuditV3SchemaError",
+    "POSTGRES_AUTHORIZATION_V3_MAX_PAGE_SIZE",
+    "POSTGRES_AUTHORIZATION_V3_SCHEMA_VERSION",
+    "PostgresAuthorizationV3AppendResult",
+    "PostgresAuthorizationV3ConflictError",
+    "PostgresAuthorizationV3Error",
+    "PostgresAuthorizationV3PersistenceError",
+    "PostgresAuthorizationV3Repository",
+    "PostgresAuthorizationV3SchemaError",
     "POSTGRES_GATE_SESSION_SCHEMA_VERSION",
     "PostgresGateSessionConflictError",
     "PostgresGateSessionCreateResult",

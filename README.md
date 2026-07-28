@@ -201,7 +201,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 79 resources. `PackagedResource` descriptions
+The allowlist currently contains 81 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -419,11 +419,13 @@ content-linked allow/deny decisions. Its evaluator keeps authorization
 separate from applicability and is intended to run before any retrieval.
 Identity and target fields must come from authenticated server-owned context;
 decision hashes are content identities, not signatures or reusable
-capabilities. `SQLiteAuthorizationV3Repository` is an opt-in isolated authority
-that verifies the exact policy/request/decision triple before atomically
-persisting immutable policies and decisions with unique request identity. The
-active Store, Agent, MCP, and GateSession repositories still do not invoke this
-authority. See
+capabilities. `SQLiteAuthorizationV3Repository` and
+`PostgresAuthorizationV3Repository` are opt-in isolated authorities that verify
+the exact policy/request/decision triple before atomically persisting immutable
+policies and decisions with unique request identity. PostgreSQL includes
+version-gated install and fail-closed rollback resources. The active Store,
+Agent, MCP, and GateSession repositories still do not invoke either authority.
+See
 [the authorization contract](docs/protocols/authorization-v3.md).
 
 The storage-neutral `tbm.regression-evidence.v3` contract replaces no active
@@ -2190,6 +2192,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- postgres-v3-gate-session*.sql
 |   |-- postgres-v3-replay*.sql
 |   |-- postgres-v3-audit*.sql
+|   |-- postgres-v3-authorization*.sql
 |   |-- postgres-v3-staging*.sql
 |   |-- postgres.sql
 |   |-- snapshot_v3_migration_*.schema.json

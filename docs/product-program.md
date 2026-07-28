@@ -1407,6 +1407,11 @@ Track:
   descriptors, detects exact schema drift, and preserves caller savepoints.
   Keep caller authentication and active Store/Agent/MCP integration
   outstanding.
+- Add the matching isolated PostgreSQL authorization authority with atomic
+  active-v2-gated install, fail-closed exact-catalog rollback, immutable
+  triggers, concurrent exact-replay idempotency, descriptor revalidation, and
+  caller-savepoint preservation. Keep authenticated service integration
+  outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

@@ -2,10 +2,10 @@
 
 **English** | [简体中文](authorization-v3.zh-CN.md)
 
-Status: published preparation contract with an opt-in isolated SQLite
-authorization authority. It is not wired into the active snapshot-v2 Store,
-local Agent, MCP adapter, or GateSession repositories. Those paths remain
-process-local or explicitly opt-in as documented elsewhere.
+Status: published preparation contract with opt-in isolated SQLite and
+PostgreSQL authorization authorities. They are not wired into the active
+snapshot-v2 Store, local Agent, MCP adapter, or GateSession repositories. Those
+paths remain process-local or explicitly opt-in as documented elsewhere.
 
 Authorization v3 defines the identities, repository registry, role bindings,
 requests, and content-derived decisions needed before a future service may
@@ -31,15 +31,18 @@ Before a protected operation, evaluate again against the current policy or
 verify that the exact trusted policy is still authoritative. Revocation and
 expiry must not be bypassed by replaying an older decision.
 
-`SQLiteAuthorizationV3Repository` persists immutable policy bundles and linked
-decisions in the isolated `schemas/sqlite-v3-authorization.sql` schema. Its
+`SQLiteAuthorizationV3Repository` and
+`PostgresAuthorizationV3Repository` persist immutable policy bundles and linked
+decisions in isolated `schemas/*-v3-authorization.sql` schemas. Their
 `authorize_and_record()` path evaluates before storage; `append_decision()`
 requires the exact policy, request, and decision and calls
 `verify_authorization_decision()` before one atomic append. Request identity is
 unique, exact replay is idempotent, conflicting reevaluation is rejected, stored
 descriptors are revalidated, schema drift fails closed, and nested callers use
-a savepoint. This repository does not authenticate the supplied context and is
-not yet an active retrieval boundary.
+a savepoint. PostgreSQL install and rollback are separately version-gated,
+atomic resources; rollback rejects catalog drift and external dependencies.
+These repositories do not authenticate the supplied context and are not yet an
+active retrieval boundary.
 
 ## Registries and bindings
 
@@ -97,6 +100,9 @@ Canonical resources:
 - `schemas/authorization_decision_v3.schema.json`
 - `examples/authorization_policy_v3.example.json`
 - `examples/authorization_decision_v3.example.json`
+- `schemas/sqlite-v3-authorization.sql`
+- `schemas/postgres-v3-authorization.sql`
+- `schemas/postgres-v3-authorization-rollback.sql`
 
 JSON loaders reject duplicate keys, non-finite numbers, invalid UTF-8, unknown
 or missing fields, more than 1 MiB, more than 25,000 nodes, or depth above 32.
@@ -107,8 +113,8 @@ tenant, alias, scope, time, sorted decision linkage, and content-derived IDs.
 ## Compatibility boundary
 
 This contract does not increment snapshot version 2, SQLite schema version 1,
-or PostgreSQL schema version 2. It adds no active database tables, remote
-service, authentication provider, SDK transport, or runtime injection path.
-Persistence and adapter integration require explicit migrations, authenticated
-server context, negative authorization tests, and cross-adapter conformance
-before activation.
+or active PostgreSQL schema version 2. The authorization schemas are isolated,
+opt-in schema-version-1 authorities. They add no remote service, authentication
+provider, SDK transport, or runtime injection path. Active adapter integration
+requires explicit migrations, authenticated server context, negative
+authorization tests, and cross-adapter conformance before activation.

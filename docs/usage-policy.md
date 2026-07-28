@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 79 installed resource copies must remain byte-identical to the top-level
+The 81 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -174,8 +174,8 @@ atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 the agent protocol, v3 migration staging, GateSession, and content-addressed
 replay contract Schemas and examples, plus isolated SQLite
 GateSession/replay/audit/authorization-ledger DDL, isolated PostgreSQL
-GateSession install/rollback, and isolated PostgreSQL replay/audit-ledger
-install/fail-closed rollback.
+GateSession install/rollback, and isolated PostgreSQL
+replay/audit/authorization-ledger install/fail-closed rollback.
 
 CLI resource reads emit deterministic JSON rather than unframed raw content.
 Export is the shell integration path. It must refuse an existing destination
@@ -1116,12 +1116,14 @@ use.
 Decision and policy hashes provide content linkage, not authenticity. Never
 accept an isolated decision as a signature or durable capability. Verify the
 decision against the exact trusted request and policy, and reevaluate after
-policy change, revocation, or expiry. The opt-in
-`SQLiteAuthorizationV3Repository` may persist only decisions verified against
-their exact request and policy; its request uniqueness is an audit invariant,
-not a reusable authorization capability. The active Store, Agent, MCP, and
-GateSession repositories do not yet invoke this authority and must not claim
-multi-tenant authorization.
+policy change, revocation, or expiry. The opt-in SQLite and PostgreSQL
+authorization repositories may persist only decisions verified against their
+exact request and policy; request uniqueness is an audit invariant, not a
+reusable authorization capability. Install or roll back the PostgreSQL
+authority only with its packaged, active-v2-gated resources, and treat catalog
+drift as a failure. The active Store, Agent, MCP, and GateSession repositories
+do not yet invoke either authority and must not claim multi-tenant
+authorization.
 
 ## Version-3 structured evidence policy
 

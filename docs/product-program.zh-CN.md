@@ -606,6 +606,9 @@
   bundle 与关联 allow/deny decision，在追加前核验精确 request，强制唯一 request
   identity，重验已存 descriptor，检测精确 schema drift，并保留调用方
   savepoint。调用方认证及 active Store/Agent/MCP 集成仍待实现。
+- 增加对应的隔离 PostgreSQL authorization authority：提供受 active-v2 门禁的
+  原子 install、精确 catalog 的 fail-closed rollback、immutable trigger、并发精确
+  重放幂等、descriptor 重验与调用方 savepoint 保留。认证服务集成仍待实现。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 在 retrieval 前集成服务端认证 identity 与已发布授权契约，使 scope 成为可执行的 runtime boundary。

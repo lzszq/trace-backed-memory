@@ -79,6 +79,8 @@ Start with:
 - `execution.py`: callback orchestration and recovery context.
 - `sqlite.py` / `postgres.py`: persistence adapters.
 - `sqlite_v3.py`: isolated local staging for immutable migration bundles.
+- `sqlite_authorization_v3.py` / `postgres_authorization_v3.py`: opt-in
+  immutable policy/decision authorities.
 - `resources.py`: strict installed-resource allowlist.
 - `cli.py`: operational command adapter.
 - `schemas/`: canonical external and persistence contracts.

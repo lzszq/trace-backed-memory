@@ -2,8 +2,8 @@
 
 [English](authorization-v3.md) | **简体中文**
 
-状态：已发布的准备性契约，并包含 opt-in 隔离 SQLite authorization
-authority。它尚未接入现行 snapshot-v2 Store、本地 Agent、MCP 适配器或
+状态：已发布的准备性契约，并包含 opt-in 隔离 SQLite 与 PostgreSQL
+authorization authority。它们尚未接入现行 snapshot-v2 Store、本地 Agent、MCP 适配器或
 GateSession 仓储；这些路径仍保持其他文档所述的进程内或显式 opt-in 边界。
 
 授权 v3 定义未来服务在读取任何租户或仓库数据之前所需的身份、仓库注册表、角色
@@ -24,14 +24,15 @@ GateSession 仓储；这些路径仍保持其他文档所述的进程内或显�
 允许决策是一次时点评估，不是长期 capability。每个受保护操作之前都应按当前策略
 重新评估，或确认该精确信任策略仍是权威版本；不得重放旧决策绕过撤销或过期。
 
-`SQLiteAuthorizationV3Repository` 在隔离
-`schemas/sqlite-v3-authorization.sql` schema 中持久化 immutable policy bundle
+`SQLiteAuthorizationV3Repository` 与 `PostgresAuthorizationV3Repository`
+在隔离的 `schemas/*-v3-authorization.sql` schema 中持久化 immutable policy bundle
 与关联 decision。`authorize_and_record()` 先求值再存储；`append_decision()`
 要求精确 policy、request 与 decision，并在单个原子追加前调用
 `verify_authorization_decision()`。request identity 唯一，精确重放幂等，冲突
 重评估会被拒绝；已存 descriptor 会重验，schema drift fail closed，嵌套调用方
-使用 savepoint。该 repository 不认证输入上下文，也尚未成为 active retrieval
-boundary。
+使用 savepoint。PostgreSQL install/rollback 是独立、带版本门禁的原子资源；
+rollback 会拒绝 catalog drift 与外部依赖。这些 repository 不认证输入上下文，
+也尚未成为 active retrieval boundary。
 
 ## 注册表与绑定
 
@@ -81,6 +82,9 @@ boundary。
 - `schemas/authorization_decision_v3.schema.json`
 - `examples/authorization_policy_v3.example.json`
 - `examples/authorization_decision_v3.example.json`
+- `schemas/sqlite-v3-authorization.sql`
+- `schemas/postgres-v3-authorization.sql`
+- `schemas/postgres-v3-authorization-rollback.sql`
 
 JSON loader 拒绝重复键、非有限数字、无效 UTF-8、未知或缺失字段、超过 1 MiB、
 超过 25,000 个节点或深度超过 32 的输入。每个注册表最多 10,000 项，每个绑定
@@ -89,7 +93,7 @@ JSON loader 拒绝重复键、非有限数字、无效 UTF-8、未知或缺失�
 
 ## 兼容性边界
 
-该契约不提升 snapshot 版本 2、SQLite schema 版本 1 或 PostgreSQL schema 版本
-2。它不增加现行数据库表、远程服务、认证 provider、SDK transport 或运行时注入
-路径。持久化和适配器接入必须先具备显式迁移、服务端认证上下文、负向授权测试和
-跨适配器一致性验证，之后才能激活。
+该契约不提升 snapshot 版本 2、SQLite schema 版本 1 或现行 PostgreSQL schema
+版本 2。授权 schema 是隔离、opt-in 的 schema-version-1 authority；它们不增加
+远程服务、认证 provider、SDK transport 或运行时注入路径。现行适配器接入必须先
+具备显式迁移、服务端认证上下文、负向授权测试和跨适配器一致性验证，之后才能激活。

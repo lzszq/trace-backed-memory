@@ -6,7 +6,9 @@
 durable runtime back half. It verifies the retained finalization bundle,
 advances `FINALIZED -> EXECUTING`, supports explicit lease-based resume or
 abandonment, and completes one run through the existing atomic
-`RunOutcome + COMPLETED + completion outbox` authority.
+`RunOutcome + COMPLETED + completion outbox` authority. Construction requires
+that authority to expose the exact same GateSession authority used for
+start/resume/abandonment; a second database or repository instance is rejected.
 
 ## Authorization and ownership
 
@@ -71,9 +73,10 @@ The completion authority then performs one atomic write:
 4. read back and verify the session, outcome, event, and current delivery.
 
 Exact retries return the retained outcome and event without creating a second
-event. Delivery remains at-least-once: consumers deduplicate by event ID, and
-the bounded outbox worker owns lease, retry, acknowledgement, and dead-letter
-transitions.
+event, but only when `expected_version` still names the exact parent of the
+retained completed revision. Delivery remains at-least-once: consumers
+deduplicate by event ID, and the bounded outbox worker owns lease, retry,
+acknowledgement, and dead-letter transitions.
 
 ## Abandonment and recovery
 
@@ -85,15 +88,19 @@ recovery authority must decide the next action.
 
 ## Transaction and integration boundaries
 
-SQLite and PostgreSQL use the same storage-neutral composition. When the
-GateSession and completion-outbox repositories share a caller-owned database
-connection, their savepoints preserve caller-controlled outer commit or
-rollback for each individual start or completion operation. No database
-transaction can include an external executor side effect, so a crash between
-execution and completion leaves an explicit `EXECUTING` recovery state.
+SQLite and PostgreSQL use the same storage-neutral composition. The
+completion-outbox repository exposes its embedded GateSession authority, and
+`DurableExecutionService` requires callers to use that exact object. Its
+savepoints preserve caller-controlled outer commit or rollback for each
+individual start or completion operation. No database transaction can include
+an external executor side effect, so a crash between execution and completion
+leaves an explicit `EXECUTING` recovery state.
 
-This service is opt-in. The default Store, LocalAgentMemory, STDIO MCP, HTTP,
-and SDK adapters do not call it, and the v1 process-local request-token
-contract is unchanged. Protected-content encryption, retention, replay-read
-authorization, transport authentication, active adapter wiring, and a durable
-transition-authorization linkage field remain separate production work.
+This service is opt-in. `AuthenticatedDurableAgentMemory` now calls it as the
+execution stage of the shared durable application facade, but the default
+Store, LocalAgentMemory, STDIO MCP, HTTP, and SDK adapters do not construct
+that facade, and the v1 process-local request-token contract is unchanged.
+Protected-content encryption, retention, replay-read authorization, transport
+authentication, active adapter wiring, and a durable
+transition-authorization linkage field remain separate production work. See
+[authenticated durable Agent v3](durable-agent-v3.md).

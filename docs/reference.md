@@ -607,6 +607,18 @@ remain outside database transactions and must deduplicate by GateSession
 `run_id`. See
 [durable execution v3](protocols/durable-execution-v3.md).
 
+`AuthenticatedDurableAgentMemory` composes
+`prepare/decide/finalize/start/resume/cancel/abandon/complete/get_session`
+over one exact authority graph. Public calls accept trusted contexts and
+versioned request records, not authorization scopes. Continuations load the
+session-linked RetrievalSnapshot and call
+`AuthenticatedRetrievalService.recover_authorized_scope()` for its retained
+authorization event; every post-prepare GateSession mutation appends a fresh
+transition decision.
+`DurableAgentCancelRequest` supports exact-version cancellation and exact
+terminal replay. See
+[authenticated durable Agent v3](protocols/durable-agent-v3.md).
+
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
 ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
 schema, enforces one bounded linear sequence through a CAS head, supports

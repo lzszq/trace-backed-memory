@@ -33,6 +33,7 @@ from .completion_outbox_v3 import (
 from .contracts_v3 import V3ContractError
 from .gate_completion_v3 import GateCompletionRequest, GateCompletionResult
 from .resources import PackagedResourceError, read_packaged_resource
+from .sqlite_gate_session_v3 import SQLiteGateSessionRepository
 from .sqlite_outcome_v3 import (
     SQLiteOutcomeV3ConflictError,
     SQLiteOutcomeV3NotFoundError,
@@ -495,6 +496,12 @@ class SQLiteCompletionOutboxV3Repository:
     def outcomes(self) -> SQLiteOutcomeV3Repository:
         self._require_open()
         return self._outcomes
+
+    @property
+    def gate_sessions(self) -> SQLiteGateSessionRepository:
+        """Return the exact GateSession authority used by atomic completion."""
+
+        return self.outcomes.gate_sessions
 
     def _require_open(self) -> None:
         if self._closed:

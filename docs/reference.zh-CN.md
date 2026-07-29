@@ -429,6 +429,15 @@ RunOutcome、`COMPLETED` 与 completion-outbox authority，并要求精确读回
 executor side effect 不属于数据库 transaction，必须按 GateSession `run_id` 去重。
 详见 [durable execution v3](protocols/durable-execution-v3.zh-CN.md)。
 
+`AuthenticatedDurableAgentMemory` 会在一个精确 authority graph 上组合
+`prepare/decide/finalize/start/resume/cancel/abandon/complete/get_session`。
+公共调用接收可信 context 与带版本 request record，不接收 authorization scope。
+续接会加载 session-linked RetrievalSnapshot，并针对其中保留的 authorization event
+调用 `AuthenticatedRetrievalService.recover_authorized_scope()`；`PREPARED`
+之后的每次 GateSession 修改都会新增当前 transition decision。
+`DurableAgentCancelRequest` 支持精确版本取消与精确终态回放。详见
+[已认证 durable Agent v3](protocols/durable-agent-v3.zh-CN.md)。
+
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的
 opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS head
 强制一条有界线性 sequence，支持精确幂等重放，通过 savepoint 保留调用方

@@ -557,11 +557,20 @@ event、active head 与 policy，保留并读回完整 component bundle，再通
 通过 CAS 发布 `EXECUTING`，支持精确 revision 的 resume/abandonment，通过每次调用的
 可信 authenticator 认证已注册 outcome evaluator，并组合现有原子 RunOutcome、
 `COMPLETED` 与 completion-outbox authority。外部执行不属于数据库 transaction，
-必须按稳定 session `run_id` 幂等。详见
+必须按稳定 session `run_id` 幂等。
+`durable_agent_v3.py` 提供上述四个 durable 阶段之上的 adapter-neutral 组合。它只接收
+可信 context 与带版本 request，不接受调用方构造的 scope。续接时会重新加载
+GateSession 与已保留 RetrievalSnapshot，核验 session/Trace/run linkage，从已保留
+authorization decision 与当前 registry 重建原始 scope，并在构造时拒绝任一错配
+authority graph。`PREPARED` 之后的每次 GateSession 修改都会取得新的 transition
+authorization。该 facade 还增加
+精确版本 cancellation 与当前状态读取，但默认 Agent 或 transport adapter 尚未构造
+它。详见
 [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)、
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)、
 [durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)、
 [durable execution v3](protocols/durable-execution-v3.zh-CN.md)、
+[已认证 durable Agent v3](protocols/durable-agent-v3.zh-CN.md)、
 [UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)、
 [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)、
 [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)、
@@ -674,6 +683,17 @@ terminal reason。completion 要求当前 `gate_session:transition` decision，�
 transport-authenticated evaluator context 与服务端 registration 精确匹配。服务返回的
 authorization event 标识本次核验的 decision；当前 GateSession revision 尚未持久保存
 该 transition event ID。
+
+`AuthenticatedDurableAgentMemory` 是 durable service 之上的共享应用组合。它有意
+不保存进程内 lifecycle handle map。`prepare` 返回 durable session revision；后续
+调用从 session-linked RetrievalSnapshot 恢复原始 `memory:retrieve` scope，而
+decide/finalize/start/resume/cancel/abandon/complete 会追加当前
+`gate_session:transition` decision。service-graph identity check 要求共享同一个
+authorization service、
+GateSession authority、evidence authority、Semantic Gate authority、
+ActivatedRevision source 与 finalization replay path。SQLite/PostgreSQL 测试覆盖
+对等 lifecycle continuation。该组合仍依赖嵌入 transport 提供可信 context，尚不是
+默认 MCP/HTTP/SDK wiring。
 
 storage-neutral completion-outbox 契约把一条 immutable
 `execution_completed` event 与 append-only delivery revision 分离。opt-in

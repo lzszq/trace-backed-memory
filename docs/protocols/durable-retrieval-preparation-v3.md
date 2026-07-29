@@ -63,5 +63,7 @@ explicit deployment choice, not an automatic service guarantee.
 
 The opt-in [durable Semantic Gate service](durable-semantic-gate-v3.md) now
 continues this exact evidence through `AWAITING_DECISION` to `DECIDED`.
-Rendering, injection, finalization/execution, production index
-workers/sharding, and active Agent/MCP/HTTP/SDK wiring remain separate work.
+The opt-in [authenticated durable Agent](durable-agent-v3.md) composes that
+continuation with finalization, execution, cancellation, and completion.
+Production index workers/sharding and active Agent/MCP/HTTP/SDK wiring remain
+separate work.

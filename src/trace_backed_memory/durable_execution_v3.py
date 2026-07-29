@@ -62,6 +62,9 @@ class CompletionOutboxWrite(Protocol):
 
 
 class CompletionOutboxAuthority(Protocol):
+    @property
+    def gate_sessions(self) -> GateSessionWriter: ...
+
     def complete_session(
         self,
         request: GateCompletionRequest,
@@ -231,6 +234,10 @@ class DurableExecutionService:
             for name in ("complete_session", "get_event", "get_delivery")
         ):
             raise TypeError("completion_authority is invalid")
+        if getattr(completion_authority, "gate_sessions", None) is not session_writer:
+            raise TypeError(
+                "completion_authority must share the GateSession authority"
+            )
         if not callable(evaluator_authenticator):
             raise TypeError("evaluator_authenticator must be callable")
         if not callable(clock):
@@ -446,7 +453,15 @@ class DurableExecutionService:
                 "GateSession cannot be completed from its current status",
             )
         if current.status == "executing":
+            if current.version != request.expected_version:
+                _changed(
+                    "GateSession does not match the execution completion revision"
+                )
             self._require_live_execution(current)
+        elif current.version != request.expected_version + 1:
+            _changed(
+                "GateSession does not match the completion replay parent"
+            )
         try:
             write = self._completion_authority.complete_session(request)
         except Exception as error:

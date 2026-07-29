@@ -56,14 +56,16 @@ def _decided_stack(
     *,
     session_id: str,
     permissions: tuple[str, ...] = ("memory:retrieve",),
+    sessions: tbm.PostgresGateSessionRepository | None = None,
 ):
     registry = _registry(permissions=permissions)
     context = _service_context(registry)
     authorization, decisions = _retrieval_authorization(registry)
-    sessions = tbm.PostgresGateSessionRepository(
-        connection,
-        allow_direct_completion=False,
-    )
+    if sessions is None:
+        sessions = tbm.PostgresGateSessionRepository(
+            connection,
+            allow_direct_completion=False,
+        )
     evidence = PostgresGateEvidenceV3Repository(connection)
     semantic = tbm.PostgresSemanticGateArtifactV3Repository(connection)
     replay = tbm.PostgresReplayV3Repository(connection)

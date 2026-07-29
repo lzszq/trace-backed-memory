@@ -74,6 +74,7 @@ def test_postgres_durable_execution_parity(
     with psycopg.connect(
         **postgres_cluster.connection_kwargs()
     ) as connection:
+        outbox = tbm.PostgresCompletionOutboxV3Repository(connection)
         (
             decisions,
             context,
@@ -89,6 +90,7 @@ def test_postgres_durable_execution_parity(
                 "memory:retrieve",
                 "gate_session:transition",
             ),
+            sessions=outbox.gate_sessions,
         )
         registry = _registry(
             permissions=(
@@ -110,7 +112,6 @@ def test_postgres_durable_execution_parity(
             permission="gate_session:transition",
             operation=lambda scope: scope,
         ).scope
-        outbox = tbm.PostgresCompletionOutboxV3Repository(connection)
         service = tbm.DurableExecutionService(
             authorization_service=authorization,
             session_writer=sessions,
@@ -168,6 +169,7 @@ def test_postgres_durable_execution_start_respects_outer_rollback(
     with psycopg.connect(
         **postgres_cluster.connection_kwargs()
     ) as connection:
+        outbox = tbm.PostgresCompletionOutboxV3Repository(connection)
         (
             decisions,
             context,
@@ -183,6 +185,7 @@ def test_postgres_durable_execution_start_respects_outer_rollback(
                 "memory:retrieve",
                 "gate_session:transition",
             ),
+            sessions=outbox.gate_sessions,
         )
         registry = _registry(
             permissions=(
@@ -201,7 +204,6 @@ def test_postgres_durable_execution_start_respects_outer_rollback(
             permission="gate_session:transition",
             operation=lambda scope: scope,
         ).scope
-        outbox = tbm.PostgresCompletionOutboxV3Repository(connection)
         service = tbm.DurableExecutionService(
             authorization_service=authorization,
             session_writer=sessions,

@@ -44,6 +44,15 @@ exact permission and current policy, rebuilds the scope from the current
 registry and authenticated context, and rejects any mismatch. It never appends
 a second decision and does not make the scope a reusable caller capability.
 
+`recover_authorized_scope()` is the durable-continuation counterpart. Trusted
+service code supplies only an authorization event ID retained by another
+verified record. The service reloads the decision and current registry,
+requires the current repository reference to resolve to the same canonical
+repository, and returns the reconstructed server-owned scope. Unknown or
+rotated decisions, changed identities, changed repository targets, permission
+mismatches, and disabled environments fail closed. Caller JSON must never
+select this event ID.
+
 ## Current integration boundary
 
 `AuthenticatedLocalAgentMemory` is the opt-in local application integration.
@@ -65,6 +74,10 @@ JSON still cannot supply identity or target fields. General CLI operations,
 HTTP, and SDK adapters do not select it yet. Trusted bootstrap code must still
 derive the fixed `AuthenticatedServiceContext`. Durable GateSession,
 RetrievalSnapshot attachment is available through the separate opt-in durable
-preparation bridge, but audit actor linkage, later lifecycle workers, one
-atomic cross-record service transaction, and active facade wiring remain
-separate delivery steps.
+preparation bridge. `AuthenticatedDurableAgentMemory` now uses retained
+RetrievalSnapshot linkage plus `recover_authorized_scope()` to compose durable
+preparation, Semantic Gate, finalization, execution, cancellation, and
+completion without caller-owned scopes. It remains an adapter-neutral opt-in
+facade: audit actor linkage, one atomic cross-record service transaction,
+transport authentication, and MCP/HTTP/SDK wiring remain separate delivery
+steps. See [authenticated durable Agent v3](durable-agent-v3.md).

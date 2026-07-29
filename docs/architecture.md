@@ -1732,11 +1732,21 @@ owner-matched transition authorization, CAS-publishes `EXECUTING`, supports
 exact-version resume/abandonment, authenticates a registered outcome
 evaluator, and composes the existing atomic RunOutcome, `COMPLETED`, and
 completion-outbox authority. External execution remains outside database
-transactions and is idempotent by the stable session `run_id`. See
+transactions and is idempotent by the stable session `run_id`.
+`durable_agent_v3.py` supplies the adapter-neutral composition over those four
+durable stages. It accepts trusted contexts and versioned requests, never a
+caller-built scope. For continuation it reloads the GateSession and retained
+RetrievalSnapshot, verifies session/Trace/run linkage, reconstructs the
+original scope from the retained authorization decision and current registry,
+and rejects any mismatched authority graph at construction. Every post-prepare
+GateSession mutation obtains a fresh transition authorization. The facade adds exact-version
+cancellation and current-state reads, but it is not yet constructed by the
+default Agent or transport adapters. See
 [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md),
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md),
 [durable finalization v3](protocols/durable-finalization-v3.md),
 [durable execution v3](protocols/durable-execution-v3.md),
+[authenticated durable Agent v3](protocols/durable-agent-v3.md),
 [UsageDecision v3](protocols/usage-decision-v3.md),
 [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md),
 [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md),
@@ -1870,6 +1880,19 @@ transport-authenticated evaluator context and a server-owned trusted
 registration before calling the atomic completion-outbox authority. The
 returned authorization event identifies the decision verified for that call;
 the current GateSession revision does not persist that transition event ID.
+
+`AuthenticatedDurableAgentMemory` is the shared application composition above
+the durable services. It deliberately contains no process-local lifecycle
+handle map. `prepare` returns the durable session revision; later calls recover
+the original `memory:retrieve` scope from the session-linked
+RetrievalSnapshot, while
+decide/finalize/start/resume/cancel/abandon/complete append a current
+`gate_session:transition` decision. Service-graph identity checks require one
+authorization service, GateSession authority, evidence authority, Semantic
+Gate authority, ActivatedRevision source, and finalization replay path.
+SQLite/PostgreSQL tests exercise equivalent lifecycle continuation. The
+composition still depends on trusted contexts supplied by an embedding
+transport and is not default MCP/HTTP/SDK wiring.
 
 The storage-neutral completion-outbox contract separates one immutable
 `execution_completed` event from its append-only delivery revisions. The

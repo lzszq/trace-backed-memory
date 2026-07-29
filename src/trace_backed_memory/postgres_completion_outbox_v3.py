@@ -262,6 +262,12 @@ class PostgresCompletionOutboxV3Repository:
         self._require_open()
         return self._outcomes
 
+    @property
+    def gate_sessions(self) -> PostgresGateSessionRepository:
+        """Return the exact GateSession authority used by atomic completion."""
+
+        return self.outcomes.gate_sessions
+
     def _require_open(self) -> None:
         if self._closed or bool(getattr(self._connection, "closed", False)):
             raise PostgresCompletionOutboxV3PersistenceError(

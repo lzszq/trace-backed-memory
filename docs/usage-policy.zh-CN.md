@@ -530,6 +530,35 @@ completion-outbox authority，原子发布 RunOutcome、`COMPLETED`、event 与�
 delivery。服务返回的 transition authorization event 只表示本次调用核验的授权；
 GateSession v3 尚未在 revision 中持久挂接该 event。
 
+## 已认证 durable Agent 策略
+
+adapter 需要完整 version-3 durable lifecycle 时，只能把
+`AuthenticatedDurableAgentMemory` 作为共享应用 facade。五个 service 必须配置为
+同一 authority graph；不得混用另一套 graph 的 authorization service、
+GateSession repository、Gate evidence repository、Semantic Gate authority、
+ActivatedRevision source 或 finalization replay reader。
+
+adapter 只能传入可信 service/provider/evaluator context 与带版本 request，不得从
+调用方 JSON 接受或重建 `AuthorizedRetrievalScope`、authorization event ID、
+snippet 或 Gate evidence。续接时，facade 会加载当前 session 及其已保留
+RetrievalSnapshot，核验 session/Trace/run linkage，再针对 snapshot 的原始
+authorization event 调用 `recover_authorized_scope()`。恢复必须把当前 repository
+reference 解析为同一 canonical repository；policy、identity、environment 或 target
+轮换后必须失败。
+
+`cancel()` 只能用于精确的当前 `PREPARED` 或 `AWAITING_DECISION` revision，并提供
+有界 reason；`CREATED` cancellation 只供 preparation 内部补偿使用。每次 decide、
+finalize、start、resume、cancel、abandon 与 completion 都会持久化新的
+`gate_session:transition` decision；旧 transition decision 不是 session
+capability。facade 在调用之间无状态，adapter 应在自己的 versioned protocol 中持久
+保存返回的 session ID/version。
+
+该 facade 不是 transport authenticator，默认 Agent/MCP profile 当前也不调用它。
+在 shared transport 暴露前，transport 必须派生可信 identity 与
+provider/evaluator credential，服务端必须配置完整 authority graph，外部执行必须按
+`run_id` 幂等，并具备精确 retry/recovery conformance test。当前 finalization 只支持
+public/internal plaintext replay profile。
+
 ## Version-3 结果与归因策略
 
 只能从显式 measured result 与 evidence 创建 `RunOutcome`，不得从 callback

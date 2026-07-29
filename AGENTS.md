@@ -92,6 +92,10 @@ Start with:
   composition with exact injection replay, lease resume/abandonment,
   registered evaluator authentication, and atomic completion-outbox
   orchestration; not active Agent/MCP state.
+- `durable_agent_v3.py`: adapter-neutral authenticated durable lifecycle facade
+  over preparation, Semantic Gate, finalization, execution, cancellation, and
+  completion; reconstructs retained retrieval scope and rejects a mismatched
+  authority graph, but is not wired to the default Agent/MCP profile.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
 - `sqlite_semantic_gate_artifact_v3.py`: opt-in atomic SQLite attempt plus

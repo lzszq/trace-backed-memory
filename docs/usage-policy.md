@@ -1413,6 +1413,40 @@ existing completion-outbox authority atomically publishes RunOutcome,
 returned by the service proves what it verified for that call; GateSession v3
 does not yet durably link that event in the revision.
 
+## Authenticated durable Agent policy
+
+Use `AuthenticatedDurableAgentMemory` as the only shared application facade
+when an adapter needs the complete version-3 durable lifecycle. Configure all
+five services as one authority graph. Never mix an authorization service,
+GateSession repository, Gate evidence repository, Semantic Gate authority,
+ActivatedRevision source, or finalization replay reader from another graph.
+
+Adapters must pass trusted service/provider/evaluator contexts and versioned
+requests. They must not accept or reconstruct `AuthorizedRetrievalScope`,
+authorization event IDs, snippets, or Gate evidence from caller JSON. For a
+continuation, the facade loads the current session and its retained
+RetrievalSnapshot, verifies session/Trace/run linkage, and calls
+`recover_authorized_scope()` for the snapshot's original authorization event.
+That recovery must resolve the current repository reference to the same
+canonical repository and fail after policy, identity, environment, or target
+rotation.
+
+Use `cancel()` only with the exact current `PREPARED` or
+`AWAITING_DECISION` revision and a bounded reason. `CREATED` cancellation is
+reserved for internal preparation compensation. Every decide, finalize,
+start, resume, cancel, abandon, and completion call persists a fresh
+`gate_session:transition` decision; an old transition decision is not a session
+capability. Treat the facade as stateless across calls and persist the returned
+session ID/version in the adapter's own versioned protocol.
+
+This facade is not a transport authenticator and is not currently used by the
+default Agent/MCP profile. Do not expose it through a shared transport until
+the transport derives trusted identities and provider/evaluator credentials,
+the server configures the complete authority graph, external execution is
+idempotent by `run_id`, and the adapter has exact retry/recovery conformance
+tests. Public/internal plaintext replay remains the only supported finalization
+profile.
+
 ## Version-3 outcome and attribution policy
 
 Create a `RunOutcome` only from an explicit measured result and evidence; never

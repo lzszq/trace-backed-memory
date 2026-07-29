@@ -262,6 +262,93 @@ def test_service_persists_allow_before_canonical_retrieval():
     assert result.scope.authorization_event_id == result.decision.authorization_event_id
 
 
+def test_service_recovers_exact_retained_scope_for_current_context():
+    registry = _registry()
+    writer = _Writer()
+    service = _service(registry, writer)
+    context = _context(registry, repository_reference="owner/repository")
+    authorized = service.authorize_retrieval(context, lambda scope: scope)
+
+    recovered = service.recover_authorized_scope(
+        context,
+        authorized.decision.authorization_event_id,
+        permission="memory:retrieve",
+    )
+
+    assert recovered == authorized.scope
+    assert (
+        service.verify_authorized_scope(
+            context,
+            recovered,
+            permission="memory:retrieve",
+        )
+        == authorized.decision
+    )
+    assert len(writer.decisions) == 1
+
+
+def test_service_scope_recovery_rejects_changed_target_and_permission():
+    registry = _registry()
+    writer = _Writer()
+    service = _service(registry, writer)
+    authorized = service.authorize_retrieval(
+        _context(registry),
+        lambda scope: scope,
+    )
+
+    with pytest.raises(AuthenticatedServiceV3Error) as changed_target:
+        service.recover_authorized_scope(
+            _context(registry, repository_reference="other/repository"),
+            authorized.decision.authorization_event_id,
+            permission="memory:retrieve",
+        )
+    assert changed_target.value.code == "TBM_SERVICE_ENTITY_CONTEXT_REJECTED"
+
+    with pytest.raises(AuthenticatedServiceV3Error) as changed_permission:
+        service.recover_authorized_scope(
+            _context(registry),
+            authorized.decision.authorization_event_id,
+            permission="gate_session:transition",
+        )
+    assert (
+        changed_permission.value.code
+        == "TBM_SERVICE_AUTHORIZATION_SCOPE_INVALID"
+    )
+
+
+def test_service_scope_recovery_fails_closed_after_policy_rotation():
+    original = _registry()
+    current = [original]
+    writer = _Writer()
+    service = AuthenticatedRetrievalService(
+        registry_provider=lambda: current[0],
+        decision_writer=writer,
+        clock=lambda: NOW,
+        request_id_factory=lambda: "authorization_request_001",
+    )
+    authorized = service.authorize_retrieval(
+        _context(original),
+        lambda scope: scope,
+    )
+    current[0] = replace(
+        original,
+        registry_version="registry_002",
+        authorization_policy=replace(
+            original.authorization_policy,
+            policy_version="policy_002",
+        ),
+    )
+
+    with pytest.raises(AuthenticatedServiceV3Error) as raised:
+        service.recover_authorized_scope(
+            _context(original),
+            authorized.decision.authorization_event_id,
+            permission="memory:retrieve",
+        )
+
+    assert raised.value.code == "TBM_SERVICE_AUTHORIZATION_SCOPE_INVALID"
+
+
 @pytest.mark.parametrize(
     ("policy", "expected_reason"),
     (
@@ -456,6 +543,128 @@ def test_service_accepts_exact_sqlite_insert_and_idempotent_replay():
 
     assert first.decision == replay.decision
     assert first.value == replay.value == first.decision.authorization_event_id
+
+
+def test_service_recovers_scope_from_reopened_authorization_boundary():
+    registry = _registry()
+    with SQLiteAuthorizationV3Repository.connect(
+        initialize=True,
+    ) as authority:
+        first = AuthenticatedRetrievalService(
+            registry_provider=lambda: registry,
+            decision_writer=authority,
+            clock=lambda: NOW,
+            request_id_factory=lambda: "authorization_request_001",
+        ).authorize_retrieval(
+            _context(registry),
+            lambda scope: scope,
+        )
+        reopened = AuthenticatedRetrievalService(
+            registry_provider=lambda: registry,
+            decision_writer=authority,
+            clock=lambda: NOW,
+            request_id_factory=lambda: "authorization_request_002",
+        )
+
+        recovered = reopened.recover_authorized_scope(
+            _context(registry),
+            first.decision.authorization_event_id,
+            permission="memory:retrieve",
+        )
+
+    assert recovered == first.scope
+
+
+def test_service_recovery_rejects_authority_returning_another_decision():
+    registry = _registry()
+    policy = registry.authorization_policy
+    first_request = tbm.AuthorizationRequest(
+        request_id="authorization_request_recovery_001",
+        principal_id="principal_001",
+        agent_client_id="client_001",
+        tenant_id="tenant_001",
+        repository_reference="repository_001",
+        permission="memory:retrieve",
+        requested_at=NOW,
+    )
+    second_request = replace(
+        first_request,
+        request_id="authorization_request_recovery_002",
+    )
+    first = tbm.authorize(policy, first_request, decided_at=NOW)
+    second = tbm.authorize(policy, second_request, decided_at=NOW)
+    assert first.authorization_event_id != second.authorization_event_id
+
+    class WrongDecisionWriter(_Writer):
+        def load_decision(
+            self,
+            authorization_event_id: str,
+        ) -> AuthorizationDecision:
+            return second
+
+    service = _service(registry, WrongDecisionWriter())
+    with pytest.raises(AuthenticatedServiceV3Error) as raised:
+        service.recover_authorized_scope(
+            _context(registry),
+            first.authorization_event_id,
+            permission="memory:retrieve",
+        )
+
+    assert raised.value.code == "TBM_SERVICE_AUTHORIZATION_SCOPE_INVALID"
+
+
+def test_service_recovery_rechecks_registry_after_loading_decision():
+    original = _registry()
+    rotated = replace(
+        original,
+        registry_version="registry_002",
+        authorization_policy=replace(
+            original.authorization_policy,
+            policy_version="policy_002",
+        ),
+    )
+    writer = _Writer()
+    allowed = _service(original, writer).authorize_retrieval(
+        _context(original),
+        lambda scope: scope,
+    )
+    registries = iter((original, rotated))
+    recovering = AuthenticatedRetrievalService(
+        registry_provider=lambda: next(registries),
+        decision_writer=writer,
+        clock=lambda: NOW,
+        request_id_factory=lambda: "authorization_request_recovery_003",
+    )
+
+    with pytest.raises(AuthenticatedServiceV3Error) as raised:
+        recovering.recover_authorized_scope(
+            _context(original),
+            allowed.decision.authorization_event_id,
+            permission="memory:retrieve",
+        )
+
+    assert raised.value.code == "TBM_SERVICE_REGISTRY_CHANGED"
+
+
+def test_service_recovery_rejects_unknown_repository_reference():
+    registry = _registry()
+    writer = _Writer()
+    allowed = _service(registry, writer).authorize_retrieval(
+        _context(registry),
+        lambda scope: scope,
+    )
+
+    with pytest.raises(AuthenticatedServiceV3Error) as raised:
+        _service(registry, writer).recover_authorized_scope(
+            _context(
+                registry,
+                repository_reference="unknown/repository",
+            ),
+            allowed.decision.authorization_event_id,
+            permission="memory:retrieve",
+        )
+
+    assert raised.value.code == "TBM_SERVICE_ENTITY_CONTEXT_REJECTED"
 
 
 def test_service_rechecks_registry_after_persisting_allow():

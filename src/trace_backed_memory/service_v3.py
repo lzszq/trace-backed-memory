@@ -223,28 +223,56 @@ class AuthenticatedRetrievalService:
             or type(scope) is not AuthorizedRetrievalScope
         ):
             _reject_context()
-        registry = self._load_registry()
-        policy = registry.authorization_policy
-        self._verify_authenticated_records(policy, context)
-        try:
-            decision = self._decision_writer.load_decision(scope.authorization_event_id)
-        except Exception as error:
-            raise AuthenticatedServiceV3Error(
-                "TBM_SERVICE_AUTHORIZATION_SCOPE_INVALID",
-                "authorized operation scope could not be verified",
-            ) from error
-        if (
-            type(decision) is not AuthorizationDecision
-            or not decision.allowed
-            or decision.permission != permission
-            or decision.policy_sha256 != policy.policy_sha256
-        ):
+        decision, recovered = self._recover_authorized_scope_and_decision(
+            context,
+            scope.authorization_event_id,
+            permission=permission,
+        )
+        if recovered != scope:
             raise AuthenticatedServiceV3Error(
                 "TBM_SERVICE_AUTHORIZATION_SCOPE_INVALID",
                 "authorized operation scope could not be verified",
             )
+        return decision
+
+    def recover_authorized_scope(
+        self,
+        context: AuthenticatedServiceContext,
+        authorization_event_id: str,
+        *,
+        permission: AuthorizationPermission,
+    ) -> AuthorizedRetrievalScope:
+        """Reconstruct a current server-owned scope from one retained decision."""
+        if (
+            type(context) is not AuthenticatedServiceContext
+            or type(authorization_event_id) is not str
+            or not authorization_event_id
+        ):
+            _reject_context()
+        _, scope = self._recover_authorized_scope_and_decision(
+            context,
+            authorization_event_id,
+            permission=permission,
+        )
+        return scope
+
+    def _recover_authorized_scope_and_decision(
+        self,
+        context: AuthenticatedServiceContext,
+        authorization_event_id: str,
+        *,
+        permission: AuthorizationPermission,
+    ) -> tuple[AuthorizationDecision, AuthorizedRetrievalScope]:
+        registry = self._load_registry()
+        policy = registry.authorization_policy
+        self._verify_authenticated_records(policy, context)
+        decision = self._load_allowed_decision(
+            policy,
+            authorization_event_id,
+            permission,
+        )
         try:
-            expected_scope = self._authorized_scope(
+            scope = self._authorized_scope(
                 registry,
                 context,
                 decision,
@@ -256,7 +284,36 @@ class AuthenticatedRetrievalService:
                 "TBM_SERVICE_AUTHORIZATION_SCOPE_INVALID",
                 "authorized operation scope could not be verified",
             ) from error
-        if expected_scope != scope:
+        current_registry = self._load_registry()
+        if current_registry.registry_sha256 != registry.registry_sha256:
+            raise AuthenticatedServiceV3Error(
+                "TBM_SERVICE_REGISTRY_CHANGED",
+                "entity registry changed during authorization recovery",
+            )
+        return decision, scope
+
+    def _load_allowed_decision(
+        self,
+        policy: AuthorizationPolicyBundle,
+        authorization_event_id: str,
+        permission: AuthorizationPermission,
+    ) -> AuthorizationDecision:
+        try:
+            decision = self._decision_writer.load_decision(
+                authorization_event_id
+            )
+        except Exception as error:
+            raise AuthenticatedServiceV3Error(
+                "TBM_SERVICE_AUTHORIZATION_SCOPE_INVALID",
+                "authorized operation scope could not be verified",
+            ) from error
+        if (
+            type(decision) is not AuthorizationDecision
+            or decision.authorization_event_id != authorization_event_id
+            or not decision.allowed
+            or decision.permission != permission
+            or decision.policy_sha256 != policy.policy_sha256
+        ):
             raise AuthenticatedServiceV3Error(
                 "TBM_SERVICE_AUTHORIZATION_SCOPE_INVALID",
                 "authorized operation scope could not be verified",
@@ -363,6 +420,11 @@ class AuthenticatedRetrievalService:
             or environment.tenant_id != context.tenant_id
             or environment.repository_id is None
             or environment.repository_id != decision.repository_id
+            or not AuthenticatedRetrievalService._repository_reference_matches(
+                registry.authorization_policy,
+                context,
+                decision.repository_id,
+            )
             or decision.tenant_id != context.tenant_id
             or decision.repository_id is None
             or decision.principal_id != context.principal.principal_id
@@ -379,6 +441,28 @@ class AuthenticatedRetrievalService:
             tenant_id=context.tenant_id,
             repository_id=decision.repository_id,
             environment_id=environment.environment_id,
+        )
+
+    @staticmethod
+    def _repository_reference_matches(
+        policy: AuthorizationPolicyBundle,
+        context: AuthenticatedServiceContext,
+        repository_id: str | None,
+    ) -> bool:
+        if repository_id is None:
+            return False
+        if any(
+            target.tenant_id == context.tenant_id
+            and target.repository_id == repository_id
+            and context.repository_reference == repository_id
+            for target in policy.repository_tenants
+        ):
+            return True
+        return any(
+            alias.tenant_id == context.tenant_id
+            and alias.repository_id == repository_id
+            and alias.alias == context.repository_reference
+            for alias in policy.repository_aliases
         )
 
 

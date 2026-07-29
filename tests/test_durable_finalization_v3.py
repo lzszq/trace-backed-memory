@@ -101,11 +101,14 @@ class _FailingFinalizedTransition:
 def _stack(
     *,
     permissions: tuple[str, ...] = ("memory:retrieve",),
+    connection: sqlite3.Connection | None = None,
+    sessions: tbm.SQLiteGateSessionRepository | None = None,
 ) -> _Stack:
     registry = _registry(permissions=permissions)
     context = _service_context(registry)
     authorization, decisions = _retrieval_authorization(registry)
-    connection = sqlite3.connect(":memory:")
+    if connection is None:
+        connection = sqlite3.connect(":memory:")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA recursive_triggers = ON")
     for resource in (
@@ -116,11 +119,12 @@ def _stack(
         "schemas/sqlite-v3-replay.sql",
     ):
         connection.executescript(tbm.read_packaged_resource(resource).decode("utf-8"))
-    sessions = tbm.SQLiteGateSessionRepository(
-        connection,
-        clock=_Clock(),
-        allow_direct_completion=False,
-    )
+    if sessions is None:
+        sessions = tbm.SQLiteGateSessionRepository(
+            connection,
+            clock=_Clock(),
+            allow_direct_completion=False,
+        )
     evidence = tbm.SQLiteGateEvidenceV3Repository(connection)
     semantic = tbm.SQLiteSemanticGateArtifactV3Repository(connection)
     replay = tbm.SQLiteReplayV3Repository(connection)

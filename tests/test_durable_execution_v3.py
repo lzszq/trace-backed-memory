@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import sqlite3
 from types import SimpleNamespace
 
 import pytest
 
 import trace_backed_memory as tbm
-from tests.test_durable_finalization_v3 import _Stack, _stack
+from tests.test_durable_finalization_v3 import _Clock, _Stack, _stack
 
 
 DIGEST_A = "sha256:" + "a" * 64
@@ -34,11 +35,28 @@ def _authenticate_evaluator(
 
 class _ExecutionStack:
     def __init__(self) -> None:
+        connection = sqlite3.connect(":memory:")
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA recursive_triggers = ON")
+        for resource in (
+            "schemas/sqlite-v3-gate-session.sql",
+            "schemas/sqlite-v3-outcome.sql",
+            "schemas/sqlite-v3-completion-outbox.sql",
+        ):
+            connection.executescript(
+                tbm.read_packaged_resource(resource).decode("utf-8")
+            )
+        self.outbox = tbm.SQLiteCompletionOutboxV3Repository(
+            connection,
+            clock=_Clock(),
+        )
         self.base: _Stack = _stack(
             permissions=(
                 "memory:retrieve",
                 "gate_session:transition",
-            )
+            ),
+            connection=connection,
+            sessions=self.outbox.gate_sessions,
         )
         self.finalizer = self.base.finalizer()
         self.finalized = self.finalizer.finalize(
@@ -48,17 +66,6 @@ class _ExecutionStack:
                 self.base.decided.session_id,
                 self.base.decided.version,
             ),
-        )
-        for resource in (
-            "schemas/sqlite-v3-outcome.sql",
-            "schemas/sqlite-v3-completion-outbox.sql",
-        ):
-            self.base.connection.executescript(
-                tbm.read_packaged_resource(resource).decode("utf-8")
-            )
-        self.outbox = tbm.SQLiteCompletionOutboxV3Repository(
-            self.base.connection,
-            clock=lambda: "2026-07-30T01:20:00Z",
         )
         self.transition_scope = (
             self.base.authorization.authorize_permission(
@@ -168,6 +175,21 @@ def test_durable_execution_starts_replays_completes_and_emits_outbox():
         assert replayed_completion.inserted is False
         assert replayed_completion.event_inserted is False
         assert replayed_completion.replayed is True
+
+        with pytest.raises(tbm.DurableExecutionV3Error) as stale_replay:
+            stack.service.complete(
+                stack.base.context,
+                stack.transition_scope,
+                EVALUATOR_CONTEXT,
+                replace(
+                    request,
+                    expected_version=request.expected_version - 1,
+                ),
+            )
+        assert (
+            stale_replay.value.code
+            == "TBM_DURABLE_EXECUTION_SESSION_CHANGED"
+        )
 
         terminal_start = stack.start()
         assert terminal_start.session == completed.session
@@ -433,6 +455,10 @@ def test_durable_execution_rejects_malformed_completion_receipt():
         retained = stack.outbox.complete_session(request)
 
         class _MalformedAuthority:
+            @property
+            def gate_sessions(self):
+                return stack.base.sessions
+
             def complete_session(self, _request):
                 return SimpleNamespace(
                     completion=replace(
@@ -463,6 +489,10 @@ def test_durable_execution_rejects_malformed_completion_receipt():
         assert invalid.value.code == "TBM_DURABLE_EXECUTION_RECEIPT_INVALID"
 
         class _MalformedReadbackAuthority:
+            @property
+            def gate_sessions(self):
+                return stack.base.sessions
+
             def complete_session(self, _request):
                 return retained
 
@@ -488,4 +518,18 @@ def test_durable_execution_rejects_malformed_completion_receipt():
             )
         assert readback.value.code == "TBM_DURABLE_EXECUTION_RECEIPT_INVALID"
     finally:
+        stack.close()
+
+
+def test_durable_execution_requires_completion_authority_session_identity():
+    stack = _ExecutionStack()
+    other = tbm.SQLiteCompletionOutboxV3Repository.connect(
+        initialize=True,
+        clock=_Clock(),
+    )
+    try:
+        with pytest.raises(TypeError, match="share the GateSession authority"):
+            stack.make_service(completion_authority=other)
+    finally:
+        other.close()
         stack.close()

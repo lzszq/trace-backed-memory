@@ -53,6 +53,7 @@ GateSession 与 Gate evidence repository 明确共享同一个 caller-owned conn
 自动保证。
 
 opt-in [durable Semantic Gate 服务](durable-semantic-gate-v3.zh-CN.md) 现在会让
-这些精确 evidence 经 `AWAITING_DECISION` 继续推进到 `DECIDED`。rendering、
-injection、finalization/execution、生产 index worker/分片，以及 active
+这些精确 evidence 经 `AWAITING_DECISION` 继续推进到 `DECIDED`。opt-in
+[已认证 durable Agent](durable-agent-v3.zh-CN.md) 会把该续接与 finalization、
+execution、cancellation 和 completion 组合起来。生产 index worker/分片以及 active
 Agent/MCP/HTTP/SDK 接入仍是独立后续工作。

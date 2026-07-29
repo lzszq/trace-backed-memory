@@ -1675,6 +1675,18 @@ Track:
   idempotent by `run_id`; they cannot join a database transaction. Keep
   durable transition-event linkage, active adapter wiring, protected-content
   encryption, retention, and replay-read authorization outstanding.
+- Add `AuthenticatedDurableAgentMemory` as the adapter-neutral composition of
+  durable preparation, Semantic Gate, finalization, execution, cancellation,
+  and completion. Recover the original retrieval scope only from retained
+  RetrievalSnapshot authorization linkage and the current registry; reject a
+  mismatched authorization/session/evidence/semantic/revision service graph;
+  append a fresh `gate_session:transition` decision for each post-prepare
+  GateSession mutation; and expose exact-version cancel/current-state
+  operations without process-local handles. Cover the complete SQLite lifecycle, PostgreSQL continuation
+  parity, policy/target rotation, owner rejection, exact cancel replay, and
+  service-graph mismatch. Keep transport authentication, default MCP/HTTP/SDK
+  wiring, protected-content replay, and durable transition-event linkage
+  outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
@@ -1683,9 +1695,8 @@ Track:
   CLI/HTTP/SDK adapters so scope becomes an enforceable transport boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
-- Wire the opt-in durable preparation, Semantic Gate decision, finalization,
-  and execution/completion compositions into transport-authenticated active
-  adapters. Add
+- Wire the authenticated durable Agent composition into
+  transport-authenticated active adapters. Add
   production index sharding/workers and external FTS/ANN provider profiles
   without weakening the bounded reference contract.
 - Deliver these breaking contracts together as snapshot schema version 3 and

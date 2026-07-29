@@ -71,10 +71,12 @@ bundle 与 `FINALIZED` revision。服务本身不会开启或拥有该外层 tra
 
 ## 集成边界
 
-该服务为 opt-in，active Store、local Agent、STDIO MCP、HTTP 与 SDK adapter 都不会
-调用它。它不会推进 `EXECUTING` 或 `COMPLETED`，不会产生 RunOutcome，不提供
-Review Console 行为，不实现 retention/encryption，也不会让 active MCP 的进程内 Gate
-变成 durable。
+该服务为 opt-in。`AuthenticatedDurableAgentMemory` 会把它作为共享 durable
+facade 的 finalization 阶段调用；但 active Store、默认 local Agent、STDIO MCP、
+HTTP 与 SDK adapter 尚未构造该 facade。它不会推进 `EXECUTING` 或 `COMPLETED`，
+不会产生 RunOutcome，不提供 Review Console 行为，不实现 retention/encryption，
+也不会让 active MCP 的进程内 Gate 变成 durable。
 独立的 opt-in
 [durable execution 组合](durable-execution-v3.zh-CN.md)会使用其 authenticated
-exact replay boundary。
+exact replay boundary。另见
+[已认证 durable Agent v3](durable-agent-v3.zh-CN.md)。

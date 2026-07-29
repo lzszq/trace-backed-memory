@@ -104,6 +104,14 @@ resume/abandonment，认证 outcome evaluator，并组合原子 outcome/completi
 发布。transport authentication、受保护内容加密、持久 transition-event linkage、
 shared-service MCP 与其他 active adapter 仍待完成。
 
+`AuthenticatedDurableAgentMemory` 现在会在一个 adapter-neutral facade 后面组合
+完整 opt-in durable lifecycle。它从已保留 RetrievalSnapshot authorization
+linkage 恢复原始 retrieval scope，复查当前 registry 与实际 service graph，增加已
+授权的精确版本 cancellation，并为 `PREPARED` 之后的每次 GateSession 修改申请新的
+transition decision。该 facade 不保存进程内 lifecycle handle，并具备
+SQLite/PostgreSQL continuation 对等测试；它尚不是默认 Agent/MCP path，也不提供
+transport authentication。
+
 ### 5.2 从失败到可复用 Lesson
 
 1. 从 clean 且结果为 `fail`/`error` 的 Trace 分类并生成 Failure Case 草稿。
@@ -191,7 +199,7 @@ shared-service MCP 与其他 active adapter 仍待完成。
 
 ## 8. 产品成熟度
 
-当前版本已完成路线图 Phase 0-73、本地 agent/MCP 集成增量，并交付 Phase 74 已落地的 contract/隔离 authority，包括 opt-in SQLite 与隔离 PostgreSQL completion outbox 及其有界 at-least-once delivery worker、有界五视图 managed-index bundle 与精确 SQLite/PostgreSQL publication authority、经 Gate evidence 核验并推进 GateSession `PREPARED` 的 opt-in durable retrieval-preparation 桥接，经 `AWAITING_DECISION` 推进到 `DECIDED` 的 durable Semantic Gate 组合，以及通过精确 UsageDecision/replay 保留推进到 `FINALIZED` 的 opt-in durable finalization。主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖，覆盖 Python 3.11、3.12、3.13、Windows、SQLite 与 required PostgreSQL CI。本地 MCP 采用固定 Git provenance、有界 strict frame、完整 ancestry capture 与 session-namespaced opaque request handle，阻止 stale finalize/cancel 在重启后命中新 request。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；Trace 三个 structured JSON 字段共享 100,000 nodes 与 8 MiB key/string UTF-8 text 的固定 runtime budget；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后依次以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，再以 loaded-row projection UTF-8 JSON preflight 将最大单行与五表总计限制为 64 MiB，在 collection fetch 前拒绝超限数据库，且不再计入三个 selector 未读取的内部 `updated_at`；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。Phase 71 更新可信提升与 LLM 边界；Phase 72 增加 schema 版本 1 的 SQLite Repository 与第 19 项 packaged resource；Phase 73 增加运行时容量/文本限制、Gate Trace/run/request 审计绑定、SQLite/摄取故障加固、PostgreSQL schema 版本 2 和第 20 项 v1-to-v2 迁移资源；Phase 74 当前交付 strict v3 mapping/preflight、不可激活 content-addressed bundle、immutable SQLite staging、隔离 PostgreSQL staging/rollback 及后续的 v3 contract/isolated authority。
+当前版本已完成路线图 Phase 0-73、本地 agent/MCP 集成增量，并交付 Phase 74 已落地的 contract/隔离 authority，包括 opt-in SQLite 与隔离 PostgreSQL completion outbox 及其有界 at-least-once delivery worker、有界五视图 managed-index bundle 与精确 SQLite/PostgreSQL publication authority、经 Gate evidence 核验并推进 GateSession `PREPARED` 的 opt-in durable retrieval-preparation 桥接，经 `AWAITING_DECISION` 推进到 `DECIDED` 的 durable Semantic Gate 组合、通过精确 UsageDecision/replay 保留推进到 `FINALIZED` 的 opt-in durable finalization、authenticated durable execution，以及组合这些阶段的 adapter-neutral authenticated durable Agent facade。主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖，覆盖 Python 3.11、3.12、3.13、Windows、SQLite 与 required PostgreSQL CI。本地 MCP 采用固定 Git provenance、有界 strict frame、完整 ancestry capture 与 session-namespaced opaque request handle，阻止 stale finalize/cancel 在重启后命中新 request。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；Trace 三个 structured JSON 字段共享 100,000 nodes 与 8 MiB key/string UTF-8 text 的固定 runtime budget；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后依次以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，再以 loaded-row projection UTF-8 JSON preflight 将最大单行与五表总计限制为 64 MiB，在 collection fetch 前拒绝超限数据库，且不再计入三个 selector 未读取的内部 `updated_at`；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。Phase 71 更新可信提升与 LLM 边界；Phase 72 增加 schema 版本 1 的 SQLite Repository 与第 19 项 packaged resource；Phase 73 增加运行时容量/文本限制、Gate Trace/run/request 审计绑定、SQLite/摄取故障加固、PostgreSQL schema 版本 2 和第 20 项 v1-to-v2 迁移资源；Phase 74 当前交付 strict v3 mapping/preflight、不可激活 content-addressed bundle、immutable SQLite staging、隔离 PostgreSQL staging/rollback 及后续的 v3 contract/isolated authority。
 
 Phase 71 强化可信提升与运行时边界：Failure Case 只能来自 `fail`/`error` Trace，verify 前必须具备 reviewer、root cause 与 review timestamp，dirty source 不能激活 Lesson；LLM response 限制为 64 KiB、1,000 nodes、depth 20，reason 最多 2,000 字符；所有未被 LLM 选中的系统候选都会进入 blocked 审计，超过 50 项时确定性保留前 50 项并记录其余项；`short_summary` 与 `full_case_summary` 使用不同 renderer，关键词检索支持 Unicode。
 
@@ -273,6 +281,10 @@ Phase 70 修复 `recover-batch --attribution` 对合法 decision ID 的分隔歧
 本阶段还交付了 authenticated durable execution：精确 injection replay、
 `EXECUTING`、evaluator-authenticated `COMPLETED` 和 completion outbox emission
 均具有 SQLite/PostgreSQL 对等测试。
+
+本阶段还交付 adapter-neutral authenticated durable Agent facade：从已保留
+evidence 恢复原始 retrieval scope，拒绝错配 authority graph，并以无进程内 handle
+的生命周期边界提供 SQLite/PostgreSQL 对等续接。
 
 ## 9. 明确边界与非目标
 

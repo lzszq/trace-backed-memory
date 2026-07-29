@@ -88,5 +88,6 @@ transaction 可以一起回滚 session transition、attempt 与 artifact binding
 
 独立的 opt-in durable finalization 组合现在已经提供 rendering、content-addressed
 final injection、完整 replay-bundle 保留与 `DECIDED -> FINALIZED` CAS。
-`EXECUTING`、outcome completion、active transport authentication，以及
-Agent/MCP/HTTP/SDK emission 仍是独立后续工作。
+opt-in [已认证 durable Agent](durable-agent-v3.zh-CN.md) 会继续组合 execution 与
+outcome completion。active transport authentication 与 Agent/MCP/HTTP/SDK
+emission 仍是独立后续工作。

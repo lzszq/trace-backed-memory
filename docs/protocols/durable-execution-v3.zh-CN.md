@@ -5,7 +5,9 @@
 `DurableExecutionService` 是 durable runtime 后半段的 opt-in 应用组合。它会核验已保留的
 finalization bundle，推进 `FINALIZED -> EXECUTING`，支持显式的 lease resume 或
 abandonment，并通过现有原子 authority 完成
-`RunOutcome + COMPLETED + completion outbox`。
+`RunOutcome + COMPLETED + completion outbox`。构造时要求该 authority 暴露 start、
+resume 与 abandonment 所用的同一个精确 GateSession authority；第二个数据库或
+repository 实例会被拒绝。
 
 ## 授权与所有权
 
@@ -58,7 +60,8 @@ authenticator 重新加载，确保 revoke 与 credential rotation 无需重建�
 3. 追加 immutable completion event 与初始 delivery revision；
 4. 读回并核验 session、outcome、event 与当前 delivery。
 
-exact retry 返回已保留 outcome 与 event，不会创建第二个 event。delivery 仍采用
+exact retry 返回已保留 outcome 与 event，不会创建第二个 event，但
+`expected_version` 必须仍精确指向已保留 completed revision 的 parent。delivery 仍采用
 at-least-once 语义：consumer 按 event ID 去重，有界 outbox worker 负责 lease、retry、
 acknowledgement 与 dead-letter transition。
 
@@ -71,13 +74,16 @@ policy-specific recovery authority 决定下一步。
 
 ## transaction 与集成边界
 
-SQLite 与 PostgreSQL 复用同一个 storage-neutral 组合。当 GateSession 与
-completion-outbox repository 共享 caller-owned database connection 时，其 savepoint
-会为每一个独立 start 或 completion 操作保留由调用方控制的外层 commit/rollback。
-任何数据库 transaction 都无法包含外部 executor side effect，因此 execution 与
-completion 之间发生 crash 时会留下显式 `EXECUTING` recovery state。
+SQLite 与 PostgreSQL 复用同一个 storage-neutral 组合。completion-outbox repository
+会暴露其内嵌 GateSession authority，`DurableExecutionService` 要求调用方使用这个精确
+对象。其 savepoint 会为每一个独立 start 或 completion 操作保留由调用方控制的外层
+commit/rollback。任何数据库 transaction 都无法包含外部 executor side effect，因此
+execution 与 completion 之间发生 crash 时会留下显式 `EXECUTING` recovery state。
 
-该服务为 opt-in。默认 Store、LocalAgentMemory、STDIO MCP、HTTP 与 SDK adapter
-都不会调用它，v1 process-local request-token contract 保持不变。受保护内容加密、
-retention、replay-read authorization、transport authentication、active adapter wiring，
-以及持久化 transition-authorization linkage field 仍是独立的生产工作。
+该服务为 opt-in。`AuthenticatedDurableAgentMemory` 现在会把它作为共享 durable
+应用 facade 的 execution 阶段调用；但默认 Store、LocalAgentMemory、STDIO MCP、
+HTTP 与 SDK adapter 尚未构造该 facade，v1 process-local request-token contract
+保持不变。受保护内容加密、retention、replay-read authorization、transport
+authentication、active adapter wiring 以及持久化 transition-authorization linkage
+field 仍是独立的生产工作。详见
+[已认证 durable Agent v3](durable-agent-v3.zh-CN.md)。

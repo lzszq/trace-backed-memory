@@ -400,6 +400,15 @@ from .durable_execution_v3 import (
     OutcomeEvaluatorStatus,
     TrustedOutcomeEvaluator,
 )
+from .durable_agent_v3 import (
+    DURABLE_AGENT_CONTRACT_VERSION,
+    AuthenticatedDurableAgentMemory,
+    DurableAgentCancelRequest,
+    DurableAgentCancelResult,
+    DurableAgentEvidenceReader,
+    DurableAgentSessionAuthority,
+    DurableAgentV3Error,
+)
 from .managed_index_v3 import (
     MANAGED_INDEX_BUNDLE_CONTRACT_VERSION,
     MANAGED_INDEX_BUNDLE_JSON_MAX_BYTES,
@@ -1743,6 +1752,13 @@ __all__ = [
     "OutcomeEvaluatorAuthenticator",
     "OutcomeEvaluatorStatus",
     "TrustedOutcomeEvaluator",
+    "DURABLE_AGENT_CONTRACT_VERSION",
+    "AuthenticatedDurableAgentMemory",
+    "DurableAgentCancelRequest",
+    "DurableAgentCancelResult",
+    "DurableAgentEvidenceReader",
+    "DurableAgentSessionAuthority",
+    "DurableAgentV3Error",
     "MANAGED_INDEX_BUNDLE_CONTRACT_VERSION",
     "MANAGED_INDEX_BUNDLE_JSON_MAX_BYTES",
     "MANAGED_INDEX_BUNDLE_JSON_MAX_DEPTH",

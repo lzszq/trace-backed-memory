@@ -98,5 +98,7 @@ is therefore an explicit deployment tradeoff.
 
 The separate opt-in durable finalization composition now provides rendering,
 content-addressed final injection, complete replay-bundle retention, and the
-`DECIDED -> FINALIZED` CAS. `EXECUTING`, outcome completion, active transport
-authentication, and Agent/MCP/HTTP/SDK emission remain separate work.
+`DECIDED -> FINALIZED` CAS. The opt-in
+[authenticated durable Agent](durable-agent-v3.md) composes it with execution
+and outcome completion. Active transport authentication and Agent/MCP/HTTP/SDK
+emission remain separate work.

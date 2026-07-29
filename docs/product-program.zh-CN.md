@@ -808,6 +808,16 @@
   effect 无法加入数据库 transaction，必须按 `run_id` 幂等。持久
   transition-event linkage、active adapter wiring、受保护内容加密、retention 与
   replay-read authorization 仍待完成。
+- 增加 `AuthenticatedDurableAgentMemory`，作为 durable preparation、
+  Semantic Gate、finalization、execution、cancellation 与 completion 的
+  adapter-neutral 组合。只允许从已保留 RetrievalSnapshot authorization linkage
+  与当前 registry 恢复原始 retrieval scope；拒绝错配的
+  authorization/session/evidence/semantic/revision service graph；为 `PREPARED`
+  之后的每次 GateSession 修改追加新的 `gate_session:transition` decision；并且在
+  不使用进程内 handle 的情况下提供精确版本 cancel 与当前状态操作。覆盖完整 SQLite lifecycle、PostgreSQL
+  continuation parity、policy/target 轮换、owner 拒绝、精确 cancel replay 与
+  service-graph mismatch。transport authentication、默认 MCP/HTTP/SDK wiring、
+  受保护内容 replay 与持久 transition-event linkage 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-
@@ -830,8 +840,8 @@
   接入 shared-service MCP 与 active CLI/HTTP/SDK adapter，使 scope 成为可执行的
   transport boundary。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
-- 把 opt-in durable preparation、Semantic Gate decision、finalization 与
-  execution/completion 组合接入具备 transport authentication 的 active adapter；
+- 把 authenticated durable Agent 组合接入具备 transport authentication 的
+  active adapter；
   在不削弱有界参考契约的前提下增加生产 index
   分片/worker 与外部 FTS/ANN provider profile。
 - 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 3 发布，并提供迁移文档。

@@ -37,6 +37,13 @@ decision，要求该 decision 对精确 permission 与当前 policy 仍为 allow
 registry 和 authenticated context 重建 scope，并拒绝任何不一致。它不会追加第二条
 decision，也不会把 scope 变成可由调用方重用的 capability。
 
+`recover_authorized_scope()` 是对应的 durable continuation 路径。可信 service
+代码只能提供另一条已核验记录中保留的 authorization event ID。service 会重新加载
+decision 与当前 registry，要求当前 repository reference 仍解析到同一 canonical
+repository，再返回重建后的服务端 scope。未知或已轮换 decision、identity 改变、
+repository target 改变、permission 不一致以及 environment 被禁用都会 fail closed。
+调用方 JSON 绝不能选择此 event ID。
+
 ## 当前集成边界
 
 `AuthenticatedLocalAgentMemory` 是可选启用的本地应用集成。它包装一个精确的
@@ -54,6 +61,10 @@ runtime，另一个门面也不能 finalize、complete 或 cancel。这些索引
 本地 `--auth-*` 启动 profile 选择它；MCP 请求 JSON 仍不能提供 identity 或 target
 字段。普通 CLI operation、HTTP 与 SDK adapter 尚未选择它。可信 bootstrap 代码仍
 必须派生固定的 `AuthenticatedServiceContext`。Durable GateSession、
-RetrievalSnapshot 挂接可通过独立的 opt-in durable preparation bridge 使用，但
-audit actor linkage、后续 lifecycle worker、原子的跨记录 service transaction 与
-active facade wiring 仍是独立后续交付。
+RetrievalSnapshot 挂接可通过独立的 opt-in durable preparation bridge 使用。
+`AuthenticatedDurableAgentMemory` 现在会通过已保留 RetrievalSnapshot linkage 与
+`recover_authorized_scope()` 组合 durable preparation、Semantic Gate、
+finalization、execution、cancellation 与 completion，而不接受调用方 scope。它仍是
+adapter-neutral opt-in facade；audit actor linkage、原子的跨记录 service
+transaction、transport authentication 以及 MCP/HTTP/SDK wiring 仍是独立后续交付。
+详见 [已认证 durable Agent v3](durable-agent-v3.zh-CN.md)。

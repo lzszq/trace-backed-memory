@@ -16,6 +16,7 @@ from trace_backed_memory.replay_v3 import (
     create_injection_artifact,
 )
 from tests.postgres_support import PostgresCluster, assert_sql_succeeds
+from tests.test_usage_decision_v3 import _usage
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,6 +106,69 @@ def _legacy_manifest() -> DecisionReplayManifest:
     )
 
 
+def _complete_bundle():
+    snippet = b"bounded snippet"
+    usage_created_at = "2026-07-30T01:00:00Z"
+    provisional = tbm.create_content_addressed_artifact(
+        snippet,
+        media_type=tbm.INJECTION_ARTIFACT_MEDIA_TYPE,
+        classification="internal",
+        created_at=usage_created_at,
+    )
+    component_artifacts = []
+    component_hashes = {}
+    for name in REPLAY_COMPONENT_NAMES:
+        if name == "injection_artifact":
+            component_hashes[name] = provisional.content_sha256
+            continue
+        component_content = f"{name} component".encode()
+        descriptor = tbm.create_content_addressed_artifact(
+            component_content,
+            media_type="application/octet-stream",
+            classification="internal",
+            created_at=NOW,
+        )
+        component_artifacts.append(
+            tbm.StoredReplayArtifact(descriptor, component_content)
+        )
+        component_hashes[name] = descriptor.content_sha256
+    components = tuple(
+        (name, component_hashes[name]) for name in REPLAY_COMPONENT_NAMES
+    )
+    usage = _usage(
+        replay_components=components,
+        injection_artifact_id=provisional.artifact_id,
+    )
+    stored_usage = tbm.create_usage_decision_artifact(usage)
+    injection = tbm.create_injection_artifact(
+        snippet.decode(),
+        session_id=usage.session_id,
+        decision_id=usage.decision_id,
+        usage_decision_id=usage.usage_decision_id,
+        memory_revision_ids=usage.final_memory_revision_ids,
+        renderer_id=usage.renderer_id,
+        renderer_version=usage.renderer_version,
+        policy_bundle_sha256=usage.policy_bundle_sha256,
+        rendered_at=usage.created_at,
+    )
+    assert injection.artifact == provisional
+    manifest = tbm.build_decision_replay_manifest(
+        session_id=usage.session_id,
+        decision_id=usage.decision_id,
+        usage_decision_id=usage.usage_decision_id,
+        component_hashes=dict(usage.replay_components),
+        injection_artifact_id=injection.artifact.artifact_id,
+        completeness="complete",
+        created_at=usage.created_at,
+    )
+    return (
+        (stored_usage, *component_artifacts),
+        injection,
+        snippet,
+        manifest,
+    )
+
+
 def _insert_bundle_sql() -> str:
     return (
         "INSERT INTO trace_backed_memory_v3_replay.replay_artifacts "
@@ -132,25 +196,29 @@ def test_postgres_replay_schema_install_invariants_and_rollback(
     postgres_cluster: PostgresCluster,
 ):
     _install(postgres_cluster)
-    assert assert_sql_succeeds(
-        postgres_cluster,
-        "SELECT schema_version, contract_version "
-        "FROM trace_backed_memory_v3_replay.schema_metadata",
-    ) == "1|tbm.replay.v3"
-    assert assert_sql_succeeds(
-        postgres_cluster,
-        _insert_bundle_sql()
-        + " SELECT pg_catalog.encode(content, 'hex') "
-        "FROM trace_backed_memory_v3_replay.replay_artifacts;",
-    ) == "6869"
+    assert (
+        assert_sql_succeeds(
+            postgres_cluster,
+            "SELECT schema_version, contract_version "
+            "FROM trace_backed_memory_v3_replay.schema_metadata",
+        )
+        == "1|tbm.replay.v3"
+    )
+    assert (
+        assert_sql_succeeds(
+            postgres_cluster,
+            _insert_bundle_sql() + " SELECT pg_catalog.encode(content, 'hex') "
+            "FROM trace_backed_memory_v3_replay.replay_artifacts;",
+        )
+        == "6869"
+    )
 
     for statement in (
         "UPDATE trace_backed_memory_v3_replay.replay_artifacts "
         "SET media_type = 'application/octet-stream'",
         "DELETE FROM trace_backed_memory_v3_replay.replay_injections",
         "TRUNCATE trace_backed_memory_v3_replay.replay_manifests",
-        "UPDATE trace_backed_memory_v3_replay.schema_metadata "
-        "SET schema_version = 2",
+        "UPDATE trace_backed_memory_v3_replay.schema_metadata SET schema_version = 2",
     ):
         rejected = postgres_cluster.run(statement)
         assert rejected.returncode != 0
@@ -158,15 +226,21 @@ def test_postgres_replay_schema_install_invariants_and_rollback(
 
     rolled_back = postgres_cluster.run_script(ROLLBACK)
     assert rolled_back.returncode == 0, rolled_back.stderr
-    assert assert_sql_succeeds(
-        postgres_cluster,
-        "SELECT pg_catalog.to_regnamespace("
-        "'trace_backed_memory_v3_replay') IS NULL",
-    ) == "t"
-    assert assert_sql_succeeds(
-        postgres_cluster,
-        "SELECT schema_version FROM public.trace_backed_memory_schema",
-    ) == "2"
+    assert (
+        assert_sql_succeeds(
+            postgres_cluster,
+            "SELECT pg_catalog.to_regnamespace("
+            "'trace_backed_memory_v3_replay') IS NULL",
+        )
+        == "t"
+    )
+    assert (
+        assert_sql_succeeds(
+            postgres_cluster,
+            "SELECT schema_version FROM public.trace_backed_memory_schema",
+        )
+        == "2"
+    )
 
 
 def test_postgres_replay_schema_rejects_invalid_linkage_and_is_atomic(
@@ -192,11 +266,13 @@ def test_postgres_replay_schema_rejects_invalid_linkage_and_is_atomic(
     )
     assert incomplete_complete.returncode != 0
     assert "replay_manifests_injection_shape" in incomplete_complete.stderr
-    assert assert_sql_succeeds(
-        postgres_cluster,
-        "SELECT count(*) FROM "
-        "trace_backed_memory_v3_replay.replay_injections",
-    ) == "0"
+    assert (
+        assert_sql_succeeds(
+            postgres_cluster,
+            "SELECT count(*) FROM trace_backed_memory_v3_replay.replay_injections",
+        )
+        == "0"
+    )
 
     assert_sql_succeeds(postgres_cluster, _insert_bundle_sql())
     mismatched_linkage = postgres_cluster.run(
@@ -255,17 +331,19 @@ def test_postgres_replay_rollback_fails_closed_on_catalog_drift(
     _install(postgres_cluster)
     assert_sql_succeeds(
         postgres_cluster,
-        "CREATE TABLE trace_backed_memory_v3_replay.unexpected "
-        "(value integer)",
+        "CREATE TABLE trace_backed_memory_v3_replay.unexpected (value integer)",
     )
     rejected = postgres_cluster.run_script(ROLLBACK)
     assert rejected.returncode != 0
     assert "catalog mismatch" in rejected.stderr
-    assert assert_sql_succeeds(
-        postgres_cluster,
-        "SELECT pg_catalog.to_regclass("
-        "'trace_backed_memory_v3_replay.unexpected') IS NOT NULL",
-    ) == "t"
+    assert (
+        assert_sql_succeeds(
+            postgres_cluster,
+            "SELECT pg_catalog.to_regclass("
+            "'trace_backed_memory_v3_replay.unexpected') IS NOT NULL",
+        )
+        == "t"
+    )
 
 
 def test_postgres_replay_install_and_rollback_require_active_v2(
@@ -280,11 +358,14 @@ def test_postgres_replay_install_and_rollback_require_active_v2(
     rejected_install = postgres_cluster.run_script(INSTALL)
     assert rejected_install.returncode != 0
     assert "requires active schema version 2" in rejected_install.stderr
-    assert assert_sql_succeeds(
-        postgres_cluster,
-        "SELECT pg_catalog.to_regnamespace("
-        "'trace_backed_memory_v3_replay') IS NULL",
-    ) == "t"
+    assert (
+        assert_sql_succeeds(
+            postgres_cluster,
+            "SELECT pg_catalog.to_regnamespace("
+            "'trace_backed_memory_v3_replay') IS NULL",
+        )
+        == "t"
+    )
 
     assert_sql_succeeds(
         postgres_cluster,
@@ -301,11 +382,14 @@ def test_postgres_replay_install_and_rollback_require_active_v2(
     rejected_rollback = postgres_cluster.run_script(ROLLBACK)
     assert rejected_rollback.returncode != 0
     assert "requires active schema version 2" in rejected_rollback.stderr
-    assert assert_sql_succeeds(
-        postgres_cluster,
-        "SELECT pg_catalog.to_regnamespace("
-        "'trace_backed_memory_v3_replay') IS NOT NULL",
-    ) == "t"
+    assert (
+        assert_sql_succeeds(
+            postgres_cluster,
+            "SELECT pg_catalog.to_regnamespace("
+            "'trace_backed_memory_v3_replay') IS NOT NULL",
+        )
+        == "t"
+    )
 
 
 def test_postgres_replay_repository_bundle_round_trip_and_idempotency(
@@ -315,9 +399,7 @@ def test_postgres_replay_repository_bundle_round_trip_and_idempotency(
     _install(postgres_cluster)
     injection, content = _injection()
     manifest = _manifest(injection)
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = tbm.PostgresReplayV3Repository(connection)
         stored = repository.store_bundle(injection, content, manifest)
         assert stored.artifact_inserted is True
@@ -326,9 +408,10 @@ def test_postgres_replay_repository_bundle_round_trip_and_idempotency(
         assert repository.load_artifact(
             injection.artifact.artifact_id
         ) == tbm.StoredReplayArtifact(injection.artifact, content)
-        assert repository.load_injection(
-            injection.artifact.artifact_id
-        ) == (injection, content)
+        assert repository.load_injection(injection.artifact.artifact_id) == (
+            injection,
+            content,
+        )
         assert repository.load_manifest(manifest.manifest_sha256) == manifest
 
         replayed = repository.store_bundle(injection, content, manifest)
@@ -353,6 +436,66 @@ def test_postgres_replay_repository_bundle_round_trip_and_idempotency(
         assert name in tbm.__all__
 
 
+def test_postgres_complete_bundle_is_atomic_and_usage_bound(
+    postgres_cluster: PostgresCluster,
+):
+    psycopg = pytest.importorskip("psycopg")
+    _install(postgres_cluster)
+    supporting, injection, snippet, manifest = _complete_bundle()
+    invalid = tbm.StoredReplayArtifact(
+        supporting[1].artifact,
+        b"tampered",
+    )
+    invalid_supporting = (supporting[0], invalid, *supporting[2:])
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = tbm.PostgresReplayV3Repository(connection)
+        with pytest.raises(ValueError):
+            repository.store_complete_bundle(
+                invalid_supporting,
+                injection,
+                snippet,
+                manifest,
+            )
+        with pytest.raises(KeyError):
+            repository.load_artifact(supporting[0].artifact.artifact_id)
+
+        stored = repository.store_complete_bundle(
+            supporting,
+            injection,
+            snippet,
+            manifest,
+        )
+        assert stored.artifact_inserted is True
+        assert (
+            repository.load_artifact(supporting[0].artifact.artifact_id)
+            == supporting[0]
+        )
+        replayed = repository.store_complete_bundle(
+            supporting,
+            injection,
+            snippet,
+            manifest,
+        )
+        assert replayed.artifact_inserted is False
+        assert replayed.injection_inserted is False
+        assert replayed.manifest_inserted is False
+
+        with pytest.raises(ValueError, match="usage and injection linkage"):
+            repository.store_complete_bundle(
+                (),
+                injection,
+                snippet,
+                manifest,
+            )
+        with pytest.raises(ValueError, match="component set"):
+            repository.store_complete_bundle(
+                supporting[:-1],
+                injection,
+                snippet,
+                manifest,
+            )
+
+
 def test_postgres_replay_repository_connect_lifecycle_and_validation(
     postgres_cluster: PostgresCluster,
 ):
@@ -372,9 +515,7 @@ def test_postgres_replay_repository_connect_lifecycle_and_validation(
     with pytest.raises(ValueError, match="connection is required"):
         tbm.PostgresReplayV3Repository(None)
     psycopg = pytest.importorskip("psycopg")
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         open_repository = tbm.PostgresReplayV3Repository(connection)
         with pytest.raises(ValueError, match="artifact_id"):
             open_repository.load_artifact("bad")
@@ -391,9 +532,7 @@ def test_postgres_replay_repository_individual_store_paths_and_type_checks(
     _install(postgres_cluster)
     injection, content = _injection()
     manifest = _manifest(injection)
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = tbm.PostgresReplayV3Repository(connection)
         stored = repository.store_injection(injection, content)
         assert stored.artifact_inserted is True
@@ -437,21 +576,15 @@ def test_postgres_replay_repository_maps_missing_schema_for_every_operation(
     postgres_cluster.load_schema()
     injection, content = _injection()
     manifest = _manifest(injection)
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = tbm.PostgresReplayV3Repository(connection)
         operations = (
             lambda: repository.store_artifact(injection.artifact, content),
             lambda: repository.store_injection(injection, content),
             lambda: repository.store_manifest(manifest),
             lambda: repository.store_bundle(injection, content, manifest),
-            lambda: repository.load_artifact(
-                injection.artifact.artifact_id
-            ),
-            lambda: repository.load_injection(
-                injection.artifact.artifact_id
-            ),
+            lambda: repository.load_artifact(injection.artifact.artifact_id),
+            lambda: repository.load_injection(injection.artifact.artifact_id),
             lambda: repository.load_manifest(manifest.manifest_sha256),
         )
         for operation in operations:
@@ -478,9 +611,7 @@ def test_postgres_replay_repository_maps_driver_errors_for_every_operation(
     _install(postgres_cluster)
     injection, content = _injection()
     manifest = _manifest(injection)
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = tbm.PostgresReplayV3Repository(connection)
 
         def fail_lock(_cursor: object) -> None:
@@ -492,12 +623,8 @@ def test_postgres_replay_repository_maps_driver_errors_for_every_operation(
             lambda: repository.store_injection(injection, content),
             lambda: repository.store_manifest(manifest),
             lambda: repository.store_bundle(injection, content, manifest),
-            lambda: repository.load_artifact(
-                injection.artifact.artifact_id
-            ),
-            lambda: repository.load_injection(
-                injection.artifact.artifact_id
-            ),
+            lambda: repository.load_artifact(injection.artifact.artifact_id),
+            lambda: repository.load_injection(injection.artifact.artifact_id),
             lambda: repository.load_manifest(manifest.manifest_sha256),
         )
         for operation in operations:
@@ -553,9 +680,7 @@ def test_postgres_replay_repository_rejects_metadata_and_catalog_drift(
     psycopg = pytest.importorskip("psycopg")
     _install(postgres_cluster)
     injection, content = _injection()
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = tbm.PostgresReplayV3Repository(connection)
         with connection.cursor() as cursor:
             cursor.execute(
@@ -571,16 +696,13 @@ def test_postgres_replay_repository_rejects_metadata_and_catalog_drift(
                 "SET schema_version = 2 WHERE singleton"
             )
             cursor.execute(
-                "CREATE TABLE trace_backed_memory_v3_replay.unexpected "
-                "(value integer)"
+                "CREATE TABLE trace_backed_memory_v3_replay.unexpected (value integer)"
             )
         connection.commit()
         with pytest.raises(tbm.PostgresReplayV3SchemaError, match="definitions"):
             repository.store_artifact(injection.artifact, content)
         with connection.cursor() as cursor:
-            cursor.execute(
-                "DROP TABLE trace_backed_memory_v3_replay.unexpected"
-            )
+            cursor.execute("DROP TABLE trace_backed_memory_v3_replay.unexpected")
             cursor.execute(
                 "ALTER TABLE "
                 "trace_backed_memory_v3_replay.replay_artifacts "
@@ -635,9 +757,7 @@ def test_postgres_replay_repository_accepts_canonical_equivalent_timestamps(
         manifest,
         created_at="2026-07-27T08:00:00+08:00",
     )
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = tbm.PostgresReplayV3Repository(connection)
         stored = repository.store_bundle(injection, content, manifest)
         assert stored.artifact_inserted is True
@@ -700,9 +820,7 @@ def test_postgres_replay_repository_defensive_row_validation():
     )
     for row in malformed_rows:
         with pytest.raises(tbm.PostgresReplayV3PersistenceError):
-            postgres_replay_v3.PostgresReplayV3Repository._stored_artifact(
-                row
-            )
+            postgres_replay_v3.PostgresReplayV3Repository._stored_artifact(row)
     with pytest.raises(tbm.PostgresReplayV3PersistenceError, match="shape"):
         postgres_replay_v3.PostgresReplayV3Repository._mapping_values(
             {},
@@ -719,9 +837,7 @@ def test_postgres_replay_repository_defensive_row_validation():
     injection_row = dict(
         zip(
             injection_fields,
-            postgres_replay_v3.PostgresReplayV3Repository._injection_values(
-                injection
-            ),
+            postgres_replay_v3.PostgresReplayV3Repository._injection_values(injection),
             strict=True,
         )
     )
@@ -731,9 +847,7 @@ def test_postgres_replay_repository_defensive_row_validation():
         {**injection_row, "session_id": "different"},
     ):
         with pytest.raises(tbm.PostgresReplayV3PersistenceError):
-            postgres_replay_v3.PostgresReplayV3Repository._stored_injection(
-                row
-            )
+            postgres_replay_v3.PostgresReplayV3Repository._stored_injection(row)
 
     manifest_fields = (
         "manifest_sha256",
@@ -747,9 +861,7 @@ def test_postgres_replay_repository_defensive_row_validation():
     manifest_row = dict(
         zip(
             manifest_fields,
-            postgres_replay_v3.PostgresReplayV3Repository._manifest_values(
-                manifest
-            ),
+            postgres_replay_v3.PostgresReplayV3Repository._manifest_values(manifest),
             strict=True,
         )
     )
@@ -963,9 +1075,7 @@ def test_postgres_replay_repository_defensive_second_phase_loads():
             ),
             injection.artifact.artifact_id,
         )
-    descriptor_size = len(
-        repository._injection_values(injection)[4].encode("utf-8")
-    )
+    descriptor_size = len(repository._injection_values(injection)[4].encode("utf-8"))
     with pytest.raises(
         tbm.PostgresReplayV3PersistenceError,
         match="injection disappeared",
@@ -985,9 +1095,7 @@ def test_postgres_replay_repository_rejects_conflicts_and_bad_bytes(
     psycopg = pytest.importorskip("psycopg")
     _install(postgres_cluster)
     injection, content = _injection()
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = tbm.PostgresReplayV3Repository(connection)
         assert repository.store_artifact(injection.artifact, content) is True
         with pytest.raises(ValueError, match="content does not match"):
@@ -1009,9 +1117,7 @@ def test_postgres_replay_repository_uses_caller_savepoint(
     psycopg = pytest.importorskip("psycopg")
     _install(postgres_cluster)
     injection, content = _injection()
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = tbm.PostgresReplayV3Repository(connection)
         with connection.transaction():
             with connection.cursor() as cursor:
@@ -1030,9 +1136,7 @@ def test_postgres_replay_repository_fails_closed_on_schema_drift(
     psycopg = pytest.importorskip("psycopg")
     _install(postgres_cluster)
     injection, content = _injection()
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = tbm.PostgresReplayV3Repository(connection)
         repository.store_artifact(injection.artifact, content)
         with connection.cursor() as cursor:
@@ -1052,9 +1156,7 @@ def test_postgres_replay_repository_rehashes_loaded_bytes(
     psycopg = pytest.importorskip("psycopg")
     _install(postgres_cluster)
     injection, content = _injection()
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         repository = tbm.PostgresReplayV3Repository(connection)
         repository.store_artifact(injection.artifact, content)
         with connection.cursor() as cursor:
@@ -1090,9 +1192,7 @@ def test_postgres_replay_repository_concurrent_bundle_is_idempotent(
     manifest = _manifest(injection)
 
     def store_once() -> tbm.PostgresReplayV3StoreResult:
-        with psycopg.connect(
-            **postgres_cluster.connection_kwargs()
-        ) as connection:
+        with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
             return tbm.PostgresReplayV3Repository(connection).store_bundle(
                 injection,
                 content,

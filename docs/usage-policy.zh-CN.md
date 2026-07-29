@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-132 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation/retrieval-policy contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/加密 Artifact Authority/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
+134 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation/retrieval-policy contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/加密 Artifact Authority/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -508,8 +508,10 @@ attempt 的原始 prompt。如果 success 已持久化但 decision transition �
 该精确 attempt 挂接到 session，不得再次调用 provider。遇到含糊 chain、变化的
 prompt/parent 或 terminal session 时绝不能继续。共享 caller-owned
 SQLite/PostgreSQL connection 可以提供一层外部 transaction，但默认跨 authority
-路径是有序恢复，不是 distributed atomicity。rendering、injection、finalization 与
-active adapter emission 仍不可用。
+路径是有序恢复，不是 distributed atomicity。独立的 opt-in
+`DurableFinalizationService` 可以核验 `DECIDED` session、渲染最终
+public/internal snippet、保留完整 replay bundle 并发布 `FINALIZED`；active Agent、
+MCP、HTTP 与 SDK emission 仍不可用。
 
 ## Version-3 结果与归因策略
 
@@ -594,15 +596,29 @@ version 2。
 
 ## Version-3 重放 artifact 策略
 
-只能在 decision finalize 后，从实际最终 snippet 创建 `InjectionArtifact`。不得对
-candidate、Gate 前 rendering 或事后重建的近似内容计算该 artifact。必须绑定本次
-render 实际使用的同一 session、decision、usage decision、有序 memory revision、
-renderer 与 policy bundle。
+只能从已核验 `DECIDED` session 实际渲染的最终 snippet 创建
+`InjectionArtifact`；发布 `FINALIZED` 前必须保留并读回该 artifact 及其完整 replay
+bundle。不得对 candidate、Gate 前 rendering 或事后重建的近似内容计算该 artifact。
+必须绑定本次 render 实际使用的同一 session、decision、usage decision、有序 memory
+revision、renderer 与 policy bundle。
+
+`UsageDecision` 必须由精确 authenticated retrieval snapshot、System Gate
+evaluation、successful Semantic Gate attempt、当前 authorization event、当前
+activation head、render policy 与最终有序 memory set 构造。最终集合只能缩小
+System-allowed set；System block 及其 rule/reason pair 必须原样保留。bundle 保留前后
+都必须重新核验 authorization、head 与 policy。
 
 只有八项 replay component 全部存在，且 injection artifact ID 与内容摘要匹配时，
 才能使用 `complete`。`legacy_partial` 只用于迁移证据，并且必须精确列出 null
 component；不得据此静默重建缺失的 prompt、response、policy 或 ancestry。使用前必须
 验证 artifact 字节。
+
+使用 `store_complete_bundle()` 原子保留排在首位的 UsageDecision、精确 snapshot、
+System Gate evaluation、Semantic Gate prompt/response、ancestry commitment、
+policy、renderer descriptor、injection artifact 与 complete manifest。session CAS
+前必须读回每一份已存字节。精确 terminal replay 必须加载并交叉核验这些保留字节，绝不
+重新渲染。如果 bundle 可能已成功保留但无法确认 `FINALIZED` session CAS，必须返回
+明确的 recovery-required 结果。
 
 classification metadata 本身不执行安全策略。opt-in SQLite 与隔离 PostgreSQL
 Artifact Authority 会通过调用方 provider 加密所有接受的 classification、授权每次
@@ -612,8 +628,9 @@ opt-in SQLite/PostgreSQL replay repository 会逐字节保存接受的内容，
 因此会拒绝 confidential/restricted artifact，直到透明加密 provider 能在加密的同时
 保留精确内容身份。两者校验精确字节与 immutable descriptor linkage，把精确 replay
 视为 idempotent，并通过 savepoint 保留 borrowed transaction；两者都不提供 access
-control、retention 或 GateSession authority。当前 Store 与 active adapter 不持久化
-这些契约，也不得宣称支持精确 decision replay。
+control、retention，单独使用时也不提供 GateSession authority。opt-in finalization
+service 会在这些 repository 外围提供已授权的 GateSession linkage。当前 Store 与
+active adapter 仍不使用这些契约，也不得宣称支持精确 decision replay。
 
 ## 固定运行时预算
 

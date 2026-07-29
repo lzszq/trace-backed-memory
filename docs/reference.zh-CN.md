@@ -204,7 +204,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 132 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 134 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 新增 managed-index 资源包括 bundle Schema/example，以及隔离 SQLite 与
 PostgreSQL install/rollback SQL。package-root API 导出 builder、
@@ -292,10 +292,18 @@ injection，以及固定八项 component 的 decision replay manifest。complete
 复验。隔离 PostgreSQL install/rollback 资源现已建立匹配的不可变关系边界，并在
 fail-closed 删除前核对预期 catalog membership；opt-in
 `PostgresReplayV3Repository` 提供 canonical descriptor/byte-digest 复验、精确
-idempotency、嵌套 transaction ownership 与 schema drift 检查。当前 Store、
-active SQL adapter、本地 Agent 与 MCP 均不使用这些资源；它们也不提供 access
-control、encryption、retention 或 GateSession authority，因此仍是统一 version-3
-runtime 的准备工作，而不是当前已支持精确重放的声明。详见
+idempotency、嵌套 transaction ownership 与 schema drift 检查。两个 peer 的
+`store_complete_bundle()` 都要求 content-derived UsageDecision artifact 位于首位，并把
+全部去重 supporting component 与 injection/manifest 原子保留。
+
+`tbm.usage-decision.v3` 记录精确有序收窄审计、确定性 System block、当前
+authorization/evidence/policy/renderer 关联与固定 replay component map。
+`DurableFinalizationService` 会复查当前 authorization/head/policy 状态，确定性渲染
+最终允许集合，保留并读回精确 UsageDecision 与完整 replay bundle，再通过 CAS 发布
+`FINALIZED`。共享 SQLite/PostgreSQL connection 支持 caller-owned outer rollback；
+authority 分离时使用有序恢复。当前 Store、active SQL adapter、本地 Agent 与 MCP
+均不使用该服务。replay-read authorization、受保护内容加密、retention 与 active
+adapter integration 仍待完成。详见
 [重放契约](protocols/replay-v3.zh-CN.md)。
 
 与存储实现无关的授权 v3 契约定义 canonical repository、精确的租户作用域别名、
@@ -400,6 +408,15 @@ live lease；它会在 `DECIDED` 中记录全部 attempt ID 与 successful `deci
 failed attempt 留在 awaiting，供显式 retry 使用。精确 decided replay 与
 retained-success recovery 不会重复 provider 调用。详见
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)。
+
+`DurableFinalizationRequest` 只指定 decided session revision 与有界 finalization lease。
+`DurableFinalizationService` 从 durable evidence 派生所有输入；即使最终集合为空，也要求
+同一个实时 authorization event；在渲染前后复查 active head 与 policy；保存并读回完整
+UsageDecision/replay bundle；再通过 CAS 发布 `FINALIZED`。精确 finalized replay
+不会重新渲染。bundle 已保留但 session transition 无法确认时，会返回显式
+recovery-required 状态。详见
+[durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)与
+[UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)。
 
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的
 opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS head
@@ -1185,7 +1202,11 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |   |-- gate-session-v3.md
 |   |   |-- gate-session-v3.zh-CN.md
 |   |   |-- replay-v3.md
-|   |   `-- replay-v3.zh-CN.md
+|   |   |-- replay-v3.zh-CN.md
+|   |   |-- usage-decision-v3.md
+|   |   |-- usage-decision-v3.zh-CN.md
+|   |   |-- durable-finalization-v3.md
+|   |   `-- durable-finalization-v3.zh-CN.md
 |   |-- product-program.md
 |   |-- product-program.zh-CN.md
 |   |-- product.en.md
@@ -1213,6 +1234,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- semantic_gate_artifact_v3.example.json
 |   |-- semantic_gate_attempt_v3.example.json
 |   |-- system_gate_evaluation_v3.example.json
+|   |-- usage_decision_v3.example.json
 |   |-- project_policy.example.json
 |   |-- memory_usage_log.example.json
 |   |-- outcome_attribution_v3.example.json
@@ -1252,6 +1274,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- sqlite-v3-semantic-gate.sql
 |   |-- sqlite.sql
 |   |-- trace.schema.json
+|   |-- usage_decision_v3.schema.json
 |   |-- failure_case.schema.json
 |   |-- lesson.schema.json
 |   |-- project_policy.schema.json

@@ -33,6 +33,7 @@ SQLITE_REPLAY_V3_SCHEMA_VERSION = 1
 _MISSING_SCHEMA_MESSAGE = "SQLite replay v3 schema is missing or incomplete"
 _ARTIFACT_ID_RE = re.compile(r"artifact_sha256_[0-9a-f]{64}")
 _DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+_USAGE_DECISION_ID_RE = re.compile(r"usage_decision_sha256_[0-9a-f]{64}")
 _SCHEMA_OBJECT_NAMES = (
     "trace_backed_memory_v3_replay_schema",
     "v3_replay_artifacts",
@@ -130,9 +131,7 @@ def _read_schema_definitions(
             raise SQLiteReplayV3SchemaError(
                 "SQLite replay v3 schema definition has an invalid shape"
             )
-        definitions.append(
-            (row[0], row[1], row[2], _normalized_schema_sql(row[3]))
-        )
+        definitions.append((row[0], row[1], row[2], _normalized_schema_sql(row[3])))
     return tuple(definitions)
 
 
@@ -145,9 +144,7 @@ def _canonical_schema_definitions() -> tuple[
         connection = sqlite3.connect(":memory:")
         try:
             connection.executescript(
-                read_packaged_resource(
-                    "schemas/sqlite-v3-replay.sql"
-                ).decode("utf-8")
+                read_packaged_resource("schemas/sqlite-v3-replay.sql").decode("utf-8")
             )
             with closing(connection.cursor()) as cursor:
                 return _read_schema_definitions(cursor)
@@ -196,9 +193,9 @@ class SQLiteReplayV3Repository:
             connection.execute("PRAGMA foreign_keys = ON")
             if initialize:
                 connection.executescript(
-                    read_packaged_resource(
-                        "schemas/sqlite-v3-replay.sql"
-                    ).decode("utf-8")
+                    read_packaged_resource("schemas/sqlite-v3-replay.sql").decode(
+                        "utf-8"
+                    )
                 )
         except (
             OSError,
@@ -217,9 +214,7 @@ class SQLiteReplayV3Repository:
 
     def _require_open(self) -> None:
         if self._closed:
-            raise SQLiteReplayV3Error(
-                "SQLite replay v3 repository is closed"
-            )
+            raise SQLiteReplayV3Error("SQLite replay v3 repository is closed")
         try:
             with closing(self._connection.cursor()) as cursor:
                 cursor.execute("SELECT 1")
@@ -245,22 +240,17 @@ class SQLiteReplayV3Repository:
                     if attempt == 0
                     else "retry failed while rolling back"
                 )
-                primary_error.add_note(
-                    f"{prefix} {context}: {rollback_error}"
-                )
+                primary_error.add_note(f"{prefix} {context}: {rollback_error}")
                 continue
             if not self._connection.in_transaction:
                 return
-            primary_error.add_note(
-                f"rollback attempt left {context} active"
-            )
+            primary_error.add_note(f"rollback attempt left {context} active")
         self._closed = True
         try:
             self._connection.close()
         except BaseException as close_error:
             primary_error.add_note(
-                "failed to close unusable SQLite replay v3 connection: "
-                f"{close_error}"
+                f"failed to close unusable SQLite replay v3 connection: {close_error}"
             )
 
     @contextmanager
@@ -273,9 +263,7 @@ class SQLiteReplayV3Repository:
 
             def rollback_savepoint(primary_error: BaseException) -> None:
                 try:
-                    self._connection.execute(
-                        f"ROLLBACK TO SAVEPOINT {savepoint}"
-                    )
+                    self._connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
                 except BaseException as cleanup_error:
                     primary_error.add_note(
                         "failed to roll back SQLite replay v3 savepoint "
@@ -290,14 +278,10 @@ class SQLiteReplayV3Repository:
                     )
                     return
                 try:
-                    self._connection.execute(
-                        f"RELEASE SAVEPOINT {savepoint}"
-                    )
+                    self._connection.execute(f"RELEASE SAVEPOINT {savepoint}")
                 except BaseException as cleanup_error:
                     try:
-                        self._connection.execute(
-                            f"RELEASE SAVEPOINT {savepoint}"
-                        )
+                        self._connection.execute(f"RELEASE SAVEPOINT {savepoint}")
                     except BaseException as retry_error:
                         primary_error.add_note(
                             "failed to release SQLite replay v3 savepoint "
@@ -319,9 +303,7 @@ class SQLiteReplayV3Repository:
                 raise
             else:
                 try:
-                    self._connection.execute(
-                        f"RELEASE SAVEPOINT {savepoint}"
-                    )
+                    self._connection.execute(f"RELEASE SAVEPOINT {savepoint}")
                 except BaseException as error:
                     rollback_savepoint(error)
                     raise
@@ -361,8 +343,7 @@ class SQLiteReplayV3Repository:
         rows = cursor.fetchall()
         if len(rows) != 1:
             raise SQLiteReplayV3SchemaError(
-                "SQLite replay v3 schema metadata must contain exactly "
-                "one row"
+                "SQLite replay v3 schema metadata must contain exactly one row"
             )
         version = rows[0][0]
         if version != SQLITE_REPLAY_V3_SCHEMA_VERSION:
@@ -370,12 +351,9 @@ class SQLiteReplayV3Repository:
                 "SQLite replay v3 schema version mismatch: expected "
                 f"{SQLITE_REPLAY_V3_SCHEMA_VERSION}, found {version}"
             )
-        if _read_schema_definitions(
-            cursor
-        ) != _canonical_schema_definitions():
+        if _read_schema_definitions(cursor) != _canonical_schema_definitions():
             raise SQLiteReplayV3SchemaError(
-                "SQLite replay v3 schema definitions do not match the "
-                "canonical version"
+                "SQLite replay v3 schema definitions do not match the canonical version"
             )
 
     @staticmethod
@@ -504,9 +482,7 @@ class SQLiteReplayV3Repository:
         content: bytes,
     ) -> bool:
         if type(artifact) is not ContentAddressedArtifact:
-            raise ValueError(
-                "artifact must be exactly ContentAddressedArtifact"
-            )
+            raise ValueError("artifact must be exactly ContentAddressedArtifact")
         if type(content) is not bytes:
             raise ValueError("content must be bytes")
         if artifact.classification not in {"public", "internal"}:
@@ -597,8 +573,7 @@ class SQLiteReplayV3Repository:
             if (
                 manifest.session_id != injection.session_id
                 or manifest.decision_id != injection.decision_id
-                or manifest.usage_decision_id
-                != injection.usage_decision_id
+                or manifest.usage_decision_id != injection.usage_decision_id
             ):
                 raise SQLiteReplayV3ConflictError(
                     "replay manifest linkage conflicts with injection"
@@ -682,9 +657,7 @@ class SQLiteReplayV3Repository:
     def store_manifest(self, manifest: DecisionReplayManifest) -> bool:
         self._require_open()
         if type(manifest) is not DecisionReplayManifest:
-            raise ValueError(
-                "manifest must be exactly DecisionReplayManifest"
-            )
+            raise ValueError("manifest must be exactly DecisionReplayManifest")
         try:
             with self._transaction(write=True):
                 with closing(self._connection.cursor()) as cursor:
@@ -707,19 +680,14 @@ class SQLiteReplayV3Repository:
             type(injection) is not InjectionArtifact
             or type(manifest) is not DecisionReplayManifest
         ):
-            raise ValueError(
-                "injection and manifest must be exact replay records"
-            )
+            raise ValueError("injection and manifest must be exact replay records")
         if (
-            manifest.injection_artifact_id
-            != injection.artifact.artifact_id
+            manifest.injection_artifact_id != injection.artifact.artifact_id
             or manifest.session_id != injection.session_id
             or manifest.decision_id != injection.decision_id
             or manifest.usage_decision_id != injection.usage_decision_id
         ):
-            raise ValueError(
-                "manifest and injection linkage must match exactly"
-            )
+            raise ValueError("manifest and injection linkage must match exactly")
         try:
             with self._transaction(write=True):
                 with closing(self._connection.cursor()) as cursor:
@@ -781,7 +749,7 @@ class SQLiteReplayV3Repository:
         if row is None:
             raise SQLiteReplayV3PersistenceError(
                 "SQLite replay artifact disappeared during load"
-        )
+            )
         return self._stored_artifact(row)
 
     def _load_injection(
@@ -828,6 +796,57 @@ class SQLiteReplayV3Repository:
                 "SQLite replay injection bytes exceed bound"
             )
         return injection, stored.content
+
+    @_synchronized
+    def store_complete_bundle(
+        self,
+        supporting_artifacts: tuple[StoredReplayArtifact, ...],
+        injection: InjectionArtifact,
+        content: bytes,
+        manifest: DecisionReplayManifest,
+    ) -> SQLiteReplayV3StoreResult:
+        """Atomically retain supporting bytes plus one injection/manifest."""
+
+        self._require_open()
+        _validate_complete_bundle_inputs(
+            supporting_artifacts,
+            injection,
+            manifest,
+        )
+        try:
+            with self._transaction(write=True):
+                with closing(self._connection.cursor()) as cursor:
+                    self._require_schema(cursor)
+                    for stored in supporting_artifacts:
+                        self._put_artifact(
+                            cursor,
+                            stored.artifact,
+                            stored.content,
+                        )
+                    artifact_inserted = self._put_artifact(
+                        cursor,
+                        injection.artifact,
+                        content,
+                    )
+                    injection_inserted = self._put_injection(
+                        cursor,
+                        injection,
+                    )
+                    manifest_inserted = self._put_manifest(cursor, manifest)
+            return SQLiteReplayV3StoreResult(
+                artifact_id=injection.artifact.artifact_id,
+                artifact_inserted=artifact_inserted,
+                injection_inserted=injection_inserted,
+                manifest_sha256=manifest.manifest_sha256,
+                manifest_inserted=manifest_inserted,
+            )
+        except (SQLiteReplayV3ConflictError, SQLiteReplayV3SchemaError):
+            raise
+        except sqlite3.DatabaseError as error:
+            self._raise_database_error(
+                error,
+                "store complete replay bundle",
+            )
 
     @_synchronized
     def load_artifact(self, artifact_id: str) -> StoredReplayArtifact:
@@ -886,8 +905,7 @@ class SQLiteReplayV3Repository:
                         or size[0] > REPLAY_JSON_MAX_BYTES
                     ):
                         raise SQLiteReplayV3PersistenceError(
-                            "SQLite replay manifest exceeds bounded load "
-                            "contract"
+                            "SQLite replay manifest exceeds bounded load contract"
                         )
                     cursor.execute(
                         "SELECT manifest_sha256, session_id, decision_id, "
@@ -910,18 +928,15 @@ class SQLiteReplayV3Repository:
                             )
                         except KeyError as error:
                             raise SQLiteReplayV3PersistenceError(
-                                "SQLite replay manifest references an unknown "
-                                "injection"
+                                "SQLite replay manifest references an unknown injection"
                             ) from error
                         if (
                             manifest.session_id != injection.session_id
                             or manifest.decision_id != injection.decision_id
-                            or manifest.usage_decision_id
-                            != injection.usage_decision_id
+                            or manifest.usage_decision_id != injection.usage_decision_id
                         ):
                             raise SQLiteReplayV3PersistenceError(
-                                "SQLite replay manifest linkage differs from "
-                                "injection"
+                                "SQLite replay manifest linkage differs from injection"
                             )
                     return manifest
         except (KeyError, SQLiteReplayV3SchemaError):
@@ -935,12 +950,8 @@ class SQLiteReplayV3Repository:
         action: str,
     ) -> NoReturn:
         if _is_schema_error(error):
-            raise SQLiteReplayV3SchemaError(
-                _MISSING_SCHEMA_MESSAGE
-            ) from error
-        raise SQLiteReplayV3PersistenceError(
-            f"failed to {action} in SQLite"
-        ) from error
+            raise SQLiteReplayV3SchemaError(_MISSING_SCHEMA_MESSAGE) from error
+        raise SQLiteReplayV3PersistenceError(f"failed to {action} in SQLite") from error
 
     @_synchronized
     def close(self) -> None:
@@ -959,11 +970,55 @@ class SQLiteReplayV3Repository:
         self.close()
 
 
+def _validate_complete_bundle_inputs(
+    supporting_artifacts: object,
+    injection: object,
+    manifest: object,
+) -> None:
+    if (
+        type(supporting_artifacts) is not tuple
+        or any(type(item) is not StoredReplayArtifact for item in supporting_artifacts)
+        or type(injection) is not InjectionArtifact
+        or type(manifest) is not DecisionReplayManifest
+    ):
+        raise ValueError(
+            "supporting artifacts, injection, and manifest must be exact replay records"
+        )
+    stored = cast(tuple[StoredReplayArtifact, ...], supporting_artifacts)
+    artifact_ids = tuple(item.artifact.artifact_id for item in stored)
+    usage_decision_id = manifest.usage_decision_id
+    expected_usage_artifact_id = "artifact_sha256_" + usage_decision_id.removeprefix(
+        "usage_decision_sha256_"
+    )
+    expected_artifact_ids = [expected_usage_artifact_id]
+    for name, digest in manifest.components:
+        if name == "injection_artifact":
+            continue
+        if digest is None:
+            raise ValueError("complete replay bundle cannot omit component artifacts")
+        artifact_id = "artifact_sha256_" + digest.removeprefix("sha256:")
+        if artifact_id not in expected_artifact_ids:
+            expected_artifact_ids.append(artifact_id)
+    if (
+        not stored
+        or _USAGE_DECISION_ID_RE.fullmatch(usage_decision_id) is None
+        or artifact_ids != tuple(expected_artifact_ids)
+        or len(set(artifact_ids)) != len(artifact_ids)
+        or injection.artifact.artifact_id in artifact_ids
+        or manifest.injection_artifact_id != injection.artifact.artifact_id
+        or manifest.session_id != injection.session_id
+        or manifest.decision_id != injection.decision_id
+        or manifest.usage_decision_id != injection.usage_decision_id
+    ):
+        raise ValueError(
+            "complete replay bundle usage and injection linkage or component "
+            "set is invalid"
+        )
+
+
 def _validate_artifact_id(value: object) -> None:
     if type(value) is not str or _ARTIFACT_ID_RE.fullmatch(value) is None:
-        raise ValueError(
-            "artifact_id must use artifact_sha256_<64 lowercase hex>"
-        )
+        raise ValueError("artifact_id must use artifact_sha256_<64 lowercase hex>")
 
 
 def _validate_digest(value: object, field_name: str) -> None:

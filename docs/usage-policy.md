@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 132 installed resource copies must remain byte-identical to the top-level
+The 134 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1385,8 +1385,10 @@ another provider call.
 Never continue through an ambiguous chain, changed prompt/parent, or terminal
 session. Shared caller-owned SQLite/PostgreSQL connections may provide one
 outer transaction, but the default cross-authority path is ordered recovery,
-not distributed atomicity. Rendering, injection, finalization, and active
-adapter emission remain unavailable.
+not distributed atomicity. The separate opt-in `DurableFinalizationService`
+may verify a `DECIDED` session, render the final public/internal snippet,
+retain the complete replay bundle, and publish `FINALIZED`; active Agent, MCP,
+HTTP, and SDK emission remain unavailable.
 
 ## Version-3 outcome and attribution policy
 
@@ -1481,16 +1483,34 @@ and fail-closed rollback; it does not change active schema version 2.
 
 ## Version-3 replay artifact policy
 
-Create an `InjectionArtifact` only from the exact final snippet after the
-decision is finalized. Do not hash candidates, a pre-Gate rendering, or a
-reconstructed approximation. Bind the same session, decision, usage decision,
-ordered memory revisions, renderer, and policy bundle used for that render.
+Create an `InjectionArtifact` only from the exact final snippet rendered from
+a verified `DECIDED` session. Retain and read back that artifact and its
+complete replay bundle before publishing `FINALIZED`. Do not hash candidates,
+a pre-Gate rendering, or a reconstructed approximation. Bind the same session,
+decision, usage decision, ordered memory revisions, renderer, and policy
+bundle used for that render.
+
+Construct `UsageDecision` from the exact authenticated retrieval snapshot,
+System Gate evaluation, successful Semantic Gate attempt, current
+authorization event, current activation heads, render policy, and final
+ordered memory set. The final set may only narrow the System-allowed set;
+System blocks and their rule/reason pairs must be retained exactly. Recheck
+authorization, heads, and policy immediately before and after bundle
+retention.
 
 Use `complete` only when all eight replay components and the matching
 content-derived injection artifact ID are present. Use `legacy_partial` only
 for migrated evidence, with the exact null-component list; never treat it as
 permission to silently reconstruct missing prompts, responses, policy, or
 ancestry. Verify artifact bytes before use.
+
+Use `store_complete_bundle()` to atomically retain the UsageDecision first,
+the exact snapshot, System Gate evaluation, Semantic Gate prompt/response,
+ancestry commitment, policy, renderer descriptor, injection artifact, and
+complete manifest. Read every stored byte back before the session CAS. Exact
+terminal replay must load and cross-check those retained bytes and must never
+rerender. If bundle retention may have succeeded but the `FINALIZED` session
+CAS cannot be confirmed, return an explicit recovery-required result.
 
 Classification metadata is not enforcement. The opt-in SQLite and isolated
 PostgreSQL Artifact authorities encrypt all accepted classes with a
@@ -1502,8 +1522,10 @@ confidential/restricted artifacts until a transparent encryption provider can
 preserve exact content identity. Both verify exact bytes and immutable
 descriptor linkage, treat exact replay as idempotent, and preserve a borrowed
 transaction through a savepoint; neither provides access control, retention,
-or GateSession authority. The current Store and active adapters do not persist
-these contracts and must not advertise exact decision replay.
+or GateSession authority by itself. The opt-in finalization service supplies
+the authorized GateSession linkage around those repositories. The current
+Store and active adapters still do not use these contracts and must not
+advertise exact decision replay.
 
 ## Fixed runtime budgets
 

@@ -83,6 +83,11 @@ Start with:
   timing, retry-parent checks, and atomic attempt/artifact orchestration.
 - `durable_semantic_gate_v3.py`: verified PREPARED→AWAITING_DECISION→DECIDED
   composition with exact retry, replay, and retained-success recovery.
+- `usage_decision_v3.py`: immutable content-addressed final Gate decision,
+  exact System/Semantic narrowing, render inputs, and replay-component linkage.
+- `durable_finalization_v3.py`: opt-in authenticated DECIDED→FINALIZED
+  composition with deterministic rendering, complete replay retention,
+  read-back, and recovery-required semantics; not active Agent/MCP state.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
 - `sqlite_semantic_gate_artifact_v3.py`: opt-in atomic SQLite attempt plus

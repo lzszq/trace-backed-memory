@@ -96,6 +96,7 @@ artifact bindings together. The service itself does not open that outer
 transaction. Holding it across a provider call also holds database locks and
 is therefore an explicit deployment tradeoff.
 
-Rendering, content-addressed final injection, replay-manifest linkage,
-`FINALIZED`/`EXECUTING`, outcome completion, active transport authentication,
-and Agent/MCP/HTTP/SDK emission remain separate work.
+The separate opt-in durable finalization composition now provides rendering,
+content-addressed final injection, complete replay-bundle retention, and the
+`DECIDED -> FINALIZED` CAS. `EXECUTING`, outcome completion, active transport
+authentication, and Agent/MCP/HTTP/SDK emission remain separate work.

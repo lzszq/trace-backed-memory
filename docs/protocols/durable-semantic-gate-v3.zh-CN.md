@@ -86,6 +86,7 @@ transaction 可以一起回滚 session transition、attempt 与 artifact binding
 本身不会开启这个外层 transaction。跨 provider 调用持有该 transaction 也会持续
 持有数据库锁，因此这是显式部署权衡。
 
-rendering、content-addressed final injection、replay-manifest linkage、
-`FINALIZED`/`EXECUTING`、outcome completion、active transport authentication
-以及 Agent/MCP/HTTP/SDK emission 仍是独立后续工作。
+独立的 opt-in durable finalization 组合现在已经提供 rendering、content-addressed
+final injection、完整 replay-bundle 保留与 `DECIDED -> FINALIZED` CAS。
+`EXECUTING`、outcome completion、active transport authentication，以及
+Agent/MCP/HTTP/SDK emission 仍是独立后续工作。

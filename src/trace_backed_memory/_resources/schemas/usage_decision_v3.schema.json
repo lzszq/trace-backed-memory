@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-backed-memory.dev/schemas/usage_decision_v3.schema.json",
+  "title": "Trace-backed Memory UsageDecision v3",
+  "$comment": "Structural preflight only. Runtime validation must verify canonical ordering, monotonic narrowing, exact System Gate blocks, the injection component relationship, and the content-derived identifier.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "usage_decision_id",
+    "session_id",
+    "decision_id",
+    "trace_id",
+    "run_id",
+    "authorization_event_id",
+    "retrieval_snapshot_id",
+    "system_gate_evaluation_id",
+    "semantic_gate_attempt_id",
+    "candidate_memory_revision_ids",
+    "system_allowed_memory_revision_ids",
+    "semantic_allowed_memory_revision_ids",
+    "final_memory_revision_ids",
+    "blocked_memory_revision_ids",
+    "system_blocked",
+    "reason",
+    "risk",
+    "recommended_injection",
+    "renderer_id",
+    "renderer_version",
+    "policy_bundle_sha256",
+    "injection_artifact_id",
+    "replay_components",
+    "created_at"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.usage-decision.v3"
+    },
+    "usage_decision_id": {
+      "type": "string",
+      "pattern": "^usage_decision_sha256_[0-9a-f]{64}$"
+    },
+    "session_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "decision_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "trace_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "run_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "authorization_event_id": {
+      "type": "string",
+      "pattern": "^authz_sha256_[0-9a-f]{64}$"
+    },
+    "retrieval_snapshot_id": {
+      "type": "string",
+      "pattern": "^retrieval_snapshot_sha256_[0-9a-f]{64}$"
+    },
+    "system_gate_evaluation_id": {
+      "type": "string",
+      "pattern": "^system_gate_sha256_[0-9a-f]{64}$"
+    },
+    "semantic_gate_attempt_id": {
+      "type": "string",
+      "pattern": "^semantic_attempt_sha256_[0-9a-f]{64}$"
+    },
+    "candidate_memory_revision_ids": {
+      "$ref": "#/$defs/revisionIds"
+    },
+    "system_allowed_memory_revision_ids": {
+      "$ref": "#/$defs/revisionIds"
+    },
+    "semantic_allowed_memory_revision_ids": {
+      "$ref": "#/$defs/revisionIds"
+    },
+    "final_memory_revision_ids": {
+      "$ref": "#/$defs/revisionIds"
+    },
+    "blocked_memory_revision_ids": {
+      "$ref": "#/$defs/revisionIds"
+    },
+    "system_blocked": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "memory_revision_id",
+          "reason_code",
+          "rule_id"
+        ],
+        "properties": {
+          "memory_revision_id": {
+            "$ref": "#/$defs/revisionId"
+          },
+          "reason_code": {
+            "$ref": "#/$defs/identifier"
+          },
+          "rule_id": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      }
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "risk": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "recommended_injection": {
+      "enum": [
+        "none",
+        "summary",
+        "full"
+      ]
+    },
+    "renderer_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "renderer_version": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "policy_bundle_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "injection_artifact_id": {
+      "$ref": "#/$defs/artifactId"
+    },
+    "replay_components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retrieval_snapshot",
+        "system_gate_evaluation",
+        "semantic_gate_prompt",
+        "semantic_gate_response",
+        "ancestry_evidence",
+        "policy_bundle",
+        "renderer",
+        "injection_artifact"
+      ],
+      "properties": {
+        "retrieval_snapshot": {
+          "$ref": "#/$defs/digest"
+        },
+        "system_gate_evaluation": {
+          "$ref": "#/$defs/digest"
+        },
+        "semantic_gate_prompt": {
+          "$ref": "#/$defs/digest"
+        },
+        "semantic_gate_response": {
+          "$ref": "#/$defs/digest"
+        },
+        "ancestry_evidence": {
+          "$ref": "#/$defs/digest"
+        },
+        "policy_bundle": {
+          "$ref": "#/$defs/digest"
+        },
+        "renderer": {
+          "$ref": "#/$defs/digest"
+        },
+        "injection_artifact": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "created_at": {
+      "$ref": "#/$defs/timestamp"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "recommended_injection": {
+            "const": "none"
+          }
+        },
+        "required": [
+          "recommended_injection"
+        ]
+      },
+      "then": {
+        "properties": {
+          "final_memory_revision_ids": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]{1,128}$"
+    },
+    "revisionId": {
+      "type": "string",
+      "pattern": "^memory_revision_sha256_[0-9a-f]{64}$"
+    },
+    "revisionIds": {
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/revisionId"
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "artifactId": {
+      "type": "string",
+      "pattern": "^artifact_sha256_[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    }
+  }
+}

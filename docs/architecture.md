@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 132 canonical Schema, SQL/migration, memory-support, and
+the repository's 134 canonical Schema, SQL/migration, memory-support, and
 example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
@@ -1161,13 +1161,17 @@ prepared context. Index matching remains discovery, not authorization.
 preparation to one durable `CREATED` GateSession, stores and reads back the
 exact evidence pair, and CAS-publishes `PREPARED` under the same authorization
 scope. `durable_semantic_gate_v3.py` then provides the opt-in verified
-`AWAITING_DECISION`/`DECIDED` continuation over that evidence. Production
-sharding/workers, rendering/finalization, and active adapter wiring remain
-outstanding. See
+`AWAITING_DECISION`/`DECIDED` continuation over that evidence.
+`durable_finalization_v3.py` then rechecks authorization/head/policy, renders
+only the final allowed set, retains the exact UsageDecision/injection/replay
+bundle, and CAS-publishes `FINALIZED`. Production sharding/workers,
+protected-content encryption, and active adapter wiring remain outstanding.
+See
 [authenticated retrieval preparation v3](protocols/retrieval-preparation-v3.md),
 [managed index bundle v3](protocols/managed-index-v3.md), and
 [durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.md),
-plus [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md).
+[durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md), and
+[durable finalization v3](protocols/durable-finalization-v3.md).
 
 ## PostgreSQL Runtime Repository
 
@@ -1199,7 +1203,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 132 resources.
+contains 134 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1510,10 +1514,11 @@ catalog-shape verification, caller savepoints, and payload/head cross-checks
 provide database-specific enforcement without activating the schema.
 
 Neither repository is wired to the private Store request token. The active
-local agent and STDIO MCP remain process-local. Expiry/recovery workers,
-service orchestration, authorization, and cross-adapter conformance are
-required before the session contract becomes the distributed runtime
-authority.
+local agent and STDIO MCP remain process-local. Opt-in preparation, Semantic
+Gate, finalization, completion, and expiry/recovery services now exercise the
+durable lifecycle, but active transport authorization, later phase
+orchestration, and full cross-adapter conformance are required before the
+session contract becomes the distributed runtime authority.
 
 ## Content-addressed replay version-3 contract
 
@@ -1532,11 +1537,22 @@ bounded and reject duplicate keys, unknown fields, invalid timestamps, and
 noncanonical component sets. See
 [Content-addressed replay contract v3](protocols/replay-v3.md).
 
+`usage_decision_v3.py` adds the content-addressed final-use audit. It preserves
+the ordered retrieval/System/Semantic/rendered sets, the exact complement and
+System block reasons, current authorization/evidence/policy/renderer linkage,
+and the complete replay-component map. Its unsigned canonical JSON is also the
+exact retained artifact bytes, so the usage ID deterministically locates its
+artifact. See [UsageDecision v3](protocols/usage-decision-v3.md).
+
 `sqlite_replay_v3.py` adds an opt-in isolated ledger with immutable artifact,
 injection, and manifest rows. It stores each bundle in one transaction, uses
 foreign keys for manifest-to-injection linkage, verifies canonical schema
 objects, and revalidates duplicated columns, descriptors, bounds, and exact
 bytes on load. Caller transactions retain ownership through savepoints.
+`store_complete_bundle()` requires the UsageDecision artifact first and
+atomically retains all deduplicated supporting components with the injection
+and manifest. The PostgreSQL peer provides the same linkage, idempotency, and
+caller-savepoint behavior.
 
 `schemas/postgres-v3-replay.sql` and its fail-closed rollback establish the
 matching isolated PostgreSQL relation boundary without changing active schema
@@ -1701,11 +1717,19 @@ success can complete the session without another provider call, while
 ambiguous or terminal state is recovery-required. Shared caller-owned SQLite
 or PostgreSQL connections can place both session transitions and attempt-byte
 storage under one outer transaction; otherwise the service provides ordered
-recovery, not a distributed transaction. Replay-manifest/finalization linkage,
-signed provider attestation, retention/access control, and active emission are
-not yet provided. See
+recovery, not a distributed transaction. Replay-manifest/finalization linkage
+is provided by `durable_finalization_v3.py`: it revalidates the current
+authorization event, active heads, and policy around deterministic bounded
+rendering; retains and reads back the complete component bundle; and
+CAS-publishes `FINALIZED`. Shared SQLite/PostgreSQL connections allow caller
+rollback across lease, bundle, and final session revision; separated
+authorities use explicit recovery. Signed provider attestation,
+protected-content encryption, retention/replay-read authorization, later
+lifecycle composition, and active emission are not yet provided. See
 [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md),
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md),
+[durable finalization v3](protocols/durable-finalization-v3.md),
+[UsageDecision v3](protocols/usage-decision-v3.md),
 [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md),
 [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md),
 [PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md),
@@ -1788,8 +1812,10 @@ remain blocked. Prompt/response content stays in referenced artifacts. The
 retrieval-preparation kernel emits System Gate records only. The opt-in durable
 Semantic Gate composition now authenticates provider work, verifies the whole
 attempt/artifact chain, and advances a prepared GateSession to `DECIDED`.
-Active runtime policy execution and Agent/MCP Semantic Gate emission remain
-outstanding. See
+The opt-in finalization composition then verifies live
+authorization/head/policy state, retains exact final-use evidence, and
+advances it to `FINALIZED`. Active runtime policy execution and Agent/MCP
+Semantic Gate/finalization emission remain outstanding. See
 [Gate evaluation v3](protocols/gate-evaluation-v3.md).
 
 The paired `tbm.run-outcome.v3` and `tbm.outcome-attribution.v3` contracts

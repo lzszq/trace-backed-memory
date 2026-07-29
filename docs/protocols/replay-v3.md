@@ -75,6 +75,11 @@ and manifest in one transaction, requires exact session/decision/usage and
 injection linkage, and treats exact replay as idempotent. Conflicting content
 rolls back the whole operation.
 
+`store_complete_bundle()` additionally requires the first supporting artifact
+to be the content-derived UsageDecision artifact for the manifest's exact
+usage ID. It atomically stores that record, any deduplicated replay-component
+artifacts, the injection bytes/descriptor, and the manifest.
+
 Every load checks bounded sizes before fetching large values, reparses the
 descriptor, compares duplicated relational columns, and rehashes the stored
 bytes. Canonical schema metadata, tables, indexes, immutable triggers, foreign
@@ -107,6 +112,9 @@ before every insert and after every load, treats exact replay as idempotent,
 uses nested psycopg transactions so caller work retains ownership, and rejects
 catalog/function/trigger drift. It does not provide access authorization,
 encryption, retention, GateSession linkage, or service transactions.
+Its `store_complete_bundle()` has the same UsageDecision-first linkage,
+component retention, idempotency, rollback, and caller-savepoint behavior as
+the SQLite peer.
 
 ## Parsing and trust boundary
 
@@ -119,9 +127,17 @@ JSON Schema consumers must enforce the draft's `date-time` format. Canonical
 self-hash and content-derived ID relationships are value-level rules enforced
 by the Python parser and must be checked after Schema validation.
 
+## Durable finalization composition
+
+The opt-in durable finalization service uses `store_complete_bundle()` and
+reads every retained component back before publishing `FINALIZED`. An exact
+finalized replay reloads the UsageDecision, all seven supporting component
+artifacts, the injection, and the reconstructed manifest without rerendering.
+The service authorizes and rechecks one retrieval scope, but remains an
+internal composition rather than an active runtime adapter.
+
 The current v2 Store, active SQLite v1 adapter, PostgreSQL v2 adapter, local
 agent, and STDIO MCP do not persist or emit these records. The opt-in SQLite
-ledger and opt-in PostgreSQL repository provide atomic byte/descriptor
-storage only. A future runtime must
-authorize reads, apply retention/encryption, and link the finalized
-GateSession before it can claim complete decision replay.
+ledger and opt-in PostgreSQL repository provide the retained storage boundary.
+A production runtime must additionally authorize replay reads and apply
+retention/encryption.

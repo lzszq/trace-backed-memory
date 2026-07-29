@@ -19,6 +19,10 @@ This directory implements the trusted runtime kernel and its adapters.
   are not wired to the active Agent/MCP; do not claim distributed durable
   runtime until expiry/recovery workers, service integration, authorization,
   and conformance exist.
+- The opt-in durable finalization service may move a verified `DECIDED`
+  GateSession to `FINALIZED` only after deterministic rendering and complete
+  UsageDecision/replay-bundle read-back. It is not active Agent/MCP behavior,
+  and confidential/restricted rendering remains unavailable.
 - The local STDIO MCP profile is runtime-only. Keep its repository root and
   optional tenant server-owned, preserve bounded strict transport parsing,
   require Git ancestry capture, and expose no curator or activation surface.

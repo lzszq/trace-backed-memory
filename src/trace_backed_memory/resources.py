@@ -181,6 +181,11 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     ("examples/trace.example.json", "example", "application/json"),
+    (
+        "examples/usage_decision_v3.example.json",
+        "example",
+        "application/json",
+    ),
     ("memory/failure_taxonomy.yaml", "memory", "application/yaml"),
     ("memory/lessons.example.yaml", "memory", "application/yaml"),
     (
@@ -546,6 +551,11 @@ _RESOURCE_SPECS: tuple[
         "application/schema+json",
     ),
     ("schemas/trace.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/usage_decision_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
 )
 _RESOURCE_SPEC_BY_NAME = {
     name: (kind, media_type) for name, kind, media_type in _RESOURCE_SPECS

@@ -30,12 +30,11 @@ from .resources import PackagedResourceError, read_packaged_resource
 
 POSTGRES_REPLAY_V3_SCHEMA_VERSION = 1
 _SCHEMA = "trace_backed_memory_v3_replay"
-_MISSING_SCHEMA_MESSAGE = (
-    "PostgreSQL replay v3 schema is missing or incomplete"
-)
+_MISSING_SCHEMA_MESSAGE = "PostgreSQL replay v3 schema is missing or incomplete"
 _UNDEFINED_OBJECT_SQLSTATES = frozenset({"3F000", "42P01", "42703"})
 _ARTIFACT_ID_RE = re.compile(r"artifact_sha256_[0-9a-f]{64}")
 _DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
+_USAGE_DECISION_ID_RE = re.compile(r"usage_decision_sha256_[0-9a-f]{64}")
 _EXPECTED_RELATIONS = frozenset(
     {
         "replay_artifacts",
@@ -246,9 +245,9 @@ def _synchronized(
 @lru_cache(maxsize=1)
 def _expected_function_bodies() -> dict[str, str]:
     try:
-        source = read_packaged_resource(
-            "schemas/postgres-v3-replay.sql"
-        ).decode("utf-8")
+        source = read_packaged_resource("schemas/postgres-v3-replay.sql").decode(
+            "utf-8"
+        )
     except (PackagedResourceError, UnicodeError) as error:
         raise PostgresReplayV3SchemaError(
             "TBM_POSTGRES_REPLAY_SCHEMA",
@@ -337,8 +336,7 @@ class PostgresReplayV3Repository:
             len(rows) != 1
             or not isinstance(rows[0], Mapping)
             or rows[0].get("active_schema_version") != 2
-            or rows[0].get("replay_schema_version")
-            != POSTGRES_REPLAY_V3_SCHEMA_VERSION
+            or rows[0].get("replay_schema_version") != POSTGRES_REPLAY_V3_SCHEMA_VERSION
             or rows[0].get("contract_version") != "tbm.replay.v3"
         ):
             raise PostgresReplayV3SchemaError(
@@ -437,12 +435,10 @@ class PostgresReplayV3Repository:
             self._schema_drift()
         if (
             any(
-                not isinstance(row, Mapping)
-                or row.get("tgenabled") != "O"
+                not isinstance(row, Mapping) or row.get("tgenabled") != "O"
                 for row in trigger_rows
             )
-            or
-            len(trigger_shapes) != len(trigger_rows)
+            or len(trigger_shapes) != len(trigger_rows)
             or trigger_shapes != _EXPECTED_TRIGGER_SHAPES
         ):
             self._schema_drift()
@@ -710,9 +706,7 @@ class PostgresReplayV3Repository:
     ) -> Mapping[str, object] | None:
         cursor.execute(query, parameters)
         rows = cursor.fetchall()
-        if len(rows) > 1 or (
-            rows and not isinstance(rows[0], Mapping)
-        ):
+        if len(rows) > 1 or (rows and not isinstance(rows[0], Mapping)):
             raise PostgresReplayV3PersistenceError(
                 "TBM_POSTGRES_REPLAY_PERSISTENCE",
                 "PostgreSQL replay query returned an invalid result",
@@ -726,9 +720,7 @@ class PostgresReplayV3Repository:
         content: bytes,
     ) -> bool:
         if type(artifact) is not ContentAddressedArtifact:
-            raise ValueError(
-                "artifact must be exactly ContentAddressedArtifact"
-            )
+            raise ValueError("artifact must be exactly ContentAddressedArtifact")
         if type(content) is not bytes:
             raise ValueError("content must be bytes")
         if artifact.classification not in {"public", "internal"}:
@@ -769,10 +761,13 @@ class PostgresReplayV3Repository:
                 "PostgreSQL replay artifact disappeared after insert",
             )
         loaded = self._stored_artifact(stored)
-        if self._artifact_values(
-            loaded.artifact,
-            loaded.content,
-        ) != values:
+        if (
+            self._artifact_values(
+                loaded.artifact,
+                loaded.content,
+            )
+            != values
+        ):
             raise PostgresReplayV3ConflictError(
                 "TBM_POSTGRES_REPLAY_CONFLICT",
                 "PostgreSQL replay artifact has conflicting content",
@@ -850,8 +845,7 @@ class PostgresReplayV3Repository:
             if (
                 manifest.session_id != injection.session_id
                 or manifest.decision_id != injection.decision_id
-                or manifest.usage_decision_id
-                != injection.usage_decision_id
+                or manifest.usage_decision_id != injection.usage_decision_id
             ):
                 raise PostgresReplayV3ConflictError(
                     "TBM_POSTGRES_REPLAY_CONFLICT",
@@ -958,9 +952,7 @@ class PostgresReplayV3Repository:
         descriptor_size = size.get("descriptor_size")
         if (
             type(descriptor_size) is not int
-            or not 1
-            <= cast(int, descriptor_size)
-            <= REPLAY_JSON_MAX_BYTES
+            or not 1 <= cast(int, descriptor_size) <= REPLAY_JSON_MAX_BYTES
         ):
             raise PostgresReplayV3PersistenceError(
                 "TBM_POSTGRES_REPLAY_PERSISTENCE",
@@ -1062,9 +1054,7 @@ class PostgresReplayV3Repository:
     def store_manifest(self, manifest: DecisionReplayManifest) -> bool:
         self._require_open()
         if type(manifest) is not DecisionReplayManifest:
-            raise ValueError(
-                "manifest must be exactly DecisionReplayManifest"
-            )
+            raise ValueError("manifest must be exactly DecisionReplayManifest")
         psycopg, _dict_row, _Jsonb = _load_psycopg()
         try:
             with self._connection.transaction():
@@ -1091,19 +1081,14 @@ class PostgresReplayV3Repository:
             type(injection) is not InjectionArtifact
             or type(manifest) is not DecisionReplayManifest
         ):
-            raise ValueError(
-                "injection and manifest must be exact replay records"
-            )
+            raise ValueError("injection and manifest must be exact replay records")
         if (
-            manifest.injection_artifact_id
-            != injection.artifact.artifact_id
+            manifest.injection_artifact_id != injection.artifact.artifact_id
             or manifest.session_id != injection.session_id
             or manifest.decision_id != injection.decision_id
             or manifest.usage_decision_id != injection.usage_decision_id
         ):
-            raise ValueError(
-                "manifest and injection linkage must match exactly"
-            )
+            raise ValueError("manifest and injection linkage must match exactly")
         psycopg, _dict_row, _Jsonb = _load_psycopg()
         try:
             with self._connection.transaction():
@@ -1130,6 +1115,61 @@ class PostgresReplayV3Repository:
             raise
         except psycopg.Error as error:
             self._raise_database_error(error, "failed to store replay bundle")
+
+    @_synchronized
+    def store_complete_bundle(
+        self,
+        supporting_artifacts: tuple[StoredReplayArtifact, ...],
+        injection: InjectionArtifact,
+        content: bytes,
+        manifest: DecisionReplayManifest,
+    ) -> PostgresReplayV3StoreResult:
+        """Atomically retain supporting bytes plus one injection/manifest."""
+
+        self._require_open()
+        _validate_complete_bundle_inputs(
+            supporting_artifacts,
+            injection,
+            manifest,
+        )
+        psycopg, _dict_row, _Jsonb = _load_psycopg()
+        try:
+            with self._connection.transaction():
+                with self._cursor() as cursor:
+                    self._lock_schema(cursor)
+                    for stored in supporting_artifacts:
+                        self._put_artifact(
+                            cursor,
+                            stored.artifact,
+                            stored.content,
+                        )
+                    artifact_inserted = self._put_artifact(
+                        cursor,
+                        injection.artifact,
+                        content,
+                    )
+                    injection_inserted = self._put_injection(
+                        cursor,
+                        injection,
+                    )
+                    manifest_inserted = self._put_manifest(cursor, manifest)
+            return PostgresReplayV3StoreResult(
+                artifact_id=injection.artifact.artifact_id,
+                artifact_inserted=artifact_inserted,
+                injection_inserted=injection_inserted,
+                manifest_sha256=manifest.manifest_sha256,
+                manifest_inserted=manifest_inserted,
+            )
+        except (
+            PostgresReplayV3ConflictError,
+            PostgresReplayV3SchemaError,
+        ):
+            raise
+        except psycopg.Error as error:
+            self._raise_database_error(
+                error,
+                "failed to store complete replay bundle",
+            )
 
     @_synchronized
     def load_artifact(self, artifact_id: str) -> StoredReplayArtifact:
@@ -1191,14 +1231,11 @@ class PostgresReplayV3Repository:
                     descriptor_size = size.get("descriptor_size")
                     if (
                         type(descriptor_size) is not int
-                        or not 1
-                        <= cast(int, descriptor_size)
-                        <= REPLAY_JSON_MAX_BYTES
+                        or not 1 <= cast(int, descriptor_size) <= REPLAY_JSON_MAX_BYTES
                     ):
                         raise PostgresReplayV3PersistenceError(
                             "TBM_POSTGRES_REPLAY_PERSISTENCE",
-                            "PostgreSQL replay manifest exceeds bounded "
-                            "load contract",
+                            "PostgreSQL replay manifest exceeds bounded load contract",
                         )
                     stored = self._select_one(
                         cursor,
@@ -1215,8 +1252,7 @@ class PostgresReplayV3Repository:
                     if stored is None:
                         raise PostgresReplayV3PersistenceError(
                             "TBM_POSTGRES_REPLAY_PERSISTENCE",
-                            "PostgreSQL replay manifest disappeared "
-                            "during load",
+                            "PostgreSQL replay manifest disappeared during load",
                         )
                     manifest = self._stored_manifest(stored)
                     if manifest.injection_artifact_id is not None:
@@ -1234,8 +1270,7 @@ class PostgresReplayV3Repository:
                         if (
                             manifest.session_id != injection.session_id
                             or manifest.decision_id != injection.decision_id
-                            or manifest.usage_decision_id
-                            != injection.usage_decision_id
+                            or manifest.usage_decision_id != injection.usage_decision_id
                         ):
                             raise PostgresReplayV3PersistenceError(
                                 "TBM_POSTGRES_REPLAY_PERSISTENCE",
@@ -1279,11 +1314,55 @@ class PostgresReplayV3Repository:
         self.close()
 
 
+def _validate_complete_bundle_inputs(
+    supporting_artifacts: object,
+    injection: object,
+    manifest: object,
+) -> None:
+    if (
+        type(supporting_artifacts) is not tuple
+        or any(type(item) is not StoredReplayArtifact for item in supporting_artifacts)
+        or type(injection) is not InjectionArtifact
+        or type(manifest) is not DecisionReplayManifest
+    ):
+        raise ValueError(
+            "supporting artifacts, injection, and manifest must be exact replay records"
+        )
+    stored = cast(tuple[StoredReplayArtifact, ...], supporting_artifacts)
+    artifact_ids = tuple(item.artifact.artifact_id for item in stored)
+    usage_decision_id = manifest.usage_decision_id
+    expected_usage_artifact_id = "artifact_sha256_" + usage_decision_id.removeprefix(
+        "usage_decision_sha256_"
+    )
+    expected_artifact_ids = [expected_usage_artifact_id]
+    for name, digest in manifest.components:
+        if name == "injection_artifact":
+            continue
+        if digest is None:
+            raise ValueError("complete replay bundle cannot omit component artifacts")
+        artifact_id = "artifact_sha256_" + digest.removeprefix("sha256:")
+        if artifact_id not in expected_artifact_ids:
+            expected_artifact_ids.append(artifact_id)
+    if (
+        not stored
+        or _USAGE_DECISION_ID_RE.fullmatch(usage_decision_id) is None
+        or artifact_ids != tuple(expected_artifact_ids)
+        or len(set(artifact_ids)) != len(artifact_ids)
+        or injection.artifact.artifact_id in artifact_ids
+        or manifest.injection_artifact_id != injection.artifact.artifact_id
+        or manifest.session_id != injection.session_id
+        or manifest.decision_id != injection.decision_id
+        or manifest.usage_decision_id != injection.usage_decision_id
+    ):
+        raise ValueError(
+            "complete replay bundle usage and injection linkage or component "
+            "set is invalid"
+        )
+
+
 def _validate_artifact_id(value: object) -> None:
     if type(value) is not str or _ARTIFACT_ID_RE.fullmatch(value) is None:
-        raise ValueError(
-            "artifact_id must use artifact_sha256_<64 lowercase hex>"
-        )
+        raise ValueError("artifact_id must use artifact_sha256_<64 lowercase hex>")
 
 
 def _validate_digest(value: object, name: str) -> None:

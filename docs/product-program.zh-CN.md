@@ -789,6 +789,14 @@
   SQLite same-connection rollback 与 PostgreSQL parity。rendering/injection、
   replay-manifest finalization、后续 lifecycle transition 与 active adapter
   emission 仍待完成。
+- 增加 content-addressed 最终使用审计 `UsageDecision`，并增加
+  `DurableFinalizationService` 作为 opt-in `DECIDED -> FINALIZED` 组合。绑定当前
+  authorization event、完整单调 Gate evidence、active revision head、policy、
+  确定性有界 renderer、精确 injection 与固定八组件 replay manifest。原子保留
+  UsageDecision 和全部 replay component 字节，要求精确读回，在 session CAS 无法确认时
+  提供有序恢复，并覆盖 SQLite/PostgreSQL success、replay、conflict 与 caller-owned
+  outer rollback。受保护内容加密、`EXECUTING`、active adapter、retention 与
+  replay-read authorization 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-
@@ -811,8 +819,7 @@
   接入 shared-service MCP 与 active CLI/HTTP/SDK adapter，使 scope 成为可执行的
   transport boundary。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
-- 把 opt-in durable preparation 与 Semantic Gate decision 桥接接入具备
-  transport authentication 的 active adapter，并记录 finalization/replay 所需
-  renderer 与精确 snippet identity；在不削弱有界参考契约的前提下增加生产 index
+- 把 opt-in durable preparation、Semantic Gate decision 与 finalization 组合接入具备
+  transport authentication 的 active adapter；在不削弱有界参考契约的前提下增加生产 index
   分片/worker 与外部 FTS/ANN provider profile。
 - 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 3 发布，并提供迁移文档。

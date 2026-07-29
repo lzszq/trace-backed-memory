@@ -230,7 +230,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 132 resources. `PackagedResource` descriptions
+The allowlist currently contains 134 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -441,11 +441,21 @@ fail-closed load verification. Isolated PostgreSQL install/rollback resources
 establish the matching immutable relational boundary, while the opt-in
 `PostgresReplayV3Repository` supplies canonical descriptor and byte-digest
 verification, exact idempotency, nested transaction ownership, and schema
-drift checks. Fail-closed removal verifies expected catalog membership.
-The current Store, active SQL adapters, local agent, and MCP do not use these
-resources, and they provide no access control, encryption, retention, or
-GateSession authority, so this remains preparation rather than a claim of
-exact replay today. See
+drift checks. `store_complete_bundle()` on both peers requires the
+content-derived UsageDecision artifact first and atomically retains every
+deduplicated supporting component with the injection and manifest. Fail-closed
+removal verifies expected catalog membership.
+
+`tbm.usage-decision.v3` records the exact ordered narrowing audit, deterministic
+System blocks, current authorization/evidence/policy/renderer linkage, and
+fixed replay component map. `DurableFinalizationService` rechecks current
+authorization/head/policy state, deterministically renders the final allowed
+set, retains and reads back the exact UsageDecision plus complete replay
+bundle, and CAS-publishes `FINALIZED`. Shared SQLite/PostgreSQL connections
+support caller-owned outer rollback; separated authorities use ordered
+recovery. The current Store, active SQL adapters, local agent, and MCP do not
+use this service. Replay-read authorization, protected-content encryption,
+retention, and active adapter integration remain outstanding. See
 [the replay contract](protocols/replay-v3.md).
 
 The storage-neutral authorization-v3 contract defines canonical repositories,
@@ -572,6 +582,16 @@ attempt ID plus the successful `decision_id` in `DECIDED`. Failed attempts remai
 awaiting for explicit retry. Exact decided replay and retained-success
 recovery do not repeat the provider call. See
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md).
+
+`DurableFinalizationRequest` names only the decided session revision and a
+bounded finalization lease. `DurableFinalizationService` derives every input
+from durable evidence, requires the same live authorization event even for an
+empty final set, rechecks active heads and policy around rendering, stores and
+reads back the complete UsageDecision/replay bundle, and CAS-publishes
+`FINALIZED`. Exact finalized replay does not rerender. A retained bundle with
+an unconfirmed session transition returns explicit recovery-required state.
+See [durable finalization v3](protocols/durable-finalization-v3.md) and
+[UsageDecision v3](protocols/usage-decision-v3.md).
 
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
 ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
@@ -2224,7 +2244,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 132 canonical Schemas, examples, and memory
+  explicit atomic export for all 134 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2334,7 +2354,11 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |   |-- gate-session-v3.md
 |   |   |-- gate-session-v3.zh-CN.md
 |   |   |-- replay-v3.md
-|   |   `-- replay-v3.zh-CN.md
+|   |   |-- replay-v3.zh-CN.md
+|   |   |-- usage-decision-v3.md
+|   |   |-- usage-decision-v3.zh-CN.md
+|   |   |-- durable-finalization-v3.md
+|   |   `-- durable-finalization-v3.zh-CN.md
 |   |-- product-program.md
 |   |-- product-program.zh-CN.md
 |   |-- product.en.md
@@ -2362,6 +2386,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- semantic_gate_artifact_v3.example.json
 |   |-- semantic_gate_attempt_v3.example.json
 |   |-- system_gate_evaluation_v3.example.json
+|   |-- usage_decision_v3.example.json
 |   |-- project_policy.example.json
 |   |-- memory_usage_log.example.json
 |   |-- outcome_attribution_v3.example.json
@@ -2401,6 +2426,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- sqlite-v3-semantic-gate.sql
 |   |-- sqlite.sql
 |   |-- trace.schema.json
+|   |-- usage_decision_v3.schema.json
 |   |-- failure_case.schema.json
 |   |-- lesson.schema.json
 |   |-- project_policy.schema.json

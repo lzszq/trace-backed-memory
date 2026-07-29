@@ -100,8 +100,19 @@ JSON Schema consumer 必须执行 draft 的 `date-time` format 检查。canonica
 self-hash 与内容派生 ID 的关系属于 value-level 规则，必须在 Schema 验证后继续用
 Python parser 检查。
 
+## Durable finalization 组合
+
+opt-in durable finalization service 会调用 `store_complete_bundle()`，并在发布
+`FINALIZED` 前读回每个已保留组件。对 finalized session 的精确 replay 会重新加载
+UsageDecision、全部七个 supporting component artifact、injection 与重建后的 manifest，
+而不会重新渲染。该服务会授权并复查一个 retrieval scope，但仍是内部组合，不是 active
+runtime adapter。
+
+`store_complete_bundle()` 要求第一个 supporting artifact 必须由 manifest 的精确
+UsageDecision ID 派生，并原子保存去重后的 supporting artifact、injection 字节/descriptor
+与 manifest。SQLite 和 PostgreSQL peer 都保留幂等、整体回滚与 caller-savepoint 语义。
+
 当前 v2 Store、active SQLite v1 adapter、PostgreSQL v2 adapter、本地 Agent 与
-STDIO MCP 均不会持久化或输出这些记录。opt-in SQLite 账本提供原子字节/descriptor
-存储；opt-in PostgreSQL repository 提供相同的原子 byte/descriptor storage。未来 runtime 只有在授权
-读取、执行 retention/encryption，并链接 finalized GateSession 后，才能声称支持
-完整 decision replay。
+STDIO MCP 均不会持久化或输出这些记录。opt-in SQLite 账本与 opt-in PostgreSQL
+repository 提供 retained storage boundary。生产 runtime 还必须对 replay 读取授权，
+并执行 retention/encryption。

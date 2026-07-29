@@ -26,6 +26,7 @@ from trace_backed_memory.sqlite_replay_v3 import (
     SQLiteReplayV3Repository,
     SQLiteReplayV3SchemaError,
 )
+from tests.test_usage_decision_v3 import _usage
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,13 +91,9 @@ def _legacy_manifest() -> DecisionReplayManifest:
 def _replay_connection(*, foreign_keys: bool = True) -> sqlite3.Connection:
     connection = sqlite3.connect(":memory:")
     connection.executescript(
-        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(encoding="utf-8")
     )
-    connection.execute(
-        f"PRAGMA foreign_keys = {'ON' if foreign_keys else 'OFF'}"
-    )
+    connection.execute(f"PRAGMA foreign_keys = {'ON' if foreign_keys else 'OFF'}")
     return connection
 
 
@@ -119,6 +116,129 @@ def _insert_manifest(
             dumps_decision_replay_manifest(manifest),
         ),
     )
+
+
+def _complete_bundle():
+    snippet = b"bounded snippet"
+    usage_created_at = "2026-07-30T01:00:00Z"
+    provisional = tbm.create_content_addressed_artifact(
+        snippet,
+        media_type=tbm.INJECTION_ARTIFACT_MEDIA_TYPE,
+        classification="internal",
+        created_at=usage_created_at,
+    )
+    component_artifacts = []
+    component_hashes = {}
+    for name in REPLAY_COMPONENT_NAMES:
+        if name == "injection_artifact":
+            component_hashes[name] = provisional.content_sha256
+            continue
+        component_content = f"{name} component".encode()
+        descriptor = tbm.create_content_addressed_artifact(
+            component_content,
+            media_type="application/octet-stream",
+            classification="internal",
+            created_at=NOW,
+        )
+        component_artifacts.append(
+            tbm.StoredReplayArtifact(descriptor, component_content)
+        )
+        component_hashes[name] = descriptor.content_sha256
+    components = tuple(
+        (name, component_hashes[name]) for name in REPLAY_COMPONENT_NAMES
+    )
+    usage = _usage(
+        replay_components=components,
+        injection_artifact_id=provisional.artifact_id,
+    )
+    stored_usage = tbm.create_usage_decision_artifact(usage)
+    injection = tbm.create_injection_artifact(
+        snippet.decode(),
+        session_id=usage.session_id,
+        decision_id=usage.decision_id,
+        usage_decision_id=usage.usage_decision_id,
+        memory_revision_ids=usage.final_memory_revision_ids,
+        renderer_id=usage.renderer_id,
+        renderer_version=usage.renderer_version,
+        policy_bundle_sha256=usage.policy_bundle_sha256,
+        rendered_at=usage.created_at,
+    )
+    assert injection.artifact == provisional
+    manifest = tbm.build_decision_replay_manifest(
+        session_id=usage.session_id,
+        decision_id=usage.decision_id,
+        usage_decision_id=usage.usage_decision_id,
+        component_hashes=dict(usage.replay_components),
+        injection_artifact_id=injection.artifact.artifact_id,
+        completeness="complete",
+        created_at=usage.created_at,
+    )
+    return (
+        (stored_usage, *component_artifacts),
+        injection,
+        snippet,
+        manifest,
+    )
+
+
+def test_store_complete_bundle_is_atomic_and_requires_exact_usage_linkage():
+    connection = _replay_connection()
+    repository = SQLiteReplayV3Repository(connection)
+    supporting, injection, snippet, manifest = _complete_bundle()
+    invalid = tbm.StoredReplayArtifact(
+        supporting[1].artifact,
+        b"tampered",
+    )
+    invalid_supporting = (supporting[0], invalid, *supporting[2:])
+    try:
+        with pytest.raises(ValueError):
+            repository.store_complete_bundle(
+                invalid_supporting,
+                injection,
+                snippet,
+                manifest,
+            )
+        with pytest.raises(KeyError):
+            repository.load_artifact(supporting[0].artifact.artifact_id)
+
+        stored = repository.store_complete_bundle(
+            supporting,
+            injection,
+            snippet,
+            manifest,
+        )
+        assert stored.artifact_inserted is True
+        assert (
+            repository.load_artifact(supporting[0].artifact.artifact_id)
+            == supporting[0]
+        )
+        replayed = repository.store_complete_bundle(
+            supporting,
+            injection,
+            snippet,
+            manifest,
+        )
+        assert replayed.artifact_inserted is False
+        assert replayed.injection_inserted is False
+        assert replayed.manifest_inserted is False
+
+        with pytest.raises(ValueError, match="usage and injection linkage"):
+            repository.store_complete_bundle(
+                (),
+                injection,
+                snippet,
+                manifest,
+            )
+        with pytest.raises(ValueError, match="component set"):
+            repository.store_complete_bundle(
+                supporting[:-1],
+                injection,
+                snippet,
+                manifest,
+            )
+    finally:
+        repository.close()
+        connection.close()
 
 
 def test_store_artifact_is_exact_idempotent_and_round_trips_bytes():
@@ -182,9 +302,7 @@ def test_store_injection_persists_descriptor_and_exact_content_atomically():
 
     first = repository.store_injection(injection, content)
     replay = repository.store_injection(injection, content)
-    loaded, loaded_content = repository.load_injection(
-        injection.artifact.artifact_id
-    )
+    loaded, loaded_content = repository.load_injection(injection.artifact.artifact_id)
 
     assert first.artifact_inserted is True
     assert first.injection_inserted is True
@@ -235,9 +353,7 @@ def test_store_bundle_rolls_back_new_rows_on_manifest_conflict():
     connection = sqlite3.connect(":memory:")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(
-        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(encoding="utf-8")
     )
     repository = SQLiteReplayV3Repository(connection)
     injection, content = _injection()
@@ -375,9 +491,7 @@ def test_caller_transaction_uses_savepoint_and_outer_rollback_owns_commit():
     connection = sqlite3.connect(":memory:")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(
-        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(encoding="utf-8")
     )
     repository = SQLiteReplayV3Repository(connection)
     injection, content = _injection()
@@ -406,9 +520,7 @@ def test_direct_sql_update_and_delete_are_immutable(
     connection = sqlite3.connect(":memory:")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(
-        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(encoding="utf-8")
     )
     repository = SQLiteReplayV3Repository(connection)
     injection, content = _injection()
@@ -422,8 +534,7 @@ def test_direct_sql_update_and_delete_are_immutable(
 
     with pytest.raises(sqlite3.IntegrityError, match="immutable"):
         connection.execute(
-            f"UPDATE {table} SET {key_column} = {key_column} "
-            f"WHERE {key_column} = ?",
+            f"UPDATE {table} SET {key_column} = {key_column} WHERE {key_column} = ?",
             (key,),
         )
     with pytest.raises(sqlite3.IntegrityError, match="immutable"):
@@ -437,9 +548,7 @@ def test_load_detects_direct_sql_artifact_hash_corruption():
     connection = sqlite3.connect(":memory:")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(
-        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(encoding="utf-8")
     )
     repository = SQLiteReplayV3Repository(connection)
     digest = "sha256:" + "a" * 64
@@ -475,9 +584,7 @@ def test_load_detects_descriptor_and_projection_mismatch():
     connection = sqlite3.connect(":memory:")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(
-        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(encoding="utf-8")
     )
     repository = SQLiteReplayV3Repository(connection)
     injection, content = _injection()
@@ -542,8 +649,7 @@ def test_schema_version_definition_and_foreign_key_drift_fail_closed():
     injection, content = _injection()
     repository._connection.execute("PRAGMA ignore_check_constraints = ON")
     repository._connection.execute(
-        "UPDATE trace_backed_memory_v3_replay_schema "
-        "SET schema_version = 2"
+        "UPDATE trace_backed_memory_v3_replay_schema SET schema_version = 2"
     )
     repository._connection.execute("PRAGMA ignore_check_constraints = OFF")
     with pytest.raises(SQLiteReplayV3SchemaError, match="version mismatch"):
@@ -555,9 +661,7 @@ def test_schema_version_definition_and_foreign_key_drift_fail_closed():
 
     connection = sqlite3.connect(":memory:")
     connection.executescript(
-        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(encoding="utf-8")
     )
     connection.execute("PRAGMA foreign_keys = OFF")
     disabled = SQLiteReplayV3Repository(connection)
@@ -569,9 +673,7 @@ def test_schema_object_drift_and_closed_repository_fail_stably():
     connection = sqlite3.connect(":memory:")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(
-        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(encoding="utf-8")
     )
     connection.execute("DROP INDEX v3_replay_manifests_decision")
     repository = SQLiteReplayV3Repository(connection)
@@ -587,9 +689,7 @@ def test_schema_object_drift_and_closed_repository_fail_stably():
 
 
 def test_schema_version_and_canonical_resource_are_isolated():
-    sql = (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(
-        encoding="utf-8"
-    )
+    sql = (ROOT / "schemas" / "sqlite-v3-replay.sql").read_text(encoding="utf-8")
 
     assert SQLITE_REPLAY_V3_SCHEMA_VERSION == 1
     assert "trace_backed_memory_v3_replay_schema" in sql

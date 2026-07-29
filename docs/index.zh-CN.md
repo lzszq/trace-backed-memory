@@ -37,6 +37,8 @@
 - [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)
 - [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)
 - [Durable Semantic Gate session 组合 v3](protocols/durable-semantic-gate-v3.zh-CN.md)
+- [Durable finalization 组合 v3](protocols/durable-finalization-v3.zh-CN.md)
+- [UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)
 - [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)
 - [PostgreSQL Semantic Gate artifact 仓库 v3](protocols/postgres-semantic-gate-artifact-v3.zh-CN.md)
 - [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.zh-CN.md)
@@ -89,7 +91,11 @@ activation。
 Gate evidence，最后复查 head/policy。opt-in durable Semantic Gate 组合现在会让
 prepared GateSession 经 `AWAITING_DECISION` 推进到 `DECIDED`，保存精确
 prompt/response 字节和完整、单调收窄的 attempt chain，并提供明确 retry/recovery
-语义。托管生产索引、rendering/injection/finalization、active
+语义。opt-in durable finalization 组合现在会复查当前 authorization event、active
+revision head 与 policy，确定性渲染最终允许集合，原子保留精确 UsageDecision、
+injection 与完整八组件 replay bundle，并通过 CAS 发布 `FINALIZED`；SQLite 与
+PostgreSQL 具备 caller-transaction 对等性。托管生产索引、受保护内容的加密
+finalization、active
 retriever/GateSession 持久化以及 Agent/MCP/HTTP/SDK 接入仍待完成。
 opt-in SQLite 与隔离 PostgreSQL RunOutcome authority 现在都可以用一份
 content-addressed outcome 原子完成 executing GateSession。隔离 SQLite
@@ -104,8 +110,8 @@ authority 已经发布。opt-in、已认证的 SQLite 与隔离 PostgreSQL Artif
 hold。object-storage 对等实现、物理清除/密钥销毁、active-v2 projection 与更广泛
 service integration 仍属于统一推进的 schema version 3 计划。
 与存储实现无关的
-`tbm.replay.v3` artifact 与 replay manifest 契约及 opt-in 隔离 SQLite immutable
-字节/descriptor 账本已经发布，但 active adapter 尚不使用它，且它不提供授权、
-retention、encryption 或 GateSession authority。只读 v3 迁移预检和不可激活的 staging
+`tbm.replay.v3` artifact 与 replay manifest 契约及 opt-in 隔离 SQLite/PostgreSQL
+immutable 字节/descriptor 账本已经发布，但 active adapter 尚不使用它们，且它们不提供
+授权、retention、encryption 或 GateSession authority。只读 v3 迁移预检和不可激活的 staging
 bundle 已经实现，但它们不能激活 memory，也不能作为 version-3 runtime state
 加载。

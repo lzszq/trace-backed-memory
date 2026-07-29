@@ -1651,6 +1651,16 @@ Track:
   sanitized recovery-required states, same-connection SQLite rollback, and
   PostgreSQL parity. Keep rendering/injection, replay-manifest finalization,
   later lifecycle transitions, and active adapter emission outstanding.
+- Add `UsageDecision` as the content-addressed final-use audit and
+  `DurableFinalizationService` as the opt-in `DECIDED -> FINALIZED`
+  composition. Bind the current authorization event, complete monotonic Gate
+  evidence, active revision heads, policy, deterministic bounded renderer,
+  exact injection, and fixed eight-component replay manifest. Atomically
+  retain the UsageDecision plus all replay component bytes, require exact
+  read-back, provide ordered recovery when the session CAS is unconfirmed, and
+  cover SQLite/PostgreSQL success, replay, conflict, and caller-owned outer
+  rollback. Keep protected-content encryption, `EXECUTING`, active adapters,
+  retention, and replay-read authorization outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
@@ -1659,9 +1669,8 @@ Track:
   CLI/HTTP/SDK adapters so scope becomes an enforceable transport boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
-- Wire the opt-in durable preparation and Semantic Gate decision bridges into
-  transport-authenticated active adapters; record the renderer and exact
-  snippet identities needed to finalize and replay the decision. Add
+- Wire the opt-in durable preparation, Semantic Gate decision, and finalization
+  compositions into transport-authenticated active adapters. Add
   production index sharding/workers and external FTS/ANN provider profiles
   without weakening the bounded reference contract.
 - Deliver these breaking contracts together as snapshot schema version 3 and

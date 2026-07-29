@@ -38,6 +38,8 @@ orientation; these documents define the engineering contracts.
 - [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md)
 - [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md)
 - [Durable Semantic Gate session composition v3](protocols/durable-semantic-gate-v3.md)
+- [Durable finalization composition v3](protocols/durable-finalization-v3.md)
+- [UsageDecision v3](protocols/usage-decision-v3.md)
 - [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md)
 - [PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md)
 - [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.md)
@@ -96,7 +98,12 @@ evidence with final head/policy rechecks. The opt-in durable Semantic Gate
 composition now advances a prepared GateSession through
 `AWAITING_DECISION` to `DECIDED`, retaining exact prompt/response bytes and
 the complete monotonic attempt chain with explicit retry/recovery semantics.
-Managed production indexes, rendering/injection/finalization, active
+The opt-in durable finalization composition now rechecks the current
+authorization event, active revision heads, and policy; deterministically
+renders the final allowed set; atomically retains an exact UsageDecision,
+injection, and complete eight-component replay bundle; and CAS-publishes
+`FINALIZED` with SQLite/PostgreSQL caller-transaction parity. Managed
+production indexes, encrypted protected-content finalization, active
 retriever/GateSession persistence, and Agent/MCP/HTTP/SDK wiring remain
 outstanding.
 The opt-in SQLite and isolated PostgreSQL RunOutcome authorities now atomically
@@ -115,9 +122,9 @@ retention/legal hold. Object-storage parity, physical purge/key destruction,
 active-v2 projection, and broader service integration remain part of the
 coordinated schema-version-3 program. The
 storage-neutral `tbm.replay.v3` artifact and replay-manifest contract is
-published with an opt-in isolated SQLite immutable byte/descriptor ledger, but
-no active adapter uses it and it provides no authorization, retention,
-encryption, or GateSession authority. The
+published with opt-in isolated SQLite and PostgreSQL immutable byte/descriptor
+ledgers, but no active adapter uses them and they provide no authorization,
+retention, encryption, or GateSession authority. The
 read-only v3 migration preflight and inert
 staging bundles are implemented, but they cannot activate memory or be loaded
 as version-3 runtime state.

@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 132 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 134 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -278,11 +278,14 @@ provider/version/vector evidence 会与 raw-query digest 和 prepared context
 durable `CREATED` GateSession，在同一授权 scope 下保存并读回精确 evidence
 记录对，再通过 CAS 发布 `PREPARED`。`durable_semantic_gate_v3.py` 随后会基于
 这些 evidence 提供 opt-in、已核验的 `AWAITING_DECISION`/`DECIDED` 延续。
-生产分片/worker、rendering/finalization 与 active adapter 接入仍待完成。详见
+`durable_finalization_v3.py` 随后会复查 authorization/head/policy，只渲染最终允许
+集合，保留精确 UsageDecision/injection/replay bundle，并通过 CAS 发布 `FINALIZED`。
+生产分片/worker、受保护内容加密与 active adapter 接入仍待完成。详见
 [已认证检索准备 v3](protocols/retrieval-preparation-v3.zh-CN.md)、
 [托管索引 bundle v3](protocols/managed-index-v3.zh-CN.md)，以及
 [durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.zh-CN.md)，
-以及 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)。
+以及 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)与
+[durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)。
 
 ## PostgreSQL 运行时存储库
 
@@ -380,9 +383,10 @@ identity index、固定 search path 的 trigger function、catalog shape 校验�
 savepoint 与 payload/head 交叉检查提供数据库侧约束，但不会激活该 schema。
 
 两个 repository 都不会连接私有 Store request token。当前本地 Agent 与 STDIO MCP
-仍为进程内状态。expiry/recovery worker、service orchestration、authorization 与
-跨 adapter conformance 全部实现后，该 session 契约才能成为 distributed runtime
-authority。
+仍为进程内状态。opt-in preparation、Semantic Gate、finalization、completion 与
+expiry/recovery service 现在会执行 durable lifecycle；但 active transport
+authorization、后续 phase orchestration 与完整跨 adapter conformance 全部实现后，
+该 session 契约才能成为 distributed runtime authority。
 
 ## 内容寻址重放 version-3 契约
 
@@ -397,10 +401,19 @@ component，不允许声称可精确重放。manifest 还绑定自身的规范�
 严格 parser 有界，并拒绝 duplicate key、未知字段、非法时间戳与非规范 component
 set。详见[内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)。
 
+`usage_decision_v3.py` 增加 content-addressed 最终使用审计。它保留有序
+retrieval/System/Semantic/rendered 集合、精确补集与 System block 原因，以及当前
+authorization/evidence/policy/renderer 关联和完整 replay component map。其 unsigned
+规范 JSON 同时也是精确保留的 artifact 字节，因此 usage ID 可以确定性定位 artifact。
+详见 [UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)。
+
 `sqlite_replay_v3.py` 增加 opt-in 隔离账本，以 immutable row 保存 artifact、
 injection 与 manifest。每个 bundle 在一个事务中保存；manifest-to-injection 使用
 foreign key；load 时复验 canonical schema object、重复 column、descriptor、边界
 和精确字节。调用方 transaction 通过 savepoint 保留 ownership。
+`store_complete_bundle()` 要求首个 supporting artifact 是 UsageDecision artifact，
+并把全部去重 supporting component 与 injection/manifest 原子保留。PostgreSQL peer
+提供相同关联、幂等与 caller-savepoint 行为。
 
 `schemas/postgres-v3-replay.sql` 与 fail-closed rollback 在不改变 active schema
 version 2 的前提下建立匹配的隔离 PostgreSQL 关系边界。安装先锁定 active metadata，
@@ -533,10 +546,17 @@ GateSession authority 组合起来：先根据不可变 snapshot/evaluation/atte
 success 可在不重复 provider 调用的情况下完成 session，而含糊或 terminal state 会进入
 recovery-required。共享 caller-owned SQLite 或 PostgreSQL connection 时，可由一层外部
 transaction 同时包含 session transition 与 attempt-byte storage；否则服务只提供有序
-恢复，并非 distributed transaction。replay-manifest/finalization 挂接、有签名 provider
-attestation、retention/access control 与 active emission 尚未提供。详见
+恢复，并非 distributed transaction。`durable_finalization_v3.py` 现在提供
+replay-manifest/finalization 挂接：它在确定性有界渲染前后复查当前 authorization
+event、active head 与 policy，保留并读回完整 component bundle，再通过 CAS 发布
+`FINALIZED`。共享 SQLite/PostgreSQL connection 时，调用方可一起回滚 lease、bundle
+与最终 session revision；authority 分离时使用显式恢复。有签名 provider attestation、
+受保护内容加密、retention/replay-read authorization、后续 lifecycle 组合与 active
+emission 尚未提供。详见
 [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)、
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)、
+[durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)、
+[UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)、
 [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)、
 [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)、
 [PostgreSQL Semantic Gate artifact 仓库 v3](protocols/postgres-semantic-gate-artifact-v3.zh-CN.md)、
@@ -606,8 +626,9 @@ session/snapshot/candidate 覆盖，并强制最终 semantic allow 是 System Ga
 的子集、全部 System block 保持 blocked。prompt/response 内容保留在引用 artifact
 中。retrieval-preparation kernel 只生成 System Gate record。opt-in durable
 Semantic Gate 组合现已认证 provider 工作、核验完整 attempt/artifact chain，并把
-prepared GateSession 推进到 `DECIDED`；active runtime policy execution 与
-Agent/MCP Semantic Gate emission 仍待完成。详见
+prepared GateSession 推进到 `DECIDED`；opt-in finalization 组合随后核验实时
+authorization/head/policy、保留精确最终使用 evidence，并推进到 `FINALIZED`。active
+runtime policy execution 与 Agent/MCP Semantic Gate/finalization emission 仍待完成。详见
 [门禁评估 v3](protocols/gate-evaluation-v3.zh-CN.md)。
 
 配套 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3` 补全了

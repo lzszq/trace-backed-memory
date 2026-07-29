@@ -43,10 +43,14 @@ approval/activation ID 是 canonical 内容身份。evidence/attestation hash �
 activation sequence 等于 revision number；这一跨字段 invariant 强于独立 JSON
 Schema。
 
-当前尚未交付 publication repository。既有隔离 SQLite/PostgreSQL ledger 仍然只保存
-proposal，不会因为这些 event contract 存在就成为 publication authority。未来
-authority 必须以事务方式保存 proposal、approval、activation、精确 authorization
-provenance 与 append-only audit linkage；锁定并验证 durable current head，而不是
-信任调用方传入的 predecessor 字段；重新验证 artifact 字节、encryption、access
-control、retention、evidence 与 parent continuity；并在显式 migration 前保持
-active version 2 不变。
+opt-in [SQLite](sqlite-memory-publication-v3.zh-CN.md) 与
+[PostgreSQL](postgres-memory-publication-v3.zh-CN.md) publication authority
+现已持久化 approval/activation event、精确 authorization provenance 与
+attestation-verifier identity。每次 transition 都是 transactional、append-only、
+幂等的，并在 commit 前读回。activation 会锁定并验证 durable current head，而不是
+信任调用方传入的 predecessor 字段。旧 proposal ledger 仍只是 proposal-only
+dependency。
+
+这些 authority 不保存 artifact plaintext、不提供 encryption/retention，也不把
+activation 投影到 active version 2。调用方必须提供精确 artifact 字节/evidence 与
+受信 attestation verifier。active-v2 integration 仍要求显式 migration。

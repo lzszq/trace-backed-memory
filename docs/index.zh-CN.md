@@ -27,6 +27,8 @@
 - [MemoryRevision proposal 与 publication event v3](protocols/memory-revision-v3.zh-CN.md)
 - [SQLite MemoryRevision proposal ledger v3](protocols/sqlite-memory-revision-v3.zh-CN.md)
 - [PostgreSQL MemoryRevision proposal ledger v3](protocols/postgres-memory-revision-v3.zh-CN.md)
+- [SQLite MemoryRevision publication authority v3](protocols/sqlite-memory-publication-v3.zh-CN.md)
+- [PostgreSQL MemoryRevision publication authority v3](protocols/postgres-memory-publication-v3.zh-CN.md)
 - [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)
 - [System 与 Semantic Gate evaluation v3](protocols/gate-evaluation-v3.zh-CN.md)
 - [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)
@@ -84,8 +86,9 @@ linkage 持久化多条独立核验的 claim。opt-in SQLite 与隔离 PostgreSQ
 Completion Outbox authority 会在同一 transaction 原子增加一条 immutable
 completion event 与 append-only leased delivery chain。authenticated
 evaluator/artifact 检查与 active runtime emission 仍待完成。
-storage-neutral approval/activation 契约已经发布；publication persistence、
-audit linkage 与 active integration 仍属于统一推进的 schema version 3 计划。
+storage-neutral approval/activation 契约与隔离 SQLite/PostgreSQL publication
+authority 已经发布；artifact storage、retention/encryption、active-v2 projection
+与更广泛 service integration 仍属于统一推进的 schema version 3 计划。
 与存储实现无关的
 `tbm.replay.v3` artifact 与 replay manifest 契约及 opt-in 隔离 SQLite immutable
 字节/descriptor 账本已经发布，但 active adapter 尚不使用它，且它不提供授权、

@@ -580,6 +580,14 @@
   MemoryRevision publication 与 target relocation。持久化、audit linkage、
   attestation authentication 和 active-v2 projection 留到 publication-authority
   阶段，包括 durable current-head 锁。
+- 增加 opt-in SQLite 与隔离 PostgreSQL MemoryRevision publication authority。
+  持久化 immutable approval/activation event 及其精确 policy/request/decision
+  descriptor 与 attestation-verifier identity；重新验证 stored proposal/evidence/
+  artifact 字节；锁定 tenant/repository/memory head 并以 compare-and-swap 推进；
+  提供精确幂等 replay、nested savepoint、immutable database guard、catalog/schema
+  drift 检查、commit 前读回与 fail-closed PostgreSQL rollback。artifact storage、
+  retention/encryption、active-v2 projection 与 active Agent/MCP integration 仍待
+  完成。
 - 发布内容寻址 `tbm.retrieval-snapshot.v3` 以及嵌套 RetrievalHit/IndexVersion，
   绑定精确 authorization/context/query、有序 revision 命中、候选哈希、有限的
   stage/fusion 分数、retriever/index 版本、边界与截断原因。在 UTF-8 编码前拒绝

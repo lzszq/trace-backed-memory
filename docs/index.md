@@ -28,6 +28,8 @@ orientation; these documents define the engineering contracts.
 - [MemoryRevision proposal and publication events v3](protocols/memory-revision-v3.md)
 - [SQLite MemoryRevision proposal ledger v3](protocols/sqlite-memory-revision-v3.md)
 - [PostgreSQL MemoryRevision proposal ledger v3](protocols/postgres-memory-revision-v3.md)
+- [SQLite MemoryRevision publication authority v3](protocols/sqlite-memory-publication-v3.md)
+- [PostgreSQL MemoryRevision publication authority v3](protocols/postgres-memory-publication-v3.md)
 - [Replayable RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.md)
 - [System and Semantic Gate evaluation v3](protocols/gate-evaluation-v3.md)
 - [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md)
@@ -91,8 +93,9 @@ opt-in SQLite and isolated PostgreSQL Completion Outbox authorities atomically
 add one immutable completion event and an append-only leased delivery chain to
 that transaction. Authenticated evaluator/artifact checks and active runtime
 emission remain outstanding.
-Storage-neutral approval and activation contracts are published; publication
-persistence, audit linkage, and active integration remain part of the
+Storage-neutral approval/activation contracts and isolated SQLite/PostgreSQL
+publication authorities are published. Artifact storage, retention/encryption,
+active-v2 projection, and broader service integration remain part of the
 coordinated schema-version-3 program. The
 storage-neutral `tbm.replay.v3` artifact and replay-manifest contract is
 published with an opt-in isolated SQLite immutable byte/descriptor ledger, but

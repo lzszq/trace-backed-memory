@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 119 canonical Schema, SQL/migration, memory-support, and
+the repository's 122 canonical Schema, SQL/migration, memory-support, and
 example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
@@ -1150,7 +1150,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 119 resources.
+contains 122 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1657,11 +1657,13 @@ storage-neutral publication contract. Approval re-verifies exact bytes,
 evidence, lineage, actor separation, and `memory:review`; activation replays
 that complete approval verification and independently checks
 `memory:activate`, a third actor, and linear immediate-predecessor linkage.
-Only a future authority can lock and prove the durable current head; the
-storage-neutral builder does not trustfully establish currentness by itself.
+The storage-neutral builder does not establish durable currentness by itself.
 Global revision publication and target relocation inside a chain are
-forbidden. These events are not signatures and are not yet backed by a
-publication repository or active adapter. See
+forbidden. These events are not signatures. Opt-in SQLite and isolated
+PostgreSQL publication authorities now provide the durable head lock, exact
+authorization provenance, caller-owned attestation-verifier boundary,
+append-only rows, idempotent replay, and pre-commit read-back without
+projecting into active v2. See
 [MemoryRevision proposal and publication events v3](protocols/memory-revision-v3.md).
 
 Opt-in isolated SQLite and PostgreSQL proposal ledgers persist that revision
@@ -1675,6 +1677,11 @@ approval/activation events or performs publication authority, authorization,
 retention, or active-v2 projection. See the
 [SQLite](protocols/sqlite-memory-revision-v3.md) and
 [PostgreSQL](protocols/postgres-memory-revision-v3.md) ledger contracts.
+The corresponding
+[SQLite](protocols/sqlite-memory-publication-v3.md) and
+[PostgreSQL](protocols/postgres-memory-publication-v3.md) publication
+authorities depend on those proposal ledgers but isolate approval, activation,
+authorization provenance, and target-scoped CAS heads.
 
 The storage-neutral `tbm.retrieval-snapshot.v3` contract records the exact
 authorized retrieval result referenced by a prepared GateSession. It binds the

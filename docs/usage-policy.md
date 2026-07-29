@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 119 installed resource copies must remain byte-identical to the top-level
+The 122 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -173,14 +173,15 @@ atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 `schemas/postgres-v2-lock-order-hotfix.sql` operator script. It also includes
 the agent protocol, v3 migration staging, GateSession, and content-addressed
 replay, MemoryRevision proposal/approval/activation, and entity-registry
-contract Schemas and examples, plus
+contract Schemas and examples, plus isolated SQLite MemoryRevision
+publication authority and
 isolated SQLite GateSession/replay/audit/authorization/MemoryRevision/
 RunOutcome/OutcomeAttribution/completion-outbox ledgers and normalized
 entity-registry DDL,
 isolated PostgreSQL GateSession and entity-registry install/rollback, and
-isolated PostgreSQL replay/audit/authorization/MemoryRevision/Semantic Gate
-attempt and artifact/RunOutcome/OutcomeAttribution/completion-outbox ledger
-install/fail-closed rollback.
+isolated PostgreSQL replay/audit/authorization/MemoryRevision publication/
+Semantic Gate attempt and artifact/RunOutcome/OutcomeAttribution/
+completion-outbox ledger install/fail-closed rollback.
 
 CLI resource reads emit deterministic JSON rather than unframed raw content.
 Export is the shell integration path. It must refuse an existing destination
@@ -1224,12 +1225,15 @@ The isolated SQLite and PostgreSQL proposal ledgers may persist only a fully
 verified exact evidence bundle. Require linear parent/revision continuity,
 immutable idempotent replay, and exact read-back before commit. PostgreSQL
 installation and rollback must validate the isolated schema catalog and ACLs.
-Ledger presence is not publication authority and proposals must never be
-projected into active v2 memory. No publication repository or active runtime
-operation is delivered yet. A future authority must authenticate actors,
-validate attestation material, and append approval, activation, authorization,
-and audit linkage atomically. Content and attestation hashes are not
-signatures.
+Proposal-ledger presence is not publication authority and proposals must never
+be projected into active v2 memory. The opt-in SQLite and PostgreSQL
+publication authorities separately persist immutable approval/activation
+events, exact authorization descriptors, verifier identity, and a
+target-scoped durable CAS head. They must invoke a caller-owned attestation
+verifier, revalidate the proposal/evidence/artifact bytes on every transition,
+and read back exact rows before commit. Their append-only event rows are the
+publication audit trail. Content and attestation hashes are not signatures.
+No active runtime publication or active-v2 projection is delivered.
 
 ## Version-3 retrieval snapshot policy
 

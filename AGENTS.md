@@ -51,6 +51,9 @@ Start with:
   with content artifact, scope, lineage, and structured-evidence preflight.
 - `memory_publication_v3.py`: storage-neutral immutable approval/activation
   events with exact evidence, authorization, actor, target, and head checks.
+- `sqlite_memory_publication_v3.py` / `postgres_memory_publication_v3.py`:
+  opt-in durable publication authorities with attestation verification,
+  immutable provenance, and target-scoped activation-head CAS.
 - `retrieval_v3.py`: content-addressed RetrievalSnapshot/Hit and index-version
   contracts for explainable replay; ranking evidence is never authorization.
 - `gate_evaluation_v3.py`: immutable deterministic System Gate and monotonic

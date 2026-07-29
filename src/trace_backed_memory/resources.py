@@ -341,6 +341,16 @@ _RESOURCE_SPECS: tuple[
         "application/sql",
     ),
     (
+        "schemas/postgres-v3-memory-publication-rollback.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres-v3-memory-publication.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
         "schemas/postgres-v3-memory-revision-rollback.sql",
         "schema",
         "application/sql",
@@ -462,6 +472,7 @@ _RESOURCE_SPECS: tuple[
     ),
     ("schemas/sqlite-v3-gate-evidence.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-gate-session.sql", "schema", "application/sql"),
+    ("schemas/sqlite-v3-memory-publication.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-memory-revision.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-migration.sql", "schema", "application/sql"),
     (

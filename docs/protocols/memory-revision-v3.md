@@ -51,11 +51,15 @@ Their canonical Schemas and examples are
 enforces equality between activation sequence and revision number; this
 cross-field invariant is stronger than the standalone JSON Schema.
 
-No publication repository is delivered yet. The existing isolated SQLite and
-PostgreSQL ledgers remain proposal-only and do not become publication
-authorities merely because these event contracts exist. A future authority
-must store proposal, approval, activation, exact authorization provenance, and
-append-only audit linkage transactionally; lock and verify the durable current
-head instead of trusting caller-supplied predecessor fields; revalidate
-artifact bytes, encryption, access control, retention, evidence, and parent
-continuity; and keep active version 2 unchanged until an explicit migration.
+The opt-in [SQLite](sqlite-memory-publication-v3.md) and
+[PostgreSQL](postgres-memory-publication-v3.md) publication authorities now
+persist approval and activation events with exact authorization provenance and
+attestation-verifier identity. Each transition is transactional, append-only,
+idempotent, and read back before commit. Activation locks and verifies the
+durable current head instead of trusting caller-supplied predecessor fields.
+The older proposal ledgers remain proposal-only dependencies.
+
+These authorities do not store artifact plaintext, provide encryption or
+retention, or project activations into active version 2. Callers must supply
+exact artifact bytes/evidence and a trusted attestation verifier. Active-v2
+integration still requires an explicit migration.

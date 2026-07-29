@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-119 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation contract 资源、隔离 SQLite GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
+122 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -383,10 +383,14 @@ MemoryRevision publication，也禁止在 revision chain 内 relocate target。�
 隔离 SQLite 与 PostgreSQL proposal ledger 只能保存已完整验证的精确 evidence
 bundle。必须强制线性 parent/revision continuity、immutable 幂等 replay，并在
 commit 前精确读回。PostgreSQL install/rollback 还必须校验隔离 schema catalog 与
-ACL。ledger 中存在 proposal 不代表发布授权，也不得把 proposal 投影到 active v2
-memory。当前尚未交付 publication repository 或 active runtime operation。未来
-authority 必须认证 actor、验证 attestation material，并原子追加 approval、
-activation、authorization 与 audit linkage。content/attestation hash 不是签名。
+ACL。proposal ledger 中存在 proposal 不代表发布授权，也不得把 proposal 投影到
+active v2 memory。opt-in SQLite/PostgreSQL publication authority 会独立持久化
+immutable approval/activation event、精确 authorization descriptor、verifier
+identity 与 target-scoped durable CAS head。每次 transition 都必须调用调用方拥有的
+attestation verifier、重新验证 proposal/evidence/artifact 字节，并在 commit 前读回
+精确 row。其 append-only event row 构成 publication audit trail。content/
+attestation hash 不是签名。当前仍未交付 active runtime publication 或 active-v2
+projection。
 
 ## Version-3 retrieval snapshot 策略
 

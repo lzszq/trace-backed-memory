@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 119 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 122 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -497,11 +497,12 @@ evidence preflight 会拒绝缺失、未通过、跨 case 或 proposer 冲突的
 `tbm.memory-revision-activation.v3` 内容派生 event 现提供 storage-neutral
 publication contract。approval 重新验证精确字节、evidence、lineage、actor 分离与
 `memory:review`；activation 重放完整 approval verification，并独立检查
-`memory:activate`、第三位 actor 与线性 immediate-predecessor linkage。只有未来
-authority 才能锁定并证明 durable current head；storage-neutral builder 自身不能
-可信地证明 currentness。禁止 global revision publication 与 chain 内 target
-relocation。这些 event 不是签名，当前也没有 publication repository 或 active
-adapter。详见
+`memory:activate`、第三位 actor 与线性 immediate-predecessor linkage。
+storage-neutral builder 自身不能证明 durable currentness。禁止 global revision
+publication 与 chain 内 target relocation。这些 event 不是签名。opt-in SQLite 与
+隔离 PostgreSQL publication authority 现提供 durable head lock、精确 authorization
+provenance、调用方拥有的 attestation-verifier boundary、append-only row、幂等
+replay 与 commit 前读回，但不投影到 active v2。详见
 [MemoryRevision proposal 与 publication event v3](protocols/memory-revision-v3.zh-CN.md)。
 
 Opt-in、隔离的 SQLite 与 PostgreSQL proposal ledger 会把该 revision 连同精确
@@ -514,6 +515,11 @@ event，也不执行 publication authority、authorization、retention 或 activ
 projection。详见
 [SQLite](protocols/sqlite-memory-revision-v3.zh-CN.md)与
 [PostgreSQL](protocols/postgres-memory-revision-v3.zh-CN.md) ledger 契约。
+对应的
+[SQLite](protocols/sqlite-memory-publication-v3.zh-CN.md)与
+[PostgreSQL](protocols/postgres-memory-publication-v3.zh-CN.md) publication
+authority 依赖这些 proposal ledger，同时隔离保存 approval、activation、
+authorization provenance 与 target-scoped CAS head。
 
 storage-neutral `tbm.retrieval-snapshot.v3` 契约记录 prepared GateSession
 引用的精确已授权检索结果。它在内容派生身份下绑定授权事件、context/query 摘要、

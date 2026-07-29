@@ -1375,6 +1375,15 @@ Track:
   target relocation. Keep persistence, audit linkage, attestation
   authentication, and active-v2 projection for the publication-authority
   stage, including durable current-head locking.
+- Add opt-in SQLite and isolated PostgreSQL MemoryRevision publication
+  authorities. Persist immutable approval/activation events with their exact
+  policy/request/decision descriptors and attestation-verifier identity;
+  revalidate the stored proposal/evidence/artifact bytes; lock a
+  tenant/repository/memory head and advance it by compare-and-swap; provide
+  exact idempotent replay, nested savepoints, immutable database guards,
+  catalog/schema drift checks, pre-commit read-back, and fail-closed
+  PostgreSQL rollback. Keep artifact storage, retention/encryption, active-v2
+  projection, and active Agent/MCP integration outstanding.
 - Publish content-addressed `tbm.retrieval-snapshot.v3` and nested
   RetrievalHit/IndexVersion records with exact authorization/context/query
   linkage, ordered revision hits, candidate hashes, finite stage/fusion scores,

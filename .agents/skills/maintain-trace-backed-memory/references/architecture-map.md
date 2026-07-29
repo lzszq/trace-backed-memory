@@ -12,6 +12,7 @@
 | PostgreSQL authorization v3 authority | `postgres_authorization_v3.py`, `schemas/postgres-v3-authorization*.sql` | request/policy verification, immutable decision audit, exact catalog/rollback/savepoint/concurrency tests |
 | Structured regression evidence v3 | `evidence_v3.py` | evidence Schema/example, content/linkage/self-verification rejection tests, protocol docs |
 | Immutable MemoryRevision v3 | `memory_revision_v3.py`, `memory_publication_v3.py` | proposal/approval/activation Schemas/examples, lineage/artifact/evidence/authorization/actor/head rejection tests, protocol docs |
+| MemoryRevision publication authority v3 | `sqlite_memory_publication_v3.py`, `postgres_memory_publication_v3.py` | SQLite DDL, PostgreSQL install/rollback, attestation/provenance/head-CAS/idempotency/drift/rollback tests, protocol docs |
 | Replayable retrieval v3 | `retrieval_v3.py` | snapshot Schema/example, rank/hash/version/truncation rejection tests, protocol docs |
 | Gate evaluation v3 | `gate_evaluation_v3.py` | System/Semantic Gate Schemas/examples, monotonicity/provenance/retry-shape tests, protocol docs |
 | Semantic Gate artifact v3 | `semantic_gate_artifact_v3.py` | exact prompt/response byte binding, classification/encryption metadata, strict JSON/schema/example tests, protocol docs |

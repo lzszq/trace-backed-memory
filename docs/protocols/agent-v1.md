@@ -40,7 +40,7 @@ The MCP mapping is `tbm_prepare_memory` -> `tbm_finalize_memory` ->
 The HTTP mapping is `/v1/prepare` -> `/v1/finalize` -> `/v1/complete`, with
 `/v1/cancel`. Both transports use one strict dispatcher, return the same
 protocol payloads, and preserve the process-local request boundary. See the
-[local HTTP and Python SDK guide](agent-http-v1.md).
+[local HTTP and Python/TypeScript SDK guide](agent-http-v1.md).
 
 ## Persistence semantics
 

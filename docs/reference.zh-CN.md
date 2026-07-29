@@ -166,7 +166,7 @@ bootstrap 输入，不是 transport authentication 或可重用 credential；不
 profile 暴露成不可信共享多租户服务。认证模式不能与 `--tenant` 组合。此 profile
 使用 SQLite authorization authority，与所选 runtime storage mode 相互独立。
 
-### Loopback HTTP 与 Python SDK
+### Loopback HTTP 与 Python/TypeScript SDK
 
 安装 `.[service]`，在 `TBM_HTTP_TOKEN` 中设置 32 到 512 字符的 secret，然后运行：
 
@@ -176,12 +176,14 @@ tbm-http --repo-path . --sqlite .tbm/memory.sqlite3
 
 `tbm-http` 通过一套共用 dispatcher 暴露与 MCP 相同的六项 `tbm.agent.v1`
 operation。它只能绑定 loopback IPv4，并要求精确一条匹配的 bearer header。
-包根导出的 `AgentHTTPClient` 是类型化、无依赖的本地 client，会拒绝远程 URL、
-proxy 与 redirect。这不是 durable v3 facade 或 shared-service 部署；重启仍会使
-pending request handle 失效。规范
+包根导出的 `AgentHTTPClient` 与 `AsyncAgentHTTPClient` 提供类型化同步/异步
+Python 调用；`packages/typescript-sdk` 下的 Node.js 包以无运行时依赖方式提供同样
+六项类型化 operation。全部 client 都拒绝远程 URL 与 redirect，并使用不经过环境
+proxy 的直接本地 transport。这不是 durable v3 facade 或 shared-service 部署；
+重启仍会使 pending request handle 失效。规范
 [`agent-http-v1.openapi.json`](../schemas/agent-http-v1.openapi.json) 文档把全部
 route 绑定到严格 request/response Schema 与稳定 error。详见
-[HTTP 与 Python SDK 指南](protocols/agent-http-v1.zh-CN.md)。
+[HTTP 与 Python/TypeScript SDK 指南](protocols/agent-http-v1.zh-CN.md)。
 
 ## 打包资源
 

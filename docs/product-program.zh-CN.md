@@ -831,6 +831,12 @@
   示例打包精确字节，并让一个规范化 lifecycle 依次通过 dispatcher、真实 STDIO
   MCP 进程与 HTTP。保持 `tbm.agent.v1`、snapshot version 2、SQLite schema
   version 1、PostgreSQL schema version 2 与单主机安全边界不变。
+- 增加不会阻塞 event loop 的无依赖 `AsyncAgentHTTPClient`，以及覆盖全部六条本地
+  HTTP route 的独立、无运行时依赖 Node.js TypeScript SDK。保留严格 loopback
+  URL/token/body/protocol/error 校验，拒绝 duplicate response key，使用不经过
+  proxy 的直接 `node:http`，把 abort/timeout 定义为不会重试的停止等待，并让
+  TypeScript 通过真实 Python HTTP lifecycle。固定 TypeScript toolchain，并在 CI
+  核验 build、契约漂移、测试与 package 内容。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-

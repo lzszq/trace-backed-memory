@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from email.message import Message
@@ -9,7 +10,7 @@ import json
 from pathlib import Path
 import socket
 from types import SimpleNamespace
-from threading import Thread
+from threading import Event, Thread
 from typing import Iterator
 
 import pytest
@@ -192,6 +193,136 @@ def test_http_sdk_runs_typed_lifecycle_and_matches_direct_dispatcher() -> None:
     finally:
         direct_runtime.close()
         http_runtime.close()
+
+
+def test_async_http_sdk_runs_typed_lifecycle_and_closes() -> None:
+    runtime = tbm.LocalAgentMemory.in_memory()
+    try:
+        with _running_server(runtime) as (server, _sync_client):
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+
+            async def scenario() -> None:
+                async with tbm.AsyncAgentHTTPClient(
+                    base_url,
+                    TOKEN,
+                ) as client:
+                    capabilities = await client.capabilities()
+                    assert capabilities.protocol_version == "tbm.agent.v1"
+                    health = await client.health()
+                    assert health["pending_request_count"] == 0
+                    prepared = await client.prepare(
+                        {
+                            "task": "async SDK lifecycle",
+                            "mode": "planning",
+                        }
+                    )
+                    finalized = await client.finalize(
+                        _decline(prepared.request_id)
+                    )
+                    completed = await client.complete(
+                        {
+                            "decision_id": finalized.decision_id,
+                            "eval_result": "pass",
+                        }
+                    )
+                    assert completed.request_id == prepared.request_id
+                    abandoned = await client.prepare(
+                        {
+                            "task": "async SDK cancellation",
+                            "mode": "planning",
+                        }
+                    )
+                    canceled = await client.cancel(
+                        {"request_id": abandoned.request_id}
+                    )
+                    assert canceled.canceled is True
+
+                await client.aclose()
+                with pytest.raises(tbm.AgentMemoryError) as closed:
+                    await client.health()
+                assert closed.value.code == "TBM_SDK_CLOSED"
+                assert closed.value.category == "closed"
+
+            asyncio.run(scenario())
+    finally:
+        runtime.close()
+
+
+def test_async_http_sdk_does_not_block_the_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = tbm.AsyncAgentHTTPClient("http://127.0.0.1:1", TOKEN)
+
+    def slow_health() -> dict[str, object]:
+        import time
+
+        time.sleep(0.05)
+        return {"protocol_version": "tbm.agent.v1"}
+
+    monkeypatch.setattr(client._client, "health", slow_health)
+
+    async def scenario() -> None:
+        call = asyncio.create_task(client.health())
+        await asyncio.sleep(0)
+        assert call.done() is False
+        ticks = 0
+        while not call.done():
+            ticks += 1
+            await asyncio.sleep(0.005)
+        assert await call == {"protocol_version": "tbm.agent.v1"}
+        assert ticks > 1
+
+    asyncio.run(scenario())
+
+
+def test_async_http_sdk_task_cancellation_does_not_claim_worker_retraction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = tbm.AsyncAgentHTTPClient("http://127.0.0.1:1", TOKEN)
+    started = Event()
+    release = Event()
+    finished = Event()
+
+    def slow_prepare(
+        request: dict[str, object],
+    ) -> tbm.AgentPreparedMemory:
+        assert request["task"] == "cancel await only"
+        started.set()
+        release.wait(timeout=5)
+        finished.set()
+        raise AssertionError("worker result must be discarded after task cancel")
+
+    monkeypatch.setattr(client._client, "prepare", slow_prepare)
+
+    async def scenario() -> None:
+        call = asyncio.create_task(
+            client.prepare(
+                {
+                    "task": "cancel await only",
+                    "mode": "planning",
+                }
+            )
+        )
+        assert await asyncio.to_thread(started.wait, 5)
+        call.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await call
+        await client.aclose()
+        release.set()
+        assert await asyncio.to_thread(finished.wait, 5)
+        with pytest.raises(tbm.AgentMemoryError) as closed:
+            await client.prepare(
+                {
+                    "task": "new call after close",
+                    "mode": "planning",
+                }
+            )
+        assert closed.value.code == "TBM_SDK_CLOSED"
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        release.set()
 
 
 def test_http_requires_exact_bearer_and_strict_request_fields() -> None:

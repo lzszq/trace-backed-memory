@@ -1,10 +1,11 @@
-# Local HTTP and Python SDK: `tbm.agent.v1`
+# Local HTTP and Python/TypeScript SDKs: `tbm.agent.v1`
 
 **English** | [简体中文](agent-http-v1.zh-CN.md)
 
-The optional `tbm-http` process and dependency-free `AgentHTTPClient` expose
-the active version-2 local Agent lifecycle over loopback HTTP. STDIO MCP and
-HTTP call the same `AgentProtocolDispatcher`; neither transport reimplements
+The optional `tbm-http` process, dependency-free synchronous/asynchronous
+Python clients, and dependency-free Node.js TypeScript package expose the
+active version-2 local Agent lifecycle over loopback HTTP. STDIO MCP and HTTP
+call the same `AgentProtocolDispatcher`; no transport or SDK reimplements
 retrieval or Gate policy.
 
 This is a single-user, single-host integration profile. It is not a remote,
@@ -79,6 +80,45 @@ completed = client.complete(
 Call `client.cancel({"request_id": prepared.request_id})` instead when a
 prepared request is abandoned before finalization.
 
+For asyncio, use the same payloads and typed results without blocking the event
+loop:
+
+```python
+from trace_backed_memory import AsyncAgentHTTPClient
+
+async with AsyncAgentHTTPClient(
+    "http://127.0.0.1:8765",
+    os.environ["TBM_HTTP_TOKEN"],
+) as client:
+    prepared = await client.prepare(
+        {"task": "repair the failing checkout", "mode": "repair"}
+    )
+    await client.cancel({"request_id": prepared.request_id})
+```
+
+The Node.js TypeScript SDK is isolated under
+[`packages/typescript-sdk`](../../packages/typescript-sdk/README.md):
+
+```text
+cd packages/typescript-sdk
+npm ci
+npm run build
+```
+
+```ts
+import { AgentHTTPClient } from "@trace-backed-memory/agent-http";
+
+const client = new AgentHTTPClient({
+  baseUrl: "http://127.0.0.1:8765",
+  token: process.env.TBM_HTTP_TOKEN!,
+});
+const prepared = await client.prepare({
+  task: "repair the failing checkout",
+  mode: "repair",
+});
+await client.cancel({ request_id: prepared.request_id });
+```
+
 ## Routes and responses
 
 | Method | Route | Result |
@@ -119,8 +159,9 @@ or shared-service authorization.
   rejects non-loopback URLs, HTTPS, URL credentials, paths, queries, and
   fragments.
 - Every route requires exactly one matching bearer header. The client disables
-  environment proxies and redirects. The token is never accepted as a CLI
-  value or included in object representations.
+  environment proxies and redirects. The TypeScript client uses direct
+  `node:http` sockets with no redirect or proxy layer. Tokens are never
+  accepted as CLI values or included in object/error representations.
 - Connections have a 15-second socket timeout, request dispatch is capped at
   32 worker threads, and the listen queue is bounded. Excess connections are
   closed rather than creating unbounded workers.
@@ -133,9 +174,12 @@ or shared-service authorization.
   process-local. SQLite/PostgreSQL persist the Trace, finalized usage, and
   measured completion, but restarting `tbm-http` invalidates an unfinalized
   request. Prepare again after restart.
+- Canceling an async Python task or TypeScript `AbortSignal`, or reaching a
+  client timeout, stops waiting but cannot retract a POST already received by
+  the server. SDKs do not retry automatically; explicitly call the protocol
+  `cancel` operation for an abandoned prepared request.
 
 Loopback plus a bearer secret protects this local process boundary; it does not
 provide TLS, user identity, tenant isolation, or shared-service authorization.
 `AuthenticatedDurableAgentMemory`, durable GateSession continuation, transport
-identity, remote deployment, and TypeScript SDK support remain separate future
-work.
+identity, and remote/shared deployment remain separate future work.

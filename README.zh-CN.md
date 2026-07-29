@@ -115,6 +115,8 @@ mkdir -p .tbm
 - Python：`TraceBackedMemoryStore` 与 `LocalAgentMemory`
 - CLI：`tbm capabilities`、snapshot 操作、migration preflight 与资源发现
 - 本地 MCP：安装可选 `mcp` 依赖后使用 `tbm-mcp`
+- 本地 HTTP SDK：同步/异步 Python 与 Node.js TypeScript；详见
+  [HTTP SDK 指南](docs/protocols/agent-http-v1.zh-CN.md)
 - 可选认证本地 MCP：可信启动配置选择 version-3 identity/environment；详见
   [参考文档](docs/reference.zh-CN.md#长驻本地-mcp)
 - 持久化：内存、SQLite 与 PostgreSQL adapter

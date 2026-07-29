@@ -198,12 +198,14 @@ lifecycle dispatch 前必须拒绝 duplicate key、非有限值、非法 UTF-8�
 发布并测试新限额，否则必须保留固定的 15 秒 connection timeout、32-worker
 dispatch 上限与有界 listen queue。
 
-`AgentHTTPClient` 仅限本地使用，必须拒绝非 loopback 或包含 credential 的 URL、
-path、query、fragment、redirect、环境 proxy、未版本化 response，以及超限或结构
-非法的 JSON。loopback 与 bearer secret 都不能把该 profile 变成 shared-service
-authorization boundary；declared tenant 仍是 version-2 applicability metadata。
-pending handle 仍是进程内状态，HTTP 重启后必须重新 prepare。详见
-[本地 HTTP 与 Python SDK 契约](protocols/agent-http-v1.zh-CN.md)。
+`AgentHTTPClient`、`AsyncAgentHTTPClient` 与 Node.js TypeScript client 仅限本地
+使用，必须拒绝非 loopback 或包含 credential 的 URL、path、query、fragment、
+redirect、可能感知 proxy 的 transport、未版本化 response，以及超限或结构非法的
+JSON。async cancel 或 timeout 不会触发自动重试，也不能证明 POST 未被应用。
+loopback 与 bearer secret 都不能把该 profile 变成 shared-service authorization
+boundary；declared tenant 仍是 version-2 applicability metadata。pending handle
+仍是进程内状态，HTTP 重启后必须重新 prepare。详见
+[本地 HTTP SDK 契约](protocols/agent-http-v1.zh-CN.md)。
 
 `schemas/agent-http-v1.openapi.json` 是规范本地 HTTP 绑定。request/response
 validator、示例、package resource 与 adapter conformance test 必须和其引用 Schema

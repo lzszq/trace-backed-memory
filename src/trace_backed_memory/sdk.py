@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass
 import ipaddress
 import json
 import re
-from typing import Literal, NoReturn, cast
+from typing import Literal, NoReturn, Self, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import (
@@ -339,6 +340,91 @@ class AgentHTTPClient:
                 operation,
                 "local HTTP service returned an invalid response",
             ) from None
+
+
+class AsyncAgentHTTPClient:
+    """Async wrapper for the dependency-free local HTTP client.
+
+    Calls run in worker threads so urllib never blocks the event loop. Canceling
+    an awaiting task cannot stop an HTTP request that has already entered its
+    worker thread; callers must explicitly cancel abandoned prepared requests.
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        token: str,
+        *,
+        timeout_seconds: float = 30.0,
+    ) -> None:
+        self._client = AgentHTTPClient(
+            base_url,
+            token,
+            timeout_seconds=timeout_seconds,
+        )
+        self._closed = False
+
+    async def __aenter__(self) -> Self:
+        self._ensure_open("open")
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: object,
+        exc_value: object,
+        traceback: object,
+    ) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Prevent new calls; already-dispatched worker calls may still finish."""
+
+        self._closed = True
+
+    async def capabilities(self) -> AgentCapabilities:
+        self._ensure_open("health")
+        return await asyncio.to_thread(self._client.capabilities)
+
+    async def health(self) -> dict[str, object]:
+        self._ensure_open("health")
+        return await asyncio.to_thread(self._client.health)
+
+    async def prepare(
+        self,
+        request: Mapping[str, object],
+    ) -> AgentPreparedMemory:
+        self._ensure_open("prepare")
+        return await asyncio.to_thread(self._client.prepare, request)
+
+    async def finalize(
+        self,
+        request: Mapping[str, object],
+    ) -> AgentFinalizedMemory:
+        self._ensure_open("finalize")
+        return await asyncio.to_thread(self._client.finalize, request)
+
+    async def complete(
+        self,
+        request: Mapping[str, object],
+    ) -> AgentCompletedRun:
+        self._ensure_open("complete")
+        return await asyncio.to_thread(self._client.complete, request)
+
+    async def cancel(
+        self,
+        request: Mapping[str, object],
+    ) -> AgentCanceledRun:
+        self._ensure_open("cancel")
+        return await asyncio.to_thread(self._client.cancel, request)
+
+    def _ensure_open(self, operation: AgentOperation) -> None:
+        if self._closed:
+            raise AgentMemoryError(
+                "TBM_SDK_CLOSED",
+                "closed",
+                operation,
+                "async HTTP client is closed",
+            )
 
 
 def _parse_capabilities(value: object) -> AgentCapabilities:
@@ -756,4 +842,5 @@ __all__ = [
     "SDK_TOKEN_MIN_CHARS",
     "AgentCanceledRun",
     "AgentHTTPClient",
+    "AsyncAgentHTTPClient",
 ]

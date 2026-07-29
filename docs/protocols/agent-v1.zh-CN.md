@@ -36,7 +36,7 @@ MCP 映射为 `tbm_prepare_memory` -> `tbm_finalize_memory` ->
 `tbm_complete_run`；放弃 prepared request 时调用 `tbm_cancel_run`。它返回同一
 协议 payload，并保留进程内 request 边界。HTTP 映射为 `/v1/prepare` ->
 `/v1/finalize` -> `/v1/complete`，放弃时调用 `/v1/cancel`。两个 transport
-使用同一个严格 dispatcher。详见[本地 HTTP 与 Python SDK 指南](agent-http-v1.zh-CN.md)。
+使用同一个严格 dispatcher。详见[本地 HTTP 与 Python/TypeScript SDK 指南](agent-http-v1.zh-CN.md)。
 
 ## 持久化语义
 

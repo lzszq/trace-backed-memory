@@ -19,6 +19,8 @@ credentials.json
 *.log
 dist/
 build/
+node_modules/
+*.tgz
 *.egg-info/
 .superpowers/
 .worktrees/

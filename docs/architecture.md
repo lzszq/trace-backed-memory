@@ -698,14 +698,20 @@ listen queue prevent slow or excess local connections from creating unbounded
 threads. `AgentHTTPClient` is a dependency-free typed Python client that also
 requires loopback, disables proxies and redirects, validates bounded protocol
 responses against their published field limits, and maps stable error
-envelopes back to `AgentMemoryError`.
+envelopes back to `AgentMemoryError`. `AsyncAgentHTTPClient` preserves the
+same validation through worker-thread dispatch without blocking the event
+loop. The dependency-free Node.js TypeScript package uses direct `node:http`
+sockets rather than proxy-aware fetch, rejects redirects and duplicate JSON
+keys, and applies the same protocol, body, timeout, and stable-error checks.
 
 The canonical OpenAPI 3.1 document references the same strict prepare,
 finalize, complete, cancel, health, success, and error schemas used by the
 adapters. A real-process conformance scenario executes the same lifecycle
 through the dispatcher, STDIO MCP, and HTTP and compares normalized protocol
-payloads. OpenAPI remains the local version-2 transport contract; it does not
-convert bearer authentication into service identity.
+payloads. The TypeScript suite additionally drives a real Python HTTP process
+through prepare, finalize, complete, cancel, capability, and health calls.
+OpenAPI remains the local version-2 transport contract; it does not convert
+bearer authentication into service identity.
 
 This HTTP profile is a local process boundary, not a shared service: it has no
 TLS, user identity, or tenant isolation. The configured tenant remains

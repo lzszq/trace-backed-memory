@@ -1703,6 +1703,13 @@ Track:
   STDIO MCP process, and HTTP. Keep `tbm.agent.v1`, snapshot version 2, SQLite
   schema version 1, PostgreSQL schema version 2, and the single-host security
   boundary unchanged.
+- Add the dependency-free `AsyncAgentHTTPClient` without blocking the event
+  loop and a standalone dependency-free Node.js TypeScript SDK for all six
+  local HTTP routes. Keep strict loopback URL/token/body/protocol/error checks,
+  reject duplicate response keys, use direct non-proxy `node:http`, define
+  abort/timeout as non-retrying wait cancellation, and run TypeScript against a
+  real Python HTTP lifecycle. Pin the TypeScript toolchain and verify build,
+  contract drift, tests, and package contents in CI.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

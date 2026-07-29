@@ -181,7 +181,7 @@ profile as an untrusted shared multi-tenant service. `--tenant` cannot be
 combined with authenticated mode. This profile uses a SQLite authorization
 authority independently of the selected runtime storage mode.
 
-### Loopback HTTP and Python SDK
+### Loopback HTTP and Python/TypeScript SDKs
 
 Install `.[service]`, set a 32-to-512-character secret in `TBM_HTTP_TOKEN`, and
 run:
@@ -192,13 +192,16 @@ tbm-http --repo-path . --sqlite .tbm/memory.sqlite3
 
 `tbm-http` exposes the same six `tbm.agent.v1` operations as MCP through one
 shared dispatcher. It binds to loopback IPv4 only and requires exactly one
-matching bearer header. The package-root `AgentHTTPClient` is a typed,
-dependency-free local client that rejects remote URLs, proxies, and redirects.
-This is not the durable v3 facade or a shared-service deployment; restart still
+matching bearer header. Package-root `AgentHTTPClient` and
+`AsyncAgentHTTPClient` provide typed synchronous/asynchronous Python calls; the
+Node.js package under `packages/typescript-sdk` provides the same six typed
+operations without runtime dependencies. All clients reject remote URLs and
+redirects, and use direct local transport without environment proxies. This is
+not the durable v3 facade or a shared-service deployment; restart still
 invalidates pending request handles. The canonical
 [`agent-http-v1.openapi.json`](../schemas/agent-http-v1.openapi.json) document
 binds all routes to strict request/response schemas and stable errors. See the
-[HTTP and Python SDK guide](protocols/agent-http-v1.md).
+[HTTP and Python/TypeScript SDK guide](protocols/agent-http-v1.md).
 
 ## Packaged Resources
 

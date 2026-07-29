@@ -63,7 +63,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 注入 | `none`、`pointer_only`、`short_summary`、`full_case_summary`；固定数量与字符预算 |
 | 运行闭环 | 两阶段 prepare/finalize、单项/批量原子完成、延迟 outcome sealing |
 | 运行编排 | `run_memory_execution()` 同步串联 decision callback、execution callback 与原子完成；`MemoryRunMeasurement` 无需调用方复制 decision ID |
-| Agent 应用边界 | `LocalAgentMemory`、Git-backed Trace capture、稳定错误、`tbm capabilities`、带版本的 `tbm.agent.v1` 请求/响应 Schema、规范本地 OpenAPI 3.1、MCP/HTTP 共用的严格 dispatcher、可选长驻本地 STDIO MCP 与 loopback HTTP、无依赖类型化 Python HTTP client，以及真实进程跨 adapter conformance |
+| Agent 应用边界 | `LocalAgentMemory`、Git-backed Trace capture、稳定错误、`tbm capabilities`、带版本的 `tbm.agent.v1` 请求/响应 Schema、规范本地 OpenAPI 3.1、MCP/HTTP 共用的严格 dispatcher、可选长驻本地 STDIO MCP 与 loopback HTTP、无依赖类型化同步/异步 Python client、无运行时依赖的 Node.js TypeScript SDK，以及真实进程跨语言/adapter conformance |
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
 | 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、v3 migration preflight/bundle verification、active lessons 原子导出与 dry-run 导入、failure case/lesson/project policy forward-only 淘汰预览与显式写入、audit/metrics/remediation、只读 PR report、单项与清单式批量 measured completion、dry-run 恢复与显式 `--write` 原子替换 |
 | 迁移准备 | content-addressed、不可激活的 v2→v3 bundle、精确 plan replay、immutable SQLite staging，以及不改变 active runtime version 的 PostgreSQL version-gated staging/rollback |
@@ -96,10 +96,10 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 普通同步调用方可以用 `run_memory_execution()` 把第 2-6 步收敛为一次调用；LLM 与 harness 仍由调用方 callback 提供，Store 继续拥有门控、linkage 和原子完成。不需要直接管理底层 Store 生命周期的应用可以使用 `LocalAgentMemory`，由它同时负责 Trace 注册、Repository 同步、稳定错误与 callback 恢复 ID。可选 `tbm-mcp` 命令只通过有界本地 STDIO 暴露这套 runtime 生命周期，把 provenance 固定到配置的 checkout root，并在检索前捕获完整 Git ancestry。SQLite/PostgreSQL 同步持久阶段；pending request 仍为进程内状态。与持久化实现无关的 `tbm.gate-session.v3` 契约已经定义目标 lifecycle、revision、lease 与 expiry 语义，opt-in、side-by-side SQLite 与隔离 PostgreSQL repository 已能持久化其 immutable revision；授权 v3 契约定义 retrieval 前的 policy boundary，opt-in 隔离 SQLite 与 PostgreSQL authority 能核验精确 policy/request/decision 三元组并持久记录 immutable decision。`AuthenticatedRetrievalService` 提供共享顺序 kernel：匹配可信 identity record、持久化并重新加载 decision、复查 registry 轮换与 environment binding，之后才调用 retrieval。`AuthenticatedGateSessionService` 随后在 preparation 前 durable create/read-back scoped session、阻止重复 retrieval、要求可信 retrieval/System-Gate evidence，并通过 CAS 与显式补偿发布 `PREPARED`。opt-in SQLite/PostgreSQL Gate evidence authority 会原子保存并读回每个精确内容寻址记录对，共享 verifier 再把它绑定到已授权 session 与 identity scope。`DurableRetrievalPreparationService` 会在同一授权 scope 下组合这些 opt-in 边界：先创建 session，不记录第二条 authorization decision 地完成 retrieval preparation，保存并核验记录对，再发布 `PREPARED`。`AuthenticatedSemanticGateSessionService` 随后会核验 durable evidence 与完整 immutable attempt chain，在 provider 工作前发布 `AWAITING_DECISION`，并仅在 attempt/artifact 精确读回后发布 `DECIDED`；failed attempt 保持显式可重试，已保存 success 可在不再次调用 provider 的情况下恢复。authority 分离时保持有序恢复；同一数据库的 repository 可以共享 caller-owned 外层 transaction。`GateSessionRecoveryWorker` 执行有界 due scan，只 expire graph 合法且 session 已到期的 prepared/awaiting head，并把 graph-blocked 或并发状态交给显式 recovery。默认 Agent/MCP profile 尚未使用这些 kernel；可选本地 MCP `--auth-*` profile 会使用 authenticated retrieval kernel 与 SQLite authorization authority。opt-in `DurableFinalizationService` 现在会复查授权/head/policy、保留完整 replay bundle，并以 SQLite/PostgreSQL caller-transaction 对等性通过 CAS 发布 `FINALIZED`。transport authentication、受保护内容加密、`EXECUTING` 关联、shared-service MCP 及其他 active adapter integration 仍未交付。需要暂停、人工重试或独立生命周期控制的高级调用方继续直接使用底层方法。
 
-本地 loopback HTTP adapter 与类型化 Python SDK 现在会通过 MCP 同一套严格
-dispatcher 暴露 active version-2 lifecycle。它们的 bearer secret 只保护本地
-进程边界，不是 durable v3 组合所需的 service-identity transport authentication。
-远程或共享部署、TypeScript SDK 与 durable-facade adapter 接入仍待完成。
+本地 loopback HTTP adapter、同步/异步 Python client 与 Node.js TypeScript SDK
+现在会通过 MCP 同一套严格 dispatcher 暴露 active version-2 lifecycle。它们的
+bearer secret 只保护本地进程边界，不是 durable v3 组合所需的 service-identity
+transport authentication。远程或共享部署与 durable-facade adapter 接入仍待完成。
 
 上文仍待完成的“`EXECUTING` 关联”特指在 immutable GateSession revision 中持久挂接
 transition authorization event，不是指缺少执行状态转换。opt-in

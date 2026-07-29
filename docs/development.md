@@ -14,6 +14,8 @@ The core package has no mandatory third-party runtime dependency. PostgreSQL
 development additionally requires PostgreSQL 12+ server tools and the
 `postgres` optional dependency. The local STDIO MCP profile uses the `mcp`
 optional dependency; the `dev` extra installs both adapters for verification.
+The standalone TypeScript SDK requires Node.js 20 or newer for development and
+has no runtime package dependency.
 
 ## Canonical verification
 
@@ -51,3 +53,19 @@ python -m mypy src/trace_backed_memory
 
 PostgreSQL tests may skip in ordinary local runs when server tools are absent.
 Release and CI qualification must require them.
+
+The TypeScript SDK has a pinned toolchain and a separate no-network verification
+step after `npm ci`:
+
+```text
+cd packages/typescript-sdk
+npm ci --ignore-scripts
+npm run check
+npm test
+npm run pack:check
+```
+
+`npm run check` verifies the canonical OpenAPI binding, `npm test` includes a
+real Python HTTP lifecycle, and `pack:check` inspects the publishable package.
+The dedicated CI job runs all four commands; Python `tools/verify.py` remains
+dependency-free from Node and does not install npm packages implicitly.

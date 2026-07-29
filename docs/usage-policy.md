@@ -675,13 +675,15 @@ UTF-8, unknown fields, ambiguous body framing, and bodies beyond the shared
 15-second connection timeout, 32-worker dispatch bound, and bounded listen
 queue unless a later version publishes and tests new limits.
 
-`AgentHTTPClient` is local-only. It must reject non-loopback or credentialed
-URLs, paths, queries, fragments, redirects, environment proxies, unversioned
-responses, and oversized or structurally invalid JSON. Neither loopback nor a
-bearer secret makes the profile a shared-service authorization boundary.
-Declared tenant remains version-2 applicability metadata. Pending handles
-remain process-local and must be prepared again after an HTTP restart. See the
-[local HTTP and Python SDK contract](protocols/agent-http-v1.md).
+`AgentHTTPClient`, `AsyncAgentHTTPClient`, and the Node.js TypeScript client are
+local-only. They must reject non-loopback or credentialed URLs, paths, queries,
+fragments, redirects, proxy-aware transport, unversioned responses, and
+oversized or structurally invalid JSON. Async cancellation or timeout is never
+an automatic retry and does not prove that a POST was not applied. Neither
+loopback nor a bearer secret makes the profile a shared-service authorization
+boundary. Declared tenant remains version-2 applicability metadata. Pending
+handles remain process-local and must be prepared again after an HTTP restart.
+See the [local HTTP SDK contract](protocols/agent-http-v1.md).
 
 `schemas/agent-http-v1.openapi.json` is the canonical local HTTP binding.
 Request/response validators, examples, package resources, and adapter

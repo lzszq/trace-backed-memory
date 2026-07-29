@@ -186,13 +186,17 @@ lifecycle dispatch 前拒绝 duplicate key、非有限值、非法 UTF-8、未�
 32-worker semaphore 与有界 listen queue 会阻止慢速或超限本地 connection 无限
 创建 thread。`AgentHTTPClient` 是无依赖的类型化 Python client；它同样只允许
 loopback，禁用 proxy 与 redirect，按照已发布字段限额校验有界协议 response，并把
-稳定 error envelope 映射回 `AgentMemoryError`。
+稳定 error envelope 映射回 `AgentMemoryError`。`AsyncAgentHTTPClient` 通过
+worker-thread dispatch 保留相同校验且不阻塞 event loop。无运行时依赖的 Node.js
+TypeScript 包使用直接 `node:http` socket，而不是可能感知 proxy 的 fetch；它拒绝
+redirect 与 duplicate JSON key，并执行相同的协议、body、timeout 与稳定错误校验。
 
 规范 OpenAPI 3.1 文档引用 adapter 使用的同一组严格 prepare、finalize、
 complete、cancel、health、成功与 error Schema。真实进程 conformance 场景会通过
 dispatcher、STDIO MCP 和 HTTP 执行同一 lifecycle，并比较规范化协议 payload。
-OpenAPI 仍是本地 version-2 transport contract；它不会把 bearer authentication
-变成 service identity。
+TypeScript suite 还会通过真实 Python HTTP 进程执行 prepare、finalize、complete、
+cancel、capability 与 health 调用。OpenAPI 仍是本地 version-2 transport
+contract；它不会把 bearer authentication 变成 service identity。
 
 该 HTTP profile 是本地进程边界，不是共享服务：它没有 TLS、用户 identity 或
 tenant isolation。配置的 tenant 仍是 version-2 applicability metadata，CLI 不会

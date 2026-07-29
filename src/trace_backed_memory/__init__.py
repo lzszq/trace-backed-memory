@@ -417,6 +417,7 @@ from .sdk import (
     SDK_TOKEN_MIN_CHARS,
     AgentCanceledRun,
     AgentHTTPClient,
+    AsyncAgentHTTPClient,
 )
 from .managed_index_v3 import (
     MANAGED_INDEX_BUNDLE_CONTRACT_VERSION,
@@ -1775,6 +1776,7 @@ __all__ = [
     "SDK_TOKEN_MIN_CHARS",
     "AgentCanceledRun",
     "AgentHTTPClient",
+    "AsyncAgentHTTPClient",
     "MANAGED_INDEX_BUNDLE_CONTRACT_VERSION",
     "MANAGED_INDEX_BUNDLE_JSON_MAX_BYTES",
     "MANAGED_INDEX_BUNDLE_JSON_MAX_DEPTH",

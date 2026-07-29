@@ -1,10 +1,11 @@
-# 本地 HTTP 与 Python SDK：`tbm.agent.v1`
+# 本地 HTTP 与 Python/TypeScript SDK：`tbm.agent.v1`
 
 [English](agent-http-v1.md) | **简体中文**
 
-可选 `tbm-http` 进程与无依赖 `AgentHTTPClient` 通过 loopback HTTP 暴露当前
-version-2 本地 Agent lifecycle。STDIO MCP 与 HTTP 调用同一个
-`AgentProtocolDispatcher`；两个 transport 都不会复制 retrieval 或 Gate policy。
+可选 `tbm-http` 进程、无依赖同步/异步 Python client，以及无运行时依赖的 Node.js
+TypeScript 包通过 loopback HTTP 暴露当前 version-2 本地 Agent lifecycle。
+STDIO MCP 与 HTTP 调用同一个 `AgentProtocolDispatcher`；所有 transport 与 SDK
+都不会复制 retrieval 或 Gate policy。
 
 这是单用户、单主机集成 profile，不是远程、共享或多租户服务。
 
@@ -75,6 +76,44 @@ completed = client.complete(
 prepared request 在 finalization 前被放弃时，改为调用
 `client.cancel({"request_id": prepared.request_id})`。
 
+asyncio 调用可使用相同 payload 与类型化结果，同时不阻塞 event loop：
+
+```python
+from trace_backed_memory import AsyncAgentHTTPClient
+
+async with AsyncAgentHTTPClient(
+    "http://127.0.0.1:8765",
+    os.environ["TBM_HTTP_TOKEN"],
+) as client:
+    prepared = await client.prepare(
+        {"task": "repair the failing checkout", "mode": "repair"}
+    )
+    await client.cancel({"request_id": prepared.request_id})
+```
+
+Node.js TypeScript SDK 位于独立的
+[`packages/typescript-sdk`](../../packages/typescript-sdk/README.md)：
+
+```text
+cd packages/typescript-sdk
+npm ci
+npm run build
+```
+
+```ts
+import { AgentHTTPClient } from "@trace-backed-memory/agent-http";
+
+const client = new AgentHTTPClient({
+  baseUrl: "http://127.0.0.1:8765",
+  token: process.env.TBM_HTTP_TOKEN!,
+});
+const prepared = await client.prepare({
+  task: "repair the failing checkout",
+  mode: "repair",
+});
+await client.cancel({ request_id: prepared.request_id });
+```
+
 ## 路由与响应
 
 | 方法 | 路由 | 结果 |
@@ -110,8 +149,9 @@ authorization 已经实现。
 
 - server 只能绑定显式 loopback IPv4 地址。client 同样拒绝非 loopback URL、
   HTTPS、URL credential、path、query 与 fragment。
-- 每个路由都要求精确一条匹配的 bearer header。client 禁用环境 proxy 与
-  redirect。token 不能作为 CLI 值传入，也不会出现在对象表示中。
+- 每个路由都要求精确一条匹配的 bearer header。Python client 禁用环境 proxy 与
+  redirect；TypeScript client 使用没有 redirect 或 proxy layer 的直接
+  `node:http` socket。token 不能作为 CLI 值传入，也不会出现在对象或错误表示中。
 - connection 使用 15 秒 socket timeout，request dispatch 最多使用 32 个 worker
   thread，并且 listen queue 有界；超限 connection 会被关闭，不会无限创建 worker。
 - checkout root 与可选 declared tenant 由 server 持有，Git provenance 与 ancestry
@@ -122,8 +162,10 @@ authorization 已经实现。
 - pending request handle 与 finalization replay tombstone 仍是进程内状态。
   SQLite/PostgreSQL 会持久化 Trace、finalized usage 与 measured completion，但
   重启 `tbm-http` 会使尚未 finalized 的 request 失效；重启后必须重新 prepare。
+- 取消 async Python task 或 TypeScript `AbortSignal`，或达到 client timeout，只会
+  停止等待，无法撤回 server 已经收到的 POST。SDK 不会自动重试；放弃 prepared
+  request 时必须显式调用协议 `cancel` operation。
 
 loopback 加 bearer secret 只保护这个本地进程边界；它不提供 TLS、用户 identity、
 tenant isolation 或 shared-service authorization。`AuthenticatedDurableAgentMemory`、
-durable GateSession continuation、transport identity、远程部署与 TypeScript SDK
-仍是后续工作。
+durable GateSession continuation、transport identity 与远程/共享部署仍是后续工作。

@@ -539,6 +539,15 @@ transactions, supports concurrent exact replay, and provides a fail-closed
 does not encrypt at rest. See
 [the PostgreSQL Semantic Gate artifact repository contract](protocols/postgres-semantic-gate-artifact-v3.md).
 
+`AuthenticatedSemanticGateService` is the shared provider-call kernel over
+either artifact repository. It exact-matches transport-authenticated provider,
+authenticator, and credential IDs against a server-owned registration; reloads
+the Gate evidence and durable retry head before the callback; owns model,
+template, generation-config, sequence, parent, and trusted timestamps; then
+requires atomic append plus exact read-back. Arbitrary provider exceptions are
+stored only as the stable `provider_error` code in a prompt-only attempt. See
+[the authenticated Semantic Gate service contract](protocols/semantic-gate-service-v3.md).
+
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
 ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
 schema, enforces one bounded linear sequence through a CAS head, supports

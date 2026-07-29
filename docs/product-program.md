@@ -1440,6 +1440,15 @@ Track:
   fail-closed fingerprinted `RESTRICT` rollback. Keep encrypted sensitive
   storage, provider authentication/trusted time, GateSession/replay linkage,
   and active emission outstanding.
+- Add storage-neutral `AuthenticatedSemanticGateService` over both artifact
+  authorities. Exact-match a transport-authenticated provider,
+  authenticator, and credential identifier against server-owned registration;
+  reload the Gate evidence and expected retry parent before provider work;
+  own provider/model/template/config provenance and trusted start/finish time;
+  atomically retain exact prompt/response bytes and require durable read-back.
+  Persist arbitrary provider failures only as sanitized prompt-only attempts.
+  Keep encryption/retention/access control, signed provider attestation,
+  GateSession/replay transaction linkage, and active emission outstanding.
 - Publish content-addressed `tbm.run-outcome.v3` and
   `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
   explicit evaluator evidence while keeping observed association separate

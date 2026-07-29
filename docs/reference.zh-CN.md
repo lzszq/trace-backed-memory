@@ -372,6 +372,14 @@ write，并拒绝意外的受管 trigger/index。由于 adapter 不提供静态�
 rollback。由于 adapter 不提供静态加密，敏感分类仍会被拒绝。详见
 [PostgreSQL Semantic Gate artifact 仓库契约](protocols/postgres-semantic-gate-artifact-v3.zh-CN.md)。
 
+`AuthenticatedSemanticGateService` 是两个 artifact repository 共用的 provider-call
+kernel。它把 transport 认证的 provider、authenticator 与 credential ID 同服务端持有的
+registration 精确匹配；在 callback 前重新加载 Gate evidence 与 durable retry head；由
+服务端持有 model、template、generation-config、sequence、parent 与可信 timestamp；
+最后要求原子 append 与精确 read-back。任意 provider exception 只会以稳定
+`provider_error` code 写入 prompt-only attempt。详见
+[已认证 Semantic Gate 服务契约](protocols/semantic-gate-service-v3.zh-CN.md)。
+
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的
 opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS head
 强制一条有界线性 sequence，支持精确幂等重放，通过 savepoint 保留调用方

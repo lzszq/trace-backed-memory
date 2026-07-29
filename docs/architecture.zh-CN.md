@@ -466,8 +466,12 @@ digest/descriptor guard 与完整读回。`postgres_semantic_gate_artifact_v3.py
 现已提供 PostgreSQL 对等存储：隔离且受 active-v2 门禁的 schema 增加数据库
 SHA-256/descriptor guard、catalog 校验、并发精确 replay、调用方 savepoint 与
 fail-closed `RESTRICT` rollback。两个字节仓库都不提供静态加密，因此均拒绝敏感
-明文。provider 认证/可信时间、GateSession/replay 事务挂接与 active emission
-尚未提供。详见
+明文。`semantic_gate_service_v3.py` 现会核验精确可信的
+provider/authenticator/credential registration，在调用前重新加载 Gate evidence 与当前
+retry parent，由服务端持有 provider/model/template/config provenance，采样可信开始/结束
+时间，并通过任一 repository 原子保存 attempt 与精确字节。GateSession/replay 事务挂接、
+有签名 provider attestation、retention/access control 与 active emission 尚未提供。详见
+[已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)、
 [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)、
 [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)、
 [PostgreSQL Semantic Gate artifact 仓库 v3](protocols/postgres-semantic-gate-artifact-v3.zh-CN.md)、

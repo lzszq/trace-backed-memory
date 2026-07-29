@@ -1619,9 +1619,15 @@ guards, and full read-back. PostgreSQL artifact storage is now provided by
 isolated active-v2-gated schema adds database SHA-256/descriptor guards,
 catalog validation, concurrent exact replay, caller savepoints, and
 fail-closed `RESTRICT` rollback. Both byte repositories reject sensitive
-plaintext because neither provides encryption at rest. Provider
-authentication/trusted time, GateSession/replay transaction linkage, and
-active emission are not yet provided. See
+plaintext because neither provides encryption at rest.
+`semantic_gate_service_v3.py` now authenticates an exact trusted
+provider/authenticator/credential registration, reloads Gate evidence and the
+current retry parent before the call, owns provider/model/template/config
+provenance, samples trusted start/finish time, and atomically retains the
+attempt plus exact bytes through either repository. GateSession/replay
+transaction linkage, signed provider attestation, retention/access control,
+and active emission are not yet provided. See
+[Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md),
 [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md),
 [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md),
 [PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md),

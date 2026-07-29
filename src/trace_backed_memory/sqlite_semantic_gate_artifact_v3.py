@@ -24,6 +24,7 @@ from .semantic_gate_artifact_v3 import (
 )
 from .sqlite_semantic_gate_v3 import (
     SQLiteSemanticGateV3Error,
+    SQLiteSemanticGateV3NotFoundError,
     SQLiteSemanticGateV3Repository,
     SQLiteSemanticGateV3StoreResult,
 )
@@ -744,6 +745,19 @@ class SQLiteSemanticGateArtifactV3Repository:
             raise
         except sqlite3.Error as error:
             self._raise_sqlite(error)
+
+    @_synchronized
+    def load_attempt_chain(
+        self,
+        evaluation_id: str,
+    ) -> tuple[SemanticGateAttempt, ...]:
+        """Load the exact chain, or an empty tuple before its first attempt."""
+
+        self._require_open()
+        try:
+            return self._semantic_repository.load_chain(evaluation_id)
+        except SQLiteSemanticGateV3NotFoundError:
+            return ()
 
     def _raise_sqlite(self, error: sqlite3.Error) -> NoReturn:
         message = str(error).casefold()

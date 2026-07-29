@@ -13,6 +13,7 @@ from .postgres import _load_psycopg
 from .postgres_authorization_v3 import _CATALOG_SHA256_QUERY
 from .postgres_semantic_gate_v3 import (
     PostgresSemanticGateV3Error,
+    PostgresSemanticGateV3NotFoundError,
     PostgresSemanticGateV3Repository,
     PostgresSemanticGateV3StoreResult,
 )
@@ -643,6 +644,19 @@ class PostgresSemanticGateArtifactV3Repository:
             raise
         except Exception as error:
             self._raise_database(error)
+
+    @_synchronized
+    def load_attempt_chain(
+        self,
+        evaluation_id: str,
+    ) -> tuple[SemanticGateAttempt, ...]:
+        """Load the exact chain, or an empty tuple before its first attempt."""
+
+        self._require_open()
+        try:
+            return self._semantic_repository.load_chain(evaluation_id)
+        except PostgresSemanticGateV3NotFoundError:
+            return ()
 
     def _persistence(self, message: str) -> NoReturn:
         raise PostgresSemanticGateArtifactV3PersistenceError(message)

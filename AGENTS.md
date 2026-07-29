@@ -60,6 +60,8 @@ Start with:
   Semantic Gate attempt provenance; models can only narrow.
 - `semantic_gate_artifact_v3.py`: storage-neutral exact prompt/response byte
   bindings for Semantic Gate attempts; not an artifact repository.
+- `semantic_gate_service_v3.py`: authenticated provider registration, trusted
+  timing, retry-parent checks, and atomic attempt/artifact orchestration.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
 - `sqlite_semantic_gate_artifact_v3.py`: opt-in atomic SQLite attempt plus

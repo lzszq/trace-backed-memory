@@ -244,6 +244,81 @@ def test_postgres_semantic_gate_artifact_round_trip_and_exact_replay(
         )
 
 
+def test_postgres_authenticated_semantic_service_round_trip(
+    postgres_cluster: PostgresCluster,
+) -> None:
+    _install(postgres_cluster)
+    _seed_evidence(postgres_cluster)
+    _snapshot, evaluation, _attempt = _records()
+    allowed = tuple(
+        sorted(
+            decision.memory_revision_id
+            for decision in evaluation.decisions
+            if decision.outcome == "allowed"
+        )
+    )
+    blocked = tuple(
+        sorted(
+            decision.memory_revision_id
+            for decision in evaluation.decisions
+            if decision.outcome == "blocked"
+        )
+    )
+    times = iter(("2026-07-27T08:03:00Z", "2026-07-27T08:03:01Z"))
+    with _repository(postgres_cluster) as authority:
+        with PostgresGateEvidenceV3Repository.connect(
+            **postgres_cluster.connection_kwargs()
+        ) as evidence:
+            service = tbm.AuthenticatedSemanticGateService(
+                provider=tbm.TrustedSemanticProvider(
+                    provider_id="provider_openai",
+                    authenticator_id="authenticator_oidc",
+                    credential_id="credential_prod_01",
+                    model_id="model_gate",
+                    model_version="2026-07-01",
+                    endpoint_id="endpoint_primary",
+                ),
+                configuration=tbm.SemanticGateServiceConfiguration(
+                    prompt_template_id="semantic_gate_default",
+                    prompt_template_version="v1",
+                    generation_config_sha256="sha256:" + "3" * 64,
+                    response_media_type="application/json",
+                ),
+                evidence_reader=evidence,
+                authority=authority,
+                clock=lambda: next(times),
+            )
+            result = service.invoke(
+                tbm.AuthenticatedSemanticProviderContext(
+                    provider_id="provider_openai",
+                    authenticator_id="authenticator_oidc",
+                    credential_id="credential_prod_01",
+                ),
+                tbm.SemanticGateInvocationRequest(
+                    evaluation.evaluation_id,
+                    PROMPT,
+                ),
+                lambda _call: tbm.SemanticProviderResult(
+                    response=RESPONSE,
+                    provider_request_id="provider_request_service",
+                    decision_id="decision_service",
+                    final_allowed_revision_ids=allowed,
+                    final_blocked_revision_ids=blocked,
+                    reason="The candidate remains directly applicable.",
+                    risk="low",
+                    recommended_injection="summary",
+                ),
+            )
+
+        assert authority.load_attempt_chain(evaluation.evaluation_id) == (
+            result.attempt,
+        )
+        assert (
+            authority.load_attempt_with_artifacts(result.attempt.attempt_id)
+            == result.artifacts
+        )
+
+
 def test_postgres_semantic_gate_artifact_failed_is_prompt_only(
     postgres_cluster: PostgresCluster,
 ) -> None:

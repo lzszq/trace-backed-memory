@@ -633,6 +633,14 @@
   保留调用方 transaction、支持并发精确 replay，并提供带固定指纹、fail-closed
   的 `RESTRICT` rollback。加密敏感存储、provider 认证/可信时间、
   GateSession/replay linkage 与 active emission 仍待完成。
+- 在两个 artifact authority 上增加存储中立的
+  `AuthenticatedSemanticGateService`。把 transport 认证的 provider、
+  authenticator 与 credential 标识同服务端持有的 registration 精确匹配；在 provider
+  工作前重新加载 Gate evidence 与预期 retry parent；由服务端持有
+  provider/model/template/config provenance 与可信开始/结束时间；原子保存精确
+  prompt/response 字节并要求 durable read-back。任意 provider failure 只会作为净化后的
+  prompt-only attempt 持久化。encryption/retention/access control、有签名 provider
+  attestation、GateSession/replay transaction linkage 与 active emission 仍待完成。
 - 发布内容寻址 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3`
   契约，把 completed GateSession 绑定到显式 evaluator evidence，并严格区分
   观察关联与独立核验的因果结论。

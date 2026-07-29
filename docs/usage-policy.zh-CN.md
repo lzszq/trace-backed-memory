@@ -433,6 +433,16 @@ catalog 校验/rollback 保持相同 chain 规则。
 SQLite 文件所有者属于可信边界：本地 DDL 无法证明一条内部完全自洽的离线重写
 没有发生；该威胁必须由外部签名 audit/checkpoint authority 处理。
 
+通过任一 artifact authority 调用 provider 时，应使用
+`AuthenticatedSemanticGateService`。可信 bootstrap 代码必须持有精确 provider、
+authenticator、credential 标识、model、endpoint、template、generation config、
+classification 与 clock。只有 transport 派生的
+`AuthenticatedSemanticProviderContext` 完全匹配后才能执行 provider 工作。每次都必须
+指定预期 durable retry parent；stale parent 表示操作失败，不能据此调用并静默重试。
+provider 失败只以净化后的 prompt-only attempt 持久化，不得保存原始异常文本。该服务不
+提供 encryption、retention、artifact access control、有签名 provider attestation、
+GateSession/replay 原子性或 active adapter emission。
+
 ## Version-3 结果与归因策略
 
 只能从显式 measured result 与 evidence 创建 `RunOutcome`，不得从 callback

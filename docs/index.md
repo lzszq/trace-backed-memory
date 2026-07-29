@@ -33,6 +33,7 @@ orientation; these documents define the engineering contracts.
 - [Replayable RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.md)
 - [System and Semantic Gate evaluation v3](protocols/gate-evaluation-v3.md)
 - [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md)
+- [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md)
 - [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md)
 - [PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md)
 - [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.md)

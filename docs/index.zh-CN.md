@@ -32,6 +32,7 @@
 - [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)
 - [System 与 Semantic Gate evaluation v3](protocols/gate-evaluation-v3.zh-CN.md)
 - [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)
+- [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)
 - [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)
 - [PostgreSQL Semantic Gate artifact 仓库 v3](protocols/postgres-semantic-gate-artifact-v3.zh-CN.md)
 - [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.zh-CN.md)

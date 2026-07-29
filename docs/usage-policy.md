@@ -1291,6 +1291,17 @@ Treat the SQLite file owner as trusted: local DDL cannot prove history against
 a fully self-consistent offline rewrite. That threat requires an external
 signed audit/checkpoint authority.
 
+Use `AuthenticatedSemanticGateService` when calling a provider through either
+artifact authority. Trusted bootstrap code must own the exact provider,
+authenticator, credential identifier, model, endpoint, template, generation
+configuration, classification, and clock. Require the transport-derived
+`AuthenticatedSemanticProviderContext` to match before provider work. Always
+name the expected durable retry parent; a stale parent is a failed operation,
+not permission to invoke and retry silently. Persist sanitized provider
+failures as prompt-only attempts, never provider exception text. This service
+does not add encryption, retention, artifact access control, signed provider
+attestation, GateSession/replay atomicity, or active adapter emission.
+
 ## Version-3 outcome and attribution policy
 
 Create a `RunOutcome` only from an explicit measured result and evidence; never

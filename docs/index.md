@@ -97,10 +97,11 @@ add one immutable completion event and an append-only leased delivery chain to
 that transaction. Authenticated evaluator/artifact checks and active runtime
 emission remain outstanding.
 Storage-neutral approval/activation contracts and isolated SQLite/PostgreSQL
-publication authorities are published. An opt-in authenticated SQLite Artifact
-Authority now encrypts exact bytes through a caller-owned provider, authorizes
-every read/write, and enforces read-time retention/legal hold. PostgreSQL/object
-storage parity, physical purge/key destruction, active-v2 projection, and broader service integration remain part of the
+publication authorities are published. Opt-in authenticated SQLite and
+isolated PostgreSQL Artifact authorities encrypt exact bytes through a
+caller-owned provider, authorize every read/write, and enforce read-time
+retention/legal hold. Object-storage parity, physical purge/key destruction,
+active-v2 projection, and broader service integration remain part of the
 coordinated schema-version-3 program. The
 storage-neutral `tbm.replay.v3` artifact and replay-manifest contract is
 published with an opt-in isolated SQLite immutable byte/descriptor ledger, but

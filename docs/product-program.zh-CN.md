@@ -757,11 +757,14 @@
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-
-  encryption provider 边界、`AuthenticatedArtifactService` 与隔离不可变 SQLite
-  version-1 repository。在访问存储之前持久化并精确读回 `artifact:write/read`
-  decision；将 scope、授权、provider/key、可信时间与 retention 绑定到 AAD；写入前及
-  每次读取时解密并核验明文。PostgreSQL/object-storage 对等实现、物理清除/密钥销毁、
-  provider 认证、MemoryRevision/GateSession linkage 与 active emission 仍待完成。
+  encryption provider 边界、`AuthenticatedArtifactService`、隔离不可变 SQLite
+  version-1 repository，以及由 active v2 门禁的隔离 PostgreSQL version-1 对等实现。
+  在访问存储之前持久化并精确读回 `artifact:write/read` decision；将 scope、授权、
+  provider/key、可信时间与 retention 绑定到 AAD；写入前及每次读取时解密并核验明文。
+  PostgreSQL 对等实现会固定 `search_path`、锁定并指纹化受管 catalog、由数据库核验
+  密文 digest、保留调用方 savepoint、支持并发精确 replay，并提供 fail-closed
+  `RESTRICT` rollback。object-storage 对等实现、物理清除/密钥销毁、provider 认证、
+  MemoryRevision/GateSession linkage 与 active emission 仍待完成。
 - 为 SQLite/PostgreSQL publication authority 增加 storage-neutral 精确 approval/
   activation provenance 读取 bundle，并增加 `ActivatedRevisionSource`。一次已授权读取
   从 durable head 开始，重新加载 proposal/evidence/publication authorization，要求

@@ -33,5 +33,5 @@ identity。每次读取的 authorization ID 属于 audit evidence，刻意不参
 该 source 不执行 applicability selector、classification/leakage filter、Git ancestry、
 ranking、RetrievalSnapshot emission、System/Semantic Gate、rendering 或 injection。
 它不会把 proposal 变成 active，也绝不从 version-2 Lesson/Policy/usage record 推导
-revision ID。当前加密 Artifact Authority 仍是 SQLite-local；PostgreSQL/object-storage
-artifact 对等实现与 active Agent/MCP integration 仍待完成。
+revision ID。当前加密 Artifact Authority 已提供 SQLite 与隔离 PostgreSQL 对等实现；
+object storage 与 active Agent/MCP integration 仍待完成。

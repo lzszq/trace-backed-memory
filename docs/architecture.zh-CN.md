@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 123 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 125 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -242,14 +242,17 @@ Repository 要求规范 `schemas/sqlite.sql` 的 schema 版本 1。`connect(...,
 
 SQLite 是嵌入式选择，不替代 PostgreSQL 的数据库侧 JSONB、trigger、row lock、共享 ID registry 和多客户端约束。两个适配器共享公开 sync/load 生命周期语义；SQLite 使用 schema 版本 1，PostgreSQL 使用 schema 版本 2，DDL 和并发保证独立。
 
-## 本地加密 Artifact Authority
+## 加密 Artifact Authority
 
 `artifact_v3.py` 围绕现有明文内容身份定义不可变加密 envelope 与 retention record。
 `artifact_service_v3.py` 使用共享授权 kernel 获取新的 `artifact:write/read` decision，
 再把 authenticated encryption 委托给调用方持有的 provider。`sqlite_artifact_v3.py`
 只在隔离 `schemas/sqlite-v3-artifact-authority.sql` schema 中保存密文，并核验精确读回
-与规范 schema definition。这是 opt-in v3 准备边界；active Store、Agent、MCP、
-publication authority 与 replay ledger 尚未调用它。详见
+与规范 schema definition。`postgres_artifact_v3.py` 提供由 active v2 门禁的隔离
+PostgreSQL 对等实现，包含固定 `search_path`、行/表锁、数据库侧密文 digest 核验、
+精确 catalog 指纹、并发 replay、调用方 savepoint 与 fail-closed `RESTRICT` rollback。
+这仍是 opt-in v3 准备边界；active Store、Agent、MCP、publication 写入路径与 replay
+ledger 尚未调用它。详见
 [Artifact Authority 契约](protocols/artifact-authority-v3.zh-CN.md)。
 
 `activated_revision_v3.py` 现在把认证 retrieval kernel、SQLite/PostgreSQL proposal

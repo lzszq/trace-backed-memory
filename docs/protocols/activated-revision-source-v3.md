@@ -39,5 +39,5 @@ This source does not execute applicability selectors, classification/leakage
 filters, Git ancestry, ranking, RetrievalSnapshot emission, System/Semantic
 Gate, rendering, or injection. It does not make a proposal active and never
 derives revision IDs from version-2 Lesson/Policy/usage records. The current
-encrypted Artifact Authority is SQLite-local; PostgreSQL/object-storage
-artifact parity and active Agent/MCP integration remain outstanding.
+encrypted Artifact Authority has SQLite and isolated PostgreSQL peers; object
+storage and active Agent/MCP integration remain outstanding.

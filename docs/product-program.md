@@ -1451,12 +1451,17 @@ Track:
   GateSession/replay transaction linkage, and active emission outstanding.
 - Add the storage-neutral encrypted Artifact Authority contract, a caller-owned
   authenticated-encryption provider boundary, `AuthenticatedArtifactService`,
-  and an isolated immutable SQLite version-1 repository. Persist and read back
-  exact `artifact:write/read` decisions before storage access; bind scope,
+  an isolated immutable SQLite version-1 repository, and an isolated
+  active-v2-gated PostgreSQL version-1 peer. Persist and read back exact
+  `artifact:write/read` decisions before storage access; bind scope,
   authorization, provider/key, trusted time, and retention into AAD; decrypt
-  and verify plaintext before append and on every read. Keep PostgreSQL/object
-  storage parity, physical purge/key destruction, provider authentication,
-  MemoryRevision/GateSession linkage, and active emission outstanding.
+  and verify plaintext before append and on every read. The PostgreSQL peer
+  fixes `search_path`, locks and fingerprints the managed catalog, verifies
+  ciphertext digests in the database, preserves caller savepoints, supports
+  concurrent exact replay, and provides fail-closed `RESTRICT` rollback. Keep
+  object storage parity, physical purge/key destruction, provider
+  authentication, MemoryRevision/GateSession linkage, and active emission
+  outstanding.
 - Add storage-neutral exact approval/activation provenance read bundles to the
   SQLite and PostgreSQL publication authorities, then add
   `ActivatedRevisionSource`. One authorized read starts from the durable head,

@@ -43,6 +43,8 @@ from trace_backed_memory.replay_v3 import create_content_addressed_artifact
 ROOT = Path(__file__).resolve().parents[1]
 REVISION_INSTALL = ROOT / "schemas" / "postgres-v3-memory-revision.sql"
 INSTALL = ROOT / "schemas" / "postgres-v3-memory-publication.sql"
+AUTHORIZATION_INSTALL = ROOT / "schemas" / "postgres-v3-authorization.sql"
+ARTIFACT_INSTALL = ROOT / "schemas" / "postgres-v3-artifact-authority.sql"
 ROLLBACK = ROOT / "schemas" / "postgres-v3-memory-publication-rollback.sql"
 SCHEMA = "trace_backed_memory_v3_memory_publication"
 
@@ -264,6 +266,9 @@ def test_activated_revision_source_reads_postgres_publication_head(
     postgres_cluster: PostgresCluster,
 ) -> None:
     _install(postgres_cluster)
+    for script in (AUTHORIZATION_INSTALL, ARTIFACT_INSTALL):
+        result = postgres_cluster.run_script(script)
+        assert result.returncode == 0, result.stderr
     base, fixes, regressions = _publication_inputs()
     artifact = create_content_addressed_artifact(
         CONTENT,
@@ -317,10 +322,10 @@ def test_activated_revision_source_reads_postgres_publication_head(
         attestation_verifier=lambda *_args: True,
         attestation_verifier_id="attestation_verifier",
         **postgres_cluster.connection_kwargs(),
-    ) as publication, tbm.SQLiteAuthorizationV3Repository.connect(
-        initialize=True
-    ) as authorizations, tbm.SQLiteArtifactV3Repository.connect(
-        initialize=True
+    ) as publication, tbm.PostgresAuthorizationV3Repository.connect(
+        **postgres_cluster.connection_kwargs()
+    ) as authorizations, tbm.PostgresArtifactV3Repository.connect(
+        **postgres_cluster.connection_kwargs()
     ) as artifact_repository:
         proposals.store_proposal(
             revision,

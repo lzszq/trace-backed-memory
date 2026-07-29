@@ -544,6 +544,16 @@ from .postgres import (
     PostgresSyncCounts,
     PostgresSyncResult,
 )
+from .postgres_artifact_v3 import (
+    POSTGRES_ARTIFACT_V3_SCHEMA_VERSION,
+    PostgresArtifactV3ConflictError,
+    PostgresArtifactV3Error,
+    PostgresArtifactV3NotFoundError,
+    PostgresArtifactV3PersistenceError,
+    PostgresArtifactV3Repository,
+    PostgresArtifactV3SchemaError,
+    PostgresArtifactV3StoreResult,
+)
 from .postgres_audit_v3 import (
     POSTGRES_AUDIT_V3_MAX_PAGE_SIZE,
     POSTGRES_AUDIT_V3_SCHEMA_VERSION,
@@ -1239,6 +1249,14 @@ __all__ = [
     "PostgresAdapterError",
     "PostgresConflictError",
     "PostgresDependencyError",
+    "POSTGRES_ARTIFACT_V3_SCHEMA_VERSION",
+    "PostgresArtifactV3ConflictError",
+    "PostgresArtifactV3Error",
+    "PostgresArtifactV3NotFoundError",
+    "PostgresArtifactV3PersistenceError",
+    "PostgresArtifactV3Repository",
+    "PostgresArtifactV3SchemaError",
+    "PostgresArtifactV3StoreResult",
     "POSTGRES_AUDIT_V3_MAX_PAGE_SIZE",
     "POSTGRES_AUDIT_V3_SCHEMA_VERSION",
     "PostgresAuditV3AppendResult",

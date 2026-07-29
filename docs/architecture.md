@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 123 canonical Schema, SQL/migration, memory-support, and
+the repository's 125 canonical Schema, SQL/migration, memory-support, and
 example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
@@ -1120,7 +1120,7 @@ share public sync/load lifecycle semantics, while SQLite uses schema version 1
 and PostgreSQL uses schema version 2; their DDL and operational concurrency
 guarantees are intentionally separate.
 
-## Local encrypted Artifact Authority
+## Encrypted Artifact Authority
 
 `artifact_v3.py` defines immutable encrypted-envelope and retention records
 around the existing plaintext content identity. `artifact_service_v3.py` uses
@@ -1128,9 +1128,13 @@ the shared authorization kernel for fresh `artifact:write/read` decisions,
 then delegates authenticated encryption to caller-owned provider code.
 `sqlite_artifact_v3.py` stores only ciphertext in the isolated
 `schemas/sqlite-v3-artifact-authority.sql` schema and verifies exact read-back
-and canonical schema definitions. This is an opt-in v3 preparation boundary;
-the active Store, Agent, MCP, publication authorities, and replay ledgers do
-not call it yet. See [the Artifact Authority contract](protocols/artifact-authority-v3.md).
+and canonical schema definitions. `postgres_artifact_v3.py` provides the
+isolated active-v2-gated PostgreSQL peer with fixed `search_path`, row/table
+locking, database ciphertext-digest verification, exact catalog fingerprints,
+concurrent replay, caller savepoints, and fail-closed `RESTRICT` rollback.
+This remains an opt-in v3 preparation boundary; the active Store, Agent, MCP,
+publication write path, and replay ledgers do not call it yet. See
+[the Artifact Authority contract](protocols/artifact-authority-v3.md).
 
 `activated_revision_v3.py` now composes the authenticated retrieval kernel,
 the SQLite/PostgreSQL proposal and publication read APIs, and the authenticated
@@ -1171,7 +1175,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 123 resources.
+contains 125 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:

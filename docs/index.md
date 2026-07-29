@@ -17,6 +17,7 @@ orientation; these documents define the engineering contracts.
 
 - [Local agent protocol `tbm.agent.v1`](protocols/agent-v1.md)
 - [Local HTTP service and Python SDK](protocols/agent-http-v1.md)
+- [Canonical local Agent OpenAPI 3.1](../schemas/agent-http-v1.openapi.json)
 - [Authorization v3 contract](protocols/authorization-v3.md)
 - [Entity registry v3 contract](protocols/entity-registry-v3.md)
 - [Authenticated retrieval service boundary](protocols/authenticated-service-v3.md)

@@ -1,0 +1,362 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "Trace-backed Memory local Agent HTTP API",
+    "version": "tbm.agent.v1",
+    "description": "Loopback-only, single-host HTTP binding for the process-local tbm.agent.v1 lifecycle. Bearer authentication is transport protection, not tenant or user authorization."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8765",
+      "description": "Default local loopback endpoint"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/v1/capabilities": {
+      "get": {
+        "operationId": "getAgentCapabilities",
+        "summary": "Discover protocol, storage, operation, mode, and limit capabilities",
+        "responses": {
+          "200": {
+            "description": "Current agent capabilities",
+            "headers": {
+              "X-TBM-Protocol-Version": {
+                "$ref": "#/components/headers/ProtocolVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCapabilities"
+                }
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/v1/health": {
+      "get": {
+        "operationId": "getAgentHealth",
+        "summary": "Read non-sensitive process-local runtime and measured-outcome health",
+        "responses": {
+          "200": {
+            "description": "Current runtime health",
+            "headers": {
+              "X-TBM-Protocol-Version": {
+                "$ref": "#/components/headers/ProtocolVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/AgentHealth"}
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/v1/prepare": {
+      "post": {
+        "operationId": "prepareAgentMemory",
+        "summary": "Capture local Git provenance, retrieve candidates, and apply System Gate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/AgentPrepareRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Prepared process-local request and bounded semantic-gate prompt",
+            "headers": {
+              "X-TBM-Protocol-Version": {
+                "$ref": "#/components/headers/ProtocolVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/AgentPrepared"}
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/v1/finalize": {
+      "post": {
+        "operationId": "finalizeAgentMemory",
+        "summary": "Narrow a prepared request and return the only injectable snippet",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/AgentFinalizeRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Finalized usage decision and bounded injection",
+            "headers": {
+              "X-TBM-Protocol-Version": {
+                "$ref": "#/components/headers/ProtocolVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/AgentFinalized"}
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/v1/complete": {
+      "post": {
+        "operationId": "completeAgentRun",
+        "summary": "Attach measured outcome evidence to a finalized decision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/AgentCompleteRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Completed trace and usage-decision linkage",
+            "headers": {
+              "X-TBM-Protocol-Version": {
+                "$ref": "#/components/headers/ProtocolVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/AgentCompleted"}
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/v1/cancel": {
+      "post": {
+        "operationId": "cancelAgentRun",
+        "summary": "Release an abandoned process-local prepared request",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/AgentCancelRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Canceled process-local request",
+            "headers": {
+              "X-TBM-Protocol-Version": {
+                "$ref": "#/components/headers/ProtocolVersion"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/AgentCanceled"}
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "opaque local secret",
+        "description": "An operator-provisioned 32-512 character secret. It protects the loopback transport but does not establish a user, tenant, or workload identity."
+      }
+    },
+    "headers": {
+      "ProtocolVersion": {
+        "description": "Exact Trace-backed Memory agent protocol version",
+        "required": true,
+        "schema": {"const": "tbm.agent.v1"}
+      }
+    },
+    "schemas": {
+      "AgentCapabilities": {
+        "$ref": "./agent_capabilities.schema.json"
+      },
+      "AgentHealth": {
+        "$ref": "./agent_health.schema.json"
+      },
+      "AgentPrepareRequest": {
+        "$ref": "./agent_prepare_request.schema.json"
+      },
+      "AgentPrepared": {
+        "$ref": "./agent_prepared.schema.json"
+      },
+      "AgentFinalizeRequest": {
+        "$ref": "./agent_finalize_request.schema.json"
+      },
+      "AgentFinalized": {
+        "$ref": "./agent_finalized.schema.json"
+      },
+      "AgentCompleteRequest": {
+        "$ref": "./agent_complete_request.schema.json"
+      },
+      "AgentCompleted": {
+        "$ref": "./agent_completed.schema.json"
+      },
+      "AgentCancelRequest": {
+        "$ref": "./agent_cancel_request.schema.json"
+      },
+      "AgentCanceled": {
+        "$ref": "./agent_canceled.schema.json"
+      },
+      "AgentError": {
+        "$ref": "./agent_error.schema.json"
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The bounded JSON, strict request schema, or request semantics are invalid",
+        "headers": {
+          "X-TBM-Protocol-Version": {
+            "$ref": "#/components/headers/ProtocolVersion"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/AgentError"}
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "The exact local bearer secret is missing or invalid",
+        "headers": {
+          "X-TBM-Protocol-Version": {
+            "$ref": "#/components/headers/ProtocolVersion"
+          },
+          "WWW-Authenticate": {
+            "required": true,
+            "schema": {"const": "Bearer"}
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/AgentError"}
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The route or process-local request handle is unavailable",
+        "headers": {
+          "X-TBM-Protocol-Version": {
+            "$ref": "#/components/headers/ProtocolVersion"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/AgentError"}
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The lifecycle request conflicts with current process-local state",
+        "headers": {
+          "X-TBM-Protocol-Version": {
+            "$ref": "#/components/headers/ProtocolVersion"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/AgentError"}
+          }
+        }
+      },
+      "InternalError": {
+        "description": "The operation failed without exposing private exception details",
+        "headers": {
+          "X-TBM-Protocol-Version": {
+            "$ref": "#/components/headers/ProtocolVersion"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/AgentError"}
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "The local runtime is closed or temporarily unavailable",
+        "headers": {
+          "X-TBM-Protocol-Version": {
+            "$ref": "#/components/headers/ProtocolVersion"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {"$ref": "#/components/schemas/AgentError"}
+          }
+        }
+      }
+    }
+  },
+  "x-tbm-transport": {
+    "scope": "single-user, single-host, IPv4 loopback only",
+    "requestBodyMaxBytes": 8388608,
+    "requestJsonMaxNodes": 100000,
+    "requestJsonMaxDepth": 100,
+    "responseBodyMaxBytes": 8388608,
+    "responseJsonMaxNodes": 100000,
+    "responseJsonMaxDepth": 100,
+    "pendingRequestsAreProcessLocal": true,
+    "redirects": false,
+    "proxies": false
+  }
+}

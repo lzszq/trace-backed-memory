@@ -63,6 +63,9 @@ finalize 会返回原结果；不同 decision 返回
 
 ## 协议资源
 
-发行包包含 capability、canceled、prepared、finalized、completed 与 error 的
-字节一致 Schema/示例。它们属于独立版本的应用协议，不改变 snapshot、SQLite
-或 PostgreSQL schema version。
+发行包包含 capability、health、prepare/finalize/complete/cancel request、
+canceled、prepared、finalized、completed 与 error 的字节一致 Schema/示例。
+规范 OpenAPI 3.1 文档把本地 HTTP route 绑定到这些契约；Dispatcher、真实
+STDIO MCP 与 HTTP lifecycle conformance test 会用同一场景核验 payload 与 error
+语义。它们属于独立版本的应用协议，不改变 snapshot、SQLite 或 PostgreSQL
+schema version。

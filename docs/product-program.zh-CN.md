@@ -826,6 +826,11 @@
   conformance、并发 prepare、认证、畸形输入、CLI 启动与重启失效。该能力保持为
   单主机 version-2 profile；durable facade、service identity、远程/共享部署与
   TypeScript SDK 仍待完成。
+- 用四份严格 request Schema、health Schema/示例，以及引用全部 request、成功与
+  error envelope 的规范 OpenAPI 3.1 补全机器可读本地 Agent 契约。对每份契约与
+  示例打包精确字节，并让一个规范化 lifecycle 依次通过 dispatcher、真实 STDIO
+  MCP 进程与 HTTP。保持 `tbm.agent.v1`、snapshot version 2、SQLite schema
+  version 1、PostgreSQL schema version 2 与单主机安全边界不变。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-

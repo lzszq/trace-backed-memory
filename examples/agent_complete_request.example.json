@@ -1,0 +1,15 @@
+{
+  "decision_id": "decision_1",
+  "eval_result": "pass",
+  "memory_caused_failure": false,
+  "output_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "tool_outputs": [
+    {
+      "name": "search_docs",
+      "result": "success"
+    }
+  ],
+  "latency_ms": 420,
+  "cost_usd": 0.002,
+  "trace_uri": "artifact://trace_agent_example"
+}

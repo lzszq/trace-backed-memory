@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 136 canonical Schema, SQL/migration, memory-support, and
+the repository's 147 canonical Schema, SQL/migration, memory-support, and
 example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
@@ -699,6 +699,13 @@ threads. `AgentHTTPClient` is a dependency-free typed Python client that also
 requires loopback, disables proxies and redirects, validates bounded protocol
 responses against their published field limits, and maps stable error
 envelopes back to `AgentMemoryError`.
+
+The canonical OpenAPI 3.1 document references the same strict prepare,
+finalize, complete, cancel, health, success, and error schemas used by the
+adapters. A real-process conformance scenario executes the same lifecycle
+through the dispatcher, STDIO MCP, and HTTP and compares normalized protocol
+payloads. OpenAPI remains the local version-2 transport contract; it does not
+convert bearer authentication into service identity.
 
 This HTTP profile is a local process boundary, not a shared service: it has no
 TLS, user identity, or tenant isolation. The configured tenant remains
@@ -1223,7 +1230,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 136 resources.
+contains 147 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:

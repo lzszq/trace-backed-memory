@@ -78,11 +78,16 @@ The packaged `agent_error.schema.json` is the external envelope contract.
 The distribution includes byte-identical schemas and examples for:
 
 - agent capabilities;
+- runtime health;
+- prepare, finalize, complete, and cancel requests;
 - canceled request;
 - prepared memory;
 - finalized memory;
 - completed run;
 - stable error envelope.
 
-These are a separately versioned application protocol. They do not change
-snapshot, SQLite, or PostgreSQL schema versions.
+The canonical OpenAPI 3.1 document binds the local HTTP routes to those
+contracts. Dispatcher, real STDIO MCP, and HTTP lifecycle conformance tests
+exercise one scenario through the same payload and error semantics. These are
+a separately versioned application protocol. They do not change snapshot,
+SQLite, or PostgreSQL schema versions.

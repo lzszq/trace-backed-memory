@@ -50,11 +50,28 @@ _RESOURCE_SPECS: tuple[
     tuple[str, Literal["schema", "memory", "example"], str],
     ...,
 ] = (
+    ("examples/agent_cancel_request.example.json", "example", "application/json"),
     ("examples/agent_canceled.example.json", "example", "application/json"),
     ("examples/agent_capabilities.example.json", "example", "application/json"),
+    (
+        "examples/agent_complete_request.example.json",
+        "example",
+        "application/json",
+    ),
     ("examples/agent_completed.example.json", "example", "application/json"),
     ("examples/agent_error.example.json", "example", "application/json"),
+    (
+        "examples/agent_finalize_request.example.json",
+        "example",
+        "application/json",
+    ),
     ("examples/agent_finalized.example.json", "example", "application/json"),
+    ("examples/agent_health.example.json", "example", "application/json"),
+    (
+        "examples/agent_prepare_request.example.json",
+        "example",
+        "application/json",
+    ),
     ("examples/agent_prepared.example.json", "example", "application/json"),
     ("examples/audit_event_v3.example.json", "example", "application/json"),
     (
@@ -190,6 +207,16 @@ _RESOURCE_SPECS: tuple[
     ("memory/failure_taxonomy.yaml", "memory", "application/yaml"),
     ("memory/lessons.example.yaml", "memory", "application/yaml"),
     (
+        "schemas/agent-http-v1.openapi.json",
+        "schema",
+        "application/vnd.oai.openapi+json;version=3.1",
+    ),
+    (
+        "schemas/agent_cancel_request.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
         "schemas/agent_canceled.schema.json",
         "schema",
         "application/schema+json",
@@ -200,13 +227,29 @@ _RESOURCE_SPECS: tuple[
         "application/schema+json",
     ),
     (
+        "schemas/agent_complete_request.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
         "schemas/agent_completed.schema.json",
         "schema",
         "application/schema+json",
     ),
     ("schemas/agent_error.schema.json", "schema", "application/schema+json"),
     (
+        "schemas/agent_finalize_request.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
         "schemas/agent_finalized.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    ("schemas/agent_health.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/agent_prepare_request.schema.json",
         "schema",
         "application/schema+json",
     ),

@@ -16,6 +16,7 @@
 
 - [本地 Agent 协议 `tbm.agent.v1`](protocols/agent-v1.zh-CN.md)
 - [本地 HTTP 服务与 Python SDK](protocols/agent-http-v1.zh-CN.md)
+- [规范本地 Agent OpenAPI 3.1](../schemas/agent-http-v1.openapi.json)
 - [授权 v3 契约](protocols/authorization-v3.zh-CN.md)
 - [实体注册表 v3 契约](protocols/entity-registry-v3.zh-CN.md)
 - [认证 retrieval service 边界](protocols/authenticated-service-v3.zh-CN.md)

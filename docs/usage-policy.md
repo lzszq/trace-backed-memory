@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 136 installed resource copies must remain byte-identical to the top-level
+The 147 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -682,6 +682,12 @@ bearer secret makes the profile a shared-service authorization boundary.
 Declared tenant remains version-2 applicability metadata. Pending handles
 remain process-local and must be prepared again after an HTTP restart. See the
 [local HTTP and Python SDK contract](protocols/agent-http-v1.md).
+
+`schemas/agent-http-v1.openapi.json` is the canonical local HTTP binding.
+Request/response validators, examples, package resources, and adapter
+conformance tests must remain aligned with its referenced schemas. A contract
+change must not silently broaden a request model, HTTP route, MCP tool, body
+budget, authentication boundary, or process-local lifecycle guarantee.
 
 The usual chronology is decision first and evaluation later. Call
 `record_trace()` first with an `unknown` current Trace, call

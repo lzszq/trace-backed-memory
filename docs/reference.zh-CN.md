@@ -178,7 +178,9 @@ tbm-http --repo-path . --sqlite .tbm/memory.sqlite3
 operation。它只能绑定 loopback IPv4，并要求精确一条匹配的 bearer header。
 包根导出的 `AgentHTTPClient` 是类型化、无依赖的本地 client，会拒绝远程 URL、
 proxy 与 redirect。这不是 durable v3 facade 或 shared-service 部署；重启仍会使
-pending request handle 失效。详见
+pending request handle 失效。规范
+[`agent-http-v1.openapi.json`](../schemas/agent-http-v1.openapi.json) 文档把全部
+route 绑定到严格 request/response Schema 与稳定 error。详见
 [HTTP 与 Python SDK 指南](protocols/agent-http-v1.zh-CN.md)。
 
 ## 打包资源
@@ -219,7 +221,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 136 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 147 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 新增 managed-index 资源包括 bundle Schema/example，以及隔离 SQLite 与
 PostgreSQL install/rollback SQL。package-root API 导出 builder、

@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TraceBackedMemoryAgentPrepareRequest",
+  "type": "object",
+  "required": ["task", "mode"],
+  "properties": {
+    "task": {"type": "string", "pattern": "\\S", "maxLength": 32000},
+    "mode": {
+      "type": "string",
+      "enum": ["debug", "repair", "regression", "planning", "eval", "production"]
+    },
+    "tool": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 512
+    },
+    "run_id": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 128
+    },
+    "trace_id": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 128
+    },
+    "prompt_version": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 512
+    },
+    "prompt_family": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 512
+    },
+    "tool_schema_version": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 512
+    },
+    "model": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 512
+    },
+    "model_family": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 512
+    },
+    "eval_suite": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 512
+    },
+    "input_hash": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 512
+    },
+    "task_type": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 512
+    },
+    "failure_type": {
+      "type": ["string", "null"],
+      "pattern": "\\S",
+      "maxLength": 512
+    },
+    "query": {
+      "type": ["string", "null"],
+      "maxLength": 32000
+    },
+    "semantic_scores": {
+      "anyOf": [
+        {
+          "type": "object",
+          "maxProperties": 100000,
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "additionalProperties": {"type": "number"}
+        },
+        {"type": "null"}
+      ]
+    },
+    "max_candidates": {
+      "anyOf": [
+        {"type": "integer", "minimum": 1, "maximum": 50},
+        {"type": "null"}
+      ]
+    },
+    "minimum_score": {"type": ["number", "null"]},
+    "context_summary": {
+      "type": "string",
+      "maxLength": 32000,
+      "default": ""
+    }
+  },
+  "allOf": [
+    {
+      "not": {
+        "required": ["query", "semantic_scores"],
+        "properties": {
+          "query": {"type": "string"},
+          "semantic_scores": {"type": "object"}
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["semantic_scores"],
+        "properties": {"semantic_scores": {"type": "object"}}
+      },
+      "then": {
+        "required": ["max_candidates"],
+        "properties": {"max_candidates": {"type": "integer"}}
+      }
+    },
+    {
+      "if": {
+        "anyOf": [
+          {
+            "required": ["max_candidates"],
+            "properties": {"max_candidates": {"type": "integer"}}
+          },
+          {
+            "required": ["minimum_score"],
+            "properties": {"minimum_score": {"type": "number"}}
+          }
+        ]
+      },
+      "then": {
+        "required": ["semantic_scores"],
+        "properties": {"semantic_scores": {"type": "object"}}
+      }
+    }
+  ],
+  "additionalProperties": false
+}

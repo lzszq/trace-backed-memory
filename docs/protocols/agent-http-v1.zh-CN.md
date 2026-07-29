@@ -89,8 +89,22 @@ prepared request 在 finalization 前被放弃时，改为调用
 POST body 必须是严格 JSON object。未知字段、duplicate key、非有限数字、非法
 UTF-8、超限输入与不支持的 transfer encoding 都会在 lifecycle dispatch 前被拒绝。
 响应使用 `tbm.agent.v1` envelope，并包含
-`X-TBM-Protocol-Version: tbm.agent.v1`。安装资源白名单包含响应
-Schema/示例，其中包括 cancel 与稳定 error envelope。
+`X-TBM-Protocol-Version: tbm.agent.v1`。安装资源白名单包含请求/响应
+Schema 与示例，其中包括 health、cancel 和稳定 error envelope。
+
+## 规范机器契约
+
+[`schemas/agent-http-v1.openapi.json`](../../schemas/agent-http-v1.openapi.json)
+是这六条路由的规范 OpenAPI 3.1 绑定。它引用四份严格请求 Schema、health Schema，
+以及现有 capability、prepared、finalized、completed、canceled 与 error Schema。
+全部引用文件及其规范示例都以字节一致的 package resource 安装，可通过
+`tbm resource export` 导出。
+
+OpenAPI 描述的是 `tbm.agent.v1` 的本地 HTTP 子集；capability discovery 还会报告
+并非 HTTP route 的 embedded 操作。该契约固定 bearer authentication、成功/错误
+envelope、`X-TBM-Protocol-Version`、body 上限与进程内 pending-request 边界；
+它不代表 TLS、远程 identity、durable GateSession state 或 shared-service
+authorization 已经实现。
 
 ## 安全与生命周期边界
 

@@ -1,0 +1,30 @@
+{
+  "protocol_version": "tbm.agent.v1",
+  "pending_request_count": 0,
+  "finalized_request_replay_count": 0,
+  "memory_metrics": {
+    "candidate_memory_count": 0,
+    "blocked_memory_count": 0,
+    "decision_count": 0,
+    "used_memory_count": 0,
+    "unevaluated_decision_count": 0,
+    "evaluated_with_memory_count": 0,
+    "evaluated_without_memory_count": 0,
+    "pass_rate_with_memory": null,
+    "pass_rate_without_memory": null,
+    "wrong_memory_failure_count": 0,
+    "obsolete_memory_usage_attempts": 0,
+    "average_lesson_confidence": 0.0
+  },
+  "memory_run_metrics": {
+    "decision_count": 0,
+    "complete_count": 0,
+    "pending_count": 0,
+    "decision_only_count": 0,
+    "trace_only_count": 0,
+    "conflict_count": 0,
+    "recoverable_count": 0,
+    "auto_recoverable_count": 0,
+    "attribution_required_count": 0
+  }
+}

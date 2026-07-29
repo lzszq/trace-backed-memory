@@ -1696,6 +1696,13 @@ Track:
   malformed input, CLI startup, and restart invalidation. Keep this as a
   single-host version-2 profile: the durable facade, service identities,
   remote/shared deployment, and TypeScript SDK remain outstanding.
+- Complete the machine-readable local Agent contract with four strict request
+  schemas, a health schema/example, and canonical OpenAPI 3.1 referencing every
+  request, success, and error envelope. Package exact bytes for every contract
+  and example, and run one normalized lifecycle through the dispatcher, a real
+  STDIO MCP process, and HTTP. Keep `tbm.agent.v1`, snapshot version 2, SQLite
+  schema version 1, PostgreSQL schema version 2, and the single-host security
+  boundary unchanged.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

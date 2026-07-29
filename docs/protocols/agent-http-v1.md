@@ -94,8 +94,24 @@ POST bodies are strict JSON objects. Unknown fields, duplicate keys,
 non-finite numbers, invalid UTF-8, oversized input, and unsupported transfer
 encoding are rejected before lifecycle dispatch. Responses use the
 `tbm.agent.v1` envelopes and carry `X-TBM-Protocol-Version: tbm.agent.v1`.
-The packaged resource allowlist includes response schemas/examples, including
-cancel and the stable error envelope.
+The packaged resource allowlist includes the request and response
+schemas/examples, including health, cancel, and the stable error envelope.
+
+## Canonical machine contract
+
+[`schemas/agent-http-v1.openapi.json`](../../schemas/agent-http-v1.openapi.json)
+is the canonical OpenAPI 3.1 binding for these six routes. It references the
+four strict request schemas, the health schema, and the existing capability,
+prepared, finalized, completed, canceled, and error schemas. All referenced
+files and their canonical examples are installed as byte-identical package
+resources and can be exported with `tbm resource export`.
+
+OpenAPI describes the local HTTP subset of `tbm.agent.v1`; capability
+discovery also reports embedded operations that are not HTTP routes. The
+contract fixes bearer authentication, success/error envelopes,
+`X-TBM-Protocol-Version`, body limits, and the process-local pending-request
+boundary. It does not imply TLS, remote identity, durable GateSession state,
+or shared-service authorization.
 
 ## Security and lifecycle boundary
 

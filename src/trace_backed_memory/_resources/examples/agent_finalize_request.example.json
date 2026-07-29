@@ -1,0 +1,9 @@
+{
+  "request_id": "gate_request_0123456789abcdef0123456789abcdef_1",
+  "use_memory": false,
+  "allowed_memory_ids": [],
+  "blocked_memory_ids": [],
+  "reason": "No candidate memory applies to this run.",
+  "risk": "none",
+  "recommended_injection": "none"
+}

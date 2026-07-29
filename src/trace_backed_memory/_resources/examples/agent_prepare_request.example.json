@@ -1,0 +1,9 @@
+{
+  "task": "repair the document search integration",
+  "mode": "repair",
+  "tool": "search_docs",
+  "run_id": "run_agent_example",
+  "trace_id": "trace_agent_example",
+  "query": "document search invalid tool argument",
+  "context_summary": "The search call fails strict argument validation."
+}

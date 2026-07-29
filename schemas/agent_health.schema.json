@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TraceBackedMemoryAgentHealth",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "pending_request_count",
+    "finalized_request_replay_count",
+    "memory_metrics",
+    "memory_run_metrics"
+  ],
+  "properties": {
+    "protocol_version": {"const": "tbm.agent.v1"},
+    "pending_request_count": {"type": "integer", "minimum": 0},
+    "finalized_request_replay_count": {"type": "integer", "minimum": 0},
+    "memory_metrics": {
+      "type": "object",
+      "required": [
+        "candidate_memory_count",
+        "blocked_memory_count",
+        "decision_count",
+        "used_memory_count",
+        "unevaluated_decision_count",
+        "evaluated_with_memory_count",
+        "evaluated_without_memory_count",
+        "pass_rate_with_memory",
+        "pass_rate_without_memory",
+        "wrong_memory_failure_count",
+        "obsolete_memory_usage_attempts",
+        "average_lesson_confidence"
+      ],
+      "properties": {
+        "candidate_memory_count": {"type": "integer", "minimum": 0},
+        "blocked_memory_count": {"type": "integer", "minimum": 0},
+        "decision_count": {"type": "integer", "minimum": 0},
+        "used_memory_count": {"type": "integer", "minimum": 0},
+        "unevaluated_decision_count": {"type": "integer", "minimum": 0},
+        "evaluated_with_memory_count": {"type": "integer", "minimum": 0},
+        "evaluated_without_memory_count": {"type": "integer", "minimum": 0},
+        "pass_rate_with_memory": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "pass_rate_without_memory": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "wrong_memory_failure_count": {"type": "integer", "minimum": 0},
+        "obsolete_memory_usage_attempts": {"type": "integer", "minimum": 0},
+        "average_lesson_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "memory_run_metrics": {
+      "type": "object",
+      "required": [
+        "decision_count",
+        "complete_count",
+        "pending_count",
+        "decision_only_count",
+        "trace_only_count",
+        "conflict_count",
+        "recoverable_count",
+        "auto_recoverable_count",
+        "attribution_required_count"
+      ],
+      "properties": {
+        "decision_count": {"type": "integer", "minimum": 0},
+        "complete_count": {"type": "integer", "minimum": 0},
+        "pending_count": {"type": "integer", "minimum": 0},
+        "decision_only_count": {"type": "integer", "minimum": 0},
+        "trace_only_count": {"type": "integer", "minimum": 0},
+        "conflict_count": {"type": "integer", "minimum": 0},
+        "recoverable_count": {"type": "integer", "minimum": 0},
+        "auto_recoverable_count": {"type": "integer", "minimum": 0},
+        "attribution_required_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

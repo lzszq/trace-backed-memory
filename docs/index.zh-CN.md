@@ -36,6 +36,7 @@
 - [System 与 Semantic Gate evaluation v3](protocols/gate-evaluation-v3.zh-CN.md)
 - [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)
 - [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)
+- [Durable Semantic Gate session 组合 v3](protocols/durable-semantic-gate-v3.zh-CN.md)
 - [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)
 - [PostgreSQL Semantic Gate artifact 仓库 v3](protocols/postgres-semantic-gate-artifact-v3.zh-CN.md)
 - [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.zh-CN.md)
@@ -71,8 +72,9 @@
 version 2 和 Agent 协议 `tbm.agent.v1`。可选 `tbm-mcp` 命令是该协议的长驻
 本地 STDIO transport，不是新的持久化版本。pending gate request 仍为进程内
 状态。与持久化实现无关的 `tbm.gate-session.v3` 生命周期契约及 opt-in、
-side-by-side SQLite 和隔离 PostgreSQL revision repository 已经发布，但 active
-Store/MCP、worker 与 service integration 尚未使用它们。与存储实现无关的授权
+side-by-side SQLite 和隔离 PostgreSQL revision repository 已经发布。opt-in
+preparation、Semantic Gate、completion 与 recovery service/worker 已经使用它们，
+但 active Store/MCP lifecycle 尚未使用。与存储实现无关的授权
 v3 policy/evaluator 契约已定义 canonical repository、精确租户别名、认证身份
 位置、role binding 与关联 decision。认证 retrieval service kernel 现在会在
 retrieval callback 前持久化并复查这些 decision，但 transport authentication 与
@@ -84,8 +86,10 @@ activation。
 内容寻址 retrieval policy 与可选的存储中立 preparation kernel 现在会先授权，再读取
 已核验 activated revision，执行 classification/applicability/eval-leakage/Git-ancestry
 过滤，对 versioned adapter 分数做确定性融合，并生成配对的 RetrievalSnapshot/System
-Gate evidence，最后复查 head/policy。不可变 Semantic Gate 记录以单调缩小规则绑定
-model-attempt provenance。托管生产索引、Semantic Gate 组合、active
+Gate evidence，最后复查 head/policy。opt-in durable Semantic Gate 组合现在会让
+prepared GateSession 经 `AWAITING_DECISION` 推进到 `DECIDED`，保存精确
+prompt/response 字节和完整、单调收窄的 attempt chain，并提供明确 retry/recovery
+语义。托管生产索引、rendering/injection/finalization、active
 retriever/GateSession 持久化以及 Agent/MCP/HTTP/SDK 接入仍待完成。
 opt-in SQLite 与隔离 PostgreSQL RunOutcome authority 现在都可以用一份
 content-addressed outcome 原子完成 executing GateSession。隔离 SQLite

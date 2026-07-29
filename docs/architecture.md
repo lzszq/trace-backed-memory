@@ -1160,11 +1160,14 @@ prepared context. Index matching remains discovery, not authorization.
 `durable_retrieval_preparation_v3.py` now attaches that authenticated
 preparation to one durable `CREATED` GateSession, stores and reads back the
 exact evidence pair, and CAS-publishes `PREPARED` under the same authorization
-scope. Production sharding/workers, Semantic Gate, and active adapter wiring
-remain outstanding. See
+scope. `durable_semantic_gate_v3.py` then provides the opt-in verified
+`AWAITING_DECISION`/`DECIDED` continuation over that evidence. Production
+sharding/workers, rendering/finalization, and active adapter wiring remain
+outstanding. See
 [authenticated retrieval preparation v3](protocols/retrieval-preparation-v3.md),
 [managed index bundle v3](protocols/managed-index-v3.md), and
-[durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.md).
+[durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.md),
+plus [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md).
 
 ## PostgreSQL Runtime Repository
 
@@ -1685,10 +1688,24 @@ plaintext because neither provides encryption at rest.
 provider/authenticator/credential registration, reloads Gate evidence and the
 current retry parent before the call, owns provider/model/template/config
 provenance, samples trusted start/finish time, and atomically retains the
-attempt plus exact bytes through either repository. GateSession/replay
-transaction linkage, signed provider attestation, retention/access control,
-and active emission are not yet provided. See
+attempt plus exact bytes through either repository. Repeated prompt/response
+bytes reuse their immutable content-addressed descriptor while each attempt
+keeps a distinct role binding.
+`durable_semantic_gate_v3.py` composes that authenticated service with either
+GateSession authority. It verifies the prepared session against the immutable
+snapshot/evaluation/attempt chain, CAS-publishes `AWAITING_DECISION`, invokes
+the provider, then reads back the complete monotonic chain before
+CAS-publishing `DECIDED` with every attempt ID and the successful decision.
+Failed attempts remain awaiting for an explicit parent-bound retry. A retained
+success can complete the session without another provider call, while
+ambiguous or terminal state is recovery-required. Shared caller-owned SQLite
+or PostgreSQL connections can place both session transitions and attempt-byte
+storage under one outer transaction; otherwise the service provides ordered
+recovery, not a distributed transaction. Replay-manifest/finalization linkage,
+signed provider attestation, retention/access control, and active emission are
+not yet provided. See
 [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md),
+[durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md),
 [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md),
 [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md),
 [PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md),
@@ -1768,8 +1785,11 @@ policy outcomes and ordered model-attempt provenance. Cross-record verification
 requires exact session/snapshot/candidate coverage and enforces that final
 semantic allows are a subset of System Gate allows while all System blocks
 remain blocked. Prompt/response content stays in referenced artifacts. The
-retrieval-preparation kernel emits System Gate records only; active policy
-execution and Semantic Gate emission remain outstanding. See
+retrieval-preparation kernel emits System Gate records only. The opt-in durable
+Semantic Gate composition now authenticates provider work, verifies the whole
+attempt/artifact chain, and advances a prepared GateSession to `DECIDED`.
+Active runtime policy execution and Agent/MCP Semantic Gate emission remain
+outstanding. See
 [Gate evaluation v3](protocols/gate-evaluation-v3.md).
 
 The paired `tbm.run-outcome.v3` and `tbm.outcome-attribution.v3` contracts

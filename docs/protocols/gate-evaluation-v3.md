@@ -35,27 +35,28 @@ but can never reopen it.
 
 ## Trust and persistence boundary
 
-The evaluation contracts do not call a model, authenticate the provider, or
-attach themselves transactionally to GateSession. The storage-neutral
+The evaluation contracts themselves do not call a model, authenticate the
+provider, or attach themselves to GateSession. The storage-neutral
 [Semantic Gate artifact binding](semantic-gate-artifact-v3.md) now verifies
 that exact prompt/response bytes match the role-specific attempt digests, but
-does not persist those bytes. The opt-in
-[SQLite Semantic Gate attempt ledger](sqlite-semantic-gate-v3.md) now persists
-an exact ordered retry chain beside the SQLite Gate evidence authority. A
-complete service must still:
+does not persist those bytes. The opt-in SQLite and PostgreSQL attempt/artifact
+authorities persist exact bytes and one bounded linear retry chain. The
+[authenticated Semantic Gate service](semantic-gate-service-v3.md) verifies
+provider registration, trusted server timing, complete-chain parentage, and
+monotonic narrowing. The
+[durable composition](durable-semantic-gate-v3.md) verifies the exact
+RetrievalSnapshot/System Gate/session linkage and CAS-attaches the complete
+attempt chain to `DECIDED`.
 
-- authorize and validate the RetrievalSnapshot/System Gate references;
-- persist verified prompt/response artifacts under classification,
-  encryption, retention, and access-control policy;
-- verify provider identity and trusted server timestamps;
-- enforce one linear sequence per System Gate authority. The SQLite ledger
-  does this with a unique `(system_gate_evaluation_id, sequence)` key and CAS
-  head; the low-level parent verifier checks one link, while
-  `verify_semantic_gate_attempt_chain()` verifies the complete bounded chain;
-- use the equivalent
-  [PostgreSQL ledger](postgres-semantic-gate-v3.md) for shared database
-  deployments; and
-- append GateSession references and replay components atomically.
+The remaining boundary includes tenant authorization for those references;
+classification-backed encryption, retention, and artifact access control;
+signed provider attestation beyond the trusted internal callback; atomic
+cross-authority finalization and replay-manifest linkage; and active
+Agent/MCP/HTTP/SDK integration. The SQLite ledger uses a unique
+`(system_gate_evaluation_id, sequence)` key and CAS head; the low-level parent
+verifier checks one link, while `verify_semantic_gate_attempt_chain()` verifies
+the complete bounded chain. Shared deployments use the equivalent
+[PostgreSQL ledger](postgres-semantic-gate-v3.md).
 
 The active snapshot-v2 Store, SQLite-v1/PostgreSQL-v2 adapters, Agent, and MCP
 do not emit these records yet. The side-by-side SQLite ledger does not change

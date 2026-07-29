@@ -114,5 +114,7 @@ transaction，包括 direct SQL 追加的 orphan revision；读取仍交叉校�
 这些 repository 是 opt-in persistence seam，不是 active SQLite schema v2 或
 active PostgreSQL schema v3。它们不会重建 `MemoryGateRequest._store_token`、
 修改当前 Store，也不会让 STDIO MCP 在重启后可恢复。expiry/recovery worker、
-service integration、authorization 与跨 adapter conformance 仍需交付，
-GateSession 才能成为 distributed runtime authority。
+opt-in authorization、preparation、Semantic Gate 与 completion service 现在已
+使用这些 repository。active transport integration、finalization/replay
+orchestration 与跨 adapter conformance 仍需交付，GateSession 才能成为
+distributed runtime authority。

@@ -26,10 +26,11 @@ evaluation ID、精确且有界的 UTF-8 prompt 字节，以及预期的 durable
 
 1. 用可信 registration 认证 provider context；
 2. 加载并交叉核验精确 System Gate evaluation 与 retrieval snapshot；
-3. 读取 durable attempt chain，并在 provider 工作前拒绝 stale expected parent；
+3. 读取并完整核验 durable attempt chain，并在 provider 工作前拒绝 stale expected
+   parent；
 4. 在 provider callback 前后立即采样可信 service clock，并派生有界 latency；
 5. 根据服务端持有的 provenance 构造内容寻址 attempt 与精确 prompt/response role
-   binding；
+   binding；retry 字节相同时复用已有不可变 descriptor；
 6. 通过配置的 artifact authority 原子追加，并要求精确 durable read-back。
 
 provider callback 只能收到 `SemanticProviderCall`，并可返回
@@ -56,6 +57,9 @@ head，并显式指定该 parent。
 
 当前 artifact authority 只保存 `public` 或 `internal` 明文，因此在静态加密 provider
 交付前，服务会拒绝敏感 classification。authenticator/credential identity 会在进程内
-核验，但还不是有签名的 durable attestation。GateSession/replay transaction linkage、
+核验，但还不是有签名的 durable attestation。这个 single-call service 本身仍不持有
+GateSession transition；opt-in
+[`AuthenticatedSemanticGateSessionService`](durable-semantic-gate-v3.zh-CN.md)
+会把它组合推进到 `DECIDED`。replay-manifest/finalization linkage、
 retention/access-control policy、外部 checkpoint 与 active Agent/MCP/HTTP/SDK emission
 仍是独立后续工作。active snapshot-v2、SQLite-v1 与 PostgreSQL-v2 兼容边界保持不变。

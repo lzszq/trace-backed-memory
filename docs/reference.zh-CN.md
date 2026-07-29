@@ -388,14 +388,25 @@ kernel。它把 transport 认证的 provider、authenticator 与 credential ID �
 registration 精确匹配；在 callback 前重新加载 Gate evidence 与 durable retry head；由
 服务端持有 model、template、generation-config、sequence、parent 与可信 timestamp；
 最后要求原子 append 与精确 read-back。任意 provider exception 只会以稳定
-`provider_error` code 写入 prompt-only attempt。详见
+`provider_error` code 写入 prompt-only attempt。retry 字节完全相同时，会复用首个
+不可变 content descriptor，而每条 attempt 都有独立 binding。详见
 [已认证 Semantic Gate 服务契约](protocols/semantic-gate-service-v3.zh-CN.md)。
+
+`DurableSemanticGateRequest` 指定 durable session revision、精确 prompt 字节、
+精确 retry parent 与有界 decision-lease claim。
+`AuthenticatedSemanticGateSessionService` 从该 session 派生 Gate evidence、核验
+完整 chain、发布 `AWAITING_DECISION`，然后在 provider 工作前通过 CAS 续期并读回
+live lease；它会在 `DECIDED` 中记录全部 attempt ID 与 successful `decision_id`。
+failed attempt 留在 awaiting，供显式 retry 使用。精确 decided replay 与
+retained-success recovery 不会重复 provider 调用。详见
+[durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)。
 
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的
 opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS head
 强制一条有界线性 sequence，支持精确幂等重放，通过 savepoint 保留调用方
 transaction，并在读取时复核完整 chain。字节存储由上述独立 opt-in repository
-提供；active GateSession/Agent/MCP transaction 集成仍未完成。详见
+提供；opt-in session 组合会使用两个 repository，但 active Agent/MCP transaction
+集成仍未完成。详见
 [SQLite Semantic Gate ledger 契约](protocols/sqlite-semantic-gate-v3.zh-CN.md)。
 
 `PostgresSemanticGateV3Repository` 提供隔离 PostgreSQL 对等实现。它先锁 Gate

@@ -29,25 +29,24 @@ blocked。任何被模型省略的 System-allowed 候选都必须显式放入 fi
 
 ## 信任与持久化边界
 
-evaluation 契约本身不调用模型、不认证 provider，也不以事务挂接 GateSession。
+evaluation 契约本身不调用模型、不认证 provider，也不挂接 GateSession。
 存储中立的 [Semantic Gate artifact 绑定](semantic-gate-artifact-v3.zh-CN.md)
 现已核验精确 prompt/response 字节与 attempt 对应角色 digest 一致，但不持久化这些
-字节。opt-in
-[SQLite Semantic Gate attempt ledger](sqlite-semantic-gate-v3.zh-CN.md)
-现已在 SQLite Gate evidence authority 旁持久化精确有序的 retry chain。完整服务
-仍必须：
+字节。opt-in SQLite/PostgreSQL attempt/artifact authority 现已持久化精确字节与一条
+有界线性 retry chain。[认证 Semantic Gate 服务](semantic-gate-service-v3.zh-CN.md)
+核验 provider registration、可信 server timing、完整 chain parentage 与单调收窄；
+[durable 组合](durable-semantic-gate-v3.zh-CN.md)核验精确
+RetrievalSnapshot/System Gate/session linkage，并通过 CAS 把完整 attempt chain
+挂接到 `DECIDED`。
 
-- 授权并验证 RetrievalSnapshot/System Gate 引用；
-- 按 classification、encryption、retention 与 access-control policy 持久化
-  已核验的 prompt/response artifact；
-- 验证 provider 身份与可信 server 时间；
-- 为每个 System Gate authority 强制一条线性 sequence。SQLite ledger 通过唯一
-  `(system_gate_evaluation_id, sequence)` 与 CAS head 实现；low-level parent
-  verifier 核验单个 link，`verify_semantic_gate_attempt_chain()` 核验完整有界
-  chain；
-- shared database deployment 使用对等的
-  [PostgreSQL ledger](postgres-semantic-gate-v3.zh-CN.md)；
-- 原子追加 GateSession 引用与 replay component。
+剩余边界包括这些引用的 tenant authorization；classification-backed encryption、
+retention 与 artifact access control；超出可信内部 callback 的签名 provider
+attestation；跨 authority 原子 finalization 与 replay-manifest linkage；以及 active
+Agent/MCP/HTTP/SDK 接入。SQLite ledger 通过唯一
+`(system_gate_evaluation_id, sequence)` 与 CAS head 强制线性 sequence；low-level
+parent verifier 核验单个 link，`verify_semantic_gate_attempt_chain()` 核验完整有界
+chain。shared deployment 使用对等的
+[PostgreSQL ledger](postgres-semantic-gate-v3.zh-CN.md)。
 
 active snapshot-v2 Store、SQLite-v1/PostgreSQL-v2 adapter、Agent 与 MCP 尚不产生
 这些记录；side-by-side SQLite ledger 不改变该 active compatibility boundary。

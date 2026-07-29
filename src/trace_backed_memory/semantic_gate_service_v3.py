@@ -15,6 +15,7 @@ from .gate_evaluation_v3 import (
     SystemGateEvaluation,
     build_semantic_gate_attempt,
     verify_semantic_gate_attempt,
+    verify_semantic_gate_attempt_chain,
     verify_semantic_gate_attempt_parent,
     verify_system_gate_evaluation,
 )
@@ -352,9 +353,10 @@ class AuthenticatedSemanticGateService:
                 "TBM_SEMANTIC_SERVICE_CALLBACK_INVALID",
                 "semantic provider callback is invalid",
             )
-        self._authenticate(context)
-        evaluation, snapshot = self._load_evidence(request.system_gate_evaluation_id)
-        chain = self._load_chain(evaluation.evaluation_id)
+        evaluation, snapshot, chain = self._load_verified_state(
+            context,
+            request.system_gate_evaluation_id,
+        )
         parent = None if not chain else chain[-1]
         parent_id = None if parent is None else parent.attempt_id
         if request.expected_previous_attempt_id != parent_id:
@@ -397,6 +399,7 @@ class AuthenticatedSemanticGateService:
                 request=request,
                 evaluation=evaluation,
                 snapshot=snapshot,
+                prior_attempts=chain,
                 parent=parent,
                 sequence=sequence,
                 previous_attempt_id=parent_id,
@@ -425,6 +428,36 @@ class AuthenticatedSemanticGateService:
             or context.credential_id != self._provider.credential_id
         ):
             _authentication_failed()
+
+    def _load_verified_state(
+        self,
+        context: AuthenticatedSemanticProviderContext,
+        evaluation_id: str,
+    ) -> tuple[
+        SystemGateEvaluation,
+        RetrievalSnapshot,
+        tuple[SemanticGateAttempt, ...],
+    ]:
+        """Authenticate and load one fully verified immutable attempt chain."""
+
+        if type(context) is not AuthenticatedSemanticProviderContext:
+            _authentication_failed()
+        self._authenticate(context)
+        evaluation, snapshot = self._load_evidence(evaluation_id)
+        chain = self._load_chain(evaluation.evaluation_id)
+        if chain:
+            try:
+                verify_semantic_gate_attempt_chain(
+                    chain,
+                    evaluation,
+                    snapshot,
+                )
+            except Exception:
+                raise SemanticGateServiceV3Error(
+                    "TBM_SEMANTIC_SERVICE_CHAIN_READ_FAILED",
+                    "semantic gate authority returned an invalid attempt chain",
+                ) from None
+        return evaluation, snapshot, chain
 
     def _load_evidence(
         self, evaluation_id: str
@@ -470,6 +503,7 @@ class AuthenticatedSemanticGateService:
         request: SemanticGateInvocationRequest,
         evaluation: SystemGateEvaluation,
         snapshot: RetrievalSnapshot,
+        prior_attempts: tuple[SemanticGateAttempt, ...],
         parent: SemanticGateAttempt | None,
         sequence: int,
         previous_attempt_id: str | None,
@@ -479,13 +513,29 @@ class AuthenticatedSemanticGateService:
         provider_result: SemanticProviderResult | None,
         failure: SemanticProviderCallError,
     ) -> SemanticGateServiceResult:
+        prompt_created_at = self._existing_artifact_created_at(
+            prior_attempts,
+            role="prompt",
+            content=request.prompt,
+            media_type=SEMANTIC_GATE_PROMPT_ARTIFACT_MEDIA_TYPE,
+            default_created_at=started_at,
+        )
         prompt_descriptor = create_content_addressed_artifact(
             request.prompt,
             media_type=SEMANTIC_GATE_PROMPT_ARTIFACT_MEDIA_TYPE,
             classification=self._configuration.classification,
-            created_at=started_at,
+            created_at=prompt_created_at,
             redaction_policy_id=self._configuration.redaction_policy_id,
         )
+        response_created_at = finished_at
+        if provider_result is not None:
+            response_created_at = self._existing_artifact_created_at(
+                prior_attempts,
+                role="response",
+                content=provider_result.response,
+                media_type=self._configuration.response_media_type,
+                default_created_at=finished_at,
+            )
         response_descriptor = (
             None
             if provider_result is None
@@ -493,7 +543,7 @@ class AuthenticatedSemanticGateService:
                 provider_result.response,
                 media_type=self._configuration.response_media_type,
                 classification=self._configuration.classification,
-                created_at=finished_at,
+                created_at=response_created_at,
                 redaction_policy_id=self._configuration.redaction_policy_id,
             )
         )
@@ -566,7 +616,7 @@ class AuthenticatedSemanticGateService:
                 artifact_role="prompt",
                 media_type=SEMANTIC_GATE_PROMPT_ARTIFACT_MEDIA_TYPE,
                 classification=self._configuration.classification,
-                created_at=started_at,
+                created_at=prompt_created_at,
                 redaction_policy_id=self._configuration.redaction_policy_id,
             ),
             request.prompt,
@@ -581,7 +631,7 @@ class AuthenticatedSemanticGateService:
                     artifact_role="response",
                     media_type=self._configuration.response_media_type,
                     classification=self._configuration.classification,
-                    created_at=finished_at,
+                    created_at=response_created_at,
                     redaction_policy_id=self._configuration.redaction_policy_id,
                 ),
                 provider_result.response,
@@ -602,6 +652,54 @@ class AuthenticatedSemanticGateService:
                 "semantic gate authority returned an invalid read-back receipt",
             )
         return SemanticGateServiceResult(retained)
+
+    def _existing_artifact_created_at(
+        self,
+        prior_attempts: tuple[SemanticGateAttempt, ...],
+        *,
+        role: str,
+        content: bytes,
+        media_type: str,
+        default_created_at: str,
+    ) -> str:
+        """Reuse the immutable descriptor when retry bytes already exist."""
+
+        for attempt in reversed(prior_attempts):
+            try:
+                retained = self._authority.load_attempt_with_artifacts(
+                    attempt.attempt_id
+                )
+            except Exception:
+                raise SemanticGateServiceV3Error(
+                    "TBM_SEMANTIC_SERVICE_CHAIN_READ_FAILED",
+                    "semantic gate attempt chain could not be read",
+                ) from None
+            if (
+                type(retained) is not StoredSemanticGateAttemptArtifacts
+                or retained.attempt != attempt
+            ):
+                raise SemanticGateServiceV3Error(
+                    "TBM_SEMANTIC_SERVICE_CHAIN_READ_FAILED",
+                    "semantic gate authority returned an invalid attempt chain",
+                )
+            stored = retained.prompt if role == "prompt" else retained.response
+            if stored is None or stored.content != content:
+                continue
+            artifact = stored.binding.artifact
+            if (
+                artifact.media_type != media_type
+                or artifact.classification
+                != self._configuration.classification
+                or artifact.encryption_key_id is not None
+                or artifact.redaction_policy_id
+                != self._configuration.redaction_policy_id
+            ):
+                raise SemanticGateServiceV3Error(
+                    "TBM_SEMANTIC_SERVICE_ARTIFACT_CONFLICT",
+                    "semantic gate artifact policy conflicts with retained bytes",
+                )
+            return artifact.created_at
+        return default_created_at
 
     def _trusted_time(self, label: str) -> str:
         try:

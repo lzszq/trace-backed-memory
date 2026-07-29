@@ -45,6 +45,14 @@ class GateSessionWriter(Protocol):
 
     def get(self, session_id: str) -> GateSession: ...
 
+    def renew_lease(
+        self,
+        session_id: str,
+        *,
+        expected_version: int,
+        lease_seconds: int,
+    ) -> GateSession: ...
+
     def transition(
         self,
         session_id: str,

@@ -361,6 +361,15 @@ from .durable_retrieval_preparation_v3 import (
     GateEvidenceAuthority,
     GateEvidenceStoreReceipt,
 )
+from .durable_semantic_gate_v3 import (
+    DURABLE_SEMANTIC_GATE_CONTRACT_VERSION,
+    AuthenticatedSemanticGateSessionService,
+    DurableSemanticGateProviderFailedError,
+    DurableSemanticGateRecoveryRequiredError,
+    DurableSemanticGateRequest,
+    DurableSemanticGateResult,
+    DurableSemanticGateV3Error,
+)
 from .managed_index_v3 import (
     MANAGED_INDEX_BUNDLE_CONTRACT_VERSION,
     MANAGED_INDEX_BUNDLE_JSON_MAX_BYTES,
@@ -1635,6 +1644,13 @@ __all__ = [
     "DurableRetrievalPreparationV3Error",
     "GateEvidenceAuthority",
     "GateEvidenceStoreReceipt",
+    "DURABLE_SEMANTIC_GATE_CONTRACT_VERSION",
+    "AuthenticatedSemanticGateSessionService",
+    "DurableSemanticGateProviderFailedError",
+    "DurableSemanticGateRecoveryRequiredError",
+    "DurableSemanticGateRequest",
+    "DurableSemanticGateResult",
+    "DurableSemanticGateV3Error",
     "MANAGED_INDEX_BUNDLE_CONTRACT_VERSION",
     "MANAGED_INDEX_BUNDLE_JSON_MAX_BYTES",
     "MANAGED_INDEX_BUNDLE_JSON_MAX_DEPTH",

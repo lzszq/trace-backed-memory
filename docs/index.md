@@ -37,6 +37,7 @@ orientation; these documents define the engineering contracts.
 - [System and Semantic Gate evaluation v3](protocols/gate-evaluation-v3.md)
 - [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md)
 - [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md)
+- [Durable Semantic Gate session composition v3](protocols/durable-semantic-gate-v3.md)
 - [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md)
 - [PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md)
 - [SQLite Semantic Gate attempt ledger v3](protocols/sqlite-semantic-gate-v3.md)
@@ -75,8 +76,9 @@ PostgreSQL schema version 2, and agent protocol `tbm.agent.v1`. The optional
 not another persistence version. Pending gate requests remain process-local.
 The persistence-neutral `tbm.gate-session.v3` lifecycle contract and opt-in
 side-by-side SQLite and isolated PostgreSQL revision repositories are
-published, but the active Store/MCP, workers, and service integration do not
-use them yet. The storage-neutral authorization-v3 policy/evaluator contract
+published. Opt-in preparation, Semantic Gate, completion, and recovery
+services/workers use them, but the active Store/MCP lifecycle does not. The
+storage-neutral authorization-v3 policy/evaluator contract
 defines canonical repositories, exact tenant aliases, authenticated identity
 slots, role bindings, and linked decisions. The authenticated retrieval
 service kernel now persists and rechecks those decisions before a retrieval
@@ -90,10 +92,13 @@ The content-addressed retrieval policy and optional storage-neutral preparation
 kernel now authorize first, load verified activated revisions, apply
 classification/applicability/eval-leakage/Git-ancestry filters, deterministically
 fuse versioned adapter scores, and emit paired RetrievalSnapshot/System Gate
-evidence with final head/policy rechecks. Immutable Semantic Gate records bind
-model-attempt provenance under a monotonic narrowing rule. Managed production
-indexes, Semantic Gate composition, active retriever/GateSession persistence,
-and Agent/MCP/HTTP/SDK wiring remain outstanding.
+evidence with final head/policy rechecks. The opt-in durable Semantic Gate
+composition now advances a prepared GateSession through
+`AWAITING_DECISION` to `DECIDED`, retaining exact prompt/response bytes and
+the complete monotonic attempt chain with explicit retry/recovery semantics.
+Managed production indexes, rendering/injection/finalization, active
+retriever/GateSession persistence, and Agent/MCP/HTTP/SDK wiring remain
+outstanding.
 The opt-in SQLite and isolated PostgreSQL RunOutcome authorities now atomically
 complete an executing GateSession with one content-addressed outcome. The
 isolated SQLite and PostgreSQL OutcomeAttribution ledgers persist multiple

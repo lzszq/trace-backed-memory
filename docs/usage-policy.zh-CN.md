@@ -493,7 +493,23 @@ classification 与 clock。只有 transport 派生的
 指定预期 durable retry parent；stale parent 表示操作失败，不能据此调用并静默重试。
 provider 失败只以净化后的 prompt-only attempt 持久化，不得保存原始异常文本。该服务不
 提供 encryption、retention、artifact access control、有签名 provider attestation、
-GateSession/replay 原子性或 active adapter emission。
+GateSession/replay 原子性或 active adapter emission。同一 retry chain 已存在完全
+相同的 prompt 或 response 字节时，应复用其不可变 content-addressed descriptor，
+只创建新的 attempt binding；不得用新 timestamp 改写 content row。
+
+只能在 authenticated durable retrieval preparation 生成精确 `PREPARED` session
+后使用 `AuthenticatedSemanticGateSessionService`。请求必须指定预期 session
+revision、retry parent 与有界 decision lease；snapshot/evaluation ID 必须从 session
+派生；provider 工作前要核验完整 evidence/attempt chain、发布
+`AWAITING_DECISION`，并通过 CAS 续期和读回 live lease；只有 successful attempt
+完成精确读回后才可发布 `DECIDED`。failed attempt 应保留，同时 session 继续
+awaiting。retry 可以改变 prompt，但对 success 做精确 replay/recovery 时必须保持该
+attempt 的原始 prompt。如果 success 已持久化但 decision transition 未完成，只能把
+该精确 attempt 挂接到 session，不得再次调用 provider。遇到含糊 chain、变化的
+prompt/parent 或 terminal session 时绝不能继续。共享 caller-owned
+SQLite/PostgreSQL connection 可以提供一层外部 transaction，但默认跨 authority
+路径是有序恢复，不是 distributed atomicity。rendering、injection、finalization 与
+active adapter emission 仍不可用。
 
 ## Version-3 结果与归因策略
 

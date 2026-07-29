@@ -1364,9 +1364,29 @@ configuration, classification, and clock. Require the transport-derived
 `AuthenticatedSemanticProviderContext` to match before provider work. Always
 name the expected durable retry parent; a stale parent is a failed operation,
 not permission to invoke and retry silently. Persist sanitized provider
-failures as prompt-only attempts, never provider exception text. This service
-does not add encryption, retention, artifact access control, signed provider
-attestation, GateSession/replay atomicity, or active adapter emission.
+failures as prompt-only attempts, never provider exception text. When exact
+prompt or response bytes already exist in the same retry chain, reuse their
+immutable content-addressed descriptor and create only the new attempt binding;
+do not rewrite the content row with a new timestamp. This service does not add
+encryption, retention, artifact access control, signed provider attestation,
+GateSession/replay atomicity, or active adapter emission.
+
+Use `AuthenticatedSemanticGateSessionService` only after authenticated durable
+retrieval preparation produced the exact `PREPARED` session. The request must
+name the expected session revision, retry parent, and bounded decision lease;
+derive snapshot/evaluation IDs from the session, verify the complete evidence
+and attempt chain, publish `AWAITING_DECISION`, and CAS-renew/read back the live
+lease before provider work. Publish `DECIDED` only after a successful attempt
+and exact read-back. Retain failed attempts while the session remains awaiting.
+A retry may change its prompt, but exact success replay/recovery must preserve
+the successful attempt's original prompt. If a success is durable but the
+decision transition is not, recover by attaching that exact attempt without
+another provider call.
+Never continue through an ambiguous chain, changed prompt/parent, or terminal
+session. Shared caller-owned SQLite/PostgreSQL connections may provide one
+outer transaction, but the default cross-authority path is ordered recovery,
+not distributed atomicity. Rendering, injection, finalization, and active
+adapter emission remain unavailable.
 
 ## Version-3 outcome and attribution policy
 

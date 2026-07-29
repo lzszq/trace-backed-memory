@@ -30,12 +30,13 @@ For each invocation the service:
 1. authenticates the provider context against the trusted registration;
 2. loads and cross-verifies the exact System Gate evaluation and retrieval
    snapshot;
-3. reads the durable attempt chain and rejects a stale expected parent before
-   provider work;
+3. reads and fully verifies the durable attempt chain and rejects a stale
+   expected parent before provider work;
 4. samples the trusted service clock immediately before and after the provider
    callback and derives bounded latency;
 5. constructs the content-addressed attempt plus exact prompt/response role
-   bindings from server-owned provenance;
+   bindings from server-owned provenance, reusing an existing immutable
+   descriptor when retry bytes are identical;
 6. atomically appends through the configured artifact authority and requires an
    exact durable read-back.
 
@@ -67,7 +68,10 @@ retried. A retry must reload the current head and name it explicitly.
 Current artifact authorities retain only `public` or `internal` plaintext, so
 the service rejects sensitive classifications until an encryption-at-rest
 provider exists. Authenticator/credential identity is checked in process but
-is not a signed durable attestation. GateSession/replay transaction linkage,
+is not a signed durable attestation. This single-call service still owns no
+GateSession transition; the opt-in
+[`AuthenticatedSemanticGateSessionService`](durable-semantic-gate-v3.md)
+composes it through `DECIDED`. Replay-manifest/finalization linkage,
 retention/access-control policy, external checkpoints, and active
 Agent/MCP/HTTP/SDK emission remain separate work. The active snapshot-v2,
 SQLite-v1, and PostgreSQL-v2 compatibility boundaries are unchanged.

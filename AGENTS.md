@@ -81,6 +81,8 @@ Start with:
   bindings for Semantic Gate attempts; not an artifact repository.
 - `semantic_gate_service_v3.py`: authenticated provider registration, trusted
   timing, retry-parent checks, and atomic attempt/artifact orchestration.
+- `durable_semantic_gate_v3.py`: verified PREPARED→AWAITING_DECISION→DECIDED
+  composition with exact retry, replay, and retained-success recovery.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
 - `sqlite_semantic_gate_artifact_v3.py`: opt-in atomic SQLite attempt plus

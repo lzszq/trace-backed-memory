@@ -1397,8 +1397,8 @@ Track:
   and cross-record verification that semantic decisions can only narrow
   deterministic System Gate results. Add a strict bounded whole-chain
   verifier and reject oversized direct-parser inputs before avoidable
-  allocation. Keep artifact validation, durable adapter parity, and active
-  runtime integration outstanding.
+  allocation. At this contract-only increment, artifact validation, durable
+  adapter parity, and active runtime integration were still outstanding.
 - Add an opt-in side-by-side SQLite SemanticGateAttempt ledger that depends on
   immutable Gate evidence, enforces one bounded linear chain per System Gate
   evaluation through unique sequence and CAS head, supports exact idempotent
@@ -1640,6 +1640,17 @@ Track:
   caller-owned same-connection rollback for SQLite and PostgreSQL. Keep
   Semantic Gate, later lifecycle transitions, and active adapter emission
   outstanding.
+- Add `AuthenticatedSemanticGateSessionService` as the opt-in bridge from
+  durable `PREPARED` evidence through `AWAITING_DECISION` to `DECIDED`.
+  Authenticate and preflight the provider/evidence/attempt chain before the
+  provider call; retain failed prompt-only attempts for explicit parent-bound
+  retry; store the complete ordered attempt chain and successful decision in
+  the session; and recover a retained success without repeating the external
+  call. Reuse identical prompt/response content descriptors across retry
+  bindings. Cover exact decided replay, stale version/parent rejection,
+  sanitized recovery-required states, same-connection SQLite rollback, and
+  PostgreSQL parity. Keep rendering/injection, replay-manifest finalization,
+  later lifecycle transitions, and active adapter emission outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
@@ -1648,10 +1659,10 @@ Track:
   CLI/HTTP/SDK adapters so scope becomes an enforceable transport boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
-- Wire the opt-in durable preparation bridge into transport-authenticated
-  active adapters; record Semantic Gate model/prompt, renderer, response, and
-  snippet versions or hashes needed to replay a final decision. Add production
-  index sharding/workers and external FTS/ANN provider profiles without
-  weakening the bounded reference contract.
+- Wire the opt-in durable preparation and Semantic Gate decision bridges into
+  transport-authenticated active adapters; record the renderer and exact
+  snippet identities needed to finalize and replay the decision. Add
+  production index sharding/workers and external FTS/ANN provider profiles
+  without weakening the bounded reference contract.
 - Deliver these breaking contracts together as snapshot schema version 3 and
   PostgreSQL schema version 3 with documented migrations.

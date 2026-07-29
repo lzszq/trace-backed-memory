@@ -61,6 +61,7 @@ Gate evidence repositories deliberately share one caller-owned connection, an
 outer caller transaction may roll back both authorities together; this is an
 explicit deployment choice, not an automatic service guarantee.
 
-Semantic Gate, rendering, injection, later GateSession transitions, outcome
-completion, production index workers/sharding, and active Agent/MCP/HTTP/SDK
-wiring remain separate work.
+The opt-in [durable Semantic Gate service](durable-semantic-gate-v3.md) now
+continues this exact evidence through `AWAITING_DECISION` to `DECIDED`.
+Rendering, injection, finalization/execution, production index
+workers/sharding, and active Agent/MCP/HTTP/SDK wiring remain separate work.

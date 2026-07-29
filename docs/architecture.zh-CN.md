@@ -276,11 +276,13 @@ provider/version/vector evidence 会与 raw-query digest 和 prepared context
 绑定。索引匹配仍是 discovery，不是 authorization。
 `durable_retrieval_preparation_v3.py` 现在会把这份已认证 preparation 挂接到一个
 durable `CREATED` GateSession，在同一授权 scope 下保存并读回精确 evidence
-记录对，再通过 CAS 发布 `PREPARED`。生产分片/worker、Semantic Gate 与 active
-adapter 接入仍待完成。详见
+记录对，再通过 CAS 发布 `PREPARED`。`durable_semantic_gate_v3.py` 随后会基于
+这些 evidence 提供 opt-in、已核验的 `AWAITING_DECISION`/`DECIDED` 延续。
+生产分片/worker、rendering/finalization 与 active adapter 接入仍待完成。详见
 [已认证检索准备 v3](protocols/retrieval-preparation-v3.zh-CN.md)、
 [托管索引 bundle v3](protocols/managed-index-v3.zh-CN.md)，以及
-[durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.zh-CN.md)。
+[durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.zh-CN.md)，
+以及 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)。
 
 ## PostgreSQL 运行时存储库
 
@@ -521,9 +523,20 @@ fail-closed `RESTRICT` rollback。两个字节仓库都不提供静态加密，�
 明文。`semantic_gate_service_v3.py` 现会核验精确可信的
 provider/authenticator/credential registration，在调用前重新加载 Gate evidence 与当前
 retry parent，由服务端持有 provider/model/template/config provenance，采样可信开始/结束
-时间，并通过任一 repository 原子保存 attempt 与精确字节。GateSession/replay 事务挂接、
-有签名 provider attestation、retention/access control 与 active emission 尚未提供。详见
+时间，并通过任一 repository 原子保存 attempt 与精确字节。重复的 prompt/response
+字节会复用其不可变 content-addressed descriptor，而每条 attempt 仍保留独立 role
+binding。`durable_semantic_gate_v3.py` 会把这个 authenticated service 与任一
+GateSession authority 组合起来：先根据不可变 snapshot/evaluation/attempt chain
+核验 prepared session，再通过 CAS 发布 `AWAITING_DECISION`、调用 provider、读回
+完整单调收窄 chain，最后通过 CAS 发布带全部 attempt ID 与 successful decision 的
+`DECIDED`。failed attempt 会留在 awaiting，retry 必须显式绑定 parent；已保存的
+success 可在不重复 provider 调用的情况下完成 session，而含糊或 terminal state 会进入
+recovery-required。共享 caller-owned SQLite 或 PostgreSQL connection 时，可由一层外部
+transaction 同时包含 session transition 与 attempt-byte storage；否则服务只提供有序
+恢复，并非 distributed transaction。replay-manifest/finalization 挂接、有签名 provider
+attestation、retention/access control 与 active emission 尚未提供。详见
 [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)、
+[durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)、
 [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)、
 [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)、
 [PostgreSQL Semantic Gate artifact 仓库 v3](protocols/postgres-semantic-gate-artifact-v3.zh-CN.md)、
@@ -591,8 +604,10 @@ System Gate evaluation；active retrieval 仍只返回 `MemoryItem`，尚未使�
 随后绑定逐候选确定性策略结果及有序模型 attempt provenance。跨记录核验要求精确
 session/snapshot/candidate 覆盖，并强制最终 semantic allow 是 System Gate allow
 的子集、全部 System block 保持 blocked。prompt/response 内容保留在引用 artifact
-中。retrieval-preparation kernel 只生成 System Gate record；active policy
-execution 与 Semantic Gate emission 仍待完成。详见
+中。retrieval-preparation kernel 只生成 System Gate record。opt-in durable
+Semantic Gate 组合现已认证 provider 工作、核验完整 attempt/artifact chain，并把
+prepared GateSession 推进到 `DECIDED`；active runtime policy execution 与
+Agent/MCP Semantic Gate emission 仍待完成。详见
 [门禁评估 v3](protocols/gate-evaluation-v3.zh-CN.md)。
 
 配套 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3` 补全了

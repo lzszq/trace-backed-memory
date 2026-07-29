@@ -38,6 +38,9 @@ GateSession revision 或 replay manifest。opt-in
 [SQLite 仓库](sqlite-semantic-gate-artifact-v3.zh-CN.md)现已把精确
 public/internal 字节与 attempt 原子持久化；opt-in
 [PostgreSQL 仓库](postgres-semantic-gate-artifact-v3.zh-CN.md)现已提供同等的
-原子精确字节边界及 catalog-validated install/rollback。认证后的 provider
-invocation service 仍是后续工作。Artifact 哈希只证明字节身份，不证明作者身份或
-内容真实性。
+原子精确字节边界及 catalog-validated install/rollback。
+[认证 provider invocation 服务](semantic-gate-service-v3.zh-CN.md)与 opt-in
+[durable GateSession 组合](durable-semantic-gate-v3.zh-CN.md)现已创建、核验并挂接
+这些记录。静态加密、policy-backed artifact access control、签名 provider
+attestation、finalization 与 active adapter 接入仍是后续工作。Artifact 哈希只证明
+字节身份，不证明作者身份或内容真实性。

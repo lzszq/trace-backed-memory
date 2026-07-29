@@ -597,8 +597,8 @@
   retrieval/policy/provider/model/prompt/response provenance、success/failure
   shape、有序 retry parent 与有界 metrics；跨记录核验保证 semantic decision
   只能缩小确定性 System Gate 结果。增加严格有界的完整 chain verifier，并在产生
-  可避免的分配前拒绝超大 direct-parser 输入。artifact 校验、durable adapter
-  对等实现与 active runtime 接入仍是后续工作。
+  可避免的分配前拒绝超大 direct-parser 输入。在这一仅交付契约的增量中，artifact
+  校验、durable adapter 对等实现与 active runtime 接入当时仍是后续工作。
 - 增加 opt-in、side-by-side SQLite SemanticGateAttempt ledger：依赖 immutable
   Gate evidence，通过唯一 sequence 与 CAS head 为每个 System Gate evaluation
   强制一条有界线性 chain，支持精确幂等重放，通过 savepoint 保留调用方
@@ -779,6 +779,16 @@
   immutable orphan-evidence 行为，以及 SQLite/PostgreSQL caller-owned
   same-connection rollback。Semantic Gate、后续 lifecycle transition 与 active
   adapter emission 仍待完成。
+- 增加 `AuthenticatedSemanticGateSessionService`，作为从 durable `PREPARED`
+  evidence 经 `AWAITING_DECISION` 推进到 `DECIDED` 的 opt-in 桥接。provider
+  调用前先认证并预检 provider/evidence/attempt chain；保留 failed prompt-only
+  attempt，供显式绑定 parent 的 retry 使用；在 session 中记录完整有序 attempt
+  chain 与 successful decision；并在不重复外部调用的情况下恢复已保存 success。
+  retry binding 遇到相同 prompt/response content 时复用 descriptor。覆盖精确
+  decided replay、stale version/parent 拒绝、清洗后的 recovery-required state、
+  SQLite same-connection rollback 与 PostgreSQL parity。rendering/injection、
+  replay-manifest finalization、后续 lifecycle transition 与 active adapter
+  emission 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-
@@ -801,8 +811,8 @@
   接入 shared-service MCP 与 active CLI/HTTP/SDK adapter，使 scope 成为可执行的
   transport boundary。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
-- 把 opt-in durable preparation 桥接接入具备 transport authentication 的 active
-  adapter，并记录可重放最终 decision 所需的 Semantic Gate model/prompt、
-  renderer、response 与 snippet version/hash；在不削弱有界参考契约的前提下增加
-  生产 index 分片/worker 与外部 FTS/ANN provider profile。
+- 把 opt-in durable preparation 与 Semantic Gate decision 桥接接入具备
+  transport authentication 的 active adapter，并记录 finalization/replay 所需
+  renderer 与精确 snippet identity；在不削弱有界参考契约的前提下增加生产 index
+  分片/worker 与外部 FTS/ANN provider profile。
 - 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 3 发布，并提供迁移文档。

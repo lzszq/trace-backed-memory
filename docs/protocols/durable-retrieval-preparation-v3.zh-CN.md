@@ -52,6 +52,7 @@ GateSession 与 Gate evidence repository 明确共享同一个 caller-owned conn
 调用方外层 transaction 可以一起回滚两个 authority；这是显式部署选择，不是服务
 自动保证。
 
-Semantic Gate、rendering、injection、后续 GateSession transition、outcome
-completion、生产 index worker/分片，以及 active Agent/MCP/HTTP/SDK 接入仍是独立
-后续工作。
+opt-in [durable Semantic Gate 服务](durable-semantic-gate-v3.zh-CN.md) 现在会让
+这些精确 evidence 经 `AWAITING_DECISION` 继续推进到 `DECIDED`。rendering、
+injection、finalization/execution、生产 index worker/分片，以及 active
+Agent/MCP/HTTP/SDK 接入仍是独立后续工作。

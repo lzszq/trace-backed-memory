@@ -44,5 +44,10 @@ GateSession revision, or replay manifest. The opt-in
 public/internal bytes atomically with their attempt. The opt-in
 [PostgreSQL repository](postgres-semantic-gate-artifact-v3.md) now provides
 the same atomic exact-byte boundary with catalog-validated install/rollback.
-The authenticated provider invocation service remains follow-up work.
+The [authenticated provider invocation service](semantic-gate-service-v3.md)
+and opt-in
+[durable GateSession composition](durable-semantic-gate-v3.md) now create,
+verify, and attach those records. Encryption at rest, policy-backed artifact
+access control, signed provider attestation, finalization, and active adapter
+integration remain follow-up work.
 Artifact hashes prove byte identity, not authorship or truth.

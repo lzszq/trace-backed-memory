@@ -127,6 +127,8 @@ direct-SQL append; reads still cross-check every stored payload.
 These repositories are opt-in persistence seams, not active SQLite schema v2
 or active PostgreSQL schema v3. They do not reconstruct
 `MemoryGateRequest._store_token`, alter the current Store, or make STDIO MCP
-restart-resumable. Expiry/recovery workers, service integration,
-authorization, and cross-adapter conformance remain required before
-GateSession is the distributed runtime authority.
+restart-resumable. Opt-in authorization, preparation, Semantic Gate,
+completion, and expiry/recovery services now use these repositories. Active
+transport integration, finalization/replay orchestration, and cross-adapter
+conformance remain required before GateSession is the distributed runtime
+authority.

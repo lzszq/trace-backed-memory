@@ -35,5 +35,7 @@ receipt 产生 `GatePreparationFailedError`。并发 revision、异常 transitio
 
 这是有顺序的补偿，不是跨 authorization/GateSession authority 的事务。active
 Agent/MCP 尚未产生所需 RetrievalSnapshot 与 SystemGateEvaluation record，因此
-当前还没有接入该 runtime。awaiting-decision、finalization、execution、outcome
-linkage、expiry/recovery worker 与跨进程 resume 仍是后续 service slice。
+当前还没有接入该 runtime。opt-in 下游服务现已提供 durable retrieval preparation、
+`AWAITING_DECISION`/`DECIDED`、有界 expiry recovery 与 completion authority。
+finalization/execution orchestration 与 active cross-process resume 仍是后续
+service slice。

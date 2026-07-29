@@ -558,16 +558,28 @@ authenticator, and credential IDs against a server-owned registration; reloads
 the Gate evidence and durable retry head before the callback; owns model,
 template, generation-config, sequence, parent, and trusted timestamps; then
 requires atomic append plus exact read-back. Arbitrary provider exceptions are
-stored only as the stable `provider_error` code in a prompt-only attempt. See
+stored only as the stable `provider_error` code in a prompt-only attempt.
+Identical retry bytes reuse the first immutable content descriptor while each
+attempt receives its own binding. See
 [the authenticated Semantic Gate service contract](protocols/semantic-gate-service-v3.md).
+
+`DurableSemanticGateRequest` names the durable session revision, exact prompt
+bytes, exact retry parent, and bounded decision-lease claim.
+`AuthenticatedSemanticGateSessionService` derives the Gate evidence from that
+session, verifies the complete chain, publishes `AWAITING_DECISION`, then
+CAS-renews and reads back the live lease before provider work. It records every
+attempt ID plus the successful `decision_id` in `DECIDED`. Failed attempts remain
+awaiting for explicit retry. Exact decided replay and retained-success
+recovery do not repeat the provider call. See
+[durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md).
 
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
 ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
 schema, enforces one bounded linear sequence through a CAS head, supports
 exact idempotent replay, preserves caller transactions with savepoints, and
 revalidates the entire chain on reads. Byte storage is a separate opt-in
-repository above; active GateSession/Agent/MCP transaction integration is
-still absent. See
+repository above. The opt-in session composition uses both repositories, but
+active Agent/MCP transaction integration is still absent. See
 [the SQLite Semantic Gate ledger contract](protocols/sqlite-semantic-gate-v3.md).
 
 `PostgresSemanticGateV3Repository` provides the isolated PostgreSQL peer. It

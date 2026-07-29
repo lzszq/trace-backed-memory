@@ -40,6 +40,7 @@ the coordinator never reconstructs a process-local request token.
 This is ordered compensation, not a transaction spanning the authorization
 and GateSession authorities. The active Agent/MCP still does not emit the
 required RetrievalSnapshot and SystemGateEvaluation records, so it is not
-wired into that runtime yet. Awaiting-decision, finalization, execution,
-outcome linkage, expiry/recovery workers, and cross-process resume remain
-later service slices.
+wired into that runtime yet. Opt-in downstream services now provide durable
+retrieval preparation, `AWAITING_DECISION`/`DECIDED`, bounded expiry recovery,
+and completion authorities. Finalization/execution orchestration and active
+cross-process resume remain later service slices.

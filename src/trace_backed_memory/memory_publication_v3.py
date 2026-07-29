@@ -279,6 +279,76 @@ class MemoryRevisionActivation:
         return {"activation_id": self.activation_id, **self._unsigned_dict()}
 
 
+@dataclass(frozen=True)
+class StoredMemoryRevisionApprovalPublication:
+    """Exact durable approval provenance reconstructed for trusted reads."""
+
+    approval: MemoryRevisionApproval
+    policy: AuthorizationPolicyBundle
+    request: AuthorizationRequest
+    decision: AuthorizationDecision
+    attestation_verified_by: str
+
+    def __post_init__(self) -> None:
+        _exact(self.approval, MemoryRevisionApproval, "approval")
+        _identifier(self.attestation_verified_by, "attestation_verified_by")
+        _publication_authorization(
+            policy=self.policy,
+            request=self.request,
+            decision=self.decision,
+            permission="memory:review",
+            actor_id=self.approval.approved_by,
+            client_id=self.approval.approved_via_client_id,
+            tenant_id=self.approval.tenant_id,
+            repository_id=self.approval.repository_id,
+            event_at=self.approval.approved_at,
+        )
+        if (
+            self.approval.authorization_event_id
+            != self.decision.authorization_event_id
+            or self.approval.authorization_request_sha256
+            != self.decision.request_sha256
+            or self.approval.authorization_policy_sha256
+            != self.decision.policy_sha256
+        ):
+            _mismatch("approval authorization provenance does not match event")
+
+
+@dataclass(frozen=True)
+class StoredMemoryRevisionActivationPublication:
+    """Exact durable activation provenance reconstructed for trusted reads."""
+
+    activation: MemoryRevisionActivation
+    policy: AuthorizationPolicyBundle
+    request: AuthorizationRequest
+    decision: AuthorizationDecision
+    attestation_verified_by: str
+
+    def __post_init__(self) -> None:
+        _exact(self.activation, MemoryRevisionActivation, "activation")
+        _identifier(self.attestation_verified_by, "attestation_verified_by")
+        _publication_authorization(
+            policy=self.policy,
+            request=self.request,
+            decision=self.decision,
+            permission="memory:activate",
+            actor_id=self.activation.activated_by,
+            client_id=self.activation.activated_via_client_id,
+            tenant_id=self.activation.tenant_id,
+            repository_id=self.activation.repository_id,
+            event_at=self.activation.activated_at,
+        )
+        if (
+            self.activation.authorization_event_id
+            != self.decision.authorization_event_id
+            or self.activation.authorization_request_sha256
+            != self.decision.request_sha256
+            or self.activation.authorization_policy_sha256
+            != self.decision.policy_sha256
+        ):
+            _mismatch("activation authorization provenance does not match event")
+
+
 def memory_revision_approval_id(content: Mapping[str, object]) -> str:
     return "memory_approval_sha256_" + canonical_sha256(content).removeprefix(
         "sha256:"

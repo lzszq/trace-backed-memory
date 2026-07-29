@@ -1235,6 +1235,16 @@ and read back exact rows before commit. Their append-only event rows are the
 publication audit trail. Content and attestation hashes are not signatures.
 No active runtime publication or active-v2 projection is delivered.
 
+When resolving a published revision for future v3 retrieval, authorize
+`memory:retrieve` before reading publication metadata and authorize
+`artifact:read` separately before plaintext access. Start from the durable
+current head, reverify the exact proposal/evidence/approval/activation and
+their persisted authorization descriptors, require an explicitly trusted
+append-time attestation-verifier identity, and re-read the head after artifact
+verification. A candidate digest is not authorization, ranking, applicability,
+or Gate evidence. Stored attestation hashes/verifier IDs do not reauthenticate
+signature bytes that were not retained.
+
 ## Version-3 retrieval snapshot policy
 
 Authorize the authenticated tenant/repository/principal/client request before

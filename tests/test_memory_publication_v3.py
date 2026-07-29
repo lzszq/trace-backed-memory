@@ -256,6 +256,80 @@ def test_approval_and_activation_are_exact_independent_events():
     )
 
 
+def test_stored_publication_bundles_reject_substituted_authorization():
+    (
+        approval,
+        revision,
+        fixes,
+        regressions,
+        policy,
+        approval_request,
+        approval_decision,
+    ) = _approval()
+    activation_request, activation_decision = _authorization(
+        policy,
+        actor_id="publication_activator",
+        permission="memory:activate",
+        decided_at=ACTIVATED_AT,
+    )
+    activation = activate_memory_revision(
+        revision=revision,
+        approval=approval,
+        previous_revision=None,
+        content=CONTENT,
+        fix_evidence_by_id=fixes,
+        regression_evidence_by_id=regressions,
+        approval_policy=policy,
+        approval_request=approval_request,
+        approval_decision=approval_decision,
+        previous_activation=None,
+        policy=policy,
+        request=activation_request,
+        decision=activation_decision,
+        activated_by="publication_activator",
+        activated_via_client_id="publication_service",
+        activated_at=ACTIVATED_AT,
+        activation_attestation_sha256=DIGEST,
+    )
+    substituted_approval_request = replace(
+        approval_request,
+        request_id="substituted_approval_request",
+    )
+    substituted_approval_decision = authorize(
+        policy,
+        substituted_approval_request,
+        decided_at=APPROVED_AT,
+    )
+    with pytest.raises(MemoryPublicationContractError) as caught:
+        tbm.StoredMemoryRevisionApprovalPublication(
+            approval=approval,
+            policy=policy,
+            request=substituted_approval_request,
+            decision=substituted_approval_decision,
+            attestation_verified_by="attestation_verifier",
+        )
+    assert caught.value.code == "TBM_MEMORY_PUBLICATION_MISMATCH"
+
+    substituted_activation_request = replace(
+        activation_request,
+        request_id="substituted_activation_request",
+    )
+    substituted_activation_decision = authorize(
+        policy,
+        substituted_activation_request,
+        decided_at=ACTIVATED_AT,
+    )
+    with pytest.raises(MemoryPublicationContractError) as caught:
+        tbm.StoredMemoryRevisionActivationPublication(
+            activation=activation,
+            policy=policy,
+            request=substituted_activation_request,
+            decision=substituted_activation_decision,
+            attestation_verified_by="attestation_verifier",
+        )
+    assert caught.value.code == "TBM_MEMORY_PUBLICATION_MISMATCH"
+
+
 def test_approval_rejects_wrong_bytes_denial_and_actor_overlap():
     revision, fixes, regressions = _publication_inputs()
     policy = _policy()

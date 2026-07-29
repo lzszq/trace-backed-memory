@@ -184,9 +184,22 @@ from .artifact_v3 import (
 )
 from .artifact_service_v3 import (
     ArtifactRecordAuthority,
+    AuthorizedArtifactReadResult,
     AuthenticatedArtifactService,
     AuthenticatedArtifactServiceV3Error,
     StoredArtifactResult,
+)
+from .activated_revision_v3 import (
+    ACTIVATED_REVISION_CANDIDATE_VERSION,
+    ActivatedRevisionCandidate,
+    ActivatedRevisionSource,
+    ActivatedRevisionV3Error,
+    AuthorizedArtifactReader,
+    PublicationHead,
+    PublicationReader,
+    RevisionProposalBundle,
+    RevisionProposalReader,
+    activated_revision_candidate_sha256,
 )
 from .sqlite_artifact_v3 import (
     SQLITE_ARTIFACT_V3_SCHEMA_VERSION,
@@ -223,6 +236,8 @@ from .memory_publication_v3 import (
     MemoryPublicationContractError,
     MemoryRevisionActivation,
     MemoryRevisionApproval,
+    StoredMemoryRevisionActivationPublication,
+    StoredMemoryRevisionApprovalPublication,
     activate_memory_revision,
     approve_memory_revision,
     dumps_memory_revision_activation,
@@ -859,12 +874,18 @@ from .execution import (
 )
 
 __all__ = [
+    "ACTIVATED_REVISION_CANDIDATE_VERSION",
     "ARTIFACT_AUTHORITY_CONTRACT_VERSION",
     "ARTIFACT_CIPHERTEXT_MAX_BYTES",
     "ArtifactEncryptionProvider",
     "ArtifactRecordAuthority",
     "ArtifactRetention",
     "ArtifactV3ContractError",
+    "ActivatedRevisionCandidate",
+    "ActivatedRevisionSource",
+    "ActivatedRevisionV3Error",
+    "AuthorizedArtifactReadResult",
+    "AuthorizedArtifactReader",
     "AuthenticatedArtifactService",
     "AuthenticatedArtifactServiceV3Error",
     "EncryptedArtifactRecord",
@@ -877,6 +898,13 @@ __all__ = [
     "SQLiteArtifactV3SchemaError",
     "SQLiteArtifactV3StoreResult",
     "StoredArtifactResult",
+    "StoredMemoryRevisionActivationPublication",
+    "StoredMemoryRevisionApprovalPublication",
+    "PublicationHead",
+    "PublicationReader",
+    "RevisionProposalBundle",
+    "RevisionProposalReader",
+    "activated_revision_candidate_sha256",
     "artifact_aad",
     "retention_allows_read",
     "verify_plaintext",

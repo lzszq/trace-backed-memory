@@ -17,6 +17,7 @@ from tests.test_memory_publication_v3 import (
     _policy,
     _publication_inputs,
 )
+from tests.test_artifact_service_v3 import _Provider, _context, _registry
 from tests.postgres_support import PostgresCluster
 from trace_backed_memory.postgres import _load_psycopg
 from trace_backed_memory.postgres_memory_publication_v3 import (
@@ -212,6 +213,20 @@ def test_postgres_memory_publication_round_trip_replay_and_head(
         assert repository.load_activation(
             activation.activation.activation_id
         ).activation == activation.activation
+        approval_bundle = repository.load_approval_bundle(
+            approval.approval.approval_id
+        )
+        assert approval_bundle.approval == approval.approval
+        assert approval_bundle.policy.policy_sha256 == inputs[3].policy_sha256
+        assert approval_bundle.request == inputs[4]
+        assert approval_bundle.decision == inputs[5]
+        assert approval_bundle.attestation_verified_by == "attestation_verifier"
+        activation_bundle = repository.load_activation_bundle(
+            activation.activation.activation_id
+        )
+        assert activation_bundle.activation == activation.activation
+        assert activation_bundle.policy.policy_sha256 == inputs[3].policy_sha256
+        assert activation_bundle.attestation_verified_by == "attestation_verifier"
         assert repository.load_head(
             tenant_id="tenant_001",
             repository_id="repository_001",
@@ -243,6 +258,111 @@ def test_postgres_memory_publication_round_trip_replay_and_head(
                 approved_at=APPROVED_AT,
                 approval_attestation_sha256="sha256:" + "a" * 64,
             )
+
+
+def test_activated_revision_source_reads_postgres_publication_head(
+    postgres_cluster: PostgresCluster,
+) -> None:
+    _install(postgres_cluster)
+    base, fixes, regressions = _publication_inputs()
+    artifact = create_content_addressed_artifact(
+        CONTENT,
+        media_type="application/json",
+        classification="restricted",
+        created_at=base.content_artifact.created_at,
+        encryption_key_id="key_001",
+    )
+    revision = build_memory_revision(
+        memory_id=base.memory_id,
+        memory_kind=base.memory_kind,
+        revision_number=base.revision_number,
+        previous_revision_id=base.previous_revision_id,
+        memory_type=base.memory_type,
+        content_artifact=artifact,
+        scope=base.scope,
+        confidence=base.confidence,
+        sensitive=True,
+        eval_leaking=base.eval_leaking,
+        source_case_id=base.source_case_id,
+        source_case_revision_id=base.source_case_revision_id,
+        fix_evidence_id=base.fix_evidence_id,
+        regression_evidence_ids=base.regression_evidence_ids,
+        proposed_by=base.proposed_by,
+        proposed_via_client_id=base.proposed_via_client_id,
+        proposed_at=base.proposed_at,
+        proposal_attestation_sha256=base.proposal_attestation_sha256,
+    )
+    policy = _policy()
+    review_request, review_decision = _authorization(
+        policy,
+        actor_id="publication_approver",
+        permission="memory:review",
+        decided_at=APPROVED_AT,
+    )
+    inputs = (
+        revision,
+        fixes,
+        regressions,
+        policy,
+        review_request,
+        review_decision,
+    )
+    runtime_registry = _registry(
+        permissions=("memory:retrieve", "artifact:read", "artifact:write")
+    )
+    request_number = iter(range(1, 100))
+    with PostgresMemoryRevisionV3Repository.connect(
+        **postgres_cluster.connection_kwargs()
+    ) as proposals, PostgresMemoryPublicationV3Repository.connect(
+        attestation_verifier=lambda *_args: True,
+        attestation_verifier_id="attestation_verifier",
+        **postgres_cluster.connection_kwargs(),
+    ) as publication, tbm.SQLiteAuthorizationV3Repository.connect(
+        initialize=True
+    ) as authorizations, tbm.SQLiteArtifactV3Repository.connect(
+        initialize=True
+    ) as artifact_repository:
+        proposals.store_proposal(
+            revision,
+            next(iter(fixes.values())),
+            tuple(regressions.values()),
+        )
+        approval = _append_approval(publication, inputs).approval
+        activation = _append_activation(
+            publication, inputs, approval
+        ).activation
+        authorization = tbm.AuthenticatedRetrievalService(
+            registry_provider=lambda: runtime_registry,
+            decision_writer=authorizations,
+            clock=lambda: "2026-07-29T00:00:00Z",
+            request_id_factory=lambda: (
+                f"postgres_activated_request_{next(request_number):03d}"
+            ),
+        )
+        artifact_service = tbm.AuthenticatedArtifactService(
+            authorization_service=authorization,
+            authority=artifact_repository,
+            encryption_provider=_Provider(),
+            clock=lambda: "2026-07-29T00:00:00Z",
+        )
+        artifact_service.put(
+            _context(runtime_registry), revision.content_artifact, CONTENT
+        )
+        source = tbm.ActivatedRevisionSource(
+            authorization_service=authorization,
+            proposal_reader=proposals,
+            publication_reader=publication,
+            artifact_reader=artifact_service,
+            trusted_attestation_verifier_ids=("attestation_verifier",),
+        )
+        candidate = source.load_current(
+            _context(runtime_registry),
+            memory_id=revision.memory_id,
+            repository_id="repository_001",
+        )
+        assert candidate.revision == revision
+        assert candidate.activation == activation
+        assert candidate.content == CONTENT
 
 
 def test_postgres_memory_publication_advances_from_locked_durable_head(

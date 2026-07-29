@@ -762,6 +762,13 @@
   decision；将 scope、授权、provider/key、可信时间与 retention 绑定到 AAD；写入前及
   每次读取时解密并核验明文。PostgreSQL/object-storage 对等实现、物理清除/密钥销毁、
   provider 认证、MemoryRevision/GateSession linkage 与 active emission 仍待完成。
+- 为 SQLite/PostgreSQL publication authority 增加 storage-neutral 精确 approval/
+  activation provenance 读取 bundle，并增加 `ActivatedRevisionSource`。一次已授权读取
+  从 durable head 开始，重新加载 proposal/evidence/publication authorization，要求
+  受信的写入时 attestation verifier identity，执行另一条已授权且解密的 Artifact 读取，
+  核验完整 activation，并在返回 candidate 前拒绝已经变化的 head。applicability、index/
+  RetrievalSnapshot/Gate/rendering、proposal 签名字节 replay 与 active Agent/MCP
+  projection 仍待完成。
 - 把 transport-authenticated 服务端 identity 与已发布的 retrieval 前授权 kernel
   接入 shared-service MCP 与 active CLI/HTTP/SDK adapter，使 scope 成为可执行的
   transport boundary。

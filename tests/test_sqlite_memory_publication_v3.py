@@ -209,6 +209,20 @@ def test_sqlite_publication_round_trip_exact_replay_and_durable_head():
         assert repository.load_activation(
             first_activation.activation.activation_id
         ).activation == first_activation.activation
+        approval_bundle = repository.load_approval_bundle(
+            first_approval.approval.approval_id
+        )
+        assert approval_bundle.approval == first_approval.approval
+        assert approval_bundle.policy.policy_sha256 == inputs[3].policy_sha256
+        assert approval_bundle.request == inputs[4]
+        assert approval_bundle.decision == inputs[5]
+        assert approval_bundle.attestation_verified_by == "attestation_verifier"
+        activation_bundle = repository.load_activation_bundle(
+            first_activation.activation.activation_id
+        )
+        assert activation_bundle.activation == first_activation.activation
+        assert activation_bundle.policy.policy_sha256 == inputs[3].policy_sha256
+        assert activation_bundle.attestation_verified_by == "attestation_verifier"
         assert repository.load_head(
             tenant_id="tenant_001",
             repository_id="repository_001",

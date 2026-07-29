@@ -54,6 +54,10 @@ Start with:
 - `sqlite_memory_publication_v3.py` / `postgres_memory_publication_v3.py`:
   opt-in durable publication authorities with attestation verification,
   immutable provenance, and target-scoped activation-head CAS.
+- `artifact_v3.py` / `artifact_service_v3.py` / `sqlite_artifact_v3.py`:
+  authenticated encrypted Artifact contracts and opt-in local authority.
+- `activated_revision_v3.py`: authorized current-head publication/evidence/
+  artifact verification for future version-3 retrieval candidates.
 - `retrieval_v3.py`: content-addressed RetrievalSnapshot/Hit and index-version
   contracts for explainable replay; ranking evidence is never authorization.
 - `gate_evaluation_v3.py`: immutable deterministic System Gate and monotonic

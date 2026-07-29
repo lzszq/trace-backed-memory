@@ -40,6 +40,12 @@ class StoredArtifactResult:
     inserted: bool
 
 
+@dataclass(frozen=True)
+class AuthorizedArtifactReadResult:
+    content: bytes
+    authorization_event_id: str
+
+
 _T = TypeVar("_T")
 
 
@@ -201,6 +207,13 @@ class AuthenticatedArtifactService:
             raise AuthenticatedArtifactServiceV3Error(error.code, str(error)) from None
 
     def get(self, context: AuthenticatedServiceContext, artifact_id: str) -> bytes:
+        return self.get_with_receipt(context, artifact_id).content
+
+    def get_with_receipt(
+        self,
+        context: AuthenticatedServiceContext,
+        artifact_id: str,
+    ) -> AuthorizedArtifactReadResult:
         if (
             type(artifact_id) is not str
             or re.fullmatch(r"artifact_sha256_[0-9a-f]{64}", artifact_id) is None
@@ -244,10 +257,15 @@ class AuthenticatedArtifactService:
                 return _ArtifactOperationResult(error=error)
 
         try:
-            outcome = self._authorization_service.authorize_permission(
+            authorized = self._authorization_service.authorize_permission(
                 context, permission="artifact:read", operation=load
-            ).value
-            return self._unwrap(outcome)
+            )
+            return AuthorizedArtifactReadResult(
+                content=self._unwrap(authorized.value),
+                authorization_event_id=(
+                    authorized.decision.authorization_event_id
+                ),
+            )
         except AuthenticatedArtifactServiceV3Error:
             raise
         except AuthenticatedServiceV3Error as error:

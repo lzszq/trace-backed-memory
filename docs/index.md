@@ -47,6 +47,7 @@ orientation; these documents define the engineering contracts.
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Content-addressed replay contract v3](protocols/replay-v3.md)
 - [Authenticated encrypted Artifact Authority v3](protocols/artifact-authority-v3.md)
+- [Verified ActivatedRevision source v3](protocols/activated-revision-source-v3.md)
 - [Codex integration](integrations/codex.md)
 - [Claude Code integration](integrations/claude-code.md)
 - [Pi integration](integrations/pi.md)

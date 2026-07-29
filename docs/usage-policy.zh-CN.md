@@ -392,6 +392,13 @@ attestation verifier、重新验证 proposal/evidence/artifact 字节，并在 c
 attestation hash 不是签名。当前仍未交付 active runtime publication 或 active-v2
 projection。
 
+为未来 v3 retrieval 解析已发布 revision 时，必须先授权 `memory:retrieve` 再读取
+publication metadata，并在访问明文前单独授权 `artifact:read`。必须从 durable 当前
+head 开始，重新核验精确 proposal/evidence/approval/activation 及其持久化 authorization
+descriptor，要求明确受信的写入时 attestation verifier identity，并在 artifact 核验后
+再次读取 head。candidate digest 不是 authorization、ranking、applicability 或 Gate
+evidence。未保留签名字节时，已存 attestation hash/verifier ID 不代表重新认证签名。
+
 ## Version-3 retrieval snapshot 策略
 
 在检索前先授权经过认证的 tenant/repository/principal/client 请求，然后把精确

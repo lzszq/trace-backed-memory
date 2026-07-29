@@ -13,6 +13,8 @@
 | Structured regression evidence v3 | `evidence_v3.py` | evidence Schema/example, content/linkage/self-verification rejection tests, protocol docs |
 | Immutable MemoryRevision v3 | `memory_revision_v3.py`, `memory_publication_v3.py` | proposal/approval/activation Schemas/examples, lineage/artifact/evidence/authorization/actor/head rejection tests, protocol docs |
 | MemoryRevision publication authority v3 | `sqlite_memory_publication_v3.py`, `postgres_memory_publication_v3.py` | SQLite DDL, PostgreSQL install/rollback, attestation/provenance/head-CAS/idempotency/drift/rollback tests, protocol docs |
+| Encrypted Artifact authority v3 | `artifact_v3.py`, `artifact_service_v3.py`, `sqlite_artifact_v3.py`, `schemas/sqlite-v3-artifact-authority.sql` | per-operation authorization, provider/AAD, retention/legal hold, immutable ciphertext, schema-drift/savepoint tests, bilingual protocol docs |
+| ActivatedRevision source v3 | `activated_revision_v3.py` | proposal/evidence/publication provenance, trusted verifier identities, authorized artifact read, current-head recheck, SQLite/PostgreSQL composition tests, bilingual protocol docs |
 | Replayable retrieval v3 | `retrieval_v3.py` | snapshot Schema/example, rank/hash/version/truncation rejection tests, protocol docs |
 | Gate evaluation v3 | `gate_evaluation_v3.py` | System/Semantic Gate Schemas/examples, monotonicity/provenance/retry-shape tests, protocol docs |
 | Semantic Gate artifact v3 | `semantic_gate_artifact_v3.py` | exact prompt/response byte binding, classification/encryption metadata, strict JSON/schema/example tests, protocol docs |

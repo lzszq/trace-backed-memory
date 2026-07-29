@@ -1132,6 +1132,15 @@ and canonical schema definitions. This is an opt-in v3 preparation boundary;
 the active Store, Agent, MCP, publication authorities, and replay ledgers do
 not call it yet. See [the Artifact Authority contract](protocols/artifact-authority-v3.md).
 
+`activated_revision_v3.py` now composes the authenticated retrieval kernel,
+the SQLite/PostgreSQL proposal and publication read APIs, and the authenticated
+Artifact service into one fail-closed current-head source. It revalidates exact
+publication authorization/evidence, trusts only configured append-time
+attestation-verifier identities, records separate retrieval/artifact read
+authorization events, and rejects a head that moves during the read. Its
+candidate digest is a future retrieval input, not a ranking result or active-v2
+projection. See [the ActivatedRevision source contract](protocols/activated-revision-source-v3.md).
+
 ## PostgreSQL Runtime Repository
 
 `PostgresMemoryRepository` is the implemented synchronous persistence boundary

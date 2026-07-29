@@ -1457,6 +1457,15 @@ Track:
   and verify plaintext before append and on every read. Keep PostgreSQL/object
   storage parity, physical purge/key destruction, provider authentication,
   MemoryRevision/GateSession linkage, and active emission outstanding.
+- Add storage-neutral exact approval/activation provenance read bundles to the
+  SQLite and PostgreSQL publication authorities, then add
+  `ActivatedRevisionSource`. One authorized read starts from the durable head,
+  reloads proposal/evidence/publication authorization, requires trusted
+  append-time attestation-verifier identities, performs a separately
+  authorized/decrypted Artifact read, verifies the full activation, and
+  rejects a head that changes before candidate return. Keep applicability,
+  indexing/RetrievalSnapshot/Gates/rendering, proposal-signature byte replay,
+  and active Agent/MCP projection outstanding.
 - Publish content-addressed `tbm.run-outcome.v3` and
   `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
   explicit evaluator evidence while keeping observed association separate

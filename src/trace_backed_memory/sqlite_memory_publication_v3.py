@@ -28,6 +28,8 @@ from .fix_evidence_v3 import FixEvidence, dumps_fix_evidence
 from .memory_publication_v3 import (
     MemoryRevisionActivation,
     MemoryRevisionApproval,
+    StoredMemoryRevisionActivationPublication,
+    StoredMemoryRevisionApprovalPublication,
     activate_memory_revision,
     approve_memory_revision,
     dumps_memory_revision_activation,
@@ -1353,6 +1355,27 @@ class SQLiteMemoryPublicationV3Repository:
         )
 
     @_synchronized
+    def load_approval_bundle(
+        self,
+        approval_id: str,
+    ) -> StoredMemoryRevisionApprovalPublication:
+        self._require_open()
+        _identifier(approval_id, "approval_id")
+        with self._transaction(write=False):
+            with closing(self._connection.cursor()) as cursor:
+                self._require_schema(cursor)
+                approval, policy, request, decision, verifier = (
+                    self._load_approval_row(cursor, approval_id=approval_id)
+                )
+        return StoredMemoryRevisionApprovalPublication(
+            approval=approval,
+            policy=policy,
+            request=request,
+            decision=decision,
+            attestation_verified_by=verifier,
+        )
+
+    @_synchronized
     def load_activation(
         self,
         activation_id: str,
@@ -1371,6 +1394,29 @@ class SQLiteMemoryPublicationV3Repository:
         return SQLiteMemoryPublicationV3ActivationResult(
             activation=activation,
             inserted=False,
+            attestation_verified_by=verifier,
+        )
+
+    @_synchronized
+    def load_activation_bundle(
+        self,
+        activation_id: str,
+    ) -> StoredMemoryRevisionActivationPublication:
+        self._require_open()
+        _identifier(activation_id, "activation_id")
+        with self._transaction(write=False):
+            with closing(self._connection.cursor()) as cursor:
+                self._require_schema(cursor)
+                activation, policy, request, decision, verifier = (
+                    self._load_activation_row(
+                        cursor, activation_id=activation_id
+                    )
+                )
+        return StoredMemoryRevisionActivationPublication(
+            activation=activation,
+            policy=policy,
+            request=request,
+            decision=decision,
             attestation_verified_by=verifier,
         )
 

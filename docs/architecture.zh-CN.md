@@ -252,6 +252,14 @@ SQLite 是嵌入式选择，不替代 PostgreSQL 的数据库侧 JSONB、trigger
 publication authority 与 replay ledger 尚未调用它。详见
 [Artifact Authority 契约](protocols/artifact-authority-v3.zh-CN.md)。
 
+`activated_revision_v3.py` 现在把认证 retrieval kernel、SQLite/PostgreSQL proposal
+与 publication 读取 API，以及认证 Artifact service 组合为一个 fail-closed 当前 head
+source。它重新核验精确 publication authorization/evidence，只信任配置的写入时
+attestation verifier identity，记录独立 retrieval/artifact read 授权 event，并拒绝
+读取期间移动的 head。其 candidate digest 是未来 retrieval 输入，不是 ranking result
+或 active-v2 projection。详见
+[ActivatedRevision source 契约](protocols/activated-revision-source-v3.zh-CN.md)。
+
 ## PostgreSQL 运行时存储库
 
 `PostgresMemoryRepository` 是完整 `TraceBackedMemoryStore` 的同步持久化边界。`psycopg` 是可选、延迟导入的 extra；核心包导入不加载驱动。

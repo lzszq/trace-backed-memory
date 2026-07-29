@@ -79,8 +79,11 @@ publication-head CAS 发布。它验证计算所用的完整不可变输入，�
 repository permission，尚不提供 tenant-wide discovery authorization；不得从缺失值
 推导 global 或 tenant-wide 选择。
 
-返回的 `PreparedRetrievalEvidence` 不是已完成的 GateSession。其配对记录可由现有
-SQLite/PostgreSQL Gate evidence authority 接收，但本服务不会把它们原子挂接到
-session。Semantic Gate attempt、`DECIDED -> FINALIZED`、rendering、injection、
+单独返回的 `PreparedRetrievalEvidence` 不是已完成的 GateSession。
+`DurableRetrievalPreparationService` 现在提供可选组合层：先创建 session，再持久化
+并核验精确记录对，最后通过 CAS 发布 `PREPARED`。底层 preparation service 自身
+仍不执行该 lifecycle transition。详见
+[durable retrieval preparation v3](durable-retrieval-preparation-v3.zh-CN.md)。
+Semantic Gate attempt、`DECIDED -> FINALIZED`、rendering、injection、
 artifact retention，以及 active Agent/MCP/HTTP/SDK 接入仍属于后续工作。active
 snapshot-v2 Store 和本地 MCP 仍不生成这份 v3 preparation。

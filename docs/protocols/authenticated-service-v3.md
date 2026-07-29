@@ -38,6 +38,12 @@ repository ID, environment ID, principal, client, and tenant. Stable service
 errors sanitize registry, persistence, clock, request-factory, and retrieval
 callback failures.
 
+`verify_authorized_scope()` is the composition-only read path for an existing
+scope. It reloads the durable decision, requires it to remain allowed for the
+exact permission and current policy, rebuilds the scope from the current
+registry and authenticated context, and rejects any mismatch. It never appends
+a second decision and does not make the scope a reusable caller capability.
+
 ## Current integration boundary
 
 `AuthenticatedLocalAgentMemory` is the opt-in local application integration.
@@ -58,5 +64,7 @@ through the all-or-none trusted local `--auth-*` startup profile; MCP request
 JSON still cannot supply identity or target fields. General CLI operations,
 HTTP, and SDK adapters do not select it yet. Trusted bootstrap code must still
 derive the fixed `AuthenticatedServiceContext`. Durable GateSession,
-RetrievalSnapshot, audit actor linkage, expiry/recovery workers, and one
-atomic cross-record service transaction remain separate delivery steps.
+RetrievalSnapshot attachment is available through the separate opt-in durable
+preparation bridge, but audit actor linkage, later lifecycle workers, one
+atomic cross-record service transaction, and active facade wiring remain
+separate delivery steps.

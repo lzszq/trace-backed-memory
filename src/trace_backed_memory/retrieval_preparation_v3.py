@@ -508,6 +508,32 @@ class AuthenticatedRetrievalPreparationService:
             value=evidence,
         )
 
+    def prepare_for_authorized_scope(
+        self,
+        context: AuthenticatedServiceContext,
+        scope: AuthorizedRetrievalScope,
+        request: RetrievalPreparationRequest,
+    ) -> PreparedRetrievalEvidence:
+        """Reverify one existing authorized scope without appending a decision."""
+        if type(context) is not AuthenticatedServiceContext:
+            _invalid("authenticated service context is invalid")
+        if type(scope) is not AuthorizedRetrievalScope:
+            _invalid("authorized retrieval scope is invalid")
+        if type(request) is not RetrievalPreparationRequest:
+            _invalid("request must be exactly RetrievalPreparationRequest")
+        try:
+            self._authorization_service.verify_authorized_scope(
+                context,
+                scope,
+                permission="memory:retrieve",
+            )
+        except AuthenticatedServiceV3Error as error:
+            raise RetrievalPreparationV3Error(
+                error.code,
+                str(error),
+            ) from None
+        return self._prepare_authorized(context, scope, request)
+
     def _prepare_authorized(
         self,
         context: AuthenticatedServiceContext,

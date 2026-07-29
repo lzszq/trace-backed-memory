@@ -1157,7 +1157,8 @@ The default Store, Agent, MCP, and GateSession profiles do not invoke this
 boundary. The opt-in local MCP `--auth-*` profile invokes it only after trusted
 startup identity selection and must not claim transport authentication or
 shared multi-tenant authorization. Durable GateSession and RetrievalSnapshot
-linkage, workers, and a cross-record service transaction remain required.
+linkage is available only through the opt-in composition below; workers and
+active-adapter integration remain required.
 
 `AuthenticatedGateSessionService` is the approved next boundary when durable
 preparation is required. Create and read back the scoped session before
@@ -1176,6 +1177,24 @@ RetrievalSnapshot/SystemGateEvaluation pair with
 caller-provided IDs without durable readback and exact scope verification.
 Foreign keys and recursive triggers must remain enabled; disabling either
 invalidates the authority.
+
+Use `DurableRetrievalPreparationService` when one operation must create the
+authorized GateSession, produce retrieval/System Gate evidence, durably store
+and verify that pair, and publish `PREPARED`. Construct
+`DurableRetrievalPreparationRequest` from trusted service context and let the
+service derive the complete request fingerprint. The Gate and retrieval
+services must share one authorization service instance. Do not call
+`prepare_for_authorized_scope()` directly: it reloads and verifies the existing
+allowed decision and current scope without appending a second decision, and
+exists only for this trusted same-scope composition.
+
+Exact replay must return the existing session without repeating discovery or
+evidence writes. Across separate authorities, retain ordered compensation:
+evidence may remain immutable after a later transition failure while the
+session is canceled. A caller may obtain atomic rollback only by deliberately
+sharing one SQLite or PostgreSQL connection between both repositories and
+owning the outer transaction. Never claim that the service creates a
+distributed transaction or that the default Agent/MCP uses this bridge.
 
 Run `GateSessionRecoveryWorker` only as a bounded, repeated scan. Validate the
 whole returned page before mutation and treat each candidate as an independent
@@ -1261,10 +1280,11 @@ replay consumes the recorded result; it must not silently recompute from a
 changed catalog or index.
 
 The optional retrieval-preparation kernel emits this contract and a paired
-System Gate evaluation, but the active Store and adapters do not use it. A
-future service must verify all referenced identities and bytes, authorize
-snapshot reads, apply retention, and attach the snapshot to the same
-GateSession transaction.
+System Gate evaluation, but the active Store and adapters do not use it. The
+opt-in durable composition service verifies the exact pair and attaches it to
+the same GateSession through ordered authority operations. Authorization for
+snapshot reads, retention, later lifecycle phases, and active adapter wiring
+remain required.
 
 ## Version-3 retrieval preparation policy
 
@@ -1295,8 +1315,10 @@ suite/case, and required Git-ancestry filters before ranking. Record every
 omission reason. Fuse finite scores with the content-addressed policy, use
 deterministic revision-ID tie breaking, enforce minimum/top-K/payload bounds,
 and run System Gate for every final hit. Recheck each selected current head and
-the policy before returning. Do not treat this result as Semantic Gate,
-rendering, injection, a durable GateSession, or active-v2 state.
+the policy before returning. The result becomes durable GateSession evidence
+only after `DurableRetrievalPreparationService` stores, reads back, verifies,
+and publishes it. Do not treat the result as Semantic Gate, rendering,
+injection, or active-v2 state.
 
 ## Version-3 gate evaluation policy
 

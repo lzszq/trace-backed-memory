@@ -32,6 +32,11 @@ context object 也不是可重用 capability。
 environment ID、principal、client 与 tenant。稳定 service error 会清洗 registry、
 persistence、clock、request factory 与 retrieval callback failure。
 
+`verify_authorized_scope()` 是已有 scope 的组合专用读取路径。它会重新加载 durable
+decision，要求该 decision 对精确 permission 与当前 policy 仍为 allowed，再从当前
+registry 和 authenticated context 重建 scope，并拒绝任何不一致。它不会追加第二条
+decision，也不会把 scope 变成可由调用方重用的 capability。
+
 ## 当前集成边界
 
 `AuthenticatedLocalAgentMemory` 是可选启用的本地应用集成。它包装一个精确的
@@ -49,5 +54,6 @@ runtime，另一个门面也不能 finalize、complete 或 cancel。这些索引
 本地 `--auth-*` 启动 profile 选择它；MCP 请求 JSON 仍不能提供 identity 或 target
 字段。普通 CLI operation、HTTP 与 SDK adapter 尚未选择它。可信 bootstrap 代码仍
 必须派生固定的 `AuthenticatedServiceContext`。Durable GateSession、
-RetrievalSnapshot、audit actor linkage、expiry/recovery worker 与原子的跨记录
-service transaction 仍是独立后续交付。
+RetrievalSnapshot 挂接可通过独立的 opt-in durable preparation bridge 使用，但
+audit actor linkage、后续 lifecycle worker、原子的跨记录 service transaction 与
+active facade wiring 仍是独立后续交付。

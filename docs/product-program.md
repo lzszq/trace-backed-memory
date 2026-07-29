@@ -1617,9 +1617,9 @@ Track:
   exact applicability, eval-leakage, required/disabled ancestry, deterministic
   weighted fusion, minimum/top-K/payload bounds, and task-mode System Gate;
   then emit paired RetrievalSnapshot/SystemGateEvaluation evidence and recheck
-  every selected head plus the policy. Keep managed production indexes,
-  Semantic Gate, durable GateSession attachment, and active adapter emission
-  outstanding.
+  every selected head plus the policy. At this increment, keep managed
+  production indexes, Semantic Gate, durable GateSession attachment, and
+  active adapter emission outstanding.
 - Add an opt-in bounded managed-index bundle and concrete discovery adapter.
   Build exactly versioned metadata, deterministic Unicode lexical, explicit
   local semantic-vector, structured-evidence graph, and immutable Git-DAG
@@ -1627,9 +1627,19 @@ Track:
   provider/version/vector evidence to the raw-query digest and prepared
   context. Add exact-byte immutable SQLite and active-v2-gated isolated
   PostgreSQL repositories with scope-head CAS, concurrent replay, catalog and
-  function-body drift checks, and fail-closed explicit rollback. Keep
-  production sharding/workers, external FTS/ANN providers, durable GateSession
-  attachment, Semantic Gate, and active adapter emission outstanding.
+  function-body drift checks, and fail-closed explicit rollback. At this
+  increment, keep production sharding/workers, external FTS/ANN providers,
+  durable GateSession attachment, Semantic Gate, and active adapter emission
+  outstanding.
+- Add `DurableRetrievalPreparationService` as the opt-in same-scope bridge
+  across authenticated retrieval preparation, Gate evidence, and GateSession
+  authorities. Derive one complete request fingerprint, authorize once, create
+  and read back `CREATED`, prepare with that exact session, atomically store
+  and verify the evidence pair, and CAS-publish `PREPARED`. Cover exact replay,
+  sanitized cancellation/recovery, immutable orphan-evidence behavior, and
+  caller-owned same-connection rollback for SQLite and PostgreSQL. Keep
+  Semantic Gate, later lifecycle transitions, and active adapter emission
+  outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
@@ -1638,8 +1648,8 @@ Track:
   CLI/HTTP/SDK adapters so scope becomes an enforceable transport boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
-- Attach the published managed-index preparation output to one durable
-  GateSession; record Semantic Gate model/prompt, renderer, response, and
+- Wire the opt-in durable preparation bridge into transport-authenticated
+  active adapters; record Semantic Gate model/prompt, renderer, response, and
   snippet versions or hashes needed to replay a final decision. Add production
   index sharding/workers and external FTS/ANN provider profiles without
   weakening the bounded reference contract.

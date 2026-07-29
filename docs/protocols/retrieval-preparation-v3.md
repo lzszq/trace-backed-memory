@@ -94,10 +94,12 @@ The current authorization service resolves one repository permission and does
 not provide a tenant-wide discovery authorization. Global or tenant-wide
 selection must not be inferred from missing values.
 
-The returned `PreparedRetrievalEvidence` is not a completed GateSession.
-Its paired records are accepted by the existing SQLite/PostgreSQL Gate
-evidence authorities, but this service does not atomically attach them to a
-session.
+The returned `PreparedRetrievalEvidence` alone is not a completed GateSession.
+`DurableRetrievalPreparationService` now provides an opt-in composition layer
+that creates the session first, persists and verifies the exact pair, and
+CAS-publishes `PREPARED`. The underlying preparation service still does not
+perform that lifecycle transition itself. See
+[durable retrieval preparation v3](durable-retrieval-preparation-v3.md).
 Semantic Gate attempts, `DECIDED -> FINALIZED`, rendering, injection, artifact
 retention, and active Agent/MCP/HTTP/SDK wiring remain separate work. The
 active snapshot-v2 Store and local MCP still do not emit this v3 preparation.

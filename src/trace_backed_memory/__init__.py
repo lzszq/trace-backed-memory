@@ -115,7 +115,11 @@ from .audit_v3 import (
     verify_audit_event_parent,
     verify_recovery_action,
 )
-from .extraction import classify_failure_type, draft_failure_case_from_trace, load_failure_taxonomy
+from .extraction import (
+    classify_failure_type,
+    draft_failure_case_from_trace,
+    load_failure_taxonomy,
+)
 from .evidence_v3 import (
     EVIDENCE_JSON_MAX_BYTES,
     EVIDENCE_JSON_MAX_DEPTH,
@@ -348,6 +352,14 @@ from .retrieval_preparation_v3 import (
     RetrievalPreparationRequest,
     RetrievalPreparationV3Error,
     SemanticQueryVector,
+)
+from .durable_retrieval_preparation_v3 import (
+    DURABLE_RETRIEVAL_PREPARATION_CONTRACT_VERSION,
+    DurableRetrievalPreparationRequest,
+    DurableRetrievalPreparationService,
+    DurableRetrievalPreparationV3Error,
+    GateEvidenceAuthority,
+    GateEvidenceStoreReceipt,
 )
 from .managed_index_v3 import (
     MANAGED_INDEX_BUNDLE_CONTRACT_VERSION,
@@ -1617,6 +1629,12 @@ __all__ = [
     "RETRIEVAL_PREPARATION_MAX_QUERY_BYTES",
     "RETRIEVAL_PREPARATION_MAX_SEMANTIC_DIMENSIONS",
     "SemanticQueryVector",
+    "DURABLE_RETRIEVAL_PREPARATION_CONTRACT_VERSION",
+    "DurableRetrievalPreparationRequest",
+    "DurableRetrievalPreparationService",
+    "DurableRetrievalPreparationV3Error",
+    "GateEvidenceAuthority",
+    "GateEvidenceStoreReceipt",
     "MANAGED_INDEX_BUNDLE_CONTRACT_VERSION",
     "MANAGED_INDEX_BUNDLE_JSON_MAX_BYTES",
     "MANAGED_INDEX_BUNDLE_JSON_MAX_DEPTH",

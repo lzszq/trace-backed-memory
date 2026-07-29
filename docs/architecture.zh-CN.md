@@ -273,10 +273,14 @@ head/policy 复查。`managed_index_v3.py` 提供一个具体 discovery adapter�
 `postgres_managed_index_v3.py` 持久化精确不可变字节，并为每个
 tenant/repository/environment 维护一个 CAS head。semantic query 的
 provider/version/vector evidence 会与 raw-query digest 和 prepared context
-绑定。索引匹配仍是 discovery，不是 authorization。生产分片/worker、Semantic
-Gate、durable GateSession 挂接及 active adapter 接入仍待完成。详见
-[已认证检索准备 v3](protocols/retrieval-preparation-v3.zh-CN.md)与
-[托管索引 bundle v3](protocols/managed-index-v3.zh-CN.md)。
+绑定。索引匹配仍是 discovery，不是 authorization。
+`durable_retrieval_preparation_v3.py` 现在会把这份已认证 preparation 挂接到一个
+durable `CREATED` GateSession，在同一授权 scope 下保存并读回精确 evidence
+记录对，再通过 CAS 发布 `PREPARED`。生产分片/worker、Semantic Gate 与 active
+adapter 接入仍待完成。详见
+[已认证检索准备 v3](protocols/retrieval-preparation-v3.zh-CN.md)、
+[托管索引 bundle v3](protocols/managed-index-v3.zh-CN.md)，以及
+[durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.zh-CN.md)。
 
 ## PostgreSQL 运行时存储库
 
@@ -485,6 +489,18 @@ recursive immutable trigger 拒绝 replacement write；PostgreSQL 增加 active-
 rollback。evidence 写入与 GateSession transition 仍是跨 authority 的有序补偿，
 而不是一个 atomic transaction。详见
 [SQLite 与 PostgreSQL Gate evidence v3](protocols/sqlite-gate-evidence-v3.zh-CN.md)。
+
+`durable_retrieval_preparation_v3.py` 补上这些组件之间的 opt-in 组合缺口。一份
+服务端派生 request fingerprint 会绑定 retrieval request、Trace/run、context、
+query digest、semantic evidence、expiry 与 lease。Gate 与 retrieval service
+必须共享同一个 authorization service，因此新 session 只记录一次 authorization
+decision，并只在同一已授权 scope 内运行 preparation。服务先写入、读回并核验
+精确 evidence 记录对，再由 Gate service 发布 `PREPARED`；精确 replay 不会重复
+discovery 或 evidence write。authority 分离时，后续 transition 失败可能留下
+immutable orphan evidence 与已取消 session。如果 SQLite 两个 repository 或
+PostgreSQL 两个 repository 明确共享同一个 caller-owned connection，调用方可用
+外层 transaction 一起回滚。该桥接仍为 opt-in，尚未接入 active Agent/MCP。详见
+[durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.zh-CN.md)。
 
 `sqlite_semantic_gate_v3.py` 在该 SQLite evidence 边界上，为每个 System Gate
 evaluation 增加一条不可变有序 SemanticGateAttempt chain。唯一 sequence 与 CAS

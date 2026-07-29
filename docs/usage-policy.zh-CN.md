@@ -326,7 +326,7 @@ uniqueness 是 audit invariant，不是可重用授权 capability。PostgreSQL a
 默认 Store、Agent、MCP 与 GateSession profile 不调用该边界。可选本地 MCP
 `--auth-*` profile 只在可信启动 identity 选择后调用它，不得宣称具备 transport
 authentication 或共享多租户授权。durable GateSession/RetrievalSnapshot linkage、
-worker 与跨记录 service transaction 仍待完成。
+只有下述 opt-in 组合边界可用；worker 与 active-adapter integration 仍待完成。
 
 需要 durable preparation 时，应使用 `AuthenticatedGateSessionService` 作为下一层
 边界。在 retrieval 前创建并读回 scoped session；既有 idempotency key 不得重复
@@ -342,6 +342,20 @@ RetrievalSnapshot/SystemGateEvaluation 记录对，并向 Gate service 注入
 `DurablePreparedGateEvidenceVerifier`。不得在没有 durable readback 和精确 scope
 校验时接受调用方提供的 ID。foreign key 与 recursive trigger 必须始终启用；关闭
 任一项都会使 authority 失效。
+
+当一次 operation 必须创建已授权 GateSession、生成 retrieval/System Gate
+evidence、持久化并核验该记录对，再发布 `PREPARED` 时，应使用
+`DurableRetrievalPreparationService`。从可信 service context 构造
+`DurableRetrievalPreparationRequest`，由服务派生完整 request fingerprint。Gate
+与 retrieval service 必须共享同一个 authorization service 实例。不得直接调用
+`prepare_for_authorized_scope()`：它只用于这个可信、同 scope 组合；不会追加
+第二条 decision，但会重新加载并核验已有 allowed decision 与当前 scope。
+
+精确 replay 必须返回已有 session，不得重复 discovery 或 evidence write。authority
+分离时保留有序补偿：后续 transition 失败后，evidence 可能保持 immutable，而
+session 被取消。只有在两个 repository 明确共享同一个 SQLite 或 PostgreSQL
+connection，且调用方拥有外层 transaction 时，才能获得一起回滚。不得宣称该服务
+创建了 distributed transaction，也不得宣称默认 Agent/MCP 使用该桥接。
 
 `GateSessionRecoveryWorker` 只能作为有界、重复 scan 运行。mutation 前验证完整
 返回 page，并把每个 candidate 当作独立 CAS operation。只有 session 已到期的
@@ -409,8 +423,9 @@ evidence。未保留签名字节时，已存 attestation hash/verifier ID 不代
 System Gate evaluation 与 Semantic Gate attempt 保持独立不可变记录。精确回放
 消费已记录结果，不得从已变化的 catalog/index 静默重算。可选
 retrieval-preparation kernel 会生成该契约和配对 System Gate evaluation，但 active
-Store/adapter 尚未使用它。未来服务必须验证全部引用身份与字节、授权快照读取、
-应用保留策略，并在同一 GateSession 事务中挂接快照。
+Store/adapter 尚未使用它。opt-in durable 组合服务会核验精确记录对，并通过有序
+authority operation 把它挂接到同一 GateSession。snapshot read authorization、
+retention、后续 lifecycle phase 与 active adapter 接入仍待完成。
 
 ## Version-3 检索准备策略
 
@@ -437,8 +452,9 @@ authority；只能在认证准备服务完成持久化授权验证后调用。�
 suite/case 与必须满足的 Git-ancestry 过滤，并记录每项省略原因。使用内容寻址 policy
 融合有限分数，以 revision ID 做确定性 tie-break，执行 minimum/top-K/payload 边界，
 并为每个最终 hit 运行 System Gate。返回前重新检查每个入选 current head 与 policy。
-不得把结果当作 Semantic Gate、rendering、injection、durable GateSession 或
-active-v2 state。
+只有在 `DurableRetrievalPreparationService` 保存、读回、核验并发布结果后，它才
+成为 durable GateSession evidence。不得把结果当作 Semantic Gate、rendering、
+injection 或 active-v2 state。
 
 ## Version-3 gate evaluation 策略
 

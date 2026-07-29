@@ -68,6 +68,9 @@ Start with:
 - `retrieval_preparation_v3.py`: authorization-first, storage-neutral
   ActivatedRevision filtering/ranking plus paired RetrievalSnapshot/System
   Gate evidence.
+- `durable_retrieval_preparation_v3.py`: opt-in same-scope composition of
+  authenticated retrieval preparation, exact Gate evidence persistence and
+  read-back, and durable GateSession `PREPARED` CAS; not active Agent/MCP state.
 - `managed_index_v3.py`: bounded immutable metadata/lexical/semantic/
   evidence/Git index bundle plus the concrete authenticated-discovery adapter.
 - `sqlite_managed_index_v3.py` / `postgres_managed_index_v3.py`: opt-in

@@ -759,16 +759,26 @@
   ActivatedRevision candidate；执行 classification、精确 applicability、
   eval-leakage、required/disabled ancestry、确定性加权融合、minimum/top-K/payload
   边界及 task-mode System Gate；生成配对 RetrievalSnapshot/
-  SystemGateEvaluation evidence 后，再复查每个入选 head 与 policy。托管生产索引、
-  Semantic Gate、durable GateSession 挂接及 active adapter emission 仍待完成。
+  SystemGateEvaluation evidence 后，再复查每个入选 head 与 policy。在该增量，
+  托管生产索引、Semantic Gate、durable GateSession 挂接及 active adapter
+  emission 仍待完成。
 - 增加 opt-in 有界 managed-index bundle 与具体 discovery adapter：在已核验
   ActivatedRevision candidate 上构建精确版本化 metadata、确定性 Unicode lexical、
   显式本地 semantic-vector、结构化 evidence graph 与 immutable Git-DAG 视图；把
   semantic provider/version/vector evidence 与 raw-query digest、prepared context
   绑定；增加精确字节 immutable SQLite repository，以及受 active-v2 门禁的隔离
   PostgreSQL repository，支持 scope-head CAS、并发 replay、catalog/function-body
-  drift 检查与 fail-closed 显式 rollback。生产分片/worker、外部 FTS/ANN provider、
-  durable GateSession 挂接、Semantic Gate 与 active adapter emission 仍待完成。
+  drift 检查与 fail-closed 显式 rollback。在该增量，生产分片/worker、外部
+  FTS/ANN provider、durable GateSession 挂接、Semantic Gate 与 active adapter
+  emission 仍待完成。
+- 增加 `DurableRetrievalPreparationService` 作为 authenticated retrieval
+  preparation、Gate evidence 与 GateSession authority 之间 opt-in、同 scope 的
+  桥接：派生一份完整 request fingerprint，只授权一次，创建并读回 `CREATED`，
+  使用该精确 session 完成 preparation，原子保存并核验 evidence 记录对，再通过
+  CAS 发布 `PREPARED`。覆盖精确 replay、清洗后的 cancellation/recovery、
+  immutable orphan-evidence 行为，以及 SQLite/PostgreSQL caller-owned
+  same-connection rollback。Semantic Gate、后续 lifecycle transition 与 active
+  adapter emission 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-
@@ -791,8 +801,8 @@
   接入 shared-service MCP 与 active CLI/HTTP/SDK adapter，使 scope 成为可执行的
   transport boundary。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
-- 把已发布 managed-index preparation output 挂接到同一 durable GateSession，
-  并记录可重放最终 decision 所需的 Semantic Gate model/prompt、renderer、response
-  与 snippet version/hash；在不削弱有界参考契约的前提下增加生产 index 分片/worker
-  与外部 FTS/ANN provider profile。
+- 把 opt-in durable preparation 桥接接入具备 transport authentication 的 active
+  adapter，并记录可重放最终 decision 所需的 Semantic Gate model/prompt、
+  renderer、response 与 snippet version/hash；在不削弱有界参考契约的前提下增加
+  生产 index 分片/worker 与外部 FTS/ANN provider profile。
 - 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 3 发布，并提供迁移文档。

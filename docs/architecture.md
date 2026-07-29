@@ -1157,10 +1157,14 @@ metadata, lexical, semantic, evidence-graph, and Git-graph views.
 immutable bytes and one CAS head per tenant/repository/environment. Semantic
 query provider/version/vector evidence is bound to the raw-query digest and
 prepared context. Index matching remains discovery, not authorization.
-Production sharding/workers, Semantic Gate, durable GateSession attachment,
-and active adapter wiring remain outstanding. See
-[authenticated retrieval preparation v3](protocols/retrieval-preparation-v3.md)
-and [managed index bundle v3](protocols/managed-index-v3.md).
+`durable_retrieval_preparation_v3.py` now attaches that authenticated
+preparation to one durable `CREATED` GateSession, stores and reads back the
+exact evidence pair, and CAS-publishes `PREPARED` under the same authorization
+scope. Production sharding/workers, Semantic Gate, and active adapter wiring
+remain outstanding. See
+[authenticated retrieval preparation v3](protocols/retrieval-preparation-v3.md),
+[managed index bundle v3](protocols/managed-index-v3.md), and
+[durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.md).
 
 ## PostgreSQL Runtime Repository
 
@@ -1640,6 +1644,21 @@ complete security-catalog fingerprinting, concurrent exact replay, and a
 fail-closed `RESTRICT` rollback. The evidence write and GateSession transition
 remain ordered compensation across authorities, not one atomic transaction.
 See [SQLite and PostgreSQL Gate evidence v3](protocols/sqlite-gate-evidence-v3.md).
+
+`durable_retrieval_preparation_v3.py` closes the opt-in composition gap between
+those components. One server-derived request fingerprint binds the retrieval
+request, Trace/run, context, query digest, semantic evidence, expiry, and lease.
+The Gate and retrieval services must share one authorization service, so a new
+session records one authorization decision and runs preparation only inside
+that same authorized scope. The service writes and verifies the exact evidence
+pair before the Gate service publishes `PREPARED`; exact replay does not repeat
+discovery or evidence writes. With separate authorities, later-transition
+failure may leave immutable orphan evidence beside a canceled session. When
+both SQLite or both PostgreSQL repositories deliberately share one
+caller-owned connection, the caller may wrap the operation in an outer
+transaction and roll back both. This bridge remains opt-in and outside active
+Agent/MCP adapters. See
+[durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.md).
 
 `sqlite_semantic_gate_v3.py` extends that SQLite evidence boundary with one
 immutable ordered SemanticGateAttempt chain per System Gate evaluation. A

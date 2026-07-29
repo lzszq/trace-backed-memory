@@ -30,6 +30,7 @@
 - [SQLite MemoryRevision publication authority v3](protocols/sqlite-memory-publication-v3.zh-CN.md)
 - [PostgreSQL MemoryRevision publication authority v3](protocols/postgres-memory-publication-v3.zh-CN.md)
 - [已认证检索准备 v3](protocols/retrieval-preparation-v3.zh-CN.md)
+- [Durable 检索准备 v3](protocols/durable-retrieval-preparation-v3.zh-CN.md)
 - [托管索引 bundle v3](protocols/managed-index-v3.zh-CN.md)
 - [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)
 - [System 与 Semantic Gate evaluation v3](protocols/gate-evaluation-v3.zh-CN.md)

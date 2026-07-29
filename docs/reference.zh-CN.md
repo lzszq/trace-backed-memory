@@ -326,6 +326,12 @@ read-back、superseded version 分类，以及 lease-only 或 graph-blocked stat
 opt-in SQLite evidence authority 会原子保留精确 retrieval/System Gate 记录对，
 共享 durable verifier 则在 `PREPARED` 前把两者绑定到已授权 session。详见
 [SQLite Gate evidence v3](protocols/sqlite-gate-evidence-v3.zh-CN.md)。
+`DurableRetrievalPreparationRequest` 会基于完整 retrieval/session request 派生一份
+fingerprint，但不保留 raw query 字节。`DurableRetrievalPreparationService` 要求
+共享同一个 authorization service，先创建 durable session，再在完全相同的已授权
+scope 内完成 preparation，保存并核验记录对，最后发布 `PREPARED`。精确 replay
+会阻止重复 discovery 与 write。详见
+[durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.zh-CN.md)。
 
 storage-neutral `tbm.regression-evidence.v3` 不会替换任何 active 字段；它补上发布
 immutable memory revision 之前所需的严格目标记录。记录以内容派生 evidence ID

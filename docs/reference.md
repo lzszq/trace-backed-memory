@@ -482,6 +482,13 @@ The opt-in SQLite evidence authority atomically retains the exact retrieval
 and System Gate pair, while the shared durable verifier binds both records to
 the authorized session before `PREPARED`. See
 [SQLite Gate evidence v3](protocols/sqlite-gate-evidence-v3.md).
+`DurableRetrievalPreparationRequest` derives one fingerprint over the complete
+retrieval and session request without retaining raw query bytes.
+`DurableRetrievalPreparationService` requires one shared authorization service,
+creates the durable session first, prepares inside that exact authorized scope,
+stores and verifies the pair, and then publishes `PREPARED`. Exact replay
+suppresses repeated discovery and writes. See
+[durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.md).
 
 The storage-neutral `tbm.regression-evidence.v3` contract replaces no active
 field; it adds the strict target record needed before immutable memory

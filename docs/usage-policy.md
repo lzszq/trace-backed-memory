@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 127 installed resource copies must remain byte-identical to the top-level
+The 132 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1274,6 +1274,21 @@ relations, and one exact immutable version per index kind. Authorization must
 finish before discovery or revision reads.
 Do not accept repository, tenant, environment, principal, client, candidate
 hash, or authorization-receipt substitution.
+
+For the delivered local managed profile, use `ManagedIndexDiscovery` over an
+exact SQLite or PostgreSQL managed-index repository. Publish only explicitly
+redacted index text and locally supplied semantic vectors. Confidential or
+restricted candidates must not carry lexical, semantic, or content-derived
+evidence-query data. Require exact provider/version/vector query evidence
+whenever a semantic index participates; never treat an index bundle, match, or
+scope attribute as authorization. The
+reference bundle is complete only within its 1,000-candidate bound; production
+sharding and external FTS/ANN workers remain outside this contract.
+`ManagedIndexDiscovery` is a trusted in-process port adapter, not an
+authorization authority: call it only from the authenticated preparation
+service after durable authorization verification. Its local scope-binding
+checks do not replace authorization-ledger read-back, and direct discovery or
+repository calls grant no access.
 
 Apply classification, exact applicability, evaluation-leakage, current eval
 suite/case, and required Git-ancestry filters before ranking. Record every

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 from typing import Callable
 
 import pytest
 
 import trace_backed_memory as tbm
+import trace_backed_memory.retrieval_preparation_v3 as retrieval_preparation_v3
 from tests.test_artifact_service_v3 import _context, _registry
 from tests.test_memory_publication_v3 import (
     ACTIVATED_AT,
@@ -19,6 +21,24 @@ from tests.test_memory_publication_v3 import (
 
 NOW = "2026-07-29T00:00:00Z"
 AUTHORIZATION_ID = "authz_sha256_" + "a" * 64
+QUERY = b"repair the cache"
+SEMANTIC_QUERY = tbm.SemanticQueryVector(
+    provider_id="reference_embeddings",
+    provider_version="v1",
+    vector=(0.6, 0.8),
+)
+QUERY_EVIDENCE_SHA256 = SEMANTIC_QUERY.evidence_sha256(
+    "sha256:" + hashlib.sha256(QUERY).hexdigest()
+)
+
+
+def test_semantic_query_vector_rejects_overflowing_number():
+    with pytest.raises(tbm.RetrievalPreparationV3Error):
+        tbm.SemanticQueryVector(
+            "reference_embeddings",
+            "v1",
+            (10**400,),
+        )
 
 
 def _rules(
@@ -40,9 +60,7 @@ def _rules(
 
 def _policy(
     *,
-    allowed_classifications: tuple[tbm.DataClassification, ...] = (
-        "internal",
-    ),
+    allowed_classifications: tuple[tbm.DataClassification, ...] = ("internal",),
     minimum_fused_score: float = 0.5,
     payload_budget_bytes: int = 8_192,
     ancestry_mode: tbm.AncestryMode = "required",
@@ -147,7 +165,7 @@ class _Discovery:
         self.result = result
         self.calls = 0
 
-    def discover(self, _context, _scope, _request):
+    def discover(self, _context, _scope, _request, _policy):
         self.calls += 1
         return self.result
 
@@ -160,9 +178,7 @@ class _Source:
         stale: bool = False,
         substitute: tbm.ActivatedRevisionCandidate | None = None,
     ) -> None:
-        self.candidates = {
-            item.revision.memory_id: item for item in candidates
-        }
+        self.candidates = {item.revision.memory_id: item for item in candidates}
         self.stale = stale
         self.substitute = substitute
         self.load_calls = 0
@@ -231,14 +247,14 @@ def _result(
     *,
     records: tuple[tbm.CandidateIndexRecord, ...],
     index_versions: tuple[tbm.IndexVersion, ...],
-    ancestry_relations: tuple[tuple[str, bool], ...] = (
-        ("def456", True),
-    ),
+    ancestry_relations: tuple[tuple[str, bool], ...] = (("def456", True),),
 ) -> tbm.CandidateDiscoveryResult:
+    has_semantic_index = any(item.index_kind == "semantic" for item in index_versions)
     return tbm.CandidateDiscoveryResult(
         records=records,
         index_versions=index_versions,
         ancestry_relations=ancestry_relations,
+        query_evidence_sha256=(QUERY_EVIDENCE_SHA256 if has_semantic_index else None),
     )
 
 
@@ -266,7 +282,8 @@ def _request(
         retriever_id="reference_retriever",
         retriever_version="v1",
         top_k=top_k,
-        query=None if mode == "metadata" else b"repair the cache",
+        query=None if mode == "metadata" else QUERY,
+        semantic_query=(SEMANTIC_QUERY if mode in {"semantic", "hybrid"} else None),
     )
 
 
@@ -327,9 +344,7 @@ def test_retrieval_preparation_authorizes_ranks_gates_and_rechecks():
             ),
         )
     )
-    source = _Source(
-        (allowed, blocked, next_candidate, below_minimum)
-    )
+    source = _Source((allowed, blocked, next_candidate, below_minimum))
     provider = _PolicyProvider(_policy())
     try:
         prepared = _service(
@@ -349,16 +364,14 @@ def test_retrieval_preparation_authorizes_ranks_gates_and_rechecks():
         assert evidence.snapshot.context_sha256 == (
             discovery.result.prepared_context_sha256(_request().context)
         )
-        assert tuple(
-            hit.memory_id for hit in evidence.snapshot.hits
-        ) == ("memory_blocked", "memory_allowed")
-        assert tuple(
-            decision.outcome
-            for decision in evidence.system_gate_evaluation.decisions
-        ) == ("blocked", "allowed")
-        assert evidence.allowed_revision_ids == (
-            allowed.revision.revision_id,
+        assert tuple(hit.memory_id for hit in evidence.snapshot.hits) == (
+            "memory_blocked",
+            "memory_allowed",
         )
+        assert tuple(
+            decision.outcome for decision in evidence.system_gate_evaluation.decisions
+        ) == ("blocked", "allowed")
+        assert evidence.allowed_revision_ids == (allowed.revision.revision_id,)
         assert evidence.snapshot.truncation_reasons == (
             "minimum_score",
             "top_k",
@@ -371,9 +384,10 @@ def test_retrieval_preparation_authorizes_ranks_gates_and_rechecks():
         assert source.verify_calls == 2
         assert discovery.calls == 1
         assert provider.calls == 2
-        assert len(repository.list_decisions(
-            registry.authorization_policy.policy_sha256
-        )) == 1
+        assert (
+            len(repository.list_decisions(registry.authorization_policy.policy_sha256))
+            == 1
+        )
         with tbm.SQLiteGateEvidenceV3Repository.connect(
             initialize=True
         ) as evidence_repository:
@@ -383,9 +397,10 @@ def test_retrieval_preparation_authorizes_ranks_gates_and_rechecks():
             )
             assert stored.snapshot_inserted is True
             assert stored.evaluation_inserted is True
-            assert evidence_repository.load_snapshot(
-                evidence.snapshot.snapshot_id
-            ) == evidence.snapshot
+            assert (
+                evidence_repository.load_snapshot(evidence.snapshot.snapshot_id)
+                == evidence.snapshot
+            )
     finally:
         repository.close()
 
@@ -520,9 +535,7 @@ def test_retrieval_preparation_records_payload_budget_truncation():
             _Source((candidate,)),
         ).prepare(_context(registry), _request())
         assert result.value.snapshot.hits == ()
-        assert result.value.snapshot.truncation_reasons == (
-            "payload_budget",
-        )
+        assert result.value.snapshot.truncation_reasons == ("payload_budget",)
     finally:
         repository.close()
 
@@ -666,10 +679,7 @@ def test_retrieval_preparation_rejects_candidate_substitution():
                 discovery,
                 _Source((candidate,), substitute=substitute),
             ).prepare(_context(registry), _request())
-        assert (
-            caught.value.code
-            == "TBM_RETRIEVAL_PREPARATION_CANDIDATE_MISMATCH"
-        )
+        assert caught.value.code == "TBM_RETRIEVAL_PREPARATION_CANDIDATE_MISMATCH"
     finally:
         repository.close()
 
@@ -748,3 +758,437 @@ def test_retrieval_preparation_rejects_changes_before_publication(failure):
         assert "private" not in str(caught.value)
     finally:
         repository.close()
+
+
+def test_hybrid_semantic_index_requires_query_vector_evidence():
+    registry = _registry(permissions=("memory:retrieve",))
+    authorization, repository = _retrieval_authorization(registry)
+    candidate = _candidate("memory_semantic_unbound")
+    discovery = _Discovery(
+        tbm.CandidateDiscoveryResult(
+            records=(_record(candidate),),
+            index_versions=_indexes(
+                "metadata",
+                "semantic",
+                "git_graph",
+            ),
+            ancestry_relations=(("def456", True),),
+            query_evidence_sha256=None,
+        )
+    )
+    source = _Source((candidate,))
+    try:
+        with pytest.raises(tbm.RetrievalPreparationV3Error) as caught:
+            _service(
+                authorization,
+                _PolicyProvider(_policy()),
+                discovery,
+                source,
+            ).prepare(
+                _context(registry),
+                replace(_request(), semantic_query=None),
+            )
+        assert caught.value.code == "TBM_RETRIEVAL_PREPARATION_INVALID"
+        assert source.load_calls == 0
+    finally:
+        repository.close()
+
+
+def test_retrieval_preparation_context_and_query_contract_matrix():
+    context = _request().context
+    for changes in (
+        {"task_mode": "unsupported"},
+        {"evaluation_suite": "suite"},
+        {"evaluation_suite": "suite", "evaluation_case_id": "case"},
+    ):
+        with pytest.raises(tbm.RetrievalPreparationV3Error):
+            replace(context, **changes)
+
+    for vector in (
+        [],
+        (),
+        ("not-a-number",),
+        (float("inf"),),
+        (0.0, 0.0),
+    ):
+        with pytest.raises(tbm.RetrievalPreparationV3Error):
+            tbm.SemanticQueryVector("provider", "v1", vector)
+    with pytest.raises(tbm.RetrievalPreparationV3Error):
+        SEMANTIC_QUERY.evidence_sha256("not-a-digest")
+
+    request = _request()
+    invalid_request_changes = (
+        {"context": object()},
+        {"retrieval_mode": "unsupported"},
+        {"top_k": 0},
+        {"query": None},
+        {"query": b""},
+        {"semantic_query": object()},
+    )
+    for changes in invalid_request_changes:
+        with pytest.raises(tbm.RetrievalPreparationV3Error):
+            replace(request, **changes)
+    with pytest.raises(tbm.RetrievalPreparationV3Error):
+        replace(_request(mode="metadata"), query=b"unexpected")
+    with pytest.raises(tbm.RetrievalPreparationV3Error):
+        replace(_request(mode="semantic"), semantic_query=None)
+    with pytest.raises(tbm.RetrievalPreparationV3Error):
+        replace(_request(mode="lexical"), semantic_query=SEMANTIC_QUERY)
+    assert _request(mode="metadata").query_sha256 is None
+
+
+def test_candidate_discovery_contract_matrix():
+    first = _candidate("memory_contract_first")
+    second = _candidate("memory_contract_second")
+    first_record = _record(first)
+    second_record = _record(second)
+    indexes = _indexes("metadata", "lexical", "semantic", "git_graph")
+
+    for changes in (
+        {"candidate_sha256": "not-a-digest"},
+        {"lexical_score": object()},
+        {"semantic_score": float("inf")},
+        {"evidence_graph_score": -1.0},
+    ):
+        with pytest.raises(tbm.RetrievalPreparationV3Error):
+            replace(first_record, **changes)
+
+    invalid_result_changes = (
+        {"records": [first_record]},
+        {
+            "records": (
+                first_record,
+                replace(second_record, memory_id=first_record.memory_id),
+            )
+        },
+        {
+            "records": (
+                first_record,
+                replace(second_record, candidate_sha256=first_record.candidate_sha256),
+            )
+        },
+        {"index_versions": []},
+        {"index_versions": ()},
+        {"ancestry_relations": []},
+        {"ancestry_relations": (("same", True), ("same", False))},
+        {"ancestry_relations": (("anchor", 1),)},
+        {"query_evidence_sha256": "not-a-digest"},
+    )
+    for changes in invalid_result_changes:
+        values = {
+            "records": (first_record, second_record),
+            "index_versions": indexes,
+            "ancestry_relations": (("def456", True),),
+            "query_evidence_sha256": QUERY_EVIDENCE_SHA256,
+            **changes,
+        }
+        with pytest.raises(tbm.RetrievalPreparationV3Error):
+            tbm.CandidateDiscoveryResult(**values)
+
+    result = _result(records=(first_record,), index_versions=indexes)
+    with pytest.raises(tbm.RetrievalPreparationV3Error):
+        result.prepared_context_sha256(object())
+
+
+def _prepared_evidence() -> tbm.PreparedRetrievalEvidence:
+    registry = _registry(permissions=("memory:retrieve",))
+    authorization, repository = _retrieval_authorization(registry)
+    candidate = _candidate("memory_prepared_contract")
+    try:
+        return (
+            _service(
+                authorization,
+                _PolicyProvider(_policy()),
+                _Discovery(
+                    _result(
+                        records=(_record(candidate),),
+                        index_versions=_indexes(
+                            "metadata",
+                            "lexical",
+                            "semantic",
+                            "git_graph",
+                        ),
+                    )
+                ),
+                _Source((candidate,)),
+            )
+            .prepare(_context(registry), _request())
+            .value
+        )
+    finally:
+        repository.close()
+
+
+def test_prepared_retrieval_evidence_rejects_invalid_linkage():
+    evidence = _prepared_evidence()
+    for changes in (
+        {"snapshot": object()},
+        {"system_gate_evaluation": object()},
+        {"policy": object()},
+        {"candidates": []},
+        {"candidates": ()},
+        {"policy": _policy(policy_version="retrieval_policy_other")},
+    ):
+        with pytest.raises((tbm.RetrievalPreparationV3Error, ValueError)):
+            replace(evidence, **changes)
+
+
+def test_retrieval_preparation_service_rejects_invalid_dependencies_and_inputs():
+    registry = _registry(permissions=("memory:retrieve",))
+    authorization, repository = _retrieval_authorization(registry)
+    candidate = _candidate("memory_dependency")
+    discovery = _Discovery(
+        _result(
+            records=(_record(candidate),),
+            index_versions=_indexes("metadata", "lexical", "semantic", "git_graph"),
+        )
+    )
+    source = _Source((candidate,))
+    valid = {
+        "authorization_service": authorization,
+        "policy_provider": _policy,
+        "discovery": discovery,
+        "revision_source": source,
+        "clock": lambda: NOW,
+        "evaluator_id": "system_gate",
+        "evaluator_version": "v1",
+    }
+    try:
+        for changes in (
+            {"authorization_service": object()},
+            {"policy_provider": object()},
+            {"discovery": object()},
+            {"revision_source": object()},
+            {"clock": object()},
+        ):
+            with pytest.raises(TypeError):
+                tbm.AuthenticatedRetrievalPreparationService(**{**valid, **changes})
+
+        service = tbm.AuthenticatedRetrievalPreparationService(**valid)
+        with pytest.raises(tbm.RetrievalPreparationV3Error):
+            service.prepare(object(), _request())
+        with pytest.raises(tbm.RetrievalPreparationV3Error):
+            service.prepare(_context(registry), object())
+    finally:
+        repository.close()
+
+
+class _FailingDiscovery:
+    def __init__(self, value=None, error: Exception | None = None):
+        self.value = value
+        self.error = error
+
+    def discover(self, *_args):
+        if self.error is not None:
+            raise self.error
+        return self.value
+
+
+class _FailingSource:
+    def __init__(
+        self,
+        *,
+        value=None,
+        load_error: Exception | None = None,
+        verify_error: Exception | None = None,
+    ):
+        self.value = value
+        self.load_error = load_error
+        self.verify_error = verify_error
+
+    def load_authorized(self, _context, scope, **_kwargs):
+        if self.load_error is not None:
+            raise self.load_error
+        if type(self.value) is tbm.ActivatedRevisionCandidate:
+            return replace(
+                self.value,
+                retrieval_authorization_event_id=scope.authorization_event_id,
+            )
+        return self.value
+
+    def verify_current(self, *_args):
+        if self.verify_error is not None:
+            raise self.verify_error
+
+
+def test_retrieval_preparation_service_sanitizes_dependency_failures():
+    candidate = _candidate("memory_dependency_failure")
+    result = _result(
+        records=(_record(candidate),),
+        index_versions=_indexes("metadata", "lexical", "semantic", "git_graph"),
+    )
+    cases = (
+        (
+            lambda: (_ for _ in ()).throw(RuntimeError("private policy")),
+            _FailingDiscovery(result),
+            _FailingSource(value=candidate),
+            lambda: NOW,
+            "TBM_RETRIEVAL_PREPARATION_POLICY_UNAVAILABLE",
+        ),
+        (
+            lambda: object(),
+            _FailingDiscovery(result),
+            _FailingSource(value=candidate),
+            lambda: NOW,
+            "TBM_RETRIEVAL_PREPARATION_POLICY_INVALID",
+        ),
+        (
+            _policy,
+            _FailingDiscovery(error=RuntimeError("private discovery")),
+            _FailingSource(value=candidate),
+            lambda: NOW,
+            "TBM_RETRIEVAL_PREPARATION_DISCOVERY_FAILED",
+        ),
+        (
+            _policy,
+            _FailingDiscovery(object()),
+            _FailingSource(value=candidate),
+            lambda: NOW,
+            "TBM_RETRIEVAL_PREPARATION_DISCOVERY_INVALID",
+        ),
+        (
+            _policy,
+            _FailingDiscovery(result),
+            _FailingSource(load_error=RuntimeError("private revision")),
+            lambda: NOW,
+            "TBM_RETRIEVAL_PREPARATION_REVISION_FAILED",
+        ),
+        (
+            _policy,
+            _FailingDiscovery(result),
+            _FailingSource(value=object()),
+            lambda: NOW,
+            "TBM_RETRIEVAL_PREPARATION_CANDIDATE_MISMATCH",
+        ),
+        (
+            _policy,
+            _FailingDiscovery(result),
+            _FailingSource(value=candidate),
+            lambda: (_ for _ in ()).throw(RuntimeError("private clock")),
+            "TBM_RETRIEVAL_PREPARATION_CLOCK_FAILED",
+        ),
+        (
+            _policy,
+            _FailingDiscovery(result),
+            _FailingSource(value=candidate),
+            lambda: object(),
+            "TBM_RETRIEVAL_PREPARATION_CLOCK_INVALID",
+        ),
+    )
+    for policy_provider, discovery, source, clock, expected_code in cases:
+        registry = _registry(permissions=("memory:retrieve",))
+        authorization, repository = _retrieval_authorization(registry)
+        try:
+            service = tbm.AuthenticatedRetrievalPreparationService(
+                authorization_service=authorization,
+                policy_provider=policy_provider,
+                discovery=discovery,
+                revision_source=source,
+                clock=clock,
+                evaluator_id="system_gate",
+                evaluator_version="v1",
+            )
+            with pytest.raises(tbm.RetrievalPreparationV3Error) as caught:
+                service.prepare(_context(registry), _request())
+            assert caught.value.code == expected_code
+            assert "private" not in str(caught.value)
+        finally:
+            repository.close()
+
+
+def test_retrieval_preparation_scope_stage_and_discovery_guards():
+    context = _context(_registry(permissions=("memory:retrieve",)))
+    scope = tbm.AuthorizedRetrievalScope(
+        authorization_event_id=AUTHORIZATION_ID,
+        principal_id=context.principal.principal_id,
+        agent_client_id=context.agent_client.agent_client_id,
+        tenant_id=context.tenant_id,
+        repository_id="repository_001",
+        environment_id=context.environment_id,
+    )
+    request = _request()
+    policy = _policy()
+
+    with pytest.raises(tbm.RetrievalPreparationV3Error):
+        tbm.AuthenticatedRetrievalPreparationService._verify_scope(
+            context, object(), request.context
+        )
+    with pytest.raises(tbm.RetrievalPreparationV3Error) as caught:
+        tbm.AuthenticatedRetrievalPreparationService._verify_scope(
+            context,
+            replace(scope, repository_id="other_repository"),
+            request.context,
+        )
+    assert caught.value.code == "TBM_RETRIEVAL_PREPARATION_SCOPE_MISMATCH"
+
+    invalid_stage_cases = (
+        (_record(_candidate("memory_metadata_score")), "metadata"),
+        (
+            tbm.CandidateIndexRecord(
+                "memory_hybrid_empty",
+                "sha256:" + "1" * 64,
+            ),
+            "hybrid",
+        ),
+        (
+            tbm.CandidateIndexRecord(
+                "memory_lexical_extra",
+                "sha256:" + "2" * 64,
+                lexical_score=0.5,
+                semantic_score=0.5,
+            ),
+            "lexical",
+        ),
+    )
+    for record, mode in invalid_stage_cases:
+        with pytest.raises(tbm.RetrievalPreparationV3Error):
+            tbm.AuthenticatedRetrievalPreparationService._stage_scores(record, mode)
+
+    candidate = _candidate("memory_discovery_guard")
+    record = _record(candidate)
+    discovery_cases = (
+        _result(records=(record,), index_versions=_indexes("lexical", "git_graph")),
+        _result(records=(record,), index_versions=_indexes("metadata", "git_graph")),
+        _result(
+            records=(record,),
+            index_versions=_indexes("metadata", "lexical"),
+            ancestry_relations=(),
+        ),
+        _result(
+            records=(record,),
+            index_versions=_indexes("metadata", "lexical"),
+            ancestry_relations=(("def456", True),),
+        ),
+    )
+    requests_and_policies = (
+        (request, policy),
+        (replace(request, retrieval_mode="semantic"), policy),
+        (request, policy),
+        (request, _policy(ancestry_mode="disabled")),
+    )
+    for discovery, (guard_request, guard_policy) in zip(
+        discovery_cases,
+        requests_and_policies,
+        strict=True,
+    ):
+        with pytest.raises(tbm.RetrievalPreparationV3Error):
+            tbm.AuthenticatedRetrievalPreparationService._verify_discovery(
+                discovery,
+                guard_request,
+                guard_policy,
+            )
+
+
+def test_retrieval_preparation_unwrap_rejects_invalid_outcomes():
+    with pytest.raises(tbm.RetrievalPreparationV3Error):
+        tbm.AuthenticatedRetrievalPreparationService._unwrap(object())
+    with pytest.raises(tbm.RetrievalPreparationV3Error):
+        tbm.AuthenticatedRetrievalPreparationService._unwrap(
+            retrieval_preparation_v3._PreparationOutcome()
+        )
+    expected = tbm.RetrievalPreparationV3Error("expected", "expected")
+    with pytest.raises(tbm.RetrievalPreparationV3Error) as caught:
+        tbm.AuthenticatedRetrievalPreparationService._unwrap(
+            retrieval_preparation_v3._PreparationOutcome(error=expected)
+        )
+    assert caught.value is expected

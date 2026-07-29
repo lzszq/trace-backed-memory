@@ -1620,6 +1620,16 @@ Track:
   every selected head plus the policy. Keep managed production indexes,
   Semantic Gate, durable GateSession attachment, and active adapter emission
   outstanding.
+- Add an opt-in bounded managed-index bundle and concrete discovery adapter.
+  Build exactly versioned metadata, deterministic Unicode lexical, explicit
+  local semantic-vector, structured-evidence graph, and immutable Git-DAG
+  views over verified ActivatedRevision candidates. Bind semantic
+  provider/version/vector evidence to the raw-query digest and prepared
+  context. Add exact-byte immutable SQLite and active-v2-gated isolated
+  PostgreSQL repositories with scope-head CAS, concurrent replay, catalog and
+  function-body drift checks, and fail-closed explicit rollback. Keep
+  production sharding/workers, external FTS/ANN providers, durable GateSession
+  attachment, Semantic Gate, and active adapter emission outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
@@ -1628,9 +1638,10 @@ Track:
   CLI/HTTP/SDK adapters so scope becomes an enforceable transport boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
-- Implement managed metadata/lexical/semantic/Git/evidence-graph indexes and
-  attach the published preparation output to one durable GateSession; record
-  Semantic Gate model/prompt, renderer, response, and snippet versions or
-  hashes needed to replay a final decision.
+- Attach the published managed-index preparation output to one durable
+  GateSession; record Semantic Gate model/prompt, renderer, response, and
+  snippet versions or hashes needed to replay a final decision. Add production
+  index sharding/workers and external FTS/ANN provider profiles without
+  weakening the bounded reference contract.
 - Deliver these breaking contracts together as snapshot schema version 3 and
   PostgreSQL schema version 3 with documented migrations.

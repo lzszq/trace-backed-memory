@@ -204,7 +204,12 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 127 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 132 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+
+新增 managed-index 资源包括 bundle Schema/example，以及隔离 SQLite 与
+PostgreSQL install/rollback SQL。package-root API 导出 builder、
+`ManagedIndexDiscovery`、两个 repository 与 `SemanticQueryVector`；精确边界和
+非目标见[托管索引 bundle v3](protocols/managed-index-v3.zh-CN.md)。
 
 ## 证据摄取完整性
 

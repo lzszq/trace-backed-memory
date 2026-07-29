@@ -37,7 +37,8 @@ query 字节有严格边界，
 2. 要求准备上下文与已授权 principal、client、tenant、repository 和 environment 一致；
 3. 读取一份不可变策略 bundle；
 4. 调用可信 `CandidateDiscovery` adapter，取得完整、有界候选集、精确
-   Git-ancestry relation 及其实际使用的精确 index version；
+   Git-ancestry relation 及其实际使用的精确 index version；同一份不可变 policy
+   bundle 会传给 discovery；
 5. 通过已授权的 `ActivatedRevisionSource.load_authorized` 路径读取每个候选；
 6. 拒绝 candidate hash、授权回执、仓库范围、结构化 evidence 或 index provenance
    替换；
@@ -63,11 +64,16 @@ version。所有省略原因使用现有 snapshot truncation reason 表示。后
 唯一。每种 index kind 最多只能报告一个不可变版本，因此每个 stage score 与 ancestry
 relation 都有唯一明确的已记录版本。service 会把全部 ancestry relation 写入 snapshot
 context digest，并在启用 ancestry 时要求精确 `git_graph` 版本。
+semantic index 参与时，结果还必须携带由精确 provider、provider version、vector
+和 raw-query digest 派生的 query evidence；service 会在 revision 读取前把它绑定到
+prepared context。
 
 adapter 被信任会从这些已记录 index 字节派生分数和 relation；index content hash 是
-身份，不是签名或 attestation。生产 lexical、semantic、Git 或 evidence-graph index
-必须实现该协议并绑定不可变 index artifact；本包尚未提供这些托管索引，也不会独立
-认证 adapter 的计算。
+身份，不是签名或 attestation。`ManagedIndexDiscovery` 现在提供一个有界本地具体
+adapter：使用一份内容寻址五视图 bundle，并通过精确 SQLite/PostgreSQL
+publication-head CAS 发布。它验证计算所用的完整不可变输入，但不会独立为这些输入
+签名。生产分片、外部 FTS/ANN provider 与后台 index worker 不属于该参考 profile。
+详见[托管索引 bundle v3](managed-index-v3.zh-CN.md)。
 
 本阶段刻意只支持 repository-scoped activated revision。当前授权服务只解析一个
 repository permission，尚不提供 tenant-wide discovery authorization；不得从缺失值

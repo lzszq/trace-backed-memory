@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 127 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 132 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -267,10 +267,16 @@ attestation verifier identity，记录独立 retrieval/artifact read 授权 even
 fusion、minimum-score 与 payload-budget policy。`retrieval_preparation_v3.py`
 组合 authorization、可信 candidate discovery、已核验 ActivatedRevision 读取、
 确定性过滤/排序、成对 RetrievalSnapshot/SystemGateEvaluation 构造，以及最终
-head/policy 复查。discovery 仍是调用方提供的可信 adapter，必须报告完整有界集合和
-精确不可变 index version。该 kernel 不提供托管索引、Semantic Gate、GateSession
-持久化或 active adapter 接入。详见
-[已认证检索准备 v3](protocols/retrieval-preparation-v3.zh-CN.md)。
+head/policy 复查。`managed_index_v3.py` 提供一个具体 discovery adapter：有界、
+内容寻址的 bundle，包含独立版本的 metadata、lexical、semantic、evidence-graph
+与 Git-graph 视图。`sqlite_managed_index_v3.py` 和
+`postgres_managed_index_v3.py` 持久化精确不可变字节，并为每个
+tenant/repository/environment 维护一个 CAS head。semantic query 的
+provider/version/vector evidence 会与 raw-query digest 和 prepared context
+绑定。索引匹配仍是 discovery，不是 authorization。生产分片/worker、Semantic
+Gate、durable GateSession 挂接及 active adapter 接入仍待完成。详见
+[已认证检索准备 v3](protocols/retrieval-preparation-v3.zh-CN.md)与
+[托管索引 bundle v3](protocols/managed-index-v3.zh-CN.md)。
 
 ## PostgreSQL 运行时存储库
 

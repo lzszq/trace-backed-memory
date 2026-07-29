@@ -99,6 +99,11 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     ("examples/lesson.example.json", "example", "application/json"),
+    (
+        "examples/managed_index_bundle_v3.example.json",
+        "example",
+        "application/json",
+    ),
     ("examples/memory_context.example.json", "example", "application/json"),
     ("examples/memory_decision.example.json", "example", "application/json"),
     (
@@ -247,6 +252,11 @@ _RESOURCE_SPECS: tuple[
         "application/schema+json",
     ),
     ("schemas/lesson.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/managed_index_bundle_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     ("schemas/memory_context.schema.json", "schema", "application/schema+json"),
     ("schemas/memory_decision.schema.json", "schema", "application/schema+json"),
     (
@@ -352,6 +362,16 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/postgres-v3-gate-session.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres-v3-managed-index-rollback.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres-v3-managed-index.sql",
         "schema",
         "application/sql",
     ),
@@ -497,6 +517,7 @@ _RESOURCE_SPECS: tuple[
     ),
     ("schemas/sqlite-v3-gate-evidence.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-gate-session.sql", "schema", "application/sql"),
+    ("schemas/sqlite-v3-managed-index.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-memory-publication.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-memory-revision.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-migration.sql", "schema", "application/sql"),

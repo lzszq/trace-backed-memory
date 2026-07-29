@@ -17,6 +17,7 @@
 | ActivatedRevision source v3 | `activated_revision_v3.py` | proposal/evidence/publication provenance, trusted verifier identities, authorized artifact read, current-head recheck, SQLite/PostgreSQL composition tests, bilingual protocol docs |
 | Replayable retrieval v3 | `retrieval_v3.py` | snapshot Schema/example, rank/hash/version/truncation rejection tests, protocol docs |
 | Retrieval preparation v3 | `retrieval_policy_v3.py`, `retrieval_preparation_v3.py` | policy Schema/example, authorization-first discovery, classification/applicability/eval-leakage/ancestry filters, deterministic fusion/System Gate/head-policy recheck tests, bilingual protocol docs |
+| Managed retrieval indexes v3 | `managed_index_v3.py`, `sqlite_managed_index_v3.py`, `postgres_managed_index_v3.py` | five-view content-addressed bundle Schema/example, semantic query evidence, SQLite/PostgreSQL exact-byte CAS authorities, install/rollback SQL, bilingual protocol docs |
 | Gate evaluation v3 | `gate_evaluation_v3.py` | System/Semantic Gate Schemas/examples, monotonicity/provenance/retry-shape tests, protocol docs |
 | Semantic Gate artifact v3 | `semantic_gate_artifact_v3.py` | exact prompt/response byte binding, classification/encryption metadata, strict JSON/schema/example tests, protocol docs |
 | Authenticated Semantic Gate service v3 | `semantic_gate_service_v3.py` | provider registration/authentication, trusted timing, exact retry-parent and monotonic Gate verification, atomic artifact-authority append/read-back tests, protocol docs |

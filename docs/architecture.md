@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 127 canonical Schema, SQL/migration, memory-support, and
+the repository's 132 canonical Schema, SQL/migration, memory-support, and
 example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
@@ -1150,11 +1150,17 @@ task-mode, ancestry, fusion, minimum-score, and payload-budget policy.
 `retrieval_preparation_v3.py` composes authorization, trusted candidate
 discovery, verified ActivatedRevision loading, deterministic filters/ranking,
 paired RetrievalSnapshot/SystemGateEvaluation construction, and final
-head/policy rechecks. Discovery remains a caller-supplied trusted adapter and
-must report the complete bounded set plus exact immutable index versions.
-Managed indexes, Semantic Gate, GateSession persistence, and active adapter
-wiring are not implemented by this kernel. See
-[authenticated retrieval preparation v3](protocols/retrieval-preparation-v3.md).
+head/policy rechecks. `managed_index_v3.py` provides one concrete discovery
+adapter: a bounded content-addressed bundle with independently versioned
+metadata, lexical, semantic, evidence-graph, and Git-graph views.
+`sqlite_managed_index_v3.py` and `postgres_managed_index_v3.py` persist exact
+immutable bytes and one CAS head per tenant/repository/environment. Semantic
+query provider/version/vector evidence is bound to the raw-query digest and
+prepared context. Index matching remains discovery, not authorization.
+Production sharding/workers, Semantic Gate, durable GateSession attachment,
+and active adapter wiring remain outstanding. See
+[authenticated retrieval preparation v3](protocols/retrieval-preparation-v3.md)
+and [managed index bundle v3](protocols/managed-index-v3.md).
 
 ## PostgreSQL Runtime Repository
 
@@ -1186,7 +1192,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 127 resources.
+contains 132 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:

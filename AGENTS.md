@@ -67,7 +67,11 @@ Start with:
   ancestry, fusion, minimum-score, and payload-budget policy.
 - `retrieval_preparation_v3.py`: authorization-first, storage-neutral
   ActivatedRevision filtering/ranking plus paired RetrievalSnapshot/System
-  Gate evidence; managed indexes and active adapter wiring remain external.
+  Gate evidence.
+- `managed_index_v3.py`: bounded immutable metadata/lexical/semantic/
+  evidence/Git index bundle plus the concrete authenticated-discovery adapter.
+- `sqlite_managed_index_v3.py` / `postgres_managed_index_v3.py`: opt-in
+  exact-byte bundle repositories with scope-local publication-head CAS.
 - `gate_evaluation_v3.py`: immutable deterministic System Gate and monotonic
   Semantic Gate attempt provenance; models can only narrow.
 - `semantic_gate_artifact_v3.py`: storage-neutral exact prompt/response byte

@@ -44,6 +44,7 @@ RETRIEVAL_PREPARATION_MAX_CANDIDATES = 1_000
 RETRIEVAL_PREPARATION_MAX_QUERY_BYTES = 64 * 1024
 RETRIEVAL_PREPARATION_MAX_ATTRIBUTES = 16
 RETRIEVAL_PREPARATION_MAX_ANCESTRY_RELATIONS = 1_000
+RETRIEVAL_PREPARATION_MAX_SEMANTIC_DIMENSIONS = 4_096
 
 _IDENTIFIER_MAX_CHARS = 128
 _CANDIDATE_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -62,9 +63,7 @@ _SUPPORTED_ATTRIBUTES = frozenset(
         "failure_type",
     }
 )
-_STAGE_ORDER = {
-    value: index for index, value in enumerate(RETRIEVAL_RANKING_STAGES)
-}
+_STAGE_ORDER = {value: index for index, value in enumerate(RETRIEVAL_RANKING_STAGES)}
 
 
 class RetrievalPreparationV3Error(AuthenticatedServiceV3Error):
@@ -93,12 +92,8 @@ class RetrievalPreparationContext:
             _invalid("task_mode is not supported")
         _metadata(self.commit_sha, "commit_sha", maximum=512)
         _attributes(self.attributes)
-        if (self.evaluation_suite is None) != (
-            self.evaluation_case_id is None
-        ):
-            _invalid(
-                "evaluation_suite and evaluation_case_id must be paired"
-            )
+        if (self.evaluation_suite is None) != (self.evaluation_case_id is None):
+            _invalid("evaluation_suite and evaluation_case_id must be paired")
         if self.task_mode == "eval" and self.evaluation_suite is None:
             _invalid("eval mode requires an evaluation identity")
         if self.evaluation_suite is not None:
@@ -129,6 +124,53 @@ class RetrievalPreparationContext:
 
 
 @dataclass(frozen=True)
+class SemanticQueryVector:
+    provider_id: str
+    provider_version: str
+    vector: tuple[float, ...] = field(repr=False)
+
+    def __post_init__(self) -> None:
+        _identifier(self.provider_id, "provider_id")
+        _identifier(self.provider_version, "provider_version")
+        if (
+            type(self.vector) is not tuple
+            or not self.vector
+            or len(self.vector) > RETRIEVAL_PREPARATION_MAX_SEMANTIC_DIMENSIONS
+        ):
+            _invalid("semantic vector must be a bounded non-empty tuple")
+        normalized: list[float] = []
+        has_nonzero = False
+        for value in self.vector:
+            if type(value) not in {int, float}:
+                _invalid("semantic vector values must be finite numbers")
+            try:
+                item = float(value)
+            except (OverflowError, ValueError):
+                _invalid("semantic vector values must be finite numbers")
+            if not math.isfinite(item):
+                _invalid("semantic vector values must be finite numbers")
+            normalized.append(item)
+            has_nonzero = has_nonzero or item != 0.0
+        if not has_nonzero:
+            _invalid("semantic vector must contain a non-zero value")
+        object.__setattr__(self, "vector", tuple(normalized))
+
+    def evidence_sha256(self, query_sha256: str) -> str:
+        if type(query_sha256) is not str or not _CANDIDATE_DIGEST_RE.fullmatch(
+            query_sha256
+        ):
+            _invalid("query_sha256 must be a SHA-256 digest")
+        return canonical_sha256(
+            {
+                "provider_id": self.provider_id,
+                "provider_version": self.provider_version,
+                "query_sha256": query_sha256,
+                "vector": list(self.vector),
+            }
+        )
+
+
+@dataclass(frozen=True)
 class RetrievalPreparationRequest:
     session_id: str
     request_id: str
@@ -140,6 +182,10 @@ class RetrievalPreparationRequest:
     retriever_version: str
     top_k: int
     query: bytes | None = field(default=None, repr=False)
+    semantic_query: SemanticQueryVector | None = field(
+        default=None,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
         for value, name in (
@@ -172,6 +218,19 @@ class RetrievalPreparationRequest:
             or len(self.query) > RETRIEVAL_PREPARATION_MAX_QUERY_BYTES
         ):
             _invalid("query must be bounded non-empty bytes")
+        if self.retrieval_mode == "semantic":
+            if type(self.semantic_query) is not SemanticQueryVector:
+                _invalid("semantic retrieval requires semantic query evidence")
+        elif self.retrieval_mode == "hybrid":
+            if (
+                self.semantic_query is not None
+                and type(self.semantic_query) is not SemanticQueryVector
+            ):
+                _invalid("semantic_query is invalid")
+        elif self.semantic_query is not None:
+            _invalid(
+                "semantic query evidence is only valid for semantic or hybrid retrieval"
+            )
 
     @property
     def query_sha256(self) -> str | None:
@@ -190,11 +249,8 @@ class CandidateIndexRecord:
 
     def __post_init__(self) -> None:
         _identifier(self.memory_id, "memory_id")
-        if (
-            type(self.candidate_sha256) is not str
-            or not _CANDIDATE_DIGEST_RE.fullmatch(
-                self.candidate_sha256
-            )
+        if type(self.candidate_sha256) is not str or not _CANDIDATE_DIGEST_RE.fullmatch(
+            self.candidate_sha256
         ):
             _invalid("candidate_sha256 must be a SHA-256 digest")
         for name in (
@@ -216,39 +272,33 @@ class CandidateDiscoveryResult:
     records: tuple[CandidateIndexRecord, ...]
     index_versions: tuple[IndexVersion, ...]
     ancestry_relations: tuple[tuple[str, bool], ...] = ()
+    query_evidence_sha256: str | None = None
 
     def __post_init__(self) -> None:
         if (
             type(self.records) is not tuple
             or len(self.records) > RETRIEVAL_PREPARATION_MAX_CANDIDATES
-            or any(
-                type(item) is not CandidateIndexRecord
-                for item in self.records
-            )
+            or any(type(item) is not CandidateIndexRecord for item in self.records)
         ):
             _invalid("records must be a bounded tuple of index records")
-        if len({item.memory_id for item in self.records}) != len(
-            self.records
-        ):
+        if len({item.memory_id for item in self.records}) != len(self.records):
             _invalid("candidate discovery memory IDs must be unique")
-        if len(
-            {item.candidate_sha256 for item in self.records}
-        ) != len(self.records):
+        if len({item.candidate_sha256 for item in self.records}) != len(self.records):
             _invalid("candidate discovery hashes must be unique")
         if (
             type(self.index_versions) is not tuple
             or not self.index_versions
-            or any(
-                type(item) is not IndexVersion
-                for item in self.index_versions
-            )
+            or any(type(item) is not IndexVersion for item in self.index_versions)
             or len({item.index_kind for item in self.index_versions})
             != len(self.index_versions)
         ):
-            _invalid(
-                "index_versions must contain one index per unique kind"
-            )
+            _invalid("index_versions must contain one index per unique kind")
         _ancestry_relations(self.ancestry_relations)
+        if self.query_evidence_sha256 is not None and (
+            type(self.query_evidence_sha256) is not str
+            or not _CANDIDATE_DIGEST_RE.fullmatch(self.query_evidence_sha256)
+        ):
+            _invalid("query_evidence_sha256 must be a SHA-256 digest")
 
     def prepared_context_sha256(
         self,
@@ -266,6 +316,7 @@ class CandidateDiscoveryResult:
                     }
                     for anchor, is_ancestor in self.ancestry_relations
                 ],
+                "query_evidence_sha256": self.query_evidence_sha256,
             }
         )
 
@@ -276,6 +327,7 @@ class CandidateDiscovery(Protocol):
         context: AuthenticatedServiceContext,
         scope: AuthorizedRetrievalScope,
         request: RetrievalPreparationRequest,
+        policy: RetrievalPolicyBundle,
     ) -> CandidateDiscoveryResult: ...
 
 
@@ -299,26 +351,18 @@ class ActivatedRevisionRetrievalSource(Protocol):
 class PreparedRetrievalEvidence:
     snapshot: RetrievalSnapshot
     system_gate_evaluation: SystemGateEvaluation
-    candidates: tuple[ActivatedRevisionCandidate, ...] = field(
-        repr=False
-    )
+    candidates: tuple[ActivatedRevisionCandidate, ...] = field(repr=False)
     policy: RetrievalPolicyBundle
 
     def __post_init__(self) -> None:
         if type(self.snapshot) is not RetrievalSnapshot:
             _invalid("snapshot must be exactly RetrievalSnapshot")
         if type(self.system_gate_evaluation) is not SystemGateEvaluation:
-            _invalid(
-                "system_gate_evaluation must be exactly SystemGateEvaluation"
-            )
+            _invalid("system_gate_evaluation must be exactly SystemGateEvaluation")
         if type(self.policy) is not RetrievalPolicyBundle:
             _invalid("policy must be exactly RetrievalPolicyBundle")
-        if (
-            type(self.candidates) is not tuple
-            or any(
-                type(item) is not ActivatedRevisionCandidate
-                for item in self.candidates
-            )
+        if type(self.candidates) is not tuple or any(
+            type(item) is not ActivatedRevisionCandidate for item in self.candidates
         ):
             _invalid("candidates must be a tuple of activated revisions")
         verify_system_gate_evaluation(
@@ -400,14 +444,9 @@ class AuthenticatedRetrievalPreparationService:
             raise TypeError("policy_provider must be callable")
         if not callable(getattr(discovery, "discover", None)):
             raise TypeError("discovery must provide discover()")
-        if (
-            not callable(
-                getattr(revision_source, "load_authorized", None)
-            )
-            or not callable(
-                getattr(revision_source, "verify_current", None)
-            )
-        ):
+        if not callable(
+            getattr(revision_source, "load_authorized", None)
+        ) or not callable(getattr(revision_source, "verify_current", None)):
             raise TypeError("revision_source is invalid")
         if not callable(clock):
             raise TypeError("clock must be callable")
@@ -429,9 +468,7 @@ class AuthenticatedRetrievalPreparationService:
         if type(context) is not AuthenticatedServiceContext:
             _invalid("authenticated service context is invalid")
         if type(request) is not RetrievalPreparationRequest:
-            _invalid(
-                "request must be exactly RetrievalPreparationRequest"
-            )
+            _invalid("request must be exactly RetrievalPreparationRequest")
 
         def prepare_authorized(
             scope: AuthorizedRetrievalScope,
@@ -479,10 +516,15 @@ class AuthenticatedRetrievalPreparationService:
     ) -> PreparedRetrievalEvidence:
         self._verify_scope(context, scope, request.context)
         policy = self._load_policy()
-        discovery = self._load_discovery(context, scope, request)
+        discovery = self._load_discovery(
+            context,
+            scope,
+            request,
+            policy,
+        )
         self._verify_discovery(
             discovery,
-            request.retrieval_mode,
+            request,
             policy,
         )
         reasons: set[TruncationReason] = set()
@@ -519,9 +561,7 @@ class AuthenticatedRetrievalPreparationService:
                     metadata_score=stage_scores["metadata"],
                     lexical_score=stage_scores.get("lexical"),
                     semantic_score=stage_scores.get("semantic"),
-                    evidence_graph_score=stage_scores.get(
-                        "evidence_graph"
-                    ),
+                    evidence_graph_score=stage_scores.get("evidence_graph"),
                     fused_score=fused_score,
                     selected_stages=cast(
                         tuple[RetrievalStage, ...],
@@ -575,9 +615,7 @@ class AuthenticatedRetrievalPreparationService:
             trace_id=request.trace_id,
             run_id=request.run_id,
             authorization_event_id=scope.authorization_event_id,
-            context_sha256=discovery.prepared_context_sha256(
-                request.context
-            ),
+            context_sha256=discovery.prepared_context_sha256(request.context),
             query_sha256=request.query_sha256,
             retrieval_mode=request.retrieval_mode,
             retriever_id=request.retriever_id,
@@ -642,21 +680,17 @@ class AuthenticatedRetrievalPreparationService:
     ) -> None:
         if type(scope) is not AuthorizedRetrievalScope or not (
             type(scope.authorization_event_id) is str
-            and _AUTHORIZATION_ID_RE.fullmatch(
-                scope.authorization_event_id
-            )
+            and _AUTHORIZATION_ID_RE.fullmatch(scope.authorization_event_id)
         ):
             _invalid("authorized retrieval scope is invalid")
         if (
             scope.principal_id != context.principal.principal_id
-            or scope.agent_client_id
-            != context.agent_client.agent_client_id
+            or scope.agent_client_id != context.agent_client.agent_client_id
             or scope.tenant_id != context.tenant_id
             or scope.environment_id != context.environment_id
             or preparation_context.tenant_id != scope.tenant_id
             or preparation_context.repository_id != scope.repository_id
-            or preparation_context.environment_id
-            != scope.environment_id
+            or preparation_context.environment_id != scope.environment_id
         ):
             raise RetrievalPreparationV3Error(
                 "TBM_RETRIEVAL_PREPARATION_SCOPE_MISMATCH",
@@ -683,12 +717,14 @@ class AuthenticatedRetrievalPreparationService:
         context: AuthenticatedServiceContext,
         scope: AuthorizedRetrievalScope,
         request: RetrievalPreparationRequest,
+        policy: RetrievalPolicyBundle,
     ) -> CandidateDiscoveryResult:
         try:
             result = self._discovery.discover(
                 context,
                 scope,
                 request,
+                policy,
             )
         except Exception as error:
             raise RetrievalPreparationV3Error(
@@ -739,8 +775,7 @@ class AuthenticatedRetrievalPreparationService:
                 "candidate does not match authorized discovery evidence",
             )
         if revision.memory_kind == "lesson" and (
-            candidate.fix_evidence is None
-            or not candidate.regression_evidence
+            candidate.fix_evidence is None or not candidate.regression_evidence
         ):
             raise RetrievalPreparationV3Error(
                 "TBM_RETRIEVAL_PREPARATION_EVIDENCE_MISSING",
@@ -773,17 +808,13 @@ class AuthenticatedRetrievalPreparationService:
             context.evaluation_suite is not None
             and context.evaluation_case_id is not None
             and any(
-                evidence.evaluation_suite
-                == context.evaluation_suite
-                and evidence.evaluation_case_id
-                == context.evaluation_case_id
+                evidence.evaluation_suite == context.evaluation_suite
+                and evidence.evaluation_case_id == context.evaluation_case_id
                 for evidence in candidate.regression_evidence
             )
         ):
             return "eval_leakage"
-        if policy.ancestry_mode == "required" and (
-            revision.memory_kind == "lesson"
-        ):
+        if policy.ancestry_mode == "required" and (revision.memory_kind == "lesson"):
             fix_evidence = candidate.fix_evidence
             if fix_evidence is None:
                 return "git_ancestry"
@@ -804,9 +835,7 @@ class AuthenticatedRetrievalPreparationService:
         }
         if mode == "metadata":
             if any(value is not None for value in values.values()):
-                _invalid(
-                    "metadata discovery cannot include other stage scores"
-                )
+                _invalid("metadata discovery cannot include other stage scores")
             return {"metadata": 1.0}
         if mode == "hybrid":
             selected = {
@@ -815,18 +844,12 @@ class AuthenticatedRetrievalPreparationService:
                 if value is not None
             }
             if not selected:
-                _invalid(
-                    "hybrid discovery requires a non-metadata stage score"
-                )
+                _invalid("hybrid discovery requires a non-metadata stage score")
             return {"metadata": 1.0, **selected}
         if values[mode] is None or any(
-            value is not None
-            for name, value in values.items()
-            if name != mode
+            value is not None for name, value in values.items() if name != mode
         ):
-            _invalid(
-                "non-hybrid discovery must contain exactly its mode score"
-            )
+            _invalid("non-hybrid discovery must contain exactly its mode score")
         return {
             "metadata": 1.0,
             cast(RankingStage, mode): cast(float, values[mode]),
@@ -838,12 +861,9 @@ class AuthenticatedRetrievalPreparationService:
         policy: RetrievalPolicyBundle,
     ) -> float:
         weighted = math.fsum(
-            value * policy.weight(stage)
-            for stage, value in stage_scores.items()
+            value * policy.weight(stage) for stage, value in stage_scores.items()
         )
-        total_weight = math.fsum(
-            policy.weight(stage) for stage in stage_scores
-        )
+        total_weight = math.fsum(policy.weight(stage) for stage in stage_scores)
         return weighted / total_weight
 
     @staticmethod
@@ -858,9 +878,7 @@ class AuthenticatedRetrievalPreparationService:
             memory_revision_id=revision.revision_id,
             candidate_sha256=candidate.candidate_sha256,
             outcome="allowed" if allowed else "blocked",
-            reason_code=(
-                "allowed" if allowed else "memory_type_not_allowed"
-            ),
+            reason_code=("allowed" if allowed else "memory_type_not_allowed"),
             rule_id="tbm.retrieval-policy.v3.mode-memory-type",
         )
 
@@ -894,41 +912,49 @@ class AuthenticatedRetrievalPreparationService:
     @staticmethod
     def _verify_discovery(
         discovery: CandidateDiscoveryResult,
-        mode: RetrievalMode,
+        request: RetrievalPreparationRequest,
         policy: RetrievalPolicyBundle,
     ) -> None:
+        mode = request.retrieval_mode
         index_versions = discovery.index_versions
         kinds = {item.index_kind for item in index_versions}
         if "metadata" not in kinds:
             _invalid("retrieval preparation requires a metadata index")
         if mode != "hybrid" and mode not in kinds:
             _invalid("retrieval mode requires a matching index")
-        if mode == "hybrid" and len(
-            kinds.intersection(
-                {"metadata", "lexical", "semantic", "evidence_graph"}
+        if (
+            mode == "hybrid"
+            and len(
+                kinds.intersection(
+                    {"metadata", "lexical", "semantic", "evidence_graph"}
+                )
             )
-        ) < 2:
+            < 2
+        ):
             _invalid("hybrid retrieval requires at least two indexes")
         if policy.ancestry_mode == "required" and "git_graph" not in kinds:
             _invalid("required ancestry needs a git_graph index")
-        if (
-            policy.ancestry_mode == "disabled"
-            and discovery.ancestry_relations
-        ):
-            _invalid(
-                "disabled ancestry cannot include ancestry relations"
-            )
+        if policy.ancestry_mode == "disabled" and discovery.ancestry_relations:
+            _invalid("disabled ancestry cannot include ancestry relations")
+        if "semantic" in kinds and request.semantic_query is None:
+            _invalid("semantic index evidence requires semantic query evidence")
+        expected_query_evidence = (
+            cast(
+                SemanticQueryVector,
+                request.semantic_query,
+            ).evidence_sha256(cast(str, request.query_sha256))
+            if "semantic" in kinds
+            else None
+        )
+        if discovery.query_evidence_sha256 != expected_query_evidence:
+            _invalid("semantic index evidence does not match the retrieval query")
         for record in discovery.records:
-            stage_scores = (
-                AuthenticatedRetrievalPreparationService._stage_scores(
-                    record,
-                    mode,
-                )
+            stage_scores = AuthenticatedRetrievalPreparationService._stage_scores(
+                record,
+                mode,
             )
             if any(stage not in kinds for stage in stage_scores):
-                _invalid(
-                    "every discovery score requires a matching index version"
-                )
+                _invalid("every discovery score requires a matching index version")
 
 
 def _identifier(value: object, name: str) -> None:
@@ -948,11 +974,7 @@ def _identifier(value: object, name: str) -> None:
 
 
 def _metadata(value: object, name: str, *, maximum: int) -> None:
-    if (
-        type(value) is not str
-        or not value.strip()
-        or len(value) > maximum
-    ):
+    if type(value) is not str or not value.strip() or len(value) > maximum:
         _invalid(f"{name} must be bounded non-empty text")
     try:
         cast(str, value).encode("utf-8")
@@ -964,10 +986,7 @@ def _metadata(value: object, name: str, *, maximum: int) -> None:
 
 
 def _attributes(values: tuple[tuple[str, str], ...]) -> None:
-    if (
-        type(values) is not tuple
-        or len(values) > RETRIEVAL_PREPARATION_MAX_ATTRIBUTES
-    ):
+    if type(values) is not tuple or len(values) > RETRIEVAL_PREPARATION_MAX_ATTRIBUTES:
         _invalid("attributes must be a bounded tuple")
     previous: str | None = None
     for value in values:
@@ -994,11 +1013,7 @@ def _ancestry_relations(
         _invalid("ancestry_relations must be a bounded tuple")
     previous: str | None = None
     for value in values:
-        if (
-            type(value) is not tuple
-            or len(value) != 2
-            or type(value[1]) is not bool
-        ):
+        if type(value) is not tuple or len(value) != 2 or type(value[1]) is not bool:
             _invalid("ancestry_relations contains an invalid relation")
         _metadata(value[0], "anchor_commit_sha", maximum=512)
         if previous is not None and value[0] <= previous:
@@ -1033,7 +1048,9 @@ __all__ = [
     "RETRIEVAL_PREPARATION_MAX_ATTRIBUTES",
     "RETRIEVAL_PREPARATION_MAX_CANDIDATES",
     "RETRIEVAL_PREPARATION_MAX_QUERY_BYTES",
+    "RETRIEVAL_PREPARATION_MAX_SEMANTIC_DIMENSIONS",
     "RetrievalPreparationContext",
     "RetrievalPreparationRequest",
     "RetrievalPreparationV3Error",
+    "SemanticQueryVector",
 ]

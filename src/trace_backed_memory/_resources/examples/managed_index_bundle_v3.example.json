@@ -1,0 +1,94 @@
+{
+  "bundle_id": "managed_index_bundle_sha256_75b0e153967ebf91fa25ca0245409881fd83c70de485a1705f0745e339e51cd2",
+  "candidates": [
+    {
+      "candidate_sha256": "sha256:9c55782bf2a231ee5f46427be7769be81fce1de2ed0ee36eb552f768b6d17048",
+      "classification": "internal",
+      "eval_leaking": false,
+      "evidence_ids": [
+        "fix_evidence_sha256_885b893650511976aa982f5562d2c3cf0519505f290b7080a6a60a13be82d36b",
+        "regression_sha256_3183af5e756755b4be93c95fffad1cb35677ad55a5e1e3de0d46403b49763fcb"
+      ],
+      "git_anchor_commit_sha": "def456",
+      "lexical_tokens": [
+        "cache",
+        "managed",
+        "memory",
+        "repair"
+      ],
+      "memory_id": "memory_managed",
+      "memory_kind": "lesson",
+      "memory_revision_id": "memory_revision_sha256_c8ecf3511134d71153a6552d4ea5e31ec77b550d4263533e9dfc5e0f1dfba48b",
+      "memory_type": "procedural",
+      "scope_attributes": {
+        "branch": "main"
+      },
+      "semantic_vector": [
+        0.5999999999999999,
+        0.8
+      ]
+    }
+  ],
+  "contract_version": "tbm.managed-index-bundle.v3",
+  "environment_id": "environment_001",
+  "evidence_edges": [
+    {
+      "evidence_id": "fix_evidence_sha256_885b893650511976aa982f5562d2c3cf0519505f290b7080a6a60a13be82d36b",
+      "query_token": "repair",
+      "weight": 1.0
+    }
+  ],
+  "git_commits": [
+    "def456",
+    "fedcba"
+  ],
+  "git_edges": [
+    {
+      "child_commit_sha": "fedcba",
+      "parent_commit_sha": "def456"
+    }
+  ],
+  "index_versions": [
+    {
+      "content_sha256": "sha256:21356de4872820f84aa034bad3c32d3141985026f4843e17d7d7eb7efb706e5a",
+      "index_id": "managed_metadata_f98513f91ae69751fd86b146",
+      "index_kind": "metadata",
+      "index_version": "v3_21356de4872820f84aa034bad3c32d3141985026f4843e17d7d7eb7efb706e5a"
+    },
+    {
+      "content_sha256": "sha256:542564af247078dc8c387db9cf6d1a6368b529585e9916564db56ef2eb490abb",
+      "index_id": "managed_lexical_f98513f91ae69751fd86b146",
+      "index_kind": "lexical",
+      "index_version": "v3_542564af247078dc8c387db9cf6d1a6368b529585e9916564db56ef2eb490abb"
+    },
+    {
+      "content_sha256": "sha256:cacbd8c4b293d4bb1bcc23a5a043400f79847cdd305df3234a4302dadcc93965",
+      "index_id": "managed_semantic_f98513f91ae69751fd86b146",
+      "index_kind": "semantic",
+      "index_version": "v3_cacbd8c4b293d4bb1bcc23a5a043400f79847cdd305df3234a4302dadcc93965"
+    },
+    {
+      "content_sha256": "sha256:34904c82b5a7b60fffe481f827516902ccc6c540a8c6dbe6f2bac11a5bb7fd46",
+      "index_id": "managed_evidence_graph_f98513f91ae69751fd86b146",
+      "index_kind": "evidence_graph",
+      "index_version": "v3_34904c82b5a7b60fffe481f827516902ccc6c540a8c6dbe6f2bac11a5bb7fd46"
+    },
+    {
+      "content_sha256": "sha256:c4282826ffb6dce3674d8353fcdf0f316bc0eaeab0c76cb76559df52a35c3871",
+      "index_id": "managed_git_graph_f98513f91ae69751fd86b146",
+      "index_kind": "git_graph",
+      "index_version": "v3_c4282826ffb6dce3674d8353fcdf0f316bc0eaeab0c76cb76559df52a35c3871"
+    }
+  ],
+  "repository_id": "repository_001",
+  "retriever_id": "reference_retriever",
+  "retriever_version": "v1",
+  "semantic_dimension": 2,
+  "semantic_metric": "cosine",
+  "semantic_provider_id": "reference_embeddings",
+  "semantic_provider_version": "v1",
+  "source_catalog_sha256": "sha256:6b4b4fb66f4728788497b447b8ab3a617e7ae173fbd7197fddf208a6d9d4a508",
+  "tenant_id": "tenant_001",
+  "tokenizer_id": "tbm.unicode-token-bigram",
+  "tokenizer_version": "v1"
+}

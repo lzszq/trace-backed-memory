@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-127 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation/retrieval-policy contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/加密 Artifact Authority/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
+132 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation/retrieval-policy contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/加密 Artifact Authority/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -419,6 +419,19 @@ adapter 必须返回完整有界候选集、精确 Git-ancestry relation，以�
 唯一的精确不可变版本。authorization 必须在 discovery 或 revision 读取之前完成。
 不得接受 repository、tenant、environment、
 principal、client、candidate hash 或 authorization receipt 替换。
+
+已交付的本地 managed profile 应使用 `ManagedIndexDiscovery` 与精确 SQLite 或
+PostgreSQL managed-index repository。只能发布显式脱敏的 index text 和本地提供的
+semantic vector；confidential 或 restricted candidate 不得携带 lexical 或
+semantic 数据，也不得进入内容派生的 evidence-query index。semantic index 参与时
+必须提供精确 provider/version/vector query evidence；不得把 index bundle、match
+或 scope attribute 当成 authorization。参考
+bundle 只在 1,000-candidate 边界内保证完整；生产分片与外部 FTS/ANN worker 不属于
+该契约。
+`ManagedIndexDiscovery` 是受信的进程内端口适配器，不是 authorization
+authority；只能在认证准备服务完成持久化授权验证后调用。它的本地 scope 绑定检查
+不能替代 authorization-ledger 读回，直接调用 discovery 或 repository 不授予访问
+权限。
 
 排序前执行 classification、精确 applicability、evaluation-leakage、当前 eval
 suite/case 与必须满足的 Git-ancestry 过滤，并记录每项省略原因。使用内容寻址 policy

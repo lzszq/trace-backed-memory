@@ -44,7 +44,7 @@ The service executes this fail-closed order:
 3. load one immutable policy bundle;
 4. call a trusted `CandidateDiscovery` adapter for a complete, bounded
    candidate set, exact Git-ancestry relations, and the exact index versions
-   it consulted;
+   it consulted; the same immutable policy bundle is passed to discovery;
 5. load every discovered candidate through the already-authorized
    `ActivatedRevisionSource.load_authorized` path;
 6. reject candidate-hash, authorization-receipt, repository-scope, structured
@@ -75,13 +75,19 @@ digests. It may report at most one immutable index version per index kind, so
 each stage score and ancestry relation has one unambiguous recorded version.
 The service includes all returned ancestry relations in the snapshot context
 digest and requires the exact `git_graph` version when ancestry is enabled.
+If a semantic index participates, the result must also carry query evidence
+derived from the exact provider, provider version, vector, and raw-query
+digest. The service binds it into the prepared context before revision reads.
 
 The adapter is trusted to derive its scores and relations from those recorded
 index bytes; an index content hash is an identity, not a signature or
-attestation. A production lexical, semantic, Git, or evidence-graph index must
-implement that protocol and bind immutable index artifacts; this package does
-not yet provide those managed indexes or independently authenticate an
-adapter's computation.
+attestation. `ManagedIndexDiscovery` now provides a bounded local concrete
+adapter over one content-addressed five-view bundle with exact SQLite and
+PostgreSQL publication-head CAS. It validates the complete immutable inputs
+used by its computation, but does not independently sign them. Production
+sharding, external FTS/ANN providers, and background index workers remain
+outside this reference profile. See
+[managed index bundle v3](managed-index-v3.md).
 
 This stage deliberately supports repository-scoped activated revisions only.
 The current authorization service resolves one repository permission and does

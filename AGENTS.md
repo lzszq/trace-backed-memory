@@ -88,6 +88,10 @@ Start with:
 - `durable_finalization_v3.py`: opt-in authenticated DECIDED→FINALIZED
   composition with deterministic rendering, complete replay retention,
   read-back, and recovery-required semantics; not active Agent/MCP state.
+- `durable_execution_v3.py`: opt-in authenticated FINALIZED→EXECUTING runtime
+  composition with exact injection replay, lease resume/abandonment,
+  registered evaluator authentication, and atomic completion-outbox
+  orchestration; not active Agent/MCP state.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
 - `sqlite_semantic_gate_artifact_v3.py`: opt-in atomic SQLite attempt plus

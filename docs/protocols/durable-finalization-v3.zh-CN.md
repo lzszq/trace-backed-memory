@@ -50,6 +50,10 @@ DecisionReplayManifest。每个组件都内容寻址并逐字节读回。
 snapshot/evaluation/policy/renderer/injection 关联，重建 manifest hash，核验精确
 injection 字节，并重新读取未变化的 GateSession。它不会重新渲染，也不会调用模型。
 
+authenticated `replay()` boundary 会对仍保留精确 finalization linkage 的
+`FINALIZED`、`EXECUTING`、`COMPLETED` 或 `ABANDONED` revision 执行同一套核验。
+它供 durable execution 组合使用；调用方不得用 replay repository 的 raw read 绕过它。
+
 如果 replay bundle 已保留，但 GateSession CAS 无法确认，服务只会在安全时重试同一个
 精确 finalization transition；否则抛出 `DurableFinalizationRecoveryRequiredError`，
 并在可用时附带已保留的 UsageDecision 与 InjectionArtifact。服务绝不会删除不可变
@@ -71,3 +75,6 @@ bundle 与 `FINALIZED` revision。服务本身不会开启或拥有该外层 tra
 调用它。它不会推进 `EXECUTING` 或 `COMPLETED`，不会产生 RunOutcome，不提供
 Review Console 行为，不实现 retention/encryption，也不会让 active MCP 的进程内 Gate
 变成 durable。
+独立的 opt-in
+[durable execution 组合](durable-execution-v3.zh-CN.md)会使用其 authenticated
+exact replay boundary。

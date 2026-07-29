@@ -1659,8 +1659,22 @@ Track:
   retain the UsageDecision plus all replay component bytes, require exact
   read-back, provide ordered recovery when the session CAS is unconfirmed, and
   cover SQLite/PostgreSQL success, replay, conflict, and caller-owned outer
-  rollback. Keep protected-content encryption, `EXECUTING`, active adapters,
-  retention, and replay-read authorization outstanding.
+  rollback. Keep protected-content encryption, active adapters, retention,
+  and replay-read authorization outstanding.
+- Add `DurableExecutionService` as the opt-in authenticated runtime back half.
+  Verify the exact retained finalization bundle before
+  `FINALIZED -> EXECUTING`; require the original retrieval authorization plus
+  a current owner-matched `gate_session:transition` decision; inherit rather
+  than silently replace the finalization lease; and provide exact-version
+  resume and abandonment. Invoke a trusted authenticator on every completion
+  to match live transport proof to a current server-owned evaluator
+  registration, then compose the existing atomic
+  RunOutcome, `COMPLETED`, completion event, and leased delivery authority.
+  Cover SQLite/PostgreSQL parity, exact replay, forged permission/evaluator
+  rejection, and caller-owned rollback. Keep external executor effects
+  idempotent by `run_id`; they cannot join a database transaction. Keep
+  durable transition-event linkage, active adapter wiring, protected-content
+  encryption, retention, and replay-read authorization outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
@@ -1669,8 +1683,9 @@ Track:
   CLI/HTTP/SDK adapters so scope becomes an enforceable transport boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
-- Wire the opt-in durable preparation, Semantic Gate decision, and finalization
-  compositions into transport-authenticated active adapters. Add
+- Wire the opt-in durable preparation, Semantic Gate decision, finalization,
+  and execution/completion compositions into transport-authenticated active
+  adapters. Add
   production index sharding/workers and external FTS/ANN provider profiles
   without weakening the bounded reference contract.
 - Deliver these breaking contracts together as snapshot schema version 3 and

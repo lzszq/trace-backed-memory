@@ -795,7 +795,18 @@
   确定性有界 renderer、精确 injection 与固定八组件 replay manifest。原子保留
   UsageDecision 和全部 replay component 字节，要求精确读回，在 session CAS 无法确认时
   提供有序恢复，并覆盖 SQLite/PostgreSQL success、replay、conflict 与 caller-owned
-  outer rollback。受保护内容加密、`EXECUTING`、active adapter、retention 与
+  outer rollback。受保护内容加密、active adapter、retention 与
+  replay-read authorization 仍待完成。
+- 增加 `DurableExecutionService` 作为 opt-in authenticated runtime 后半段。
+  在 `FINALIZED -> EXECUTING` 前核验精确保留 finalization bundle；要求原始
+  retrieval authorization 与当前 owner-matched `gate_session:transition`
+  decision；继承 finalization lease，不得静默替换；并提供精确 revision 的 resume 与
+  abandonment。completion measurement 必须通过每次调用的可信 authenticator 匹配
+  server-owned evaluator registration，再组合现有原子 RunOutcome、`COMPLETED`、
+  completion event 与 leased delivery authority。覆盖 SQLite/PostgreSQL parity、
+  exact replay、伪造 permission/evaluator 拒绝与 caller-owned rollback。外部 executor
+  effect 无法加入数据库 transaction，必须按 `run_id` 幂等。持久
+  transition-event linkage、active adapter wiring、受保护内容加密、retention 与
   replay-read authorization 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
@@ -819,7 +830,8 @@
   接入 shared-service MCP 与 active CLI/HTTP/SDK adapter，使 scope 成为可执行的
   transport boundary。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
-- 把 opt-in durable preparation、Semantic Gate decision 与 finalization 组合接入具备
-  transport authentication 的 active adapter；在不削弱有界参考契约的前提下增加生产 index
+- 把 opt-in durable preparation、Semantic Gate decision、finalization 与
+  execution/completion 组合接入具备 transport authentication 的 active adapter；
+  在不削弱有界参考契约的前提下增加生产 index
   分片/worker 与外部 FTS/ANN provider profile。
 - 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 3 发布，并提供迁移文档。

@@ -513,6 +513,23 @@ SQLite/PostgreSQL connection 可以提供一层外部 transaction，但默认跨
 public/internal snippet、保留完整 replay bundle 并发布 `FINALIZED`；active Agent、
 MCP、HTTP 与 SDK emission 仍不可用。
 
+只能在提供 UsageDecision 保留的原始 `memory:retrieve` scope，以及同一
+authenticated principal、client、tenant、repository、environment 当前有效的
+`gate_session:transition` scope 时调用 `DurableExecutionService.start()`。start
+必须在 `FINALIZED -> EXECUTING` 前回放并核验精确保留 injection；不得重新渲染，也
+不得接受调用方提交的 snippet 字节。transition 继承 finalization lease。`resume()`
+必须指定精确的当前 executing revision，先续租再返回同一 snippet。外部 executor 必须
+按稳定 GateSession `run_id` 去重；数据库 transaction 无法证明外部副作用是否发生。
+
+`abandon()` 只能用于 live、精确的 executing revision 和有界 terminal reason。
+execution lease 过期属于 recovery-required，不能静默 abandon、complete 或盲目 retry。
+completion 必须让每次调用的可信 evaluator authenticator 校验 transport 认证，并返回与
+`GateCompletionRequest` evaluator/version 精确匹配的 server-owned
+`TrustedOutcomeEvaluator` registration。随后通过 durable execution service 调用既有
+completion-outbox authority，原子发布 RunOutcome、`COMPLETED`、event 与初始
+delivery。服务返回的 transition authorization event 只表示本次调用核验的授权；
+GateSession v3 尚未在 revision 中持久挂接该 event。
+
 ## Version-3 结果与归因策略
 
 只能从显式 measured result 与 evidence 创建 `RunOutcome`，不得从 callback
@@ -536,8 +553,9 @@ durable state 派生 linkage，并用 adapter 可信时间同时生成 outcome �
 `COMPLETED` revision。PostgreSQL 必须先锁定当前 head 再读取数据库时间，使用
 savepoint 保留 caller transaction，并在 catalog 或 rollback drift 时 fail
 closed。只有 service 校验两份持久化读回后，才能把 `inserted=false` 解释为
-精确重放。不得把任一 authority 当作 evaluator authentication、artifact
-authorization、outbox delivery 或 active Agent/MCP completion 的证明。
+精确重放。底层 authority 本身不证明 evaluator authentication；该边界必须使用
+`DurableExecutionService` 与每次调用的可信 evaluator authenticator。两条路径都不能
+证明 artifact authorization、远端 outbox delivery 或 active Agent/MCP completion。
 
 使用 opt-in attribution persistence 时，只能在可信 service 提供 authenticated
 evaluator/verifier identity 与 trusted time 后构造 canonical
@@ -631,6 +649,11 @@ opt-in SQLite/PostgreSQL replay repository 会逐字节保存接受的内容，
 control、retention，单独使用时也不提供 GateSession authority。opt-in finalization
 service 会在这些 repository 外围提供已授权的 GateSession linkage。当前 Store 与
 active adapter 仍不使用这些契约，也不得宣称支持精确 decision replay。
+
+opt-in durable execution service 只能通过 authenticated finalization replay
+boundary 读取这份精确保留 bundle。它只会为 live executing start/resume 返回
+snippet 字节；completed 或 abandoned 的 exact start retry 不返回 snippet。不得把
+replay repository 的 raw `load_*` 方法暴露成 execution API。
 
 ## 固定运行时预算
 

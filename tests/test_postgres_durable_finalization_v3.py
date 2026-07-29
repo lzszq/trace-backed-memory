@@ -51,8 +51,13 @@ def _install(cluster: PostgresCluster) -> None:
         assert installed.returncode == 0, installed.stderr
 
 
-def _decided_stack(connection, *, session_id: str):
-    registry = _registry(permissions=("memory:retrieve",))
+def _decided_stack(
+    connection,
+    *,
+    session_id: str,
+    permissions: tuple[str, ...] = ("memory:retrieve",),
+):
+    registry = _registry(permissions=permissions)
     context = _service_context(registry)
     authorization, decisions = _retrieval_authorization(registry)
     sessions = tbm.PostgresGateSessionRepository(

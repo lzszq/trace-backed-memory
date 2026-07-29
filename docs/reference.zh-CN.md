@@ -418,6 +418,17 @@ recovery-required 状态。详见
 [durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)与
 [UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)。
 
+`DurableExecutionStartRequest` 只指定 finalized session 与精确 revision。
+`DurableExecutionService` 会重新核验原始 retrieval scope，要求同一 owner 当前有效的
+`gate_session:transition` scope，在不重新渲染的情况下回放已保留 injection，再通过
+CAS 发布 `EXECUTING`。`resume()` 只会在返回同一 snippet 前续租精确 executing
+revision；`abandon()` 记录精确、有界的 terminal reason。completion 会通过可信的
+per-call authenticator 把实时 evaluator transport 与当前服务端 registration
+精确匹配，再组合现有原子
+RunOutcome、`COMPLETED` 与 completion-outbox authority，并要求精确读回。外部
+executor side effect 不属于数据库 transaction，必须按 GateSession `run_id` 去重。
+详见 [durable execution v3](protocols/durable-execution-v3.zh-CN.md)。
+
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的
 opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS head
 强制一条有界线性 sequence，支持精确幂等重放，通过 savepoint 保留调用方

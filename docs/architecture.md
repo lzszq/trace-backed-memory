@@ -1724,11 +1724,19 @@ rendering; retains and reads back the complete component bundle; and
 CAS-publishes `FINALIZED`. Shared SQLite/PostgreSQL connections allow caller
 rollback across lease, bundle, and final session revision; separated
 authorities use explicit recovery. Signed provider attestation,
-protected-content encryption, retention/replay-read authorization, later
-lifecycle composition, and active emission are not yet provided. See
+protected-content encryption, retention/replay-read authorization, durable
+transition-event linkage, and active emission are not yet provided.
+`durable_execution_v3.py` supplies the opt-in runtime back half: it replays
+and verifies the exact retained finalization bundle, requires current
+owner-matched transition authorization, CAS-publishes `EXECUTING`, supports
+exact-version resume/abandonment, authenticates a registered outcome
+evaluator, and composes the existing atomic RunOutcome, `COMPLETED`, and
+completion-outbox authority. External execution remains outside database
+transactions and is idempotent by the stable session `run_id`. See
 [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md),
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md),
 [durable finalization v3](protocols/durable-finalization-v3.md),
+[durable execution v3](protocols/durable-execution-v3.md),
 [UsageDecision v3](protocols/usage-decision-v3.md),
 [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md),
 [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md),
@@ -1815,7 +1823,7 @@ attempt/artifact chain, and advances a prepared GateSession to `DECIDED`.
 The opt-in finalization composition then verifies live
 authorization/head/policy state, retains exact final-use evidence, and
 advances it to `FINALIZED`. Active runtime policy execution and Agent/MCP
-Semantic Gate/finalization emission remain outstanding. See
+Semantic Gate/finalization/execution emission remain outstanding. See
 [Gate evaluation v3](protocols/gate-evaluation-v3.md).
 
 The paired `tbm.run-outcome.v3` and `tbm.outcome-attribution.v3` contracts
@@ -1852,6 +1860,17 @@ savepoints, and reject replacement writes or schema drift. The PostgreSQL peer
 adds database-side content-ID recomputation, row locking, full catalog
 validation, concurrent replay, and fail-closed rollback.
 
+`DurableExecutionService` is the authenticated application composition around
+those lower-level authorities. Start revalidates the original retrieval
+authorization and exact retained injection before the executing CAS. Resume
+renews only an exact current executing revision, and abandonment records one
+bounded terminal reason. Completion requires a current
+`gate_session:transition` decision and exact match between a
+transport-authenticated evaluator context and a server-owned trusted
+registration before calling the atomic completion-outbox authority. The
+returned authorization event identifies the decision verified for that call;
+the current GateSession revision does not persist that transition event ID.
+
 The storage-neutral completion-outbox contract separates one immutable
 `execution_completed` event from its append-only delivery revisions. The
 opt-in `SQLiteCompletionOutboxV3Repository` and isolated
@@ -1873,8 +1892,9 @@ and durable read-back, and reports delivered, retry, dead-letter, superseded,
 or recovery-required state explicitly. It does not provide a network client;
 the caller-owned consumer must be idempotent by event ID and must choose a
 lease that covers its maximum processing time.
-Evaluator authentication, artifact authorization, and active runtime emission
-remain separate work. See
+The opt-in durable execution composition now supplies evaluator
+authentication; artifact authorization and active runtime emission remain
+separate work. See
 [SQLite RunOutcome completion v3](protocols/sqlite-outcome-v3.md),
 [PostgreSQL RunOutcome completion v3](protocols/postgres-outcome-v3.md), and
 [SQLite OutcomeAttribution ledger v3](protocols/sqlite-outcome-attribution-v3.md)

@@ -593,6 +593,20 @@ an unconfirmed session transition returns explicit recovery-required state.
 See [durable finalization v3](protocols/durable-finalization-v3.md) and
 [UsageDecision v3](protocols/usage-decision-v3.md).
 
+`DurableExecutionStartRequest` names only the finalized session and exact
+revision. `DurableExecutionService` revalidates the original retrieval scope,
+requires a current `gate_session:transition` scope for the same owner, replays
+the retained injection without rerendering, and CAS-publishes `EXECUTING`.
+`resume()` renews only an exact executing revision before returning the same
+snippet; `abandon()` records an exact bounded terminal reason. Completion
+uses a trusted per-call authenticator to exact-match the live evaluator
+transport to a current server-owned registration, then composes the existing
+atomic RunOutcome, `COMPLETED`, and
+completion-outbox authority with exact read-back. External executor effects
+remain outside database transactions and must deduplicate by GateSession
+`run_id`. See
+[durable execution v3](protocols/durable-execution-v3.md).
+
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
 ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
 schema, enforces one bounded linear sequence through a CAS head, supports

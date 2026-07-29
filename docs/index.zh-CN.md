@@ -38,6 +38,7 @@
 - [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)
 - [Durable Semantic Gate session 组合 v3](protocols/durable-semantic-gate-v3.zh-CN.md)
 - [Durable finalization 组合 v3](protocols/durable-finalization-v3.zh-CN.md)
+- [Durable execution 组合 v3](protocols/durable-execution-v3.zh-CN.md)
 - [UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)
 - [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)
 - [PostgreSQL Semantic Gate artifact 仓库 v3](protocols/postgres-semantic-gate-artifact-v3.zh-CN.md)
@@ -94,16 +95,21 @@ prompt/response 字节和完整、单调收窄的 attempt chain，并提供明�
 语义。opt-in durable finalization 组合现在会复查当前 authorization event、active
 revision head 与 policy，确定性渲染最终允许集合，原子保留精确 UsageDecision、
 injection 与完整八组件 replay bundle，并通过 CAS 发布 `FINALIZED`；SQLite 与
-PostgreSQL 具备 caller-transaction 对等性。托管生产索引、受保护内容的加密
-finalization、active
+PostgreSQL 具备 caller-transaction 对等性。`DurableExecutionService` 随后会在
+`FINALIZED -> EXECUTING` 前核验该精确保留 injection，支持已认证、精确 revision
+的 resume 与 abandonment，通过每次调用的可信 authenticator 认证 outcome
+evaluator，并以 SQLite/PostgreSQL 对等性组合原子
+`RunOutcome + COMPLETED + completion outbox` 发布。托管生产索引、受保护内容的
+加密 finalization、持久 transition-event linkage、active
 retriever/GateSession 持久化以及 Agent/MCP/HTTP/SDK 接入仍待完成。
 opt-in SQLite 与隔离 PostgreSQL RunOutcome authority 现在都可以用一份
 content-addressed outcome 原子完成 executing GateSession。隔离 SQLite
 与 PostgreSQL OutcomeAttribution ledger 会用精确 durable outcome/session
 linkage 持久化多条独立核验的 claim。opt-in SQLite 与隔离 PostgreSQL
 Completion Outbox authority 会在同一 transaction 原子增加一条 immutable
-completion event 与 append-only leased delivery chain。authenticated
-evaluator/artifact 检查与 active runtime emission 仍待完成。
+completion event 与 append-only leased delivery chain。opt-in durable execution
+组合现已围绕这些 authority 提供可信 evaluator authenticator 与精确保留 injection
+replay。artifact attestation 检查与 active runtime emission 仍待完成。
 storage-neutral approval/activation 契约与隔离 SQLite/PostgreSQL publication
 authority 已经发布。opt-in、已认证的 SQLite 与隔离 PostgreSQL Artifact Authority
 会通过调用方 provider 加密精确字节、授权每次读写，并执行读取时 retention/legal

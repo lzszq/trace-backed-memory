@@ -39,6 +39,7 @@ orientation; these documents define the engineering contracts.
 - [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md)
 - [Durable Semantic Gate session composition v3](protocols/durable-semantic-gate-v3.md)
 - [Durable finalization composition v3](protocols/durable-finalization-v3.md)
+- [Durable execution composition v3](protocols/durable-execution-v3.md)
 - [UsageDecision v3](protocols/usage-decision-v3.md)
 - [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md)
 - [PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md)
@@ -102,8 +103,13 @@ The opt-in durable finalization composition now rechecks the current
 authorization event, active revision heads, and policy; deterministically
 renders the final allowed set; atomically retains an exact UsageDecision,
 injection, and complete eight-component replay bundle; and CAS-publishes
-`FINALIZED` with SQLite/PostgreSQL caller-transaction parity. Managed
-production indexes, encrypted protected-content finalization, active
+`FINALIZED` with SQLite/PostgreSQL caller-transaction parity.
+`DurableExecutionService` then verifies that exact retained injection before
+`FINALIZED -> EXECUTING`, supports authenticated exact-version resume and
+abandonment, authenticates the registered outcome evaluator, and composes
+atomic `RunOutcome + COMPLETED + completion outbox` publication with
+SQLite/PostgreSQL parity. Managed production indexes, encrypted
+protected-content finalization, durable transition-event linkage, active
 retriever/GateSession persistence, and Agent/MCP/HTTP/SDK wiring remain
 outstanding.
 The opt-in SQLite and isolated PostgreSQL RunOutcome authorities now atomically
@@ -112,7 +118,9 @@ isolated SQLite and PostgreSQL OutcomeAttribution ledgers persist multiple
 independently verified claims with exact durable outcome/session linkage. The
 opt-in SQLite and isolated PostgreSQL Completion Outbox authorities atomically
 add one immutable completion event and an append-only leased delivery chain to
-that transaction. Authenticated evaluator/artifact checks and active runtime
+that transaction. The opt-in durable execution composition now supplies
+registered evaluator authentication and exact retained-injection replay around
+these authorities. Artifact attestation checks and active runtime
 emission remain outstanding.
 Storage-neutral approval/activation contracts and isolated SQLite/PostgreSQL
 publication authorities are published. Opt-in authenticated SQLite and

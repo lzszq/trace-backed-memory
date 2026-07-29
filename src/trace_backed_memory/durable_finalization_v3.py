@@ -341,6 +341,39 @@ class DurableFinalizationService:
             replayed=False,
         )
 
+    def replay(
+        self,
+        context: AuthenticatedServiceContext,
+        scope: AuthorizedRetrievalScope,
+        session_id: str,
+    ) -> DurableFinalizationResult:
+        """Verify and return the exact retained injection for a finalized run."""
+        if (
+            type(context) is not AuthenticatedServiceContext
+            or type(scope) is not AuthorizedRetrievalScope
+            or not _is_identifier(session_id)
+        ):
+            _invalid("durable finalization replay input is invalid")
+        self._verify_authorization(context, scope)
+        session = self._load_session(session_id)
+        self._verify_session_scope(session, context, scope)
+        if session.status not in {
+            "finalized",
+            "executing",
+            "completed",
+            "abandoned",
+        }:
+            raise DurableFinalizationV3Error(
+                "TBM_DURABLE_FINALIZATION_STATUS_INVALID",
+                "GateSession has no finalized injection to replay",
+            )
+        replayed = self._replay_finalized(session)
+        self._verify_authorization_event(
+            replayed.usage_decision.authorization_event_id,
+            scope,
+        )
+        return replayed
+
     def _verify_authorization(
         self,
         context: AuthenticatedServiceContext,

@@ -98,8 +98,11 @@ class _FailingFinalizedTransition:
         raise RuntimeError("private finalization write failure")
 
 
-def _stack() -> _Stack:
-    registry = _registry(permissions=("memory:retrieve",))
+def _stack(
+    *,
+    permissions: tuple[str, ...] = ("memory:retrieve",),
+) -> _Stack:
+    registry = _registry(permissions=permissions)
     context = _service_context(registry)
     authorization, decisions = _retrieval_authorization(registry)
     connection = sqlite3.connect(":memory:")

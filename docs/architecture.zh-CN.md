@@ -551,11 +551,17 @@ replay-manifest/finalization 挂接：它在确定性有界渲染前后复查当
 event、active head 与 policy，保留并读回完整 component bundle，再通过 CAS 发布
 `FINALIZED`。共享 SQLite/PostgreSQL connection 时，调用方可一起回滚 lease、bundle
 与最终 session revision；authority 分离时使用显式恢复。有签名 provider attestation、
-受保护内容加密、retention/replay-read authorization、后续 lifecycle 组合与 active
-emission 尚未提供。详见
+受保护内容加密、retention/replay-read authorization、持久 transition-event linkage
+与 active emission 尚未提供。`durable_execution_v3.py` 提供 opt-in runtime 后半段：
+回放并核验精确保留 finalization bundle，要求当前 owner-matched transition 授权，
+通过 CAS 发布 `EXECUTING`，支持精确 revision 的 resume/abandonment，通过每次调用的
+可信 authenticator 认证已注册 outcome evaluator，并组合现有原子 RunOutcome、
+`COMPLETED` 与 completion-outbox authority。外部执行不属于数据库 transaction，
+必须按稳定 session `run_id` 幂等。详见
 [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)、
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)、
 [durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)、
+[durable execution v3](protocols/durable-execution-v3.zh-CN.md)、
 [UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)、
 [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)、
 [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)、
@@ -628,7 +634,8 @@ session/snapshot/candidate 覆盖，并强制最终 semantic allow 是 System Ga
 Semantic Gate 组合现已认证 provider 工作、核验完整 attempt/artifact chain，并把
 prepared GateSession 推进到 `DECIDED`；opt-in finalization 组合随后核验实时
 authorization/head/policy、保留精确最终使用 evidence，并推进到 `FINALIZED`。active
-runtime policy execution 与 Agent/MCP Semantic Gate/finalization emission 仍待完成。详见
+runtime policy execution 与 Agent/MCP Semantic Gate/finalization/execution emission
+仍待完成。详见
 [门禁评估 v3](protocols/gate-evaluation-v3.zh-CN.md)。
 
 配套 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3` 补全了
@@ -659,6 +666,15 @@ outcome/session/usage/final-revision linkage，保留 caller savepoint，并拒�
 replacement write 或 schema drift。PostgreSQL peer 还提供数据库 content-ID
 重算、row lock、完整 catalog 校验、并发 replay 与 fail-closed rollback。
 
+`DurableExecutionService` 是这些底层 authority 周围的 authenticated application
+组合。start 会在 executing CAS 前重新核验原始 retrieval authorization 与精确保留
+injection；resume 只续租精确的当前 executing revision；abandonment 记录一条有界
+terminal reason。completion 要求当前 `gate_session:transition` decision，并在调用
+原子 completion-outbox authority 前，让每次调用的可信 authenticator 把
+transport-authenticated evaluator context 与服务端 registration 精确匹配。服务返回的
+authorization event 标识本次核验的 decision；当前 GateSession revision 尚未持久保存
+该 transition event ID。
+
 storage-neutral completion-outbox 契约把一条 immutable
 `execution_completed` event 与 append-only delivery revision 分离。opt-in
 `SQLiteCompletionOutboxV3Repository` 与隔离
@@ -670,8 +686,8 @@ transition 都追加新 revision。Delivery 是 at least once，因此 consumer 
 内容派生 event ID 去重。SQLite 使用 thread-local mutation scope 与共享 connection
 lock；PostgreSQL 使用 database-time transition、row-locked `SKIP LOCKED`
 claim、CAS head、canonical database trigger、精确 catalog 校验与 fail-closed
-rollback。evaluator authentication、artifact authorization 与 active runtime
-emission 仍是独立后续工作。storage-neutral
+rollback。opt-in durable execution 组合现已提供 evaluator authenticator；
+artifact authorization 与 active runtime emission 仍是独立后续工作。storage-neutral
 `CompletionOutboxDeliveryWorker` 可以在任一 authority 上执行一次有界 dispatch：
 在 consumer side effect 前校验整个 claim page，只持久化清洗后的 consumer error
 code，使用精确 version 写入 acknowledgement/failure，核验完整 transition 与

@@ -61,6 +61,11 @@ replay component, verifies snapshot/evaluation/policy/renderer/injection
 linkage, reconstructs the manifest hash, verifies the exact injection bytes,
 and rereads the unchanged GateSession. It does not rerender or call a model.
 
+The authenticated `replay()` boundary applies the same verification to
+`FINALIZED`, `EXECUTING`, `COMPLETED`, or `ABANDONED` revisions that still
+carry the exact finalization linkage. It exists for the durable execution
+composition; callers must not bypass it with raw replay-repository reads.
+
 If the replay bundle was retained but the GateSession CAS cannot be confirmed,
 the service retries only the exact finalization transition when safe. Otherwise
 it raises `DurableFinalizationRecoveryRequiredError` with the retained
@@ -86,3 +91,6 @@ This service is opt-in and is not called by the active Store, local Agent,
 STDIO MCP, HTTP, or SDK adapters. It does not advance `EXECUTING` or
 `COMPLETED`, emit RunOutcome, provide Review Console behavior, implement
 retention/encryption, or make the process-local active MCP Gate durable.
+The separate opt-in
+[durable execution composition](durable-execution-v3.md) consumes its
+authenticated exact replay boundary.

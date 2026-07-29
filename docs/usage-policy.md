@@ -1390,6 +1390,29 @@ may verify a `DECIDED` session, render the final public/internal snippet,
 retain the complete replay bundle, and publish `FINALIZED`; active Agent, MCP,
 HTTP, and SDK emission remain unavailable.
 
+Use `DurableExecutionService.start()` only with the original
+`memory:retrieve` scope retained by the UsageDecision and a current
+`gate_session:transition` scope for the same authenticated principal, client,
+tenant, repository, and environment. Start must replay and verify the exact
+retained injection before `FINALIZED -> EXECUTING`; never rerender or accept
+caller-supplied snippet bytes. The transition inherits the finalization lease.
+Use `resume()` with the exact current executing revision to renew that lease
+before returning the same snippet. External executors must deduplicate by the
+stable GateSession `run_id`; no database transaction can prove whether an
+external side effect happened.
+
+Use `abandon()` only for a live exact executing revision and a bounded
+terminal reason. An expired execution lease is recovery-required, not
+permission to abandon, complete, or retry blindly. For completion, require a
+trusted evaluator authenticator to verify the live transport on every call
+and return a current server-owned `TrustedOutcomeEvaluator` registration that
+exactly matches the context and evaluator/version in `GateCompletionRequest`.
+IDs alone are not authentication proof. Then call the durable execution service so the
+existing completion-outbox authority atomically publishes RunOutcome,
+`COMPLETED`, event, and initial delivery. The transition authorization event
+returned by the service proves what it verified for that call; GateSession v3
+does not yet durably link that event in the revision.
+
 ## Version-3 outcome and attribution policy
 
 Create a `RunOutcome` only from an explicit measured result and evidence; never
@@ -1415,9 +1438,11 @@ derives linkage from durable state and uses trusted adapter time for both the
 outcome and `COMPLETED` revision. PostgreSQL must lock the current head before
 sampling database time, preserve caller transactions with savepoints, and
 fail closed on catalog or rollback drift. Treat `inserted=false` as exact
-replay only after the service has verified both durable read-backs. Do not use
-either authority as proof of evaluator authentication, artifact
-authorization, outbox delivery, or active Agent/MCP completion.
+replay only after the service has verified both durable read-backs. The lower
+authority alone is not proof of evaluator authentication; use
+`DurableExecutionService` with an exact trusted evaluator registration for
+that boundary. Neither path proves artifact authorization, remote outbox
+delivery, or active Agent/MCP completion.
 
 For opt-in attribution persistence, construct a canonical
 `OutcomeAttribution` only after a trusted service has supplied authenticated
@@ -1526,6 +1551,12 @@ or GateSession authority by itself. The opt-in finalization service supplies
 the authorized GateSession linkage around those repositories. The current
 Store and active adapters still do not use these contracts and must not
 advertise exact decision replay.
+
+The opt-in durable execution service may read that exact retained bundle only
+through the authenticated finalization replay boundary. It returns snippet
+bytes only for a live executing start/resume. An exact completed or abandoned
+start retry returns no snippet. Do not expose the replay repository's raw
+`load_*` methods as an execution API.
 
 ## Fixed runtime budgets
 

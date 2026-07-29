@@ -23,6 +23,12 @@ This directory implements the trusted runtime kernel and its adapters.
   GateSession to `FINALIZED` only after deterministic rendering and complete
   UsageDecision/replay-bundle read-back. It is not active Agent/MCP behavior,
   and confidential/restricted rendering remains unavailable.
+- The opt-in durable execution service may replay that exact retained bundle
+  and move `FINALIZED` to `EXECUTING` only with current owner-matched
+  transition authorization. Resume and abandonment require exact revisions;
+  completion requires a registered authenticated evaluator and the atomic
+  outcome/outbox authority. External effects remain idempotent by `run_id`.
+  This is not active Agent/MCP behavior.
 - The local STDIO MCP profile is runtime-only. Keep its repository root and
   optional tenant server-owned, preserve bounded strict transport parsing,
   require Git ancestry capture, and expose no curator or activation surface.

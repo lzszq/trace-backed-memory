@@ -101,5 +101,5 @@ CAS-publishes `PREPARED`. The underlying preparation service still does not
 perform that lifecycle transition itself. See
 [durable retrieval preparation v3](durable-retrieval-preparation-v3.md).
 Semantic Gate attempts, `DECIDED -> FINALIZED`, rendering, injection, artifact
-retention, and active Agent/MCP/HTTP/SDK wiring remain separate work. The
+retention, and active durable Agent/MCP/HTTP/SDK wiring remain separate work. The
 active snapshot-v2 Store and local MCP still do not emit this v3 preparation.

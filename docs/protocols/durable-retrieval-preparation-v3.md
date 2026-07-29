@@ -65,5 +65,5 @@ The opt-in [durable Semantic Gate service](durable-semantic-gate-v3.md) now
 continues this exact evidence through `AWAITING_DECISION` to `DECIDED`.
 The opt-in [authenticated durable Agent](durable-agent-v3.md) composes that
 continuation with finalization, execution, cancellation, and completion.
-Production index workers/sharding and active Agent/MCP/HTTP/SDK wiring remain
+Production index workers/sharding and active durable Agent/MCP/HTTP/SDK wiring remain
 separate work.

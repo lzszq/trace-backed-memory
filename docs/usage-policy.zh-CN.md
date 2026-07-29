@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-134 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation/retrieval-policy contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/加密 Artifact Authority/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
+136 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation/retrieval-policy contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/加密 Artifact Authority/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -188,6 +188,22 @@ storage，pending request 仍为进程内状态。server 重启后必须重新 p
 重建或重放私有 request token。每个 request ID 都是 opaque、session-scoped
 handle；新的 128-bit namespace 可防止遗留 ID 在重启后与新 prepared request
 碰撞。
+
+可选 `tbm-http` 进程必须通过 `AgentProtocolDispatcher` 执行同一 lifecycle；
+HTTP adapter 不得复制 Gate policy。它只能绑定 loopback IPv4，从命名环境变量读取
+32 到 512 字符的 bearer secret，对每个路由要求精确一条匹配的
+`Authorization` header，并在启动时固定一个 checkout root 与 storage mode。
+lifecycle dispatch 前必须拒绝 duplicate key、非有限值、非法 UTF-8、未知字段、
+歧义 body framing，以及超过共用 8 MiB/node/depth 限额的 body。除非后续版本
+发布并测试新限额，否则必须保留固定的 15 秒 connection timeout、32-worker
+dispatch 上限与有界 listen queue。
+
+`AgentHTTPClient` 仅限本地使用，必须拒绝非 loopback 或包含 credential 的 URL、
+path、query、fragment、redirect、环境 proxy、未版本化 response，以及超限或结构
+非法的 JSON。loopback 与 bearer secret 都不能把该 profile 变成 shared-service
+authorization boundary；declared tenant 仍是 version-2 applicability metadata。
+pending handle 仍是进程内状态，HTTP 重启后必须重新 prepare。详见
+[本地 HTTP 与 Python SDK 契约](protocols/agent-http-v1.zh-CN.md)。
 
 prepare 后的 `MemoryRunExecutionError` 保留阶段、原始 cause、request，以及可用的 finalized result/decision ID。一次 helper 调用会创建新 request，重试必须基于错误暴露状态，而不是重跑整个 helper。
 
@@ -510,8 +526,8 @@ prompt/parent 或 terminal session 时绝不能继续。共享 caller-owned
 SQLite/PostgreSQL connection 可以提供一层外部 transaction，但默认跨 authority
 路径是有序恢复，不是 distributed atomicity。独立的 opt-in
 `DurableFinalizationService` 可以核验 `DECIDED` session、渲染最终
-public/internal snippet、保留完整 replay bundle 并发布 `FINALIZED`；active Agent、
-MCP、HTTP 与 SDK emission 仍不可用。
+public/internal snippet、保留完整 replay bundle 并发布 `FINALIZED`；active
+durable Agent、MCP、HTTP 与 SDK emission 仍不可用。
 
 只能在提供 UsageDecision 保留的原始 `memory:retrieve` scope，以及同一
 authenticated principal、client、tenant、repository、environment 当前有效的
@@ -606,7 +622,8 @@ leased revision 执行 acknowledge 或 fail，并允许过期 lease 被重新领
 是 at least once，因此 downstream consumer 必须按 immutable `event_id` 去重；
 response digest 只是 audit metadata，不能证明远端副作用 exactly once。outcome
 已存在但 event 缺失时不得静默修补，应调查并恢复被破坏的 transaction boundary。
-Active Agent/MCP/HTTP/SDK 接入仍不可用。每个 database connection/schema owner
+通过 Agent/MCP/HTTP/SDK 的 active durable completion-outbox emission 仍不可用。
+每个 database connection/schema owner
 都属于 privileged boundary：不得暴露 raw connection，也不得允许调用方替换
 function、trigger 或 catalog object。
 

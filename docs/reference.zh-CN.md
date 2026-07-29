@@ -166,6 +166,21 @@ bootstrap 输入，不是 transport authentication 或可重用 credential；不
 profile 暴露成不可信共享多租户服务。认证模式不能与 `--tenant` 组合。此 profile
 使用 SQLite authorization authority，与所选 runtime storage mode 相互独立。
 
+### Loopback HTTP 与 Python SDK
+
+安装 `.[service]`，在 `TBM_HTTP_TOKEN` 中设置 32 到 512 字符的 secret，然后运行：
+
+```powershell
+tbm-http --repo-path . --sqlite .tbm/memory.sqlite3
+```
+
+`tbm-http` 通过一套共用 dispatcher 暴露与 MCP 相同的六项 `tbm.agent.v1`
+operation。它只能绑定 loopback IPv4，并要求精确一条匹配的 bearer header。
+包根导出的 `AgentHTTPClient` 是类型化、无依赖的本地 client，会拒绝远程 URL、
+proxy 与 redirect。这不是 durable v3 facade 或 shared-service 部署；重启仍会使
+pending request handle 失效。详见
+[HTTP 与 Python SDK 指南](protocols/agent-http-v1.zh-CN.md)。
+
 ## 打包资源
 
 wheel、源码分发包和可编辑安装都会提供 `schemas/` 与 `examples/` 下规范运行时文件的字节一致副本，以及规范的失败分类体系和 active lesson YAML 示例。`AGENTS.md` 等贡献者指引不属于运行时资源。资源名来自严格的 POSIX 规范路径白名单，不能借此读取任意文件系统路径。
@@ -204,7 +219,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 134 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 136 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 新增 managed-index 资源包括 bundle Schema/example，以及隔离 SQLite 与
 PostgreSQL install/rollback SQL。package-root API 导出 builder、

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TraceBackedMemoryAgentCanceled",
+  "type": "object",
+  "required": ["protocol_version", "request_id", "canceled"],
+  "properties": {
+    "protocol_version": {"const": "tbm.agent.v1"},
+    "request_id": {"type": "string", "pattern": "\\S", "maxLength": 128},
+    "canceled": {"const": true}
+  },
+  "additionalProperties": false
+}

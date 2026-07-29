@@ -1687,6 +1687,15 @@ Track:
   service-graph mismatch. Keep transport authentication, default MCP/HTTP/SDK
   wiring, protected-content replay, and durable transition-event linkage
   outstanding.
+- Add a shared strict `AgentProtocolDispatcher` for active `tbm.agent.v1`
+  transports, refactor STDIO MCP to use it, and add an optional loopback-only
+  bearer-authenticated `tbm-http` adapter plus dependency-free typed Python
+  client. Bound and strictly parse every HTTP request/response, disable client
+  proxies and redirects, publish cancel/error schemas, and cover real-socket
+  lifecycle, cross-dispatch conformance, concurrent prepare, authentication,
+  malformed input, CLI startup, and restart invalidation. Keep this as a
+  single-host version-2 profile: the durable facade, service identities,
+  remote/shared deployment, and TypeScript SDK remain outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

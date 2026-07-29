@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 134 canonical Schema, SQL/migration, memory-support, and
+the repository's 136 canonical Schema, SQL/migration, memory-support, and
 example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
@@ -669,9 +669,9 @@ synchronize the Trace before preparation, the usage decision after
 finalization, and atomic measured completion. Pending requests and local
 finalization tombstones remain process-local. Exact same-decision finalize
 replay is idempotent within one runtime; a different retry is a stable
-conflict. The packaged `tbm.agent.v1` schemas describe capabilities, prepared,
-finalized, completed, and error results without changing snapshot version 2,
-SQLite schema version 1, or PostgreSQL schema version 2.
+conflict. The packaged `tbm.agent.v1` schemas describe capabilities, canceled,
+prepared, finalized, completed, and error results without changing snapshot
+version 2, SQLite schema version 1, or PostgreSQL schema version 2.
 
 Every Store runtime generates a fresh 128-bit namespace for opaque Gate
 request IDs. The persisted numeric suffix can continue after reload, but a
@@ -686,6 +686,26 @@ are server-owned; prepare captures Trace Git provenance and complete ancestry
 from that root before calling the façade. The adapter does not reproduce Gate
 policy and cannot curate, verify, publish, activate, inspect the raw Store, or
 run migrations.
+
+`AgentProtocolDispatcher` is the shared strict application-to-wire boundary
+for STDIO MCP and the optional `tbm-http` adapter. HTTP binds only to loopback
+IPv4, requires one server-owned bearer secret from an environment variable,
+and exposes the same six operations under `/v1`. Its bounded reader rejects
+duplicate keys, non-finite values, invalid UTF-8, unknown request fields,
+ambiguous length/transfer headers, and oversized input before lifecycle
+dispatch. A 15-second connection timeout, 32-worker semaphore, and bounded
+listen queue prevent slow or excess local connections from creating unbounded
+threads. `AgentHTTPClient` is a dependency-free typed Python client that also
+requires loopback, disables proxies and redirects, validates bounded protocol
+responses against their published field limits, and maps stable error
+envelopes back to `AgentMemoryError`.
+
+This HTTP profile is a local process boundary, not a shared service: it has no
+TLS, user identity, or tenant isolation. The configured tenant remains
+version-2 applicability metadata, and the CLI does not construct
+`AuthenticatedDurableAgentMemory`. Like MCP, restarting HTTP abandons
+unfinalized request handles even when Trace, finalized usage, and completion
+records are synchronized to SQLite or PostgreSQL.
 
 An all-or-none local `--auth-*` startup profile may additionally wrap that
 runtime in `AuthenticatedLocalAgentMemory`. A bounded trusted registry file
@@ -1203,7 +1223,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 134 resources.
+contains 136 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:

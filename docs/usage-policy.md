@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 134 installed resource copies must remain byte-identical to the top-level
+The 136 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -663,6 +663,25 @@ configured. After a server restart, a client must prepare again; it must not
 reconstruct or replay a private request token. Treat every request ID as an
 opaque, session-scoped handle. A fresh 128-bit namespace prevents an abandoned
 ID from colliding with a newly prepared request after restart.
+
+The optional `tbm-http` process must apply the same lifecycle through
+`AgentProtocolDispatcher`; an HTTP adapter must never reproduce Gate policy.
+It must bind to loopback IPv4 only, read its 32-to-512-character bearer secret
+from a named environment variable, require exactly one matching
+`Authorization` header on every route, and fix one checkout root and storage
+mode at startup. It must reject duplicate keys, non-finite values, invalid
+UTF-8, unknown fields, ambiguous body framing, and bodies beyond the shared
+8 MiB/node/depth limits before lifecycle dispatch. It must retain the fixed
+15-second connection timeout, 32-worker dispatch bound, and bounded listen
+queue unless a later version publishes and tests new limits.
+
+`AgentHTTPClient` is local-only. It must reject non-loopback or credentialed
+URLs, paths, queries, fragments, redirects, environment proxies, unversioned
+responses, and oversized or structurally invalid JSON. Neither loopback nor a
+bearer secret makes the profile a shared-service authorization boundary.
+Declared tenant remains version-2 applicability metadata. Pending handles
+remain process-local and must be prepared again after an HTTP restart. See the
+[local HTTP and Python SDK contract](protocols/agent-http-v1.md).
 
 The usual chronology is decision first and evaluation later. Call
 `record_trace()` first with an `unknown` current Trace, call
@@ -1387,8 +1406,8 @@ session. Shared caller-owned SQLite/PostgreSQL connections may provide one
 outer transaction, but the default cross-authority path is ordered recovery,
 not distributed atomicity. The separate opt-in `DurableFinalizationService`
 may verify a `DECIDED` session, render the final public/internal snippet,
-retain the complete replay bundle, and publish `FINALIZED`; active Agent, MCP,
-HTTP, and SDK emission remain unavailable.
+retain the complete replay bundle, and publish `FINALIZED`; active durable
+Agent, MCP, HTTP, and SDK emission remain unavailable.
 
 Use `DurableExecutionService.start()` only with the original
 `memory:retrieve` scope retained by the UsageDecision and a current
@@ -1502,7 +1521,8 @@ reclaimed. Treat delivery as at least once: downstream consumers must
 deduplicate by the immutable `event_id`. A response digest is audit metadata
 and does not establish exactly-once remote effects. Do not repair an outcome
 that exists without its event; investigate and recover the violated transaction
-boundary. Active Agent/MCP/HTTP/SDK wiring remains unavailable. Treat each
+boundary. Active durable completion-outbox emission through Agent/MCP/HTTP/SDK
+remains unavailable. Treat each
 database connection/schema owner as privileged; do not expose raw connection
 access or permit callers to replace functions, triggers, or catalog objects.
 

@@ -467,6 +467,56 @@ def test_failure_taxonomy_rejects_duplicate_descriptions(tmp_path):
         tbm.load_failure_taxonomy(path)
 
 
+@pytest.mark.parametrize(
+    ("document", "match"),
+    (
+        ("", "must not be empty"),
+        ("entries:\n", "must start with"),
+        (
+            "failure_types:\n  - description: misplaced\n",
+            "entries must start with id",
+        ),
+        (
+            "failure_types:\n  - id:\n",
+            "id must be non-empty",
+        ),
+        (
+            "failure_types:\n  - id: duplicate\n  - id: duplicate\n",
+            "duplicate failure taxonomy id",
+        ),
+        (
+            "failure_types:\n  description: misplaced\n",
+            "description must follow an id",
+        ),
+        (
+            "failure_types:\n  - id: first\n    label: unsupported\n",
+            "unsupported failure taxonomy field",
+        ),
+        (
+            "failure_types:\n  - id: first\n    description:\n",
+            "description must be non-empty",
+        ),
+        (
+            "failure_types:\n  - id: first\n",
+            "entries missing descriptions",
+        ),
+        (
+            "failure_types:\n  - id first\n",
+            "expected YAML key/value line",
+        ),
+    ),
+)
+def test_failure_taxonomy_rejects_malformed_yaml_shapes(
+    tmp_path: Path,
+    document: str,
+    match: str,
+) -> None:
+    path = tmp_path / "invalid-taxonomy.yaml"
+    path.write_text(document, encoding="utf-8")
+    with pytest.raises(ValueError, match=match):
+        tbm.load_failure_taxonomy(path)
+
+
 def test_classifier_can_require_taxonomy_membership():
     trace = Trace(
         trace_id="trace_001",

@@ -38,8 +38,13 @@ Start with:
 - `policy.py`: context parsing, System Gate, LLM decision parsing, rendering.
 - `store.py`: reference Store and cross-record invariants.
 - `agent.py`: focused local application façade and `tbm.agent.v1`.
+- `agent_wire_v1.py`: shared strict request models and lifecycle dispatcher for
+  active local transports.
 - `mcp_entry.py` / `mcp_server.py`: optional bounded, runtime-only local STDIO
   MCP profile over the application façade.
+- `http_entry.py` / `http_server.py`: optional bearer-authenticated,
+  loopback-only local HTTP profile over the shared dispatcher.
+- `sdk.py`: dependency-free typed Python client for the local HTTP profile.
 - `contracts_v3.py`: strict version-3 identities, mappings, and preflight plans.
 - `authorization_v3.py`: storage-neutral identity, role-binding, repository
   alias, and linked authorization-decision contracts; not active enforcement.

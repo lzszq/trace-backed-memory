@@ -50,6 +50,7 @@ _RESOURCE_SPECS: tuple[
     tuple[str, Literal["schema", "memory", "example"], str],
     ...,
 ] = (
+    ("examples/agent_canceled.example.json", "example", "application/json"),
     ("examples/agent_capabilities.example.json", "example", "application/json"),
     ("examples/agent_completed.example.json", "example", "application/json"),
     ("examples/agent_error.example.json", "example", "application/json"),
@@ -188,6 +189,11 @@ _RESOURCE_SPECS: tuple[
     ),
     ("memory/failure_taxonomy.yaml", "memory", "application/yaml"),
     ("memory/lessons.example.yaml", "memory", "application/yaml"),
+    (
+        "schemas/agent_canceled.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/agent_capabilities.schema.json",
         "schema",

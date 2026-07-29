@@ -16,6 +16,7 @@ orientation; these documents define the engineering contracts.
 ## Agent integration
 
 - [Local agent protocol `tbm.agent.v1`](protocols/agent-v1.md)
+- [Local HTTP service and Python SDK](protocols/agent-http-v1.md)
 - [Authorization v3 contract](protocols/authorization-v3.md)
 - [Entity registry v3 contract](protocols/entity-registry-v3.md)
 - [Authenticated retrieval service boundary](protocols/authenticated-service-v3.md)
@@ -86,8 +87,10 @@ storage-neutral authorization-v3 policy/evaluator contract
 defines canonical repositories, exact tenant aliases, authenticated identity
 slots, role bindings, and linked decisions. The authenticated retrieval
 service kernel now persists and rechecks those decisions before a retrieval
-callback, but transport authentication and active Agent/MCP/HTTP/SDK wiring
-remain outstanding. The storage-neutral, content-addressed FixEvidence and
+callback, but transport-authenticated durable Agent wiring remains
+outstanding. A loopback-only bearer-authenticated HTTP profile and typed
+Python client now expose the active version-2 lifecycle through the same
+dispatcher as STDIO MCP. The storage-neutral, content-addressed FixEvidence and
 structured regression evidence contracts are published with a strict
 cross-record MemoryRevision preflight and opt-in isolated SQLite/PostgreSQL
 proposal ledgers. Active v2 records/adapters do not use these ledgers, and
@@ -111,7 +114,7 @@ abandonment, authenticates the registered outcome evaluator, and composes
 atomic `RunOutcome + COMPLETED + completion outbox` publication with
 SQLite/PostgreSQL parity. Managed production indexes, encrypted
 protected-content finalization, durable transition-event linkage, active
-retriever/GateSession persistence, and Agent/MCP/HTTP/SDK wiring remain
+retriever/GateSession persistence, and durable Agent adapter wiring remain
 outstanding.
 `AuthenticatedDurableAgentMemory` now composes those opt-in stages behind one
 adapter-neutral lifecycle. It reconstructs the original retrieval scope from

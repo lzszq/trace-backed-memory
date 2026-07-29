@@ -23,7 +23,7 @@
         "message": {"type": "string", "pattern": "\\S", "maxLength": 2048},
         "operation": {
           "type": "string",
-          "enum": ["open", "capture", "prepare", "finalize", "complete", "cancel", "flush", "run", "close"]
+          "enum": ["open", "capture", "prepare", "finalize", "complete", "cancel", "flush", "health", "run", "close"]
         },
         "retryable": {"type": "boolean"},
         "request_id": {"type": "string", "pattern": "\\S", "maxLength": 128},

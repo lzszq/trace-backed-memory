@@ -7,14 +7,13 @@ import secrets
 from dataclasses import dataclass
 from pathlib import Path
 import sys
-from typing import Any, BinaryIO, Literal, NoReturn, Sequence
+from typing import BinaryIO, Literal, NoReturn, Sequence
 
 import anyio
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.stdio import stdio_server
 from mcp.types import ToolAnnotations
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ._ingestion import (
     CLI_JSON_FILE_MAX_BYTES,
@@ -29,11 +28,17 @@ from .agent import (
     AGENT_PROTOCOL_VERSION,
     AgentMemoryError,
     LocalAgentMemory,
-    agent_capabilities,
-    capture_local_trace,
+)
+from .agent_wire_v1 import (
+    AgentProtocolConfiguration,
+    AgentProtocolDispatcher,
+    CancelRunRequest,
+    CompleteRunRequest,
+    FinalizeMemoryRequest,
+    PrepareMemoryRequest,
+    public_agent_error,
 )
 from .authenticated_agent_v3 import (
-    AuthenticatedAgentPrepareContext,
     AuthenticatedLocalAgentMemory,
 )
 from .entity_registry_v3 import (
@@ -41,19 +46,10 @@ from .entity_registry_v3 import (
     EntityRegistrySnapshot,
     loads_entity_registry,
 )
-from .models import MemoryContext, MemoryRunMeasurement
-from .policy import (
-    LLM_GATE_MAX_CANDIDATES,
-    LLM_GATE_PROMPT_MAX_CHARS,
-    MEMORY_DECISION_REASON_MAX_CHARS,
-    MEMORY_ID_MAX_CHARS,
-    METADATA_VALUE_MAX_CHARS,
-)
-from .store import RETRIEVAL_QUERY_MAX_CHARS
+from .policy import METADATA_VALUE_MAX_CHARS
 from .service_v3 import (
     AuthenticatedRetrievalService,
     AuthenticatedServiceContext,
-    AuthenticatedServiceV3Error,
 )
 from .sqlite_authorization_v3 import SQLiteAuthorizationV3Repository
 
@@ -69,173 +65,7 @@ MCP_SERVER_INSTRUCTIONS = (
     "requests are process-local. Never claim to verify or activate a lesson."
 )
 
-Mode = Literal[
-    "debug",
-    "repair",
-    "regression",
-    "planning",
-    "eval",
-    "production",
-]
-Risk = Literal["none", "low", "medium", "high"]
-InjectionMode = Literal[
-    "none",
-    "short_summary",
-    "full_case_summary",
-    "pointer_only",
-]
-MeasuredResult = Literal["pass", "fail", "error"]
 StorageMode = Literal["memory", "sqlite", "postgres"]
-
-
-class _StrictRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
-
-
-class PrepareMemoryRequest(_StrictRequest):
-    task: str = Field(min_length=1, max_length=LLM_GATE_PROMPT_MAX_CHARS)
-    mode: Mode
-    tool: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    run_id: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=MEMORY_ID_MAX_CHARS,
-    )
-    trace_id: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=MEMORY_ID_MAX_CHARS,
-    )
-    prompt_version: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    prompt_family: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    tool_schema_version: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    model: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    model_family: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    eval_suite: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    input_hash: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    task_type: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    failure_type: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    query: str | None = Field(
-        default=None,
-        max_length=RETRIEVAL_QUERY_MAX_CHARS,
-    )
-    semantic_scores: dict[str, int | float] | None = None
-    max_candidates: int | None = Field(
-        default=None,
-        ge=1,
-        le=LLM_GATE_MAX_CANDIDATES,
-    )
-    minimum_score: int | float | None = None
-    context_summary: str = Field(
-        default="",
-        max_length=LLM_GATE_PROMPT_MAX_CHARS,
-    )
-
-    @field_validator("task")
-    @classmethod
-    def _task_is_nonblank(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("task must be nonblank")
-        return value
-
-    @field_validator("run_id", "trace_id")
-    @classmethod
-    def _identifier_is_nonblank(
-        cls,
-        value: str | None,
-    ) -> str | None:
-        if value is not None and not value.strip():
-            raise ValueError("identifier must be nonblank")
-        return value
-
-
-class FinalizeMemoryRequest(_StrictRequest):
-    request_id: str = Field(
-        min_length=1,
-        max_length=MEMORY_ID_MAX_CHARS,
-    )
-    use_memory: bool
-    allowed_memory_ids: list[str] = Field(
-        max_length=LLM_GATE_MAX_CANDIDATES,
-    )
-    blocked_memory_ids: list[str] = Field(
-        max_length=LLM_GATE_MAX_CANDIDATES,
-    )
-    reason: str = Field(
-        max_length=MEMORY_DECISION_REASON_MAX_CHARS,
-    )
-    risk: Risk
-    recommended_injection: InjectionMode
-
-
-class CompleteRunRequest(_StrictRequest):
-    decision_id: str = Field(
-        min_length=1,
-        max_length=MEMORY_ID_MAX_CHARS,
-    )
-    eval_result: MeasuredResult
-    memory_caused_failure: bool = False
-    output_hash: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-    tool_outputs: list[dict[str, Any]] | None = None
-    latency_ms: int | None = None
-    cost_usd: int | float | None = None
-    error: str | None = Field(default=None, min_length=1)
-    trace_uri: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=METADATA_VALUE_MAX_CHARS,
-    )
-
-
-class CancelRunRequest(_StrictRequest):
-    request_id: str = Field(
-        min_length=1,
-        max_length=MEMORY_ID_MAX_CHARS,
-    )
 
 
 @dataclass(frozen=True)
@@ -255,13 +85,6 @@ class MCPServerConfiguration:
     sqlite_path: Path | None = None
     postgres_env: str | None = None
     authentication: MCPAuthenticationConfiguration | None = None
-
-
-@dataclass
-class _MCPApplication:
-    configuration: MCPServerConfiguration
-    runtime: LocalAgentMemory
-    authenticated_runtime: AuthenticatedLocalAgentMemory | None = None
 
 
 def create_mcp_server(
@@ -298,10 +121,13 @@ def create_mcp_server(
         raise ValueError(
             "authenticated MCP configuration and runtime must be paired"
         )
-    application = _MCPApplication(
-        configuration,
+    dispatcher = AgentProtocolDispatcher(
+        AgentProtocolConfiguration(
+            repo_path=configuration.repo_path,
+            tenant=configuration.tenant,
+        ),
         runtime,
-        authenticated_runtime,
+        authenticated_runtime=authenticated_runtime,
     )
     server = FastMCP(
         "Trace-backed Memory",
@@ -324,7 +150,7 @@ def create_mcp_server(
         structured_output=True,
     )
     def tbm_capabilities() -> dict[str, object]:
-        return agent_capabilities().to_dict()
+        return dispatcher.capabilities()
 
     @server.tool(
         name="tbm_health",
@@ -342,7 +168,7 @@ def create_mcp_server(
     )
     def tbm_health() -> dict[str, object]:
         try:
-            return application.runtime.health()
+            return dispatcher.health()
         except Exception as error:
             _raise_tool_error(error, "health")
 
@@ -366,86 +192,7 @@ def create_mcp_server(
         request: PrepareMemoryRequest,
     ) -> dict[str, object]:
         try:
-            trace = capture_local_trace(
-                application.configuration.repo_path,
-                run_id=request.run_id,
-                trace_id=request.trace_id,
-                tenant=(
-                    None
-                    if application.authenticated_runtime is not None
-                    else application.configuration.tenant
-                ),
-                prompt_version=request.prompt_version,
-                prompt_family=request.prompt_family,
-                tool_schema_version=request.tool_schema_version,
-                model=request.model,
-                eval_suite=request.eval_suite,
-                input_hash=request.input_hash,
-                tool_names=(
-                    () if request.tool is None else (request.tool,)
-                ),
-            )
-            if trace.repo is None:
-                raise ValueError(
-                    "configured repository has no canonical local name"
-                )
-            authenticated_runtime = application.authenticated_runtime
-            if authenticated_runtime is None:
-                context = MemoryContext(
-                    mode=request.mode,
-                    repo=trace.repo,
-                    commit_sha=trace.commit_sha,
-                    branch=trace.branch,
-                    prompt_version=request.prompt_version,
-                    prompt_family=request.prompt_family,
-                    tool=request.tool,
-                    tool_schema_version=request.tool_schema_version,
-                    model=request.model,
-                    model_family=request.model_family,
-                    eval_suite=request.eval_suite,
-                    task_type=request.task_type,
-                    failure_type=request.failure_type,
-                    tenant=application.configuration.tenant,
-                    input_hash=request.input_hash,
-                )
-                prepared = application.runtime.prepare_with_git_ancestry(
-                    trace,
-                    context,
-                    repo_path=application.configuration.repo_path,
-                    task=request.task,
-                    query=request.query,
-                    semantic_scores=request.semantic_scores,
-                    max_candidates=request.max_candidates,
-                    minimum_score=request.minimum_score,
-                    context_summary=request.context_summary,
-                )
-            else:
-                prepared = authenticated_runtime.prepare_with_git_ancestry(
-                    trace,
-                    AuthenticatedAgentPrepareContext(
-                        mode=request.mode,
-                        commit_sha=trace.commit_sha,
-                        branch=trace.branch,
-                        prompt_version=request.prompt_version,
-                        prompt_family=request.prompt_family,
-                        tool=request.tool,
-                        tool_schema_version=request.tool_schema_version,
-                        model=request.model,
-                        model_family=request.model_family,
-                        eval_suite=request.eval_suite,
-                        task_type=request.task_type,
-                        failure_type=request.failure_type,
-                        input_hash=request.input_hash,
-                    ),
-                    repo_path=application.configuration.repo_path,
-                    task=request.task,
-                    query=request.query,
-                    semantic_scores=request.semantic_scores,
-                    max_candidates=request.max_candidates,
-                    minimum_score=request.minimum_score,
-                    context_summary=request.context_summary,
-                ).value
-            return prepared.to_dict()
+            return dispatcher.prepare(request)
         except Exception as error:
             _raise_tool_error(error, "prepare")
 
@@ -468,23 +215,7 @@ def create_mcp_server(
         request: FinalizeMemoryRequest,
     ) -> dict[str, object]:
         try:
-            lifecycle_runtime = (
-                application.authenticated_runtime or application.runtime
-            )
-            finalized = lifecycle_runtime.finalize(
-                request.request_id,
-                {
-                    "use_memory": request.use_memory,
-                    "allowed_memory_ids": request.allowed_memory_ids,
-                    "blocked_memory_ids": request.blocked_memory_ids,
-                    "reason": request.reason,
-                    "risk": request.risk,
-                    "recommended_injection": (
-                        request.recommended_injection
-                    ),
-                },
-            )
-            return finalized.to_dict()
+            return dispatcher.finalize(request)
         except Exception as error:
             _raise_tool_error(error, "finalize")
 
@@ -507,28 +238,7 @@ def create_mcp_server(
         request: CompleteRunRequest,
     ) -> dict[str, object]:
         try:
-            measurement = MemoryRunMeasurement(
-                eval_result=request.eval_result,
-                memory_caused_failure=request.memory_caused_failure,
-                output_hash=request.output_hash,
-                tool_outputs=(
-                    None
-                    if request.tool_outputs is None
-                    else tuple(request.tool_outputs)
-                ),
-                latency_ms=request.latency_ms,
-                cost_usd=request.cost_usd,
-                error=request.error,
-                trace_uri=request.trace_uri,
-            )
-            lifecycle_runtime = (
-                application.authenticated_runtime or application.runtime
-            )
-            completed = lifecycle_runtime.complete(
-                request.decision_id,
-                measurement,
-            )
-            return completed.to_dict()
+            return dispatcher.complete(request)
         except Exception as error:
             _raise_tool_error(error, "complete")
 
@@ -550,15 +260,7 @@ def create_mcp_server(
         request: CancelRunRequest,
     ) -> dict[str, object]:
         try:
-            lifecycle_runtime = (
-                application.authenticated_runtime or application.runtime
-            )
-            lifecycle_runtime.cancel(request.request_id)
-            return {
-                "protocol_version": AGENT_PROTOCOL_VERSION,
-                "request_id": request.request_id,
-                "canceled": True,
-            }
+            return dispatcher.cancel(request)
         except Exception as error:
             _raise_tool_error(error, "cancel")
 
@@ -670,30 +372,12 @@ def _raise_tool_error(
         "health",
     ],
 ) -> NoReturn:
-    if isinstance(error, AgentMemoryError):
-        public_error = error
-    elif isinstance(error, AuthenticatedServiceV3Error):
-        public_error = AgentMemoryError(
-            error.code,
-            "state",
-            operation,
-            str(error),
-        )
-    elif isinstance(error, (TypeError, ValueError, OverflowError)):
-        public_error = AgentMemoryError(
-            "TBM_AGENT_INVALID_INPUT",
-            "input",
-            operation,
-            str(error),
-        )
-    else:
-        public_error = AgentMemoryError(
-            "TBM_MCP_INTERNAL_ERROR",
-            "internal",
-            operation,
-            "MCP runtime operation failed",
-            retryable=True,
-        )
+    public_error = public_agent_error(
+        error,
+        operation,
+        internal_code="TBM_MCP_INTERNAL_ERROR",
+        internal_message="MCP runtime operation failed",
+    )
     raise ToolError(
         json.dumps(
             public_error.to_dict(),

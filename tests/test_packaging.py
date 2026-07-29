@@ -19,10 +19,14 @@ def test_package_metadata_exposes_dependency_free_cli_entry_points():
     assert metadata["project"]["license-files"] == ["LICENSE"]
     assert metadata["project"]["scripts"] == {
         "tbm": "trace_backed_memory.cli:main",
+        "tbm-http": "trace_backed_memory.http_entry:main",
         "tbm-mcp": "trace_backed_memory.mcp_entry:main",
     }
     assert metadata["project"]["optional-dependencies"]["mcp"] == [
         "mcp>=1.28.1,<2"
+    ]
+    assert metadata["project"]["optional-dependencies"]["service"] == [
+        "pydantic>=2.12,<3"
     ]
     assert "Typing :: Typed" in metadata["project"]["classifiers"]
 

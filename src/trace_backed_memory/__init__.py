@@ -409,6 +409,15 @@ from .durable_agent_v3 import (
     DurableAgentSessionAuthority,
     DurableAgentV3Error,
 )
+from .sdk import (
+    SDK_RESPONSE_MAX_BYTES,
+    SDK_RESPONSE_MAX_DEPTH,
+    SDK_RESPONSE_MAX_NODES,
+    SDK_TOKEN_MAX_CHARS,
+    SDK_TOKEN_MIN_CHARS,
+    AgentCanceledRun,
+    AgentHTTPClient,
+)
 from .managed_index_v3 import (
     MANAGED_INDEX_BUNDLE_CONTRACT_VERSION,
     MANAGED_INDEX_BUNDLE_JSON_MAX_BYTES,
@@ -1759,6 +1768,13 @@ __all__ = [
     "DurableAgentEvidenceReader",
     "DurableAgentSessionAuthority",
     "DurableAgentV3Error",
+    "SDK_RESPONSE_MAX_BYTES",
+    "SDK_RESPONSE_MAX_DEPTH",
+    "SDK_RESPONSE_MAX_NODES",
+    "SDK_TOKEN_MAX_CHARS",
+    "SDK_TOKEN_MIN_CHARS",
+    "AgentCanceledRun",
+    "AgentHTTPClient",
     "MANAGED_INDEX_BUNDLE_CONTRACT_VERSION",
     "MANAGED_INDEX_BUNDLE_JSON_MAX_BYTES",
     "MANAGED_INDEX_BUNDLE_JSON_MAX_DEPTH",

@@ -5,7 +5,10 @@ import pytest
 
 from trace_backed_memory._ingestion import (
     decode_bounded_utf8,
+    parse_bounded_json,
     read_bounded_utf8,
+    validate_snapshot_record_count,
+    validate_snapshot_total_record_count,
 )
 
 
@@ -72,6 +75,91 @@ def test_bounded_utf8_decoder_applies_the_same_budget_and_strict_decoding():
             max_bytes=1,
             description="fixture",
         )
+
+
+@pytest.mark.parametrize(
+    ("source", "kwargs", "match"),
+    (
+        (
+            object(),
+            {"description": "fixture", "max_nodes": 2, "max_depth": 1},
+            "source_text must be a string",
+        ),
+        (
+            "{}",
+            {"description": " ", "max_nodes": 2, "max_depth": 1},
+            "description must be a nonblank",
+        ),
+        (
+            "[0]",
+            {"description": "fixture", "max_nodes": 1, "max_depth": 1},
+            "more than 1 nodes",
+        ),
+        (
+            '{"key":0}',
+            {"description": "fixture", "max_nodes": 1, "max_depth": 1},
+            "more than 1 nodes",
+        ),
+        (
+            '{"\\ud800":0}',
+            {"description": "fixture", "max_nodes": 2, "max_depth": 1},
+            "invalid Unicode key",
+        ),
+    ),
+)
+def test_bounded_json_rejects_invalid_metadata_and_budgets(
+    source: object,
+    kwargs: dict[str, object],
+    match: str,
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        parse_bounded_json(source, **kwargs)  # type: ignore[arg-type]
+
+
+def test_bounded_json_reports_source_and_depth() -> None:
+    with pytest.raises(ValueError, match="in fixture.json"):
+        parse_bounded_json(
+            "{",
+            description="fixture",
+            max_nodes=2,
+            max_depth=1,
+            source="fixture.json",
+        )
+    with pytest.raises(ValueError, match="maximum depth"):
+        parse_bounded_json(
+            "[[0]]",
+            description="fixture",
+            max_nodes=3,
+            max_depth=1,
+        )
+
+
+@pytest.mark.parametrize("record_count", (True, -1, 1.5, "1"))
+def test_snapshot_record_count_rejects_invalid_values(
+    record_count: object,
+) -> None:
+    with pytest.raises(ValueError, match="non-negative integer"):
+        validate_snapshot_record_count(
+            "traces",
+            record_count,
+            max_records_per_collection=10,
+        )
+    with pytest.raises(ValueError, match="non-negative integer"):
+        validate_snapshot_total_record_count(
+            record_count,
+            max_total_records=10,
+        )
+
+
+def test_snapshot_record_count_enforces_limits() -> None:
+    with pytest.raises(ValueError, match="maximum is 1"):
+        validate_snapshot_record_count(
+            "traces",
+            2,
+            max_records_per_collection=1,
+        )
+    with pytest.raises(ValueError, match="maximum is 1"):
+        validate_snapshot_total_record_count(2, max_total_records=1)
 
 
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="requires POSIX FIFO support")

@@ -85,5 +85,5 @@ repository permission，尚不提供 tenant-wide discovery authorization；不�
 仍不执行该 lifecycle transition。详见
 [durable retrieval preparation v3](durable-retrieval-preparation-v3.zh-CN.md)。
 Semantic Gate attempt、`DECIDED -> FINALIZED`、rendering、injection、
-artifact retention，以及 active Agent/MCP/HTTP/SDK 接入仍属于后续工作。active
+artifact retention，以及 active durable Agent/MCP/HTTP/SDK 接入仍属于后续工作。active
 snapshot-v2 Store 和本地 MCP 仍不生成这份 v3 preparation。

@@ -18,7 +18,8 @@ It requires no snapshot and performs no network access.
 
 `LocalAgentMemory.health()` reports only non-sensitive pending/replay counts,
 memory metrics, and measured-run metrics. The optional STDIO MCP profile maps
-these operations to `tbm_capabilities` and `tbm_health`.
+these operations to `tbm_capabilities` and `tbm_health`; the optional local
+HTTP profile maps them to `/v1/capabilities` and `/v1/health`.
 
 ## Lifecycle
 
@@ -36,8 +37,10 @@ same phases with decision and execution callbacks and preserves recovery IDs in
 
 The MCP mapping is `tbm_prepare_memory` -> `tbm_finalize_memory` ->
 `tbm_complete_run`, with `tbm_cancel_run` for an abandoned prepared request.
-It returns the same protocol payloads and preserves the process-local request
-boundary.
+The HTTP mapping is `/v1/prepare` -> `/v1/finalize` -> `/v1/complete`, with
+`/v1/cancel`. Both transports use one strict dispatcher, return the same
+protocol payloads, and preserve the process-local request boundary. See the
+[local HTTP and Python SDK guide](agent-http-v1.md).
 
 ## Persistence semantics
 
@@ -75,6 +78,7 @@ The packaged `agent_error.schema.json` is the external envelope contract.
 The distribution includes byte-identical schemas and examples for:
 
 - agent capabilities;
+- canceled request;
 - prepared memory;
 - finalized memory;
 - completed run;

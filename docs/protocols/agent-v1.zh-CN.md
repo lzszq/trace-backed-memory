@@ -16,7 +16,8 @@ tbm capabilities
 
 `LocalAgentMemory.health()` 只报告非敏感 pending/replay 数量、memory metrics
 与 measured-run metrics。可选 STDIO MCP profile 把这两个操作映射为
-`tbm_capabilities` 与 `tbm_health`。
+`tbm_capabilities` 与 `tbm_health`；可选本地 HTTP profile 则映射为
+`/v1/capabilities` 与 `/v1/health`。
 
 ## 生命周期
 
@@ -33,7 +34,9 @@ callback；callback 失败时，`AgentMemoryError` 会保留可恢复的 request
 
 MCP 映射为 `tbm_prepare_memory` -> `tbm_finalize_memory` ->
 `tbm_complete_run`；放弃 prepared request 时调用 `tbm_cancel_run`。它返回同一
-协议 payload，并保留进程内 request 边界。
+协议 payload，并保留进程内 request 边界。HTTP 映射为 `/v1/prepare` ->
+`/v1/finalize` -> `/v1/complete`，放弃时调用 `/v1/cancel`。两个 transport
+使用同一个严格 dispatcher。详见[本地 HTTP 与 Python SDK 指南](agent-http-v1.zh-CN.md)。
 
 ## 持久化语义
 
@@ -60,6 +63,6 @@ finalize 会返回原结果；不同 decision 返回
 
 ## 协议资源
 
-发行包包含 capability、prepared、finalized、completed 与 error 的字节一致
-Schema/示例。它们属于独立版本的应用协议，不改变 snapshot、SQLite 或
-PostgreSQL schema version。
+发行包包含 capability、canceled、prepared、finalized、completed 与 error 的
+字节一致 Schema/示例。它们属于独立版本的应用协议，不改变 snapshot、SQLite
+或 PostgreSQL schema version。

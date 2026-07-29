@@ -207,3 +207,132 @@ def test_retrieval_policy_rejects_oversized_json_and_invalid_utf8():
         )
     with pytest.raises(tbm.RetrievalPolicyV3ContractError):
         tbm.loads_retrieval_policy(b"\xff")
+
+
+@pytest.mark.parametrize(
+    ("task_mode", "memory_types"),
+    (
+        ("unknown", ("semantic",)),
+        ("planning", ()),
+        ("planning", ("unknown",)),
+        ("planning", ("semantic", "semantic")),
+        ("planning", ("policy", "semantic")),
+    ),
+)
+def test_mode_memory_rule_rejects_invalid_or_noncanonical_values(
+    task_mode: str,
+    memory_types: tuple[str, ...],
+) -> None:
+    with pytest.raises(tbm.RetrievalPolicyV3ContractError):
+        tbm.ModeMemoryRule(task_mode, memory_types)  # type: ignore[arg-type]
+
+
+def test_retrieval_policy_unknown_accessors_are_closed() -> None:
+    policy = _policy()
+    assert policy.allowed_types("unknown") == frozenset()  # type: ignore[arg-type]
+    with pytest.raises(AssertionError, match="missing a stage"):
+        policy.weight("unknown")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "change",
+    (
+        {"contract_version": "wrong"},
+        {"policy_id": "wrong"},
+        {"policy_version": " "},
+        {"policy_version": "\ud800"},
+        {"ancestry_mode": "unknown"},
+        {"ancestry_mode": "disabled", "ancestry_bypass_reason": None},
+        {
+            "allowed_classifications": (
+                "confidential",
+                "internal",
+            )
+        },
+        {"mode_memory_rules": tuple(reversed(_rules()))},
+        {"stage_weights": (("metadata", 0.1),)},
+    ),
+)
+def test_retrieval_policy_record_rejects_invalid_contract_fields(
+    change: dict[str, object],
+) -> None:
+    with pytest.raises(tbm.RetrievalPolicyV3ContractError):
+        replace(_policy(), **change)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    (
+        {"allowed_classifications": ["internal"]},
+        {"mode_memory_rules": list(_rules())},
+        {"stage_weights": list(_policy().stage_weights)},
+        {"allowed_classifications": ("unknown",)},
+        {"mode_memory_rules": (object(),)},
+        {"stage_weights": (("unknown", 0.5),) * 4},
+        {
+            "stage_weights": (
+                ("metadata", 0.1),
+                ("metadata", 0.2),
+                ("semantic", 0.4),
+                ("evidence_graph", 0.3),
+            )
+        },
+        {"minimum_fused_score": "0.5"},
+        {"minimum_fused_score": 2.0},
+    ),
+)
+def test_retrieval_policy_builder_rejects_invalid_components(
+    changes: dict[str, object],
+) -> None:
+    values: dict[str, object] = {
+        "policy_version": "retrieval_policy_001",
+        "allowed_classifications": ("internal", "confidential"),
+        "mode_memory_rules": _rules(),
+        "ancestry_mode": "required",
+        "ancestry_bypass_reason": None,
+        "stage_weights": _policy().stage_weights,
+        "minimum_fused_score": 0.25,
+        "payload_budget_bytes": 8_192,
+    }
+    values.update(changes)
+    with pytest.raises(tbm.RetrievalPolicyV3ContractError):
+        tbm.build_retrieval_policy(**values)  # type: ignore[arg-type]
+
+
+def test_retrieval_policy_serializers_reject_wrong_types() -> None:
+    with pytest.raises(tbm.RetrievalPolicyV3ContractError):
+        tbm.dumps_retrieval_policy(object())  # type: ignore[arg-type]
+    with pytest.raises(tbm.RetrievalPolicyV3ContractError):
+        tbm.loads_retrieval_policy(1)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("stage_weights", {"metadata": 1}),
+        ("ancestry_bypass_reason", 1),
+        ("block_eval_leaking", "true"),
+        ("allowed_classifications", []),
+        ("allowed_classifications", [1]),
+        ("minimum_fused_score", "0.5"),
+        ("minimum_fused_score", float("inf")),
+        ("payload_budget_bytes", "1"),
+    ),
+)
+def test_retrieval_policy_parser_rejects_invalid_field_shapes(
+    field: str,
+    value: object,
+) -> None:
+    payload = _policy().to_dict()
+    payload[field] = value
+    with pytest.raises(tbm.RetrievalPolicyV3ContractError):
+        tbm.parse_retrieval_policy(payload)
+
+
+def test_retrieval_policy_parser_rejects_field_set_and_nonobject() -> None:
+    payload = _policy().to_dict()
+    payload["unexpected"] = True
+    with pytest.raises(tbm.RetrievalPolicyV3ContractError):
+        tbm.parse_retrieval_policy(payload)
+    with pytest.raises(tbm.RetrievalPolicyV3ContractError):
+        tbm.parse_retrieval_policy([])

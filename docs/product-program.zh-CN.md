@@ -818,6 +818,14 @@
   continuation parity、policy/target 轮换、owner 拒绝、精确 cancel replay 与
   service-graph mismatch。transport authentication、默认 MCP/HTTP/SDK wiring、
   受保护内容 replay 与持久 transition-event linkage 仍待完成。
+- 为 active `tbm.agent.v1` transport 增加共用的严格
+  `AgentProtocolDispatcher`，重构 STDIO MCP 使用该 dispatcher，并增加可选
+  loopback-only、bearer-authenticated `tbm-http` adapter 与无依赖类型化 Python
+  client。对每个 HTTP request/response 做有界严格解析，禁用 client proxy 与
+  redirect，发布 cancel/error Schema，并覆盖真实 socket lifecycle、跨 dispatcher
+  conformance、并发 prepare、认证、畸形输入、CLI 启动与重启失效。该能力保持为
+  单主机 version-2 profile；durable facade、service identity、远程/共享部署与
+  TypeScript SDK 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-

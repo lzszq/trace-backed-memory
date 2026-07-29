@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 134 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 136 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -163,8 +163,8 @@ prepare/finalize/complete 主流程。`capture_local_trace()` 从显式 checkout
 Trace、finalize 后的 usage decision 和原子 measured completion。pending request
 与本地 finalization tombstone 仍为进程内状态；同一 runtime 的相同 decision
 重放幂等，不同 decision 返回稳定冲突。打包的 `tbm.agent.v1` Schema 覆盖
-capability、prepared、finalized、completed 与 error，不改变 snapshot version
-2、SQLite schema version 1 或 PostgreSQL schema version 2。
+capability、canceled、prepared、finalized、completed 与 error，不改变 snapshot
+version 2、SQLite schema version 1 或 PostgreSQL schema version 2。
 
 每个 Store runtime 都会为 opaque Gate request ID 生成新的 128-bit namespace。
 持久化数字后缀可在 reload 后继续递增，但已放弃进程中的 stale ID 无法在下一
@@ -177,6 +177,22 @@ complete 与 cancel 工具。配置的 checkout root 和可选 tenant 由 server
 prepare 从该 root 捕获 Trace Git provenance 与完整 ancestry，再调用门面。
 adapter 不复制 Gate policy，也不能 curate、verify、publish、activate、查看原始
 Store 或运行 migration。
+
+`AgentProtocolDispatcher` 是 STDIO MCP 与可选 `tbm-http` adapter 共用的严格
+application-to-wire 边界。HTTP 只绑定 loopback IPv4，要求从环境变量取得一份
+server-owned bearer secret，并在 `/v1` 下暴露同样六项操作。有界 reader 会在
+lifecycle dispatch 前拒绝 duplicate key、非有限值、非法 UTF-8、未知 request
+字段、歧义 length/transfer header 与超限输入。15 秒 connection timeout、
+32-worker semaphore 与有界 listen queue 会阻止慢速或超限本地 connection 无限
+创建 thread。`AgentHTTPClient` 是无依赖的类型化 Python client；它同样只允许
+loopback，禁用 proxy 与 redirect，按照已发布字段限额校验有界协议 response，并把
+稳定 error envelope 映射回 `AgentMemoryError`。
+
+该 HTTP profile 是本地进程边界，不是共享服务：它没有 TLS、用户 identity 或
+tenant isolation。配置的 tenant 仍是 version-2 applicability metadata，CLI 不会
+构造 `AuthenticatedDurableAgentMemory`。与 MCP 相同，即使 Trace、finalized usage
+与 completion 已同步到 SQLite/PostgreSQL，HTTP 重启仍会放弃尚未 finalized 的
+request handle。
 
 all-or-none 的本地 `--auth-*` 启动 profile 可以进一步用
 `AuthenticatedLocalAgentMemory` 包装该 runtime。可信有界 registry 文件与 SQLite

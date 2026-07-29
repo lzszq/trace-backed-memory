@@ -181,6 +181,23 @@ profile as an untrusted shared multi-tenant service. `--tenant` cannot be
 combined with authenticated mode. This profile uses a SQLite authorization
 authority independently of the selected runtime storage mode.
 
+### Loopback HTTP and Python SDK
+
+Install `.[service]`, set a 32-to-512-character secret in `TBM_HTTP_TOKEN`, and
+run:
+
+```powershell
+tbm-http --repo-path . --sqlite .tbm/memory.sqlite3
+```
+
+`tbm-http` exposes the same six `tbm.agent.v1` operations as MCP through one
+shared dispatcher. It binds to loopback IPv4 only and requires exactly one
+matching bearer header. The package-root `AgentHTTPClient` is a typed,
+dependency-free local client that rejects remote URLs, proxies, and redirects.
+This is not the durable v3 facade or a shared-service deployment; restart still
+invalidates pending request handles. See the
+[HTTP and Python SDK guide](protocols/agent-http-v1.md).
+
 ## Packaged Resources
 
 Wheel, source-distribution, and editable installs contain byte-identical copies
@@ -230,7 +247,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 134 resources. `PackagedResource` descriptions
+The allowlist currently contains 136 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -2270,7 +2287,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 134 canonical Schemas, examples, and memory
+  explicit atomic export for all 136 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned

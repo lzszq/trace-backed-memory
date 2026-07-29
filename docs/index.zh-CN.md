@@ -15,6 +15,7 @@
 ## Agent 集成
 
 - [本地 Agent 协议 `tbm.agent.v1`](protocols/agent-v1.zh-CN.md)
+- [本地 HTTP 服务与 Python SDK](protocols/agent-http-v1.zh-CN.md)
 - [授权 v3 契约](protocols/authorization-v3.zh-CN.md)
 - [实体注册表 v3 契约](protocols/entity-registry-v3.zh-CN.md)
 - [认证 retrieval service 边界](protocols/authenticated-service-v3.zh-CN.md)
@@ -81,8 +82,10 @@ preparation、Semantic Gate、completion 与 recovery service/worker 已经使�
 但 active Store/MCP lifecycle 尚未使用。与存储实现无关的授权
 v3 policy/evaluator 契约已定义 canonical repository、精确租户别名、认证身份
 位置、role binding 与关联 decision。认证 retrieval service kernel 现在会在
-retrieval callback 前持久化并复查这些 decision，但 transport authentication 与
-active Agent/MCP/HTTP/SDK 接入仍待完成。storage-neutral、content-addressed
+retrieval callback 前持久化并复查这些 decision，但 transport-authenticated
+durable Agent 接入仍待完成。当前已有 loopback-only、bearer-authenticated HTTP
+profile 与类型化 Python client，并与 STDIO MCP 共用同一个 active version-2
+dispatcher。storage-neutral、content-addressed
 FixEvidence 与结构化 regression evidence 契约已经发布，并提供严格的跨记录
 MemoryRevision preflight 及 opt-in、隔离的 SQLite/PostgreSQL proposal ledger。
 active v2 record/adapter 尚未使用这些 ledger；proposal 持久化不代表 approval 或
@@ -102,7 +105,7 @@ PostgreSQL 具备 caller-transaction 对等性。`DurableExecutionService` 随�
 evaluator，并以 SQLite/PostgreSQL 对等性组合原子
 `RunOutcome + COMPLETED + completion outbox` 发布。托管生产索引、受保护内容的
 加密 finalization、持久 transition-event linkage、active
-retriever/GateSession 持久化以及 Agent/MCP/HTTP/SDK 接入仍待完成。
+retriever/GateSession 持久化以及 durable Agent adapter 接入仍待完成。
 `AuthenticatedDurableAgentMemory` 现在会在一个 adapter-neutral lifecycle
 后面组合上述 opt-in 阶段。它从已保留 RetrievalSnapshot authorization linkage
 重建原始 retrieval scope，拒绝错配的 service graph，增加已授权的精确版本取消，

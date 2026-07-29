@@ -458,6 +458,11 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/schema+json",
     ),
+    (
+        "schemas/sqlite-v3-artifact-authority.sql",
+        "schema",
+        "application/sql",
+    ),
     ("schemas/sqlite-v3-audit.sql", "schema", "application/sql"),
     ("schemas/sqlite-v3-authorization.sql", "schema", "application/sql"),
     (

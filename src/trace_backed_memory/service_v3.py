@@ -7,6 +7,7 @@ from typing import Generic, Protocol, TypeVar
 from .authorization_v3 import (
     AgentClientIdentity,
     AuthorizationDecision,
+    AuthorizationPermission,
     AuthorizationPolicyBundle,
     AuthorizationRequest,
     PrincipalIdentity,
@@ -124,12 +125,26 @@ class AuthenticatedRetrievalService:
         context: AuthenticatedServiceContext,
         retrieve: Callable[[AuthorizedRetrievalScope], _RetrievalValue],
     ) -> AuthorizedRetrievalResult[_RetrievalValue]:
+        return self.authorize_permission(
+            context,
+            permission="memory:retrieve",
+            operation=retrieve,
+        )
+
+    def authorize_permission(
+        self,
+        context: AuthenticatedServiceContext,
+        *,
+        permission: AuthorizationPermission,
+        operation: Callable[[AuthorizedRetrievalScope], _RetrievalValue],
+    ) -> AuthorizedRetrievalResult[_RetrievalValue]:
+        """Persist and read back one exact authorization before an operation."""
         if type(context) is not AuthenticatedServiceContext:
             _reject_context()
-        if not callable(retrieve):
+        if not callable(operation):
             raise AuthenticatedServiceV3Error(
                 "TBM_SERVICE_RETRIEVAL_CALLBACK_INVALID",
-                "authorized retrieval callback is invalid",
+                "authorized operation callback is invalid",
             )
 
         registry = self._load_registry()
@@ -137,7 +152,11 @@ class AuthenticatedRetrievalService:
         self._verify_authenticated_records(policy, context)
         try:
             requested_at = self._clock()
-            request = self._authorization_request(context, requested_at)
+            request = self._authorization_request(
+                context,
+                requested_at,
+                permission,
+            )
             decision = authorize(policy, request, decided_at=requested_at)
         except AuthenticatedServiceV3Error:
             raise
@@ -181,7 +200,7 @@ class AuthenticatedRetrievalService:
             )
         scope = self._authorized_scope(current_registry, context, decision)
         try:
-            value = retrieve(scope)
+            value = operation(scope)
         except Exception as error:
             raise AuthenticatedServiceV3Error(
                 "TBM_SERVICE_RETRIEVAL_FAILED",
@@ -239,6 +258,7 @@ class AuthenticatedRetrievalService:
         self,
         context: AuthenticatedServiceContext,
         requested_at: str,
+        permission: AuthorizationPermission,
     ) -> AuthorizationRequest:
         try:
             return AuthorizationRequest(
@@ -247,7 +267,7 @@ class AuthenticatedRetrievalService:
                 agent_client_id=context.agent_client.agent_client_id,
                 tenant_id=context.tenant_id,
                 repository_reference=context.repository_reference,
-                permission="memory:retrieve",
+                permission=permission,
                 requested_at=requested_at,
             )
         except (TypeError, ValueError) as error:

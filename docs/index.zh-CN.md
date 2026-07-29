@@ -45,6 +45,7 @@
 - [Completion outbox 契约与 SQLite/PostgreSQL authority v3](protocols/completion-outbox-v3.zh-CN.md)
 - [Durable GateSession v3 领域契约](protocols/gate-session-v3.zh-CN.md)
 - [内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)
+- [已认证加密 Artifact Authority v3](protocols/artifact-authority-v3.zh-CN.md)
 - [Codex 集成](integrations/codex.zh-CN.md)
 - [Claude Code 集成](integrations/claude-code.zh-CN.md)
 - [Pi 集成](integrations/pi.zh-CN.md)
@@ -88,8 +89,10 @@ Completion Outbox authority 会在同一 transaction 原子增加一条 immutabl
 completion event 与 append-only leased delivery chain。authenticated
 evaluator/artifact 检查与 active runtime emission 仍待完成。
 storage-neutral approval/activation 契约与隔离 SQLite/PostgreSQL publication
-authority 已经发布；artifact storage、retention/encryption、active-v2 projection
-与更广泛 service integration 仍属于统一推进的 schema version 3 计划。
+authority 已经发布。opt-in、已认证的 SQLite Artifact Authority 现在会通过调用方
+provider 加密精确字节、授权每次读写，并执行读取时 retention/legal hold。PostgreSQL/
+object-storage 对等实现、物理清除/密钥销毁、active-v2 projection 与更广泛 service
+integration 仍属于统一推进的 schema version 3 计划。
 与存储实现无关的
 `tbm.replay.v3` artifact 与 replay manifest 契约及 opt-in 隔离 SQLite immutable
 字节/descriptor 账本已经发布，但 active adapter 尚不使用它，且它不提供授权、

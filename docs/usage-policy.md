@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 122 installed resource copies must remain byte-identical to the top-level
+The 123 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1406,9 +1406,11 @@ for migrated evidence, with the exact null-component list; never treat it as
 permission to silently reconstruct missing prompts, responses, policy, or
 ancestry. Verify artifact bytes before use.
 
-Classification metadata is not enforcement. A future repository must encrypt
-confidential/restricted bytes, authorize each read, apply retention and
-redaction policy, and avoid logging content. The opt-in SQLite and PostgreSQL
+Classification metadata is not enforcement. The opt-in local Artifact
+Authority encrypts all accepted classes with a caller-owned provider,
+authorizes each read/write, and enforces read-time retention/legal hold; it
+does not yet perform physical purge, redaction, or key destruction. Avoid
+logging content. The opt-in SQLite and PostgreSQL
 replay repositories store accepted bytes verbatim and therefore reject
 confidential/restricted artifacts until a transparent encryption provider can
 preserve exact content identity. Both verify exact bytes and immutable

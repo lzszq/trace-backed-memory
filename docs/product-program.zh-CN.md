@@ -756,6 +756,12 @@
   `RESTRICT` rollback。active adapter emission 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
+- 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-
+  encryption provider 边界、`AuthenticatedArtifactService` 与隔离不可变 SQLite
+  version-1 repository。在访问存储之前持久化并精确读回 `artifact:write/read`
+  decision；将 scope、授权、provider/key、可信时间与 retention 绑定到 AAD；写入前及
+  每次读取时解密并核验明文。PostgreSQL/object-storage 对等实现、物理清除/密钥销毁、
+  provider 认证、MemoryRevision/GateSession linkage 与 active emission 仍待完成。
 - 把 transport-authenticated 服务端 identity 与已发布的 retrieval 前授权 kernel
   接入 shared-service MCP 与 active CLI/HTTP/SDK adapter，使 scope 成为可执行的
   transport boundary。

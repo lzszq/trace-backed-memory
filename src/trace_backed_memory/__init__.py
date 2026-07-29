@@ -171,6 +171,33 @@ from .service_v3 import (
     AuthorizedRetrievalResult,
     AuthorizedRetrievalScope,
 )
+from .artifact_v3 import (
+    ARTIFACT_AUTHORITY_CONTRACT_VERSION,
+    ARTIFACT_CIPHERTEXT_MAX_BYTES,
+    ArtifactEncryptionProvider,
+    ArtifactRetention,
+    ArtifactV3ContractError,
+    EncryptedArtifactRecord,
+    artifact_aad,
+    retention_allows_read,
+    verify_plaintext,
+)
+from .artifact_service_v3 import (
+    ArtifactRecordAuthority,
+    AuthenticatedArtifactService,
+    AuthenticatedArtifactServiceV3Error,
+    StoredArtifactResult,
+)
+from .sqlite_artifact_v3 import (
+    SQLITE_ARTIFACT_V3_SCHEMA_VERSION,
+    SQLiteArtifactV3ConflictError,
+    SQLiteArtifactV3Error,
+    SQLiteArtifactV3NotFoundError,
+    SQLiteArtifactV3PersistenceError,
+    SQLiteArtifactV3Repository,
+    SQLiteArtifactV3SchemaError,
+    SQLiteArtifactV3StoreResult,
+)
 from .memory_revision_v3 import (
     MEMORY_REVISION_CONTRACT_VERSION,
     MEMORY_REVISION_JSON_MAX_BYTES,
@@ -832,6 +859,27 @@ from .execution import (
 )
 
 __all__ = [
+    "ARTIFACT_AUTHORITY_CONTRACT_VERSION",
+    "ARTIFACT_CIPHERTEXT_MAX_BYTES",
+    "ArtifactEncryptionProvider",
+    "ArtifactRecordAuthority",
+    "ArtifactRetention",
+    "ArtifactV3ContractError",
+    "AuthenticatedArtifactService",
+    "AuthenticatedArtifactServiceV3Error",
+    "EncryptedArtifactRecord",
+    "SQLITE_ARTIFACT_V3_SCHEMA_VERSION",
+    "SQLiteArtifactV3ConflictError",
+    "SQLiteArtifactV3Error",
+    "SQLiteArtifactV3NotFoundError",
+    "SQLiteArtifactV3PersistenceError",
+    "SQLiteArtifactV3Repository",
+    "SQLiteArtifactV3SchemaError",
+    "SQLiteArtifactV3StoreResult",
+    "StoredArtifactResult",
+    "artifact_aad",
+    "retention_allows_read",
+    "verify_plaintext",
     "AUDIT_EVENT_CONTRACT_VERSION",
     "AUDIT_JSON_MAX_BYTES",
     "AUDIT_JSON_MAX_DEPTH",

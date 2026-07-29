@@ -46,6 +46,7 @@ orientation; these documents define the engineering contracts.
 - [Completion outbox contract and SQLite/PostgreSQL authorities v3](protocols/completion-outbox-v3.md)
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Content-addressed replay contract v3](protocols/replay-v3.md)
+- [Authenticated encrypted Artifact Authority v3](protocols/artifact-authority-v3.md)
 - [Codex integration](integrations/codex.md)
 - [Claude Code integration](integrations/claude-code.md)
 - [Pi integration](integrations/pi.md)
@@ -95,8 +96,10 @@ add one immutable completion event and an append-only leased delivery chain to
 that transaction. Authenticated evaluator/artifact checks and active runtime
 emission remain outstanding.
 Storage-neutral approval/activation contracts and isolated SQLite/PostgreSQL
-publication authorities are published. Artifact storage, retention/encryption,
-active-v2 projection, and broader service integration remain part of the
+publication authorities are published. An opt-in authenticated SQLite Artifact
+Authority now encrypts exact bytes through a caller-owned provider, authorizes
+every read/write, and enforces read-time retention/legal hold. PostgreSQL/object
+storage parity, physical purge/key destruction, active-v2 projection, and broader service integration remain part of the
 coordinated schema-version-3 program. The
 storage-neutral `tbm.replay.v3` artifact and replay-manifest contract is
 published with an opt-in isolated SQLite immutable byte/descriptor ledger, but

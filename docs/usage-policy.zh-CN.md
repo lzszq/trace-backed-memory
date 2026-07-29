@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-122 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
+123 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -536,9 +536,10 @@ renderer 与 policy bundle。
 component；不得据此静默重建缺失的 prompt、response、policy 或 ancestry。使用前必须
 验证 artifact 字节。
 
-classification metadata 本身不执行安全策略。未来 service 必须加密
-confidential/restricted 字节、授权每次读取、执行 retention 与 redaction policy，并
-避免记录内容。opt-in SQLite/PostgreSQL replay repository 会逐字节保存接受的内容，
+classification metadata 本身不执行安全策略。opt-in 本地 Artifact Authority 会通过
+调用方 provider 加密所有接受的 classification、授权每次读写，并执行读取时
+retention/legal hold；它尚不执行物理清除、redaction 或密钥销毁。不得记录内容。
+opt-in SQLite/PostgreSQL replay repository 会逐字节保存接受的内容，
 因此会拒绝 confidential/restricted artifact，直到透明加密 provider 能在加密的同时
 保留精确内容身份。两者校验精确字节与 immutable descriptor linkage，把精确 replay
 视为 idempotent，并通过 savepoint 保留 borrowed transaction；两者都不提供 access

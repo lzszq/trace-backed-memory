@@ -1449,6 +1449,14 @@ Track:
   Persist arbitrary provider failures only as sanitized prompt-only attempts.
   Keep encryption/retention/access control, signed provider attestation,
   GateSession/replay transaction linkage, and active emission outstanding.
+- Add the storage-neutral encrypted Artifact Authority contract, a caller-owned
+  authenticated-encryption provider boundary, `AuthenticatedArtifactService`,
+  and an isolated immutable SQLite version-1 repository. Persist and read back
+  exact `artifact:write/read` decisions before storage access; bind scope,
+  authorization, provider/key, trusted time, and retention into AAD; decrypt
+  and verify plaintext before append and on every read. Keep PostgreSQL/object
+  storage parity, physical purge/key destruction, provider authentication,
+  MemoryRevision/GateSession linkage, and active emission outstanding.
 - Publish content-addressed `tbm.run-outcome.v3` and
   `tbm.outcome-attribution.v3` contracts that bind completed GateSessions to
   explicit evaluator evidence while keeping observed association separate

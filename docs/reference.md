@@ -230,7 +230,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 125 resources. `PackagedResource` descriptions
+The allowlist currently contains 127 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -2199,7 +2199,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 125 canonical Schemas, examples, and memory
+  explicit atomic export for all 127 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2331,6 +2331,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- lesson.example.json
 |   |-- memory_context.example.json
 |   |-- memory_revision_v3.example.json
+|   |-- retrieval_policy_v3.example.json
 |   |-- retrieval_snapshot_v3.example.json
 |   |-- recovery_action_v3.example.json
 |   |-- semantic_gate_artifact_v3.example.json
@@ -2384,6 +2385,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- memory_store_snapshot.schema.json
 |   |-- memory_context.schema.json
 |   |-- memory_revision_v3.schema.json
+|   |-- retrieval_policy_v3.schema.json
 |   |-- retrieval_snapshot_v3.schema.json
 |   |-- recovery_action_v3.schema.json
 |   |-- semantic_gate_artifact_v3.schema.json

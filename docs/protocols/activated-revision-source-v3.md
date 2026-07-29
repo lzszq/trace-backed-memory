@@ -19,8 +19,15 @@ For one authenticated `memory:retrieve` request, the source:
    verifies its plaintext digest and size;
 6. re-runs the complete approval/activation/evidence/authorization verifier;
 7. reloads the head and rejects a concurrent change; and
-8. returns an `ActivatedRevisionCandidate` with a canonical candidate digest
-   plus both access-authorization event IDs.
+8. returns an `ActivatedRevisionCandidate` with its verified FixEvidence and
+   regression evidence, a canonical candidate digest, and both
+   access-authorization event IDs.
+
+`load_authorized` reuses one already-authorized retrieval scope so a larger
+retrieval operation does not create a second `memory:retrieve` decision for
+each candidate. It rejects a principal, client, tenant, or environment mismatch
+between that scope and the authenticated context. `verify_current` provides the
+final exact-head recheck used immediately before prepared evidence is returned.
 
 `load_approval_bundle` and `load_activation_bundle` are available on both the
 SQLite and PostgreSQL publication authorities. Their storage-neutral bundle
@@ -35,9 +42,12 @@ and are intentionally excluded from candidate identity.
 
 ## Boundary
 
-This source does not execute applicability selectors, classification/leakage
-filters, Git ancestry, ranking, RetrievalSnapshot emission, System/Semantic
-Gate, rendering, or injection. It does not make a proposal active and never
-derives revision IDs from version-2 Lesson/Policy/usage records. The current
-encrypted Artifact Authority has SQLite and isolated PostgreSQL peers; object
-storage and active Agent/MCP integration remain outstanding.
+This source itself does not execute applicability selectors,
+classification/leakage filters, Git ancestry, ranking, RetrievalSnapshot
+emission, System/Semantic Gate, rendering, or injection. The storage-neutral
+retrieval-preparation kernel composes this source for the first five of those
+steps and for deterministic System Gate emission; Semantic Gate and active
+runtime wiring remain separate. The source does not make a proposal active and
+never derives revision IDs from version-2 Lesson/Policy/usage records. The
+current encrypted Artifact Authority has SQLite and isolated PostgreSQL peers;
+object storage and active Agent/MCP integration remain outstanding.

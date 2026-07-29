@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 125 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 127 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -262,6 +262,15 @@ attestation verifier identity，记录独立 retrieval/artifact read 授权 even
 读取期间移动的 head。其 candidate digest 是未来 retrieval 输入，不是 ranking result
 或 active-v2 projection。详见
 [ActivatedRevision source 契约](protocols/activated-revision-source-v3.zh-CN.md)。
+
+`retrieval_policy_v3.py` 定义内容寻址的 classification、task-mode、ancestry、
+fusion、minimum-score 与 payload-budget policy。`retrieval_preparation_v3.py`
+组合 authorization、可信 candidate discovery、已核验 ActivatedRevision 读取、
+确定性过滤/排序、成对 RetrievalSnapshot/SystemGateEvaluation 构造，以及最终
+head/policy 复查。discovery 仍是调用方提供的可信 adapter，必须报告完整有界集合和
+精确不可变 index version。该 kernel 不提供托管索引、Semantic Gate、GateSession
+持久化或 active adapter 接入。详见
+[已认证检索准备 v3](protocols/retrieval-preparation-v3.zh-CN.md)。
 
 ## PostgreSQL 运行时存储库
 
@@ -550,15 +559,18 @@ storage-neutral `tbm.retrieval-snapshot.v3` 契约记录 prepared GateSession
 引用的精确已授权检索结果。它在内容派生身份下绑定授权事件、context/query 摘要、
 retriever 与不可变 index 版本、有序 memory-revision 命中、候选哈希、有限的
 逐阶段/融合分数、top-K 上限及显式截断原因。它不记录 System Gate 或 Semantic
-Gate 结果，不能授予访问权或重新打开 block。active retrieval 仍只返回
-`MemoryItem`，不会产生该快照。详见
+Gate 结果，不能授予访问权或重新打开 block。可选的 storage-neutral
+retrieval-preparation kernel 现在会在最终 head/policy 复查后生成该快照和配对的
+System Gate evaluation；active retrieval 仍只返回 `MemoryItem`，尚未使用该 kernel。
+详见
 [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)。
 
 配套 `tbm.system-gate-evaluation.v3` 与 `tbm.semantic-gate-attempt.v3`
 随后绑定逐候选确定性策略结果及有序模型 attempt provenance。跨记录核验要求精确
 session/snapshot/candidate 覆盖，并强制最终 semantic allow 是 System Gate allow
 的子集、全部 System block 保持 blocked。prompt/response 内容保留在引用 artifact
-中。active policy execution 尚不产生这些记录。详见
+中。retrieval-preparation kernel 只生成 System Gate record；active policy
+execution 与 Semantic Gate emission 仍待完成。详见
 [门禁评估 v3](protocols/gate-evaluation-v3.zh-CN.md)。
 
 配套 `tbm.run-outcome.v3` 与 `tbm.outcome-attribution.v3` 补全了

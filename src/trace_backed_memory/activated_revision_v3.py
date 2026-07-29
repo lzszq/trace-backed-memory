@@ -15,7 +15,10 @@ from .memory_publication_v3 import (
     StoredMemoryRevisionApprovalPublication,
     verify_memory_revision_activation,
 )
-from .memory_revision_v3 import MemoryRevision
+from .memory_revision_v3 import (
+    MemoryRevision,
+    verify_memory_revision_evidence_bundle,
+)
 from .replay_v3 import verify_artifact_content
 from .service_v3 import (
     AuthenticatedRetrievalService,
@@ -78,6 +81,11 @@ class ActivatedRevisionCandidate:
     approval: MemoryRevisionApproval
     activation: MemoryRevisionActivation
     content: bytes = field(repr=False)
+    fix_evidence: FixEvidence | None = field(default=None, repr=False)
+    regression_evidence: tuple[StructuredRegressionEvidence, ...] = field(
+        default=(),
+        repr=False,
+    )
     candidate_sha256: str = ""
     retrieval_authorization_event_id: str = ""
     artifact_authorization_event_id: str = ""
@@ -103,6 +111,43 @@ class ActivatedRevisionCandidate:
             self.revision.content_artifact, self.content
         ):
             _invalid("content does not match revision artifact")
+        if self.fix_evidence is not None and type(
+            self.fix_evidence
+        ) is not FixEvidence:
+            _invalid("fix_evidence must be exactly FixEvidence or null")
+        if (
+            type(self.regression_evidence) is not tuple
+            or any(
+                type(item) is not StructuredRegressionEvidence
+                for item in self.regression_evidence
+            )
+            or len(
+                {
+                    item.evidence_id
+                    for item in self.regression_evidence
+                }
+            )
+            != len(self.regression_evidence)
+        ):
+            _invalid(
+                "regression_evidence must be a unique tuple of records"
+            )
+        if self.fix_evidence is not None or self.regression_evidence:
+            try:
+                verify_memory_revision_evidence_bundle(
+                    self.revision,
+                    (
+                        {self.fix_evidence.evidence_id: self.fix_evidence}
+                        if self.fix_evidence is not None
+                        else {}
+                    ),
+                    {
+                        item.evidence_id: item
+                        for item in self.regression_evidence
+                    },
+                )
+            except ValueError:
+                _invalid("candidate evidence does not match the revision")
         for value, name in (
             (
                 self.retrieval_authorization_event_id,
@@ -422,6 +467,8 @@ class ActivatedRevisionSource:
             approval=approval,
             activation=activation,
             content=artifact_read.content,
+            fix_evidence=proposal.fix_evidence,
+            regression_evidence=proposal.regression_evidence,
             candidate_sha256=candidate_sha256,
             retrieval_authorization_event_id=scope.authorization_event_id,
             artifact_authorization_event_id=(
@@ -434,6 +481,95 @@ class ActivatedRevisionSource:
                 activation_bundle.attestation_verified_by
             ),
         )
+
+    def load_authorized(
+        self,
+        context: AuthenticatedServiceContext,
+        scope: AuthorizedRetrievalScope,
+        *,
+        memory_id: str,
+    ) -> ActivatedRevisionCandidate:
+        """Load one current revision inside an existing authorized operation."""
+        if type(context) is not AuthenticatedServiceContext:
+            _reject(
+                "TBM_ACTIVATED_REVISION_INPUT_INVALID",
+                "authenticated context is invalid",
+            )
+        if type(scope) is not AuthorizedRetrievalScope:
+            _reject(
+                "TBM_ACTIVATED_REVISION_INPUT_INVALID",
+                "authorized scope is invalid",
+            )
+        if (
+            scope.principal_id != context.principal.principal_id
+            or scope.agent_client_id
+            != context.agent_client.agent_client_id
+            or scope.tenant_id != context.tenant_id
+            or scope.environment_id != context.environment_id
+        ):
+            _reject(
+                "TBM_ACTIVATED_REVISION_SCOPE_REJECTED",
+                "authorized scope does not match authenticated context",
+            )
+        if not _bounded_identifier(memory_id):
+            _reject(
+                "TBM_ACTIVATED_REVISION_INPUT_INVALID",
+                "memory_id is invalid",
+            )
+        try:
+            return self._resolve_authorized(
+                context,
+                scope,
+                memory_id=memory_id,
+                repository_id=scope.repository_id,
+            )
+        except ActivatedRevisionV3Error:
+            raise
+        except Exception:
+            _reject(
+                "TBM_ACTIVATED_REVISION_READ_FAILED",
+                "activated revision could not be resolved",
+            )
+
+    def verify_current(
+        self,
+        scope: AuthorizedRetrievalScope,
+        candidate: ActivatedRevisionCandidate,
+    ) -> None:
+        """Fail closed unless the candidate remains the exact current head."""
+        if type(scope) is not AuthorizedRetrievalScope or type(
+            candidate
+        ) is not ActivatedRevisionCandidate:
+            _reject(
+                "TBM_ACTIVATED_REVISION_INPUT_INVALID",
+                "current-head verification input is invalid",
+            )
+        revision = candidate.revision
+        if (
+            revision.scope.tenant_id != scope.tenant_id
+            or revision.scope.repository_id != scope.repository_id
+            or candidate.retrieval_authorization_event_id
+            != scope.authorization_event_id
+        ):
+            _reject(
+                "TBM_ACTIVATED_REVISION_SCOPE_REJECTED",
+                "candidate is outside the authorized retrieval scope",
+            )
+        head = self._load_head(
+            scope,
+            revision.memory_id,
+            scope.repository_id,
+        )
+        if (
+            head.current_activation_id
+            != candidate.activation.activation_id
+            or head.current_revision_id != revision.revision_id
+            or head.current_revision_number != revision.revision_number
+        ):
+            _reject(
+                "TBM_ACTIVATED_REVISION_STALE",
+                "activated revision is no longer the current head",
+            )
 
     def _load_head(
         self,

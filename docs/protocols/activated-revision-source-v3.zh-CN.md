@@ -17,8 +17,13 @@ retrieval 的 storage-neutral、只读桥接层。它不会把记录投影到 ac
 5. 通过另一条已授权 `artifact:read` 解密内容，并核验明文 digest 与 size；
 6. 重新执行完整 approval/activation/evidence/authorization verifier；
 7. 再次读取 head，并拒绝并发变化；
-8. 返回带规范 candidate digest 和两条访问授权 event ID 的
-   `ActivatedRevisionCandidate`。
+8. 返回带已核验 FixEvidence、regression evidence、规范 candidate digest 和两条访问
+   授权 event ID 的 `ActivatedRevisionCandidate`。
+
+`load_authorized` 会复用一份已经授权的 retrieval scope，因此更大的检索操作不会为
+每个候选重复创建 `memory:retrieve` decision。它会拒绝该 scope 与 authenticated
+context 之间的 principal、client、tenant 或 environment 不匹配。`verify_current`
+提供 prepared evidence 返回前的最终精确 head 复查。
 
 SQLite 与 PostgreSQL publication authority 均提供 `load_approval_bundle` 与
 `load_activation_bundle`。其 storage-neutral bundle record 会在读取时重新核验精确
@@ -30,8 +35,10 @@ identity。每次读取的 authorization ID 属于 audit evidence，刻意不参
 
 ## 边界
 
-该 source 不执行 applicability selector、classification/leakage filter、Git ancestry、
-ranking、RetrievalSnapshot emission、System/Semantic Gate、rendering 或 injection。
-它不会把 proposal 变成 active，也绝不从 version-2 Lesson/Policy/usage record 推导
-revision ID。当前加密 Artifact Authority 已提供 SQLite 与隔离 PostgreSQL 对等实现；
-object storage 与 active Agent/MCP integration 仍待完成。
+该 source 自身不执行 applicability selector、classification/leakage filter、Git
+ancestry、ranking、RetrievalSnapshot emission、System/Semantic Gate、rendering 或
+injection。存储中立的 retrieval-preparation kernel 已组合该 source，执行前五类步骤和
+确定性 System Gate emission；Semantic Gate 与 active runtime 接入仍是独立工作。该
+source 不会把 proposal 变成 active，也绝不从 version-2 Lesson/Policy/usage record
+推导 revision ID。当前加密 Artifact Authority 已提供 SQLite 与隔离 PostgreSQL 对等
+实现；object storage 与 active Agent/MCP integration 仍待完成。

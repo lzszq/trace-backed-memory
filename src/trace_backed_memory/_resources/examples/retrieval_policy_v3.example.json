@@ -1,0 +1,59 @@
+{
+  "allowed_classifications": [
+    "internal",
+    "confidential"
+  ],
+  "ancestry_bypass_reason": null,
+  "ancestry_mode": "required",
+  "block_eval_leaking": true,
+  "contract_version": "tbm.retrieval-policy.v3",
+  "minimum_fused_score": 0.25,
+  "mode_memory_rules": [
+    {
+      "allowed_memory_types": [
+        "semantic",
+        "policy"
+      ],
+      "task_mode": "planning"
+    },
+    {
+      "allowed_memory_types": [
+        "procedural",
+        "semantic",
+        "policy"
+      ],
+      "task_mode": "repair"
+    },
+    {
+      "allowed_memory_types": [
+        "procedural",
+        "episodic",
+        "policy"
+      ],
+      "task_mode": "debug"
+    },
+    {
+      "allowed_memory_types": [
+        "procedural",
+        "semantic"
+      ],
+      "task_mode": "eval"
+    },
+    {
+      "allowed_memory_types": [
+        "procedural",
+        "policy"
+      ],
+      "task_mode": "production"
+    }
+  ],
+  "payload_budget_bytes": 65536,
+  "policy_id": "retrieval_policy_sha256_8ec2355c7067f31cbd9533b31c301367c14b5a5dfb08f6584b6d02b7f69f0acd",
+  "policy_version": "retrieval_policy_001",
+  "stage_weights": {
+    "evidence_graph": 0.3,
+    "lexical": 0.2,
+    "metadata": 0.1,
+    "semantic": 0.4
+  }
+}

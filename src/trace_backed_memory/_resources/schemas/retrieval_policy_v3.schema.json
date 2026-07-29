@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-backed-memory.dev/schemas/retrieval_policy_v3.schema.json",
+  "title": "Trace-backed Memory Retrieval Policy v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "policy_id",
+    "policy_version",
+    "allowed_classifications",
+    "mode_memory_rules",
+    "ancestry_mode",
+    "ancestry_bypass_reason",
+    "stage_weights",
+    "minimum_fused_score",
+    "payload_budget_bytes",
+    "block_eval_leaking"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.retrieval-policy.v3"
+    },
+    "policy_id": {
+      "type": "string",
+      "pattern": "^retrieval_policy_sha256_[0-9a-f]{64}$"
+    },
+    "policy_version": {
+      "$ref": "#/$defs/identifier"
+    },
+    "allowed_classifications": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "public",
+          "internal",
+          "confidential",
+          "restricted"
+        ]
+      }
+    },
+    "mode_memory_rules": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/modeMemoryRule"
+      }
+    },
+    "ancestry_mode": {
+      "enum": [
+        "required",
+        "disabled"
+      ]
+    },
+    "ancestry_bypass_reason": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/identifier"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stage_weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metadata",
+        "lexical",
+        "semantic",
+        "evidence_graph"
+      ],
+      "properties": {
+        "metadata": {
+          "$ref": "#/$defs/positiveUnitNumber"
+        },
+        "lexical": {
+          "$ref": "#/$defs/positiveUnitNumber"
+        },
+        "semantic": {
+          "$ref": "#/$defs/positiveUnitNumber"
+        },
+        "evidence_graph": {
+          "$ref": "#/$defs/positiveUnitNumber"
+        }
+      }
+    },
+    "minimum_fused_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "payload_budget_bytes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16777216
+    },
+    "block_eval_leaking": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": ".*\\S.*"
+    },
+    "positiveUnitNumber": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "modeMemoryRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_mode",
+        "allowed_memory_types"
+      ],
+      "properties": {
+        "task_mode": {
+          "enum": [
+            "planning",
+            "repair",
+            "debug",
+            "eval",
+            "production"
+          ]
+        },
+        "allowed_memory_types": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "procedural",
+              "semantic",
+              "episodic",
+              "policy"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ancestry_mode": {
+            "const": "required"
+          }
+        },
+        "required": [
+          "ancestry_mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "ancestry_bypass_reason": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "ancestry_bypass_reason": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -63,6 +63,11 @@ Start with:
   artifact verification for future version-3 retrieval candidates.
 - `retrieval_v3.py`: content-addressed RetrievalSnapshot/Hit and index-version
   contracts for explainable replay; ranking evidence is never authorization.
+- `retrieval_policy_v3.py`: content-addressed classification, task-mode,
+  ancestry, fusion, minimum-score, and payload-budget policy.
+- `retrieval_preparation_v3.py`: authorization-first, storage-neutral
+  ActivatedRevision filtering/ranking plus paired RetrievalSnapshot/System
+  Gate evidence; managed indexes and active adapter wiring remain external.
 - `gate_evaluation_v3.py`: immutable deterministic System Gate and monotonic
   Semantic Gate attempt provenance; models can only narrow.
 - `semantic_gate_artifact_v3.py`: storage-neutral exact prompt/response byte

@@ -50,7 +50,7 @@ CI 的独立 PostgreSQL job 必须设置 `TBM_REQUIRE_POSTGRES=1`，使这两类
 
 安装后需要规范 Schema、example 或 memory support 文件时，只能使用 `packaged_resources()`、`read_packaged_resource()` 或 `export_packaged_resource()`。不得推断包文件系统路径或退回当前 checkout。资源名必须来自固定白名单，未知名称和遍历形式在包访问前拒绝。
 
-125 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/加密 Artifact Authority/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
+127 个安装副本必须与顶层编辑源字节一致。wheel 与 sdist 验证应在缺失、额外或内容变化时失败。`PackagedResource` metadata 来自安装字节，包含 SHA-256 与大小。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍按调用方文档处理。白名单包含 fresh-install PostgreSQL schema 版本 2、独立原子 `schemas/postgres-v1-to-v2.sql` migration、可重复执行的 `schemas/postgres-v2-lock-order-hotfix.sql` operator 脚本、`tbm.agent.v1` 的 Schema/JSON 示例/quickstart，以及 v3 迁移 preflight、不可激活 bundle、隔离 staging、显式 rollback、GateSession/内容寻址重放/授权/结构化 evidence/MemoryRevision proposal/approval/activation/retrieval-policy contract 资源、隔离 SQLite MemoryRevision publication authority、GateSession/replay/audit/authorization/MemoryRevision/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger 与规范化 entity-registry DDL、隔离 PostgreSQL GateSession/entity-registry install/rollback，以及隔离 PostgreSQL replay/audit/authorization/MemoryRevision publication/加密 Artifact Authority/Semantic Gate/RunOutcome/OutcomeAttribution/completion-outbox ledger install/fail-closed rollback。
 
 CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在显式 `--overwrite` 时替换，并通过同目录临时文件发布。名称错误映射退出码 2，写错误映射退出码 4；导出已经提交后 stdout 关闭仍视为成功。
 
@@ -407,9 +407,25 @@ evidence。未保留签名字节时，已存 attestation hash/verifier ID 不代
 和全部截断原因。不得把 raw query、候选内容、secret 或无限 evidence 放进快照。
 不得把语义相似度、融合分数或索引存在性当成授权、适用性、验证或门禁证据。
 System Gate evaluation 与 Semantic Gate attempt 保持独立不可变记录。精确回放
-消费已记录结果，不得从已变化的 catalog/index 静默重算。active Store/adapter
-尚不产生此契约；未来服务必须验证全部引用身份与字节、授权快照读取、应用保留
-策略，并在同一 GateSession 事务中挂接快照。
+消费已记录结果，不得从已变化的 catalog/index 静默重算。可选
+retrieval-preparation kernel 会生成该契约和配对 System Gate evaluation，但 active
+Store/adapter 尚未使用它。未来服务必须验证全部引用身份与字节、授权快照读取、
+应用保留策略，并在同一 GateSession 事务中挂接快照。
+
+## Version-3 检索准备策略
+
+`AuthenticatedRetrievalPreparationService` 只能与可信 discovery adapter 一起使用；
+adapter 必须返回完整有界候选集、精确 Git-ancestry relation，以及每种 index kind
+唯一的精确不可变版本。authorization 必须在 discovery 或 revision 读取之前完成。
+不得接受 repository、tenant、environment、
+principal、client、candidate hash 或 authorization receipt 替换。
+
+排序前执行 classification、精确 applicability、evaluation-leakage、当前 eval
+suite/case 与必须满足的 Git-ancestry 过滤，并记录每项省略原因。使用内容寻址 policy
+融合有限分数，以 revision ID 做确定性 tie-break，执行 minimum/top-K/payload 边界，
+并为每个最终 hit 运行 System Gate。返回前重新检查每个入选 current head 与 policy。
+不得把结果当作 Semantic Gate、rendering、injection、durable GateSession 或
+active-v2 state。
 
 ## Version-3 gate evaluation 策略
 

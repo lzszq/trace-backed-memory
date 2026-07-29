@@ -204,7 +204,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 125 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 127 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 ## 证据摄取完整性
 
@@ -1185,6 +1185,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- lesson.example.json
 |   |-- memory_context.example.json
 |   |-- memory_revision_v3.example.json
+|   |-- retrieval_policy_v3.example.json
 |   |-- retrieval_snapshot_v3.example.json
 |   |-- recovery_action_v3.example.json
 |   |-- semantic_gate_artifact_v3.example.json
@@ -1238,6 +1239,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- memory_store_snapshot.schema.json
 |   |-- memory_context.schema.json
 |   |-- memory_revision_v3.schema.json
+|   |-- retrieval_policy_v3.schema.json
 |   |-- retrieval_snapshot_v3.schema.json
 |   |-- recovery_action_v3.schema.json
 |   |-- semantic_gate_artifact_v3.schema.json

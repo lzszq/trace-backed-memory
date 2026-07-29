@@ -30,6 +30,7 @@ orientation; these documents define the engineering contracts.
 - [PostgreSQL MemoryRevision proposal ledger v3](protocols/postgres-memory-revision-v3.md)
 - [SQLite MemoryRevision publication authority v3](protocols/sqlite-memory-publication-v3.md)
 - [PostgreSQL MemoryRevision publication authority v3](protocols/postgres-memory-publication-v3.md)
+- [Authenticated retrieval preparation v3](protocols/retrieval-preparation-v3.md)
 - [Replayable RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.md)
 - [System and Semantic Gate evaluation v3](protocols/gate-evaluation-v3.md)
 - [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md)
@@ -83,11 +84,14 @@ structured regression evidence contracts are published with a strict
 cross-record MemoryRevision preflight and opt-in isolated SQLite/PostgreSQL
 proposal ledgers. Active v2 records/adapters do not use these ledgers, and
 proposal persistence does not approve or activate memory.
-The content-addressed RetrievalSnapshot contract records exact authorized
-ranking inputs/results, index versions, scores, hashes, and truncation reasons,
-while immutable System/Semantic Gate records bind deterministic policy and
-model-attempt provenance under a monotonic narrowing rule. No active retriever,
-gate, or GateSession repository emits them yet.
+The content-addressed retrieval policy and optional storage-neutral preparation
+kernel now authorize first, load verified activated revisions, apply
+classification/applicability/eval-leakage/Git-ancestry filters, deterministically
+fuse versioned adapter scores, and emit paired RetrievalSnapshot/System Gate
+evidence with final head/policy rechecks. Immutable Semantic Gate records bind
+model-attempt provenance under a monotonic narrowing rule. Managed production
+indexes, Semantic Gate composition, active retriever/GateSession persistence,
+and Agent/MCP/HTTP/SDK wiring remain outstanding.
 The opt-in SQLite and isolated PostgreSQL RunOutcome authorities now atomically
 complete an executing GateSession with one content-addressed outcome. The
 isolated SQLite and PostgreSQL OutcomeAttribution ledgers persist multiple

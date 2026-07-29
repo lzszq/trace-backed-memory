@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 125 canonical Schema, SQL/migration, memory-support, and
+the repository's 127 canonical Schema, SQL/migration, memory-support, and
 example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
@@ -1145,6 +1145,17 @@ authorization events, and rejects a head that moves during the read. Its
 candidate digest is a future retrieval input, not a ranking result or active-v2
 projection. See [the ActivatedRevision source contract](protocols/activated-revision-source-v3.md).
 
+`retrieval_policy_v3.py` defines the content-addressed classification,
+task-mode, ancestry, fusion, minimum-score, and payload-budget policy.
+`retrieval_preparation_v3.py` composes authorization, trusted candidate
+discovery, verified ActivatedRevision loading, deterministic filters/ranking,
+paired RetrievalSnapshot/SystemGateEvaluation construction, and final
+head/policy rechecks. Discovery remains a caller-supplied trusted adapter and
+must report the complete bounded set plus exact immutable index versions.
+Managed indexes, Semantic Gate, GateSession persistence, and active adapter
+wiring are not implemented by this kernel. See
+[authenticated retrieval preparation v3](protocols/retrieval-preparation-v3.md).
+
 ## PostgreSQL Runtime Repository
 
 `PostgresMemoryRepository` is the implemented synchronous persistence boundary
@@ -1175,7 +1186,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 125 resources.
+contains 127 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1720,8 +1731,10 @@ authorization event, context/query digests, retriever and immutable index
 versions, ordered memory-revision hits, candidate hashes, finite per-stage and
 fused scores, top-K bounds, and explicit truncation reasons under a
 content-derived identity. It does not record System Gate or Semantic Gate
-outcomes and cannot grant access or reopen a block. Active retrieval still
-returns `MemoryItem` values and does not emit these snapshots. See
+outcomes and cannot grant access or reopen a block. The optional
+storage-neutral retrieval-preparation kernel now emits this snapshot with a
+paired System Gate evaluation after final head/policy rechecks. Active
+retrieval still returns `MemoryItem` values and does not use that kernel. See
 [Replayable RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.md).
 
 The paired `tbm.system-gate-evaluation.v3` and
@@ -1729,8 +1742,9 @@ The paired `tbm.system-gate-evaluation.v3` and
 policy outcomes and ordered model-attempt provenance. Cross-record verification
 requires exact session/snapshot/candidate coverage and enforces that final
 semantic allows are a subset of System Gate allows while all System blocks
-remain blocked. Prompt/response content stays in referenced artifacts. Active
-policy execution does not emit these records yet. See
+remain blocked. Prompt/response content stays in referenced artifacts. The
+retrieval-preparation kernel emits System Gate records only; active policy
+execution and Semantic Gate emission remain outstanding. See
 [Gate evaluation v3](protocols/gate-evaluation-v3.md).
 
 The paired `tbm.run-outcome.v3` and `tbm.outcome-attribution.v3` contracts

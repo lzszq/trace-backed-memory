@@ -754,6 +754,13 @@
   对等实现：提供 active-v2 安装门禁、精确 descriptor 读回、并发幂等重放、完整安全
   catalog fingerprint、不可变 DML/TRUNCATE guard、调用方 savepoint 与 fail-closed
   `RESTRICT` rollback。active adapter emission 仍待完成。
+- 增加内容寻址 retrieval policy 与 storage-neutral authenticated preparation
+  kernel：discovery 前先授权；在同一 scope 下读取已核验的 current
+  ActivatedRevision candidate；执行 classification、精确 applicability、
+  eval-leakage、required/disabled ancestry、确定性加权融合、minimum/top-K/payload
+  边界及 task-mode System Gate；生成配对 RetrievalSnapshot/
+  SystemGateEvaluation evidence 后，再复查每个入选 head 与 policy。托管生产索引、
+  Semantic Gate、durable GateSession 挂接及 active adapter emission 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-
@@ -776,6 +783,7 @@
   接入 shared-service MCP 与 active CLI/HTTP/SDK adapter，使 scope 成为可执行的
   transport boundary。
 - 持久化 Gate request 或使用 signed envelope，支持 idempotency、expiry、cancel、capacity control 与 crash recovery。
-- 集成已发布的 retriever/index snapshot，并记录可重放 decision 所需的 gate model/prompt、ancestry、policy、renderer、response 与 snippet version/hash。
-- 用显式 `required`/`disabled` policy 替代可选 ancestry，并审计 bypass reason。
+- 实现托管 metadata/lexical/semantic/Git/evidence-graph index，把已发布 preparation
+  output 挂接到同一 durable GateSession，并记录可重放最终 decision 所需的
+  Semantic Gate model/prompt、renderer、response 与 snippet version/hash。
 - 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 3 发布，并提供迁移文档。

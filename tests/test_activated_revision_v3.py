@@ -186,6 +186,12 @@ def test_activated_revision_source_resolves_current_verified_candidate():
         assert candidate.approval == environment.approval
         assert candidate.activation == environment.activation
         assert candidate.content == CONTENT
+        assert candidate.fix_evidence == next(
+            iter(environment.fixes.values())
+        )
+        assert candidate.regression_evidence == tuple(
+            environment.regressions.values()
+        )
         assert candidate.candidate_sha256 == tbm.activated_revision_candidate_sha256(
             environment.revision,
             environment.approval,
@@ -206,6 +212,42 @@ def test_activated_revision_source_resolves_current_verified_candidate():
         assert permissions.count("artifact:write") == 1
         assert permissions.count("memory:retrieve") == 1
         assert permissions.count("artifact:read") == 1
+    finally:
+        environment.close()
+
+
+def test_activated_revision_source_reuses_scope_and_rechecks_current_head():
+    environment = _published_source()
+    try:
+        context = _context(environment.registry)
+        authorized = environment.authorization.authorize_retrieval(
+            context,
+            lambda scope: scope,
+        )
+        candidate = environment.source.load_authorized(
+            context,
+            authorized.scope,
+            memory_id=environment.revision.memory_id,
+        )
+
+        environment.source.verify_current(authorized.scope, candidate)
+        assert candidate.retrieval_authorization_event_id == (
+            authorized.scope.authorization_event_id
+        )
+        decisions = environment.authorization_repository.list_decisions(
+            environment.registry.authorization_policy.policy_sha256
+        )
+        assert [item.permission for item in decisions].count(
+            "memory:retrieve"
+        ) == 1
+
+        with pytest.raises(tbm.ActivatedRevisionV3Error) as caught:
+            environment.source.load_authorized(
+                replace(context, environment_id="environment_other"),
+                authorized.scope,
+                memory_id=environment.revision.memory_id,
+            )
+        assert caught.value.code == "TBM_ACTIVATED_REVISION_SCOPE_REJECTED"
     finally:
         environment.close()
 

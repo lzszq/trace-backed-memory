@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 125 installed resource copies must remain byte-identical to the top-level
+The 127 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1260,9 +1260,28 @@ evaluations and Semantic Gate attempts remain separate immutable records. Exact
 replay consumes the recorded result; it must not silently recompute from a
 changed catalog or index.
 
-The active Store and adapters do not emit this contract. A future service must
-verify all referenced identities and bytes, authorize snapshot reads, apply
-retention, and attach the snapshot to the same GateSession transaction.
+The optional retrieval-preparation kernel emits this contract and a paired
+System Gate evaluation, but the active Store and adapters do not use it. A
+future service must verify all referenced identities and bytes, authorize
+snapshot reads, apply retention, and attach the snapshot to the same
+GateSession transaction.
+
+## Version-3 retrieval preparation policy
+
+Use `AuthenticatedRetrievalPreparationService` only with a trusted discovery
+adapter that returns the complete bounded candidate set, exact Git-ancestry
+relations, and one exact immutable version per index kind. Authorization must
+finish before discovery or revision reads.
+Do not accept repository, tenant, environment, principal, client, candidate
+hash, or authorization-receipt substitution.
+
+Apply classification, exact applicability, evaluation-leakage, current eval
+suite/case, and required Git-ancestry filters before ranking. Record every
+omission reason. Fuse finite scores with the content-addressed policy, use
+deterministic revision-ID tie breaking, enforce minimum/top-K/payload bounds,
+and run System Gate for every final hit. Recheck each selected current head and
+the policy before returning. Do not treat this result as Semantic Gate,
+rendering, injection, a durable GateSession, or active-v2 state.
 
 ## Version-3 gate evaluation policy
 

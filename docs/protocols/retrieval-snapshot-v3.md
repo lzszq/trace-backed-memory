@@ -53,6 +53,10 @@ memory revisions, candidate bytes, index artifacts, access control, retention,
 and transaction boundaries before attaching this snapshot to a prepared
 session.
 
-The active snapshot-v2 Store, SQLite-v1/PostgreSQL-v2 adapters, local agent, and
-MCP runtime do not yet emit this contract. That integration requires explicit
-versioned migrations and service orchestration.
+The optional storage-neutral retrieval-preparation kernel now emits this
+contract together with an exact System Gate evaluation after authorization,
+filtering, ranking, and final head/policy rechecks. It still depends on a
+caller-supplied trusted discovery/index adapter. The active snapshot-v2 Store,
+SQLite-v1/PostgreSQL-v2 adapters, local agent, and MCP runtime do not yet use
+that kernel. Active integration requires explicit versioned migrations and
+service orchestration.

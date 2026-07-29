@@ -29,6 +29,7 @@
 - [PostgreSQL MemoryRevision proposal ledger v3](protocols/postgres-memory-revision-v3.zh-CN.md)
 - [SQLite MemoryRevision publication authority v3](protocols/sqlite-memory-publication-v3.zh-CN.md)
 - [PostgreSQL MemoryRevision publication authority v3](protocols/postgres-memory-publication-v3.zh-CN.md)
+- [已认证检索准备 v3](protocols/retrieval-preparation-v3.zh-CN.md)
 - [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)
 - [System 与 Semantic Gate evaluation v3](protocols/gate-evaluation-v3.zh-CN.md)
 - [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)
@@ -78,10 +79,12 @@ FixEvidence 与结构化 regression evidence 契约已经发布，并提供严�
 MemoryRevision preflight 及 opt-in、隔离的 SQLite/PostgreSQL proposal ledger。
 active v2 record/adapter 尚未使用这些 ledger；proposal 持久化不代表 approval 或
 activation。
-内容寻址 RetrievalSnapshot 契约会记录精确的已授权排序输入/结果、索引版本、
-分数、哈希与截断原因；不可变 System/Semantic Gate 记录以单调缩小规则绑定确定性
-策略与模型 attempt provenance。active retriever/gate/GateSession repository
-尚不产生它们。
+内容寻址 retrieval policy 与可选的存储中立 preparation kernel 现在会先授权，再读取
+已核验 activated revision，执行 classification/applicability/eval-leakage/Git-ancestry
+过滤，对 versioned adapter 分数做确定性融合，并生成配对的 RetrievalSnapshot/System
+Gate evidence，最后复查 head/policy。不可变 Semantic Gate 记录以单调缩小规则绑定
+model-attempt provenance。托管生产索引、Semantic Gate 组合、active
+retriever/GateSession 持久化以及 Agent/MCP/HTTP/SDK 接入仍待完成。
 opt-in SQLite 与隔离 PostgreSQL RunOutcome authority 现在都可以用一份
 content-addressed outcome 原子完成 executing GateSession。隔离 SQLite
 与 PostgreSQL OutcomeAttribution ledger 会用精确 durable outcome/session

@@ -43,5 +43,8 @@ JSON loader 会在 UTF-8 编码前拒绝超大字符串。公开 direct parser �
 授权事件、GateSession、memory revision、候选字节、索引 artifact、访问控制、
 保留策略和事务边界。
 
-当前 snapshot-v2 Store、SQLite-v1/PostgreSQL-v2 adapter、local agent 与 MCP
-runtime 尚不产生此契约；接入需要显式版本迁移与服务编排。
+可选的存储中立 retrieval-preparation kernel 现在会在授权、过滤、排序以及最终
+head/policy 复查后，生成该契约及其精确 System Gate evaluation；它仍依赖调用方提供
+可信 discovery/index adapter。active snapshot-v2 Store、SQLite-v1/PostgreSQL-v2
+adapter、local agent 与 MCP runtime 尚未使用该 kernel；active 接入需要显式版本迁移
+与服务编排。

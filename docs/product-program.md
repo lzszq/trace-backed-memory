@@ -1611,6 +1611,15 @@ Track:
   concurrent idempotent replay, complete security-catalog fingerprinting,
   immutable DML/TRUNCATE guards, caller savepoints, and fail-closed
   `RESTRICT` rollback. Keep active adapter emission outstanding.
+- Add content-addressed retrieval policy and a storage-neutral authenticated
+  preparation kernel. Authorize before discovery; load verified current
+  ActivatedRevision candidates under the same scope; enforce classification,
+  exact applicability, eval-leakage, required/disabled ancestry, deterministic
+  weighted fusion, minimum/top-K/payload bounds, and task-mode System Gate;
+  then emit paired RetrievalSnapshot/SystemGateEvaluation evidence and recheck
+  every selected head plus the policy. Keep managed production indexes,
+  Semantic Gate, durable GateSession attachment, and active adapter emission
+  outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
@@ -1619,10 +1628,9 @@ Track:
   CLI/HTTP/SDK adapters so scope becomes an enforceable transport boundary.
 - Persist Gate requests or use signed envelopes with idempotency, expiry,
   cancellation, capacity control, and crash recovery.
-- Integrate the published retriever/index snapshot and record gate
-  model/prompt, ancestry, policy, renderer, response, and snippet versions or
-  hashes needed to replay a decision.
-- Replace optional ancestry with an explicit `required`/`disabled` policy and
-  auditable bypass reason.
+- Implement managed metadata/lexical/semantic/Git/evidence-graph indexes and
+  attach the published preparation output to one durable GateSession; record
+  Semantic Gate model/prompt, renderer, response, and snippet versions or
+  hashes needed to replay a final decision.
 - Deliver these breaking contracts together as snapshot schema version 3 and
   PostgreSQL schema version 3 with documented migrations.

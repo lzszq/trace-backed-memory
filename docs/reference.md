@@ -252,7 +252,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 147 resources. `PackagedResource` descriptions
+The allowlist currently contains 149 resources. `PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -467,6 +467,15 @@ drift checks. `store_complete_bundle()` on both peers requires the
 content-derived UsageDecision artifact first and atomically retains every
 deduplicated supporting component with the injection and manifest. Fail-closed
 removal verifies expected catalog membership.
+
+`tbm.replay-export.v3` provides the portable read/verify layer over those
+records. `build_replay_bundle_export()` accepts already-authorized typed
+records; `export_replay_bundle()` reads one exact manifest from either
+repository through `ReplayExportReader` and requires an explicit
+classification allowlist; `dumps_`/`loads_replay_bundle_export()` preserve a
+bounded canonical JSON envelope; and `verify_replay_bundle_export()` rechecks
+the self-hash, component ordering, byte digests, and injection linkage. This
+is a package-root Python API, not an Agent/HTTP/MCP endpoint.
 
 `tbm.usage-decision.v3` records the exact ordered narrowing audit, deterministic
 System blocks, current authorization/evidence/policy/renderer linkage, and
@@ -2292,7 +2301,7 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 147 canonical Schemas, examples, and memory
+  explicit atomic export for all 149 canonical Schemas, examples, and memory
   support files in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
@@ -2418,6 +2427,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- authorization_*_v3.example.json
 |   |-- audit_event_v3.example.json
 |   |-- decision_replay_manifest_v3.example.json
+|   |-- replay_bundle_export_v3.example.json
 |   |-- structured_regression_evidence_v3.example.json
 |   |-- gate_session_v3.example.json
 |   |-- injection_artifact_v3.example.json
@@ -2448,6 +2458,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- authorization_*_v3.schema.json
 |   |-- audit_event_v3.schema.json
 |   |-- decision_replay_manifest_v3.schema.json
+|   |-- replay_bundle_export_v3.schema.json
 |   |-- gate_session_v3.schema.json
 |   |-- injection_artifact_v3.schema.json
 |   |-- structured_regression_evidence_v3.schema.json
@@ -2535,6 +2546,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- postgres_replay_v3.py
 |   |-- postgres_audit_v3.py
 |   |-- replay_v3.py
+|   |-- replay_export_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_audit_v3.py
 |   |-- sqlite_authorization_v3.py
@@ -2572,6 +2584,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_postgres_replay_v3.py
     |-- test_postgres_audit_v3.py
     |-- test_replay_v3.py
+    |-- test_replay_export_v3.py
     |-- test_sqlite_gate_session_v3.py
     |-- test_sqlite_audit_v3.py
     |-- test_sqlite_authorization_v3.py

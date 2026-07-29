@@ -1710,6 +1710,14 @@ Track:
   abort/timeout as non-retrying wait cancellation, and run TypeScript against a
   real Python HTTP lifecycle. Pin the TypeScript toolchain and verify build,
   contract drift, tests, and package contents in CI.
+- Add `tbm.replay-export.v3` as a bounded, content-addressed, portable read
+  envelope over retained decision replay records. Export the exact manifest,
+  optional injection descriptor, and every present component byte in canonical
+  order; require an explicit classification allowlist, enforce caller and
+  global content limits, strictly parse canonical base64/JSON, and verify every
+  digest and linkage. Reuse both opt-in replay repositories through a
+  storage-neutral reader protocol without schema changes. Keep replay-read
+  authorization and Agent/HTTP/MCP exposure outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

@@ -65,6 +65,39 @@ injection component digest. The canonical external contract is
 `schemas/decision_replay_manifest_v3.schema.json`; the packaged example is
 `examples/decision_replay_manifest_v3.example.json`.
 
+## Portable replay export
+
+`tbm.replay-export.v3` is the read-only portable envelope for one retained
+decision replay. `ReplayBundleExport` contains the exact
+`DecisionReplayManifest`, its optional `InjectionArtifact`, and every present
+component descriptor plus base64-encoded bytes in the fixed component order.
+`export_sha256` is a canonical self-hash over the complete envelope except the
+hash field itself. `loads_replay_bundle_export()` rejects duplicate keys,
+unknown fields, malformed or noncanonical base64, digest or linkage changes,
+and exports over 16 MiB of JSON or 8 MiB of decoded component content.
+`verify_replay_bundle_export()` rechecks the immutable value.
+
+`export_replay_bundle()` accepts the small `ReplayExportReader` protocol used
+by both opt-in replay repositories. The caller must first authorize the
+manifest and every referenced artifact, and must pass an explicit non-empty
+classification allowlist; that allowlist is a second fail-closed check, not
+authorization. The helper preflights each descriptor's classification and
+declared/physical size before loading its bytes, then performs immutable
+ID-addressed reads, validates every digest, enforces a caller-selected content
+limit, and never writes repository state.
+
+The canonical external contract is
+`schemas/replay_bundle_export_v3.schema.json`; it references the sibling
+manifest and injection schemas. The packaged example is
+`examples/replay_bundle_export_v3.example.json`. Hash verification and
+manifest/component ordering remain value-level checks after JSON Schema
+validation.
+
+This contract is intentionally not exposed through `tbm.agent.v1`, local
+HTTP, or MCP. Those profiles lack replay-read authorization and durable
+version-3 session identity. Adding a network tool before that boundary exists
+would turn content-derived IDs into a data-discovery oracle.
+
 ## Opt-in SQLite replay ledger
 
 `SQLiteReplayV3Repository` uses the isolated
@@ -80,10 +113,12 @@ to be the content-derived UsageDecision artifact for the manifest's exact
 usage ID. It atomically stores that record, any deduplicated replay-component
 artifacts, the injection bytes/descriptor, and the manifest.
 
-Every load checks bounded sizes before fetching large values, reparses the
-descriptor, compares duplicated relational columns, and rehashes the stored
-bytes. Canonical schema metadata, tables, indexes, immutable triggers, foreign
-keys, and caller savepoint ownership are verified fail closed. The ledger does
+`load_artifact_descriptor()` checks descriptor columns and physical content
+length without fetching the content BLOB. Full loads repeat that preflight,
+then reparse the descriptor, compare duplicated relational columns, and
+rehash the stored bytes. Canonical schema metadata, tables, indexes,
+immutable triggers, foreign keys, and caller savepoint ownership are verified
+fail closed. The ledger does
 not authorize reads, encrypt content, apply retention, prove evidence truth,
 or link to a durable GateSession. The repository rejects
 confidential/restricted artifacts until a transparent encryption provider can
@@ -118,7 +153,9 @@ the SQLite peer.
 
 ## Parsing and trust boundary
 
-External JSON is limited to 1 MiB, depth 32, and 10,000 nodes. Parsers reject
+External injection and manifest JSON is limited to 1 MiB, depth 32, and
+10,000 nodes. The portable export has its separate 16 MiB/depth-40/20,000-node
+envelope and 8 MiB decoded-content limits described above. Parsers reject
 duplicate keys, invalid UTF-8, non-finite numbers, missing or unknown fields,
 invalid timestamps, and noncanonical component sets. Hashes prove byte
 identity, not authorship, authorization, or evidence truth.
@@ -138,6 +175,7 @@ internal composition rather than an active runtime adapter.
 
 The current v2 Store, active SQLite v1 adapter, PostgreSQL v2 adapter, local
 agent, and STDIO MCP do not persist or emit these records. The opt-in SQLite
-ledger and opt-in PostgreSQL repository provide the retained storage boundary.
-A production runtime must additionally authorize replay reads and apply
-retention/encryption.
+ledger and opt-in PostgreSQL repository provide the retained storage boundary
+and implement the `ReplayExportReader` surface. A production runtime must
+additionally authorize replay reads and apply retention/encryption before
+exposing replay export over a network.

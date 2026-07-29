@@ -55,7 +55,7 @@
 - [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.zh-CN.md)
 - [Completion outbox 契约与 SQLite/PostgreSQL authority v3](protocols/completion-outbox-v3.zh-CN.md)
 - [Durable GateSession v3 领域契约](protocols/gate-session-v3.zh-CN.md)
-- [内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)
+- [内容寻址重放与可移植导出契约 v3](protocols/replay-v3.zh-CN.md)
 - [已认证加密 Artifact Authority v3](protocols/artifact-authority-v3.zh-CN.md)
 - [已核验 ActivatedRevision source v3](protocols/activated-revision-source-v3.zh-CN.md)
 - [Codex 集成](integrations/codex.zh-CN.md)

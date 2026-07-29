@@ -361,6 +361,14 @@ class SQLiteReplayV3Repository:
         artifact: ContentAddressedArtifact,
         content: bytes,
     ) -> tuple[object, ...]:
+        return SQLiteReplayV3Repository._artifact_descriptor_row(
+            artifact
+        ) + (content,)
+
+    @staticmethod
+    def _artifact_descriptor_row(
+        artifact: ContentAddressedArtifact,
+    ) -> tuple[object, ...]:
         payload = artifact.to_dict()
         return (
             artifact.artifact_id,
@@ -371,14 +379,15 @@ class SQLiteReplayV3Repository:
             payload["created_at"],
             artifact.encryption_key_id,
             artifact.redaction_policy_id,
-            content,
         )
 
     @staticmethod
-    def _stored_artifact(row: tuple[object, ...]) -> StoredReplayArtifact:
-        if len(row) != 9 or type(row[8]) is not bytes:
+    def _stored_artifact_descriptor(
+        row: tuple[object, ...],
+    ) -> ContentAddressedArtifact:
+        if len(row) != 8:
             raise SQLiteReplayV3PersistenceError(
-                "SQLite replay artifact row has an invalid shape"
+                "SQLite replay artifact descriptor row has an invalid shape"
             )
         try:
             artifact = ContentAddressedArtifact(
@@ -395,6 +404,24 @@ class SQLiteReplayV3Repository:
             raise SQLiteReplayV3PersistenceError(
                 "SQLite replay artifact metadata failed validation"
             ) from error
+        if (
+            row
+            != SQLiteReplayV3Repository._artifact_descriptor_row(artifact)
+        ):
+            raise SQLiteReplayV3PersistenceError(
+                "SQLite replay artifact descriptor columns do not match"
+            )
+        return artifact
+
+    @staticmethod
+    def _stored_artifact(row: tuple[object, ...]) -> StoredReplayArtifact:
+        if len(row) != 9 or type(row[8]) is not bytes:
+            raise SQLiteReplayV3PersistenceError(
+                "SQLite replay artifact row has an invalid shape"
+            )
+        artifact = SQLiteReplayV3Repository._stored_artifact_descriptor(
+            row[:8]
+        )
         if artifact.classification not in {"public", "internal"}:
             raise SQLiteReplayV3PersistenceError(
                 "SQLite replay v3 cannot load sensitive artifact bytes"
@@ -714,30 +741,48 @@ class SQLiteReplayV3Repository:
         except sqlite3.DatabaseError as error:
             self._raise_database_error(error, "store replay bundle")
 
+    def _load_artifact_descriptor(
+        self,
+        cursor: sqlite3.Cursor,
+        artifact_id: str,
+    ) -> ContentAddressedArtifact:
+        cursor.execute(
+            "SELECT artifact_id, content_sha256, size_bytes, media_type, "
+            "classification, created_at, encryption_key_id, "
+            "redaction_policy_id, length(content) "
+            "FROM v3_replay_artifacts "
+            "WHERE artifact_id = ?",
+            (artifact_id,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            raise KeyError(artifact_id)
+        if (
+            len(row) != 9
+            or type(row[8]) is not int
+            or row[8] < 0
+            or row[8] > ARTIFACT_MAX_BYTES
+        ):
+            raise SQLiteReplayV3PersistenceError(
+                "SQLite replay artifact descriptor exceeds bounded load contract"
+            )
+        artifact = self._stored_artifact_descriptor(row[:8])
+        if artifact.size_bytes != row[8]:
+            raise SQLiteReplayV3PersistenceError(
+                "SQLite replay artifact size differs from stored content"
+            )
+        if artifact.classification not in {"public", "internal"}:
+            raise SQLiteReplayV3PersistenceError(
+                "SQLite replay v3 cannot preflight sensitive artifact bytes"
+            )
+        return artifact
+
     def _load_artifact(
         self,
         cursor: sqlite3.Cursor,
         artifact_id: str,
     ) -> StoredReplayArtifact:
-        cursor.execute(
-            "SELECT size_bytes, length(content) FROM v3_replay_artifacts "
-            "WHERE artifact_id = ?",
-            (artifact_id,),
-        )
-        sizes = cursor.fetchone()
-        if sizes is None:
-            raise KeyError(artifact_id)
-        if (
-            len(sizes) != 2
-            or type(sizes[0]) is not int
-            or type(sizes[1]) is not int
-            or sizes[0] < 0
-            or sizes[0] > ARTIFACT_MAX_BYTES
-            or sizes[1] != sizes[0]
-        ):
-            raise SQLiteReplayV3PersistenceError(
-                "SQLite replay artifact exceeds bounded load contract"
-            )
+        self._load_artifact_descriptor(cursor, artifact_id)
         cursor.execute(
             "SELECT artifact_id, content_sha256, size_bytes, media_type, "
             "classification, created_at, encryption_key_id, "
@@ -846,6 +891,29 @@ class SQLiteReplayV3Repository:
             self._raise_database_error(
                 error,
                 "store complete replay bundle",
+            )
+
+    @_synchronized
+    def load_artifact_descriptor(
+        self,
+        artifact_id: str,
+    ) -> ContentAddressedArtifact:
+        self._require_open()
+        _validate_artifact_id(artifact_id)
+        try:
+            with self._transaction(write=False):
+                with closing(self._connection.cursor()) as cursor:
+                    self._require_schema(cursor)
+                    return self._load_artifact_descriptor(
+                        cursor,
+                        artifact_id,
+                    )
+        except (KeyError, SQLiteReplayV3SchemaError):
+            raise
+        except sqlite3.DatabaseError as error:
+            self._raise_database_error(
+                error,
+                "load replay artifact descriptor",
             )
 
     @_synchronized

@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 147 canonical Schema, SQL/migration, memory-support, and
+the repository's 149 canonical Schema, SQL/migration, memory-support, and
 example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
@@ -1236,7 +1236,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 147 resources.
+contains 149 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1570,6 +1570,16 @@ bounded and reject duplicate keys, unknown fields, invalid timestamps, and
 noncanonical component sets. See
 [Content-addressed replay contract v3](protocols/replay-v3.md).
 
+`replay_export_v3.py` adds the separate `tbm.replay-export.v3` read boundary.
+It packages one manifest, optional injection descriptor, and every present
+component's exact bytes in canonical order under a content-derived export
+digest. Decoded content is capped at 8 MiB and the external JSON envelope at
+16 MiB. The reader adapter requires an explicit classification allowlist,
+rehashes every byte, and is implemented by both opt-in replay repositories
+without changing either schema. It deliberately remains outside
+`tbm.agent.v1`, HTTP, and MCP until replay-read authorization and durable
+version-3 session identity are active.
+
 `usage_decision_v3.py` adds the content-addressed final-use audit. It preserves
 the ordered retrieval/System/Semantic/rendered sets, the exact complement and
 System block reasons, current authorization/evidence/policy/renderer linkage,
@@ -1604,8 +1614,9 @@ remain outstanding.
 
 The active v2 Store and persistence adapters do not emit these contracts. The
 SQLite and PostgreSQL replay repositories supply atomic artifact storage.
-Neither supplies GateSession linkage, access control, encryption, retention,
-or runtime authority. Those boundaries and active service integration remain
+Both can supply the immutable `ReplayExportReader` surface, but neither
+supplies GateSession linkage, access control, encryption, retention, or
+runtime authority. Those boundaries and active service integration remain
 required in the coordinated version-3 runtime.
 
 ## Authorization version-3 contract

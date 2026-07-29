@@ -56,7 +56,7 @@ orientation; these documents define the engineering contracts.
 - [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.md)
 - [Completion outbox contract and SQLite/PostgreSQL authorities v3](protocols/completion-outbox-v3.md)
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
-- [Content-addressed replay contract v3](protocols/replay-v3.md)
+- [Content-addressed replay and portable export contracts v3](protocols/replay-v3.md)
 - [Authenticated encrypted Artifact Authority v3](protocols/artifact-authority-v3.md)
 - [Verified ActivatedRevision source v3](protocols/activated-revision-source-v3.md)
 - [Codex integration](integrations/codex.md)

@@ -241,6 +241,11 @@ class InjectionArtifact:
         created = _timestamp(self.artifact.created_at, "artifact.created_at")
         if rendered != created:
             _invalid("rendered_at must equal artifact created_at")
+        object.__setattr__(
+            self,
+            "rendered_at",
+            canonical_rfc3339(self.rendered_at),
+        )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -338,6 +343,11 @@ class DecisionReplayManifest:
                 "component"
             )
         _timestamp(self.created_at, "created_at")
+        object.__setattr__(
+            self,
+            "created_at",
+            canonical_rfc3339(self.created_at),
+        )
         expected_manifest_sha256 = canonical_sha256(
             self._unsigned_dict()
         )

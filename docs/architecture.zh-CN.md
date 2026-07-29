@@ -80,7 +80,7 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 147 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+`trace_backed_memory.resources` 提供 149 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
@@ -427,6 +427,14 @@ component，不允许声称可精确重放。manifest 还绑定自身的规范�
 严格 parser 有界，并拒绝 duplicate key、未知字段、非法时间戳与非规范 component
 set。详见[内容寻址重放契约 v3](protocols/replay-v3.zh-CN.md)。
 
+`replay_export_v3.py` 增加独立的 `tbm.replay-export.v3` 只读边界。它在一个
+content-derived export digest 下，按规范顺序打包 manifest、可选 injection
+descriptor 与全部现存 component 的精确字节。解码内容上限为 8 MiB，外部 JSON
+envelope 上限为 16 MiB。reader adapter 要求显式 classification allowlist、重新计算
+每一份字节 hash，并由两个 opt-in replay repository 直接满足而无需改变 schema。
+在 replay-read authorization 与 durable version-3 session identity 激活前，它刻意
+不进入 `tbm.agent.v1`、HTTP 或 MCP。
+
 `usage_decision_v3.py` 增加 content-addressed 最终使用审计。它保留有序
 retrieval/System/Semantic/rendered 集合、精确补集与 System block 原因，以及当前
 authorization/evidence/policy/renderer 关联和完整 replay component map。其 unsigned
@@ -454,9 +462,10 @@ transaction ownership，并在每次操作检查 metadata、catalog、trigger sh
 transaction 仍待完成。
 
 active v2 Store 与 persistence adapter 尚不输出这些契约。SQLite/PostgreSQL replay
-repository 都提供原子 artifact storage；两者都不提供
-GateSession linkage、access control、encryption、retention 或 runtime authority。
-统一 version-3 runtime 仍需交付这些边界和 cross-adapter conformance。
+repository 都提供原子 artifact storage，也都能满足 immutable
+`ReplayExportReader` surface；两者仍不提供 GateSession linkage、access control、
+encryption、retention 或 runtime authority。统一 version-3 runtime 仍需交付这些
+边界和 cross-adapter conformance。
 
 ## 授权 version-3 契约
 

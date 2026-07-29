@@ -55,6 +55,31 @@ ID 必须从 injection component 摘要派生。规范外部契约为
 `schemas/decision_replay_manifest_v3.schema.json`，打包示例为
 `examples/decision_replay_manifest_v3.example.json`。
 
+## 可移植 replay export
+
+`tbm.replay-export.v3` 是针对单个已保留 decision replay 的只读可移植 envelope。
+`ReplayBundleExport` 包含精确的 `DecisionReplayManifest`、可选的
+`InjectionArtifact`，以及按固定 component 顺序排列的全部现存 descriptor 与 base64
+编码字节。`export_sha256` 对除自身之外的完整 envelope 计算 canonical self-hash。
+`loads_replay_bundle_export()` 会拒绝 duplicate key、未知字段、非法或非规范 base64、
+摘要或 linkage 变化，以及超过 16 MiB JSON 或 8 MiB 解码内容的导出。
+`verify_replay_bundle_export()` 会重新核验该不可变值。
+
+`export_replay_bundle()` 接受两个 opt-in replay repository 都满足的小型
+`ReplayExportReader` 协议。调用方必须先授权 manifest 及其每个 artifact，并显式传入
+非空 classification allowlist；该 allowlist 只是第二道 fail-closed 检查，不等于授权。
+helper 会在加载 bytes 前预检每个 descriptor 的 classification 与声明/物理大小，
+然后执行 immutable ID-addressed read、核验每个 digest、执行调用方指定的内容上限，
+并且绝不写入 repository。
+
+规范外部契约为 `schemas/replay_bundle_export_v3.schema.json`，它引用相邻的 manifest
+与 injection schema；打包示例为 `examples/replay_bundle_export_v3.example.json`。
+hash 验证与 manifest/component 顺序仍属于 JSON Schema 之后的 value-level 检查。
+
+该契约刻意不通过 `tbm.agent.v1`、本地 HTTP 或 MCP 暴露。这些 profile 尚无
+replay-read authorization 与 durable version-3 session identity；在该边界完成前加入
+network tool，会把 content-derived ID 变成数据探测 oracle。
+
 ## Opt-in SQLite 重放账本
 
 `SQLiteReplayV3Repository` 使用隔离的 `schemas/sqlite-v3-replay.sql` schema，
@@ -63,9 +88,10 @@ descriptor 与 replay manifest 保存为 immutable row。`store_bundle()` 在一
 中插入 artifact、injection 与 manifest，要求 session/decision/usage 和 injection
 linkage 精确一致，并把精确重放视为幂等；冲突内容会回滚整个操作。
 
-每次 load 都先检查有界大小，再读取大值、重解析 descriptor、比较重复 relational
-column，并重新计算已存字节 hash。canonical schema metadata、table、index、
-immutable trigger、foreign key 和调用方 savepoint ownership 都会 fail closed
+`load_artifact_descriptor()` 不读取 content BLOB，先检查 descriptor column 与物理
+content length。完整 load 会重复该 preflight，再读取内容、重解析 descriptor、比较
+重复 relational column，并重新计算已存字节 hash。canonical schema metadata、table、
+index、immutable trigger、foreign key 和调用方 savepoint ownership 都会 fail closed
 校验。该账本不授权读取、不加密内容、不执行 retention、不证明 evidence truth，也
 不连接 durable GateSession。该 repository 拒绝 confidential/restricted artifact，
 直到透明加密 provider 能够在加密的同时保留精确内容身份。
@@ -92,9 +118,10 @@ work ownership，同时拒绝 catalog/function/trigger drift。它不提供访�
 
 ## 解析与信任边界
 
-外部 JSON 上限为 1 MiB、depth 32、10,000 nodes。parser 拒绝 duplicate key、非法
-UTF-8、非有限数字、缺失或未知字段、非法时间戳与非规范 component set。hash 只能
-证明字节身份，不能证明作者身份、授权或证据真实性。
+外部 injection/manifest JSON 上限为 1 MiB、depth 32、10,000 nodes。可移植 export
+使用上文独立的 16 MiB/depth-40/20,000-node envelope 与 8 MiB 解码内容上限。
+parser 拒绝 duplicate key、非法 UTF-8、非有限数字、缺失或未知字段、非法时间戳与
+非规范 component set。hash 只能证明字节身份，不能证明作者身份、授权或证据真实性。
 
 JSON Schema consumer 必须执行 draft 的 `date-time` format 检查。canonical
 self-hash 与内容派生 ID 的关系属于 value-level 规则，必须在 Schema 验证后继续用
@@ -114,5 +141,6 @@ UsageDecision ID 派生，并原子保存去重后的 supporting artifact、inje
 
 当前 v2 Store、active SQLite v1 adapter、PostgreSQL v2 adapter、本地 Agent 与
 STDIO MCP 均不会持久化或输出这些记录。opt-in SQLite 账本与 opt-in PostgreSQL
-repository 提供 retained storage boundary。生产 runtime 还必须对 replay 读取授权，
-并执行 retention/encryption。
+repository 提供 retained storage boundary，并满足 `ReplayExportReader` read surface。
+生产 runtime 在通过网络暴露 replay export 前，还必须对 replay 读取授权并执行
+retention/encryption。

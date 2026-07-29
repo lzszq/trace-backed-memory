@@ -153,6 +153,11 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     (
+        "examples/replay_bundle_export_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/retrieval_policy_v3.example.json",
         "example",
         "application/json",
@@ -509,6 +514,11 @@ _RESOURCE_SPECS: tuple[
     ("schemas/project_policy.schema.json", "schema", "application/schema+json"),
     (
         "schemas/recovery_action_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/replay_bundle_export_v3.schema.json",
         "schema",
         "application/schema+json",
     ),

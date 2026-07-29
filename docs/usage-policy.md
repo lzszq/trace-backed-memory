@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 147 installed resource copies must remain byte-identical to the top-level
+The 149 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -1590,6 +1590,14 @@ content-derived injection artifact ID are present. Use `legacy_partial` only
 for migrated evidence, with the exact null-component list; never treat it as
 permission to silently reconstruct missing prompts, responses, policy, or
 ancestry. Verify artifact bytes before use.
+
+For portable export, authorize the manifest and every referenced artifact
+before calling `export_replay_bundle()`. Pass a non-empty
+`allowed_classifications` frozenset and normally a lower caller-specific
+`max_content_bytes`; neither value grants access. Treat the exported JSON as
+sensitive evidence, preserve its `export_sha256`, and run
+`loads_replay_bundle_export()` or `verify_replay_bundle_export()` before
+import or analysis. Never expose repository IDs as a public lookup oracle.
 
 Use `store_complete_bundle()` to atomically retain the UsageDecision first,
 the exact snapshot, System Gate evaluation, Semantic Gate prompt/response,

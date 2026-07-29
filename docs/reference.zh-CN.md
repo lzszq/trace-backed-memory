@@ -223,7 +223,7 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 147 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+当前白名单包含 149 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
 
 新增 managed-index 资源包括 bundle Schema/example，以及隔离 SQLite 与
 PostgreSQL install/rollback SQL。package-root API 导出 builder、
@@ -314,6 +314,14 @@ fail-closed 删除前核对预期 catalog membership；opt-in
 idempotency、嵌套 transaction ownership 与 schema drift 检查。两个 peer 的
 `store_complete_bundle()` 都要求 content-derived UsageDecision artifact 位于首位，并把
 全部去重 supporting component 与 injection/manifest 原子保留。
+
+`tbm.replay-export.v3` 在这些记录之上提供可移植 read/verify 层。
+`build_replay_bundle_export()` 接受已经授权的 typed record；
+`export_replay_bundle()` 通过 `ReplayExportReader` 从任一 repository 读取精确
+manifest，并要求显式 classification allowlist；
+`dumps_`/`loads_replay_bundle_export()` 保持有界 canonical JSON envelope；
+`verify_replay_bundle_export()` 复核 self-hash、component 顺序、byte digest 与
+injection linkage。它是 package-root Python API，不是 Agent/HTTP/MCP endpoint。
 
 `tbm.usage-decision.v3` 记录精确有序收窄审计、确定性 System block、当前
 authorization/evidence/policy/renderer 关联与固定 replay component map。
@@ -1257,6 +1265,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- authorization_*_v3.example.json
 |   |-- audit_event_v3.example.json
 |   |-- decision_replay_manifest_v3.example.json
+|   |-- replay_bundle_export_v3.example.json
 |   |-- structured_regression_evidence_v3.example.json
 |   |-- gate_session_v3.example.json
 |   |-- injection_artifact_v3.example.json
@@ -1287,6 +1296,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- authorization_*_v3.schema.json
 |   |-- audit_event_v3.schema.json
 |   |-- decision_replay_manifest_v3.schema.json
+|   |-- replay_bundle_export_v3.schema.json
 |   |-- gate_session_v3.schema.json
 |   |-- injection_artifact_v3.schema.json
 |   |-- structured_regression_evidence_v3.schema.json
@@ -1374,6 +1384,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- postgres_replay_v3.py
 |   |-- postgres_audit_v3.py
 |   |-- replay_v3.py
+|   |-- replay_export_v3.py
 |   |-- sqlite.py
 |   |-- sqlite_audit_v3.py
 |   |-- sqlite_authorization_v3.py
@@ -1411,6 +1422,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_postgres_replay_v3.py
     |-- test_postgres_audit_v3.py
     |-- test_replay_v3.py
+    |-- test_replay_export_v3.py
     |-- test_sqlite_gate_session_v3.py
     |-- test_sqlite_audit_v3.py
     |-- test_sqlite_authorization_v3.py

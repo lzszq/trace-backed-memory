@@ -837,6 +837,13 @@
   proxy 的直接 `node:http`，把 abort/timeout 定义为不会重试的停止等待，并让
   TypeScript 通过真实 Python HTTP lifecycle。固定 TypeScript toolchain，并在 CI
   核验 build、契约漂移、测试与 package 内容。
+- 增加 `tbm.replay-export.v3`，作为已保留 decision replay 记录之上的有界、
+  content-addressed、可移植只读 envelope。按规范顺序导出精确 manifest、可选
+  injection descriptor 与每份现存 component 字节；要求显式 classification
+  allowlist，执行调用方与全局内容上限，严格解析 canonical base64/JSON，并核验
+  每个 digest 与 linkage。两个 opt-in replay repository 通过 storage-neutral
+  reader protocol 复用且无需改变 schema。replay-read authorization 与
+  Agent/HTTP/MCP 暴露仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-

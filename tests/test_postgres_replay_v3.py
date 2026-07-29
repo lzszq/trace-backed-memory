@@ -470,6 +470,13 @@ def test_postgres_complete_bundle_is_atomic_and_usage_bound(
             repository.load_artifact(supporting[0].artifact.artifact_id)
             == supporting[0]
         )
+        exported = tbm.export_replay_bundle(
+            repository,
+            manifest.manifest_sha256,
+            allowed_classifications=frozenset({"internal"}),
+        )
+        assert exported.manifest == manifest
+        assert tbm.verify_replay_bundle_export(exported)
         replayed = repository.store_complete_bundle(
             supporting,
             injection,
@@ -821,6 +828,22 @@ def test_postgres_replay_repository_defensive_row_validation():
     for row in malformed_rows:
         with pytest.raises(tbm.PostgresReplayV3PersistenceError):
             postgres_replay_v3.PostgresReplayV3Repository._stored_artifact(row)
+    sensitive_descriptor_row = {
+        key: value
+        for key, value in malformed_rows[2].items()
+        if key != "content"
+    }
+    sensitive_descriptor_row["content_size"] = len(content)
+    with pytest.raises(
+        tbm.PostgresReplayV3PersistenceError,
+        match="preflight sensitive",
+    ):
+        postgres_replay_v3.PostgresReplayV3Repository(
+            object()
+        )._load_artifact_descriptor(
+            _RowsCursor([sensitive_descriptor_row]),
+            injection.artifact.artifact_id,
+        )
     with pytest.raises(tbm.PostgresReplayV3PersistenceError, match="shape"):
         postgres_replay_v3.PostgresReplayV3Repository._mapping_values(
             {},
@@ -1059,18 +1082,30 @@ def test_postgres_replay_repository_defensive_write_conflicts_and_disappears(
 def test_postgres_replay_repository_defensive_second_phase_loads():
     injection, content = _injection()
     repository = tbm.PostgresReplayV3Repository(object())
+    descriptor_row = dict(
+        zip(
+            (
+                "artifact_id",
+                "content_sha256",
+                "size_bytes",
+                "media_type",
+                "classification",
+                "created_at",
+                "encryption_key_id",
+                "redaction_policy_id",
+            ),
+            repository._artifact_descriptor_values(injection.artifact),
+            strict=True,
+        )
+    )
+    descriptor_row["content_size"] = len(content)
     with pytest.raises(
         tbm.PostgresReplayV3PersistenceError,
         match="artifact disappeared",
     ):
         repository._load_artifact(
             _RowsCursor(
-                [
-                    {
-                        "size_bytes": len(content),
-                        "content_size": len(content),
-                    }
-                ],
+                [descriptor_row],
                 [],
             ),
             injection.artifact.artifact_id,

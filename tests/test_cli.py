@@ -435,7 +435,7 @@ def test_cli_resource_commands_list_read_and_export(tmp_path, capsys):
 
     assert code == 0
     assert error is None
-    assert len(payload["resources"]) == 147
+    assert len(payload["resources"]) == 149
     names = [item["name"] for item in payload["resources"]]
     assert names == sorted(names)
     assert "schemas/postgres.sql" in names

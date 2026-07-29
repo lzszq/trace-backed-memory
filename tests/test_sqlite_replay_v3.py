@@ -295,6 +295,25 @@ def test_store_artifact_rejects_sensitive_bytes_without_encryption_provider():
     with pytest.raises(ValueError, match="encryption provider"):
         repository.store_artifact(artifact, content)
 
+    class _DescriptorCursor:
+        def execute(self, *args: object) -> None:
+            del args
+
+        def fetchone(self) -> tuple[object, ...]:
+            return (
+                *repository._artifact_descriptor_row(artifact),
+                len(content),
+            )
+
+    with pytest.raises(
+        SQLiteReplayV3PersistenceError,
+        match="preflight sensitive",
+    ):
+        repository._load_artifact_descriptor(
+            _DescriptorCursor(),  # type: ignore[arg-type]
+            artifact.artifact_id,
+        )
+
 
 def test_store_injection_persists_descriptor_and_exact_content_atomically():
     injection, content = _injection()

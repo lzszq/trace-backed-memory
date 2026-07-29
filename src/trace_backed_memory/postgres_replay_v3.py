@@ -518,6 +518,14 @@ class PostgresReplayV3Repository:
         artifact: ContentAddressedArtifact,
         content: bytes,
     ) -> tuple[object, ...]:
+        return PostgresReplayV3Repository._artifact_descriptor_values(
+            artifact
+        ) + (content,)
+
+    @staticmethod
+    def _artifact_descriptor_values(
+        artifact: ContentAddressedArtifact,
+    ) -> tuple[object, ...]:
         payload = artifact.to_dict()
         return (
             artifact.artifact_id,
@@ -528,7 +536,6 @@ class PostgresReplayV3Repository:
             payload["created_at"],
             artifact.encryption_key_id,
             artifact.redaction_policy_id,
-            content,
         )
 
     @staticmethod
@@ -571,10 +578,10 @@ class PostgresReplayV3Repository:
             ) from error
 
     @classmethod
-    def _stored_artifact(
+    def _stored_artifact_descriptor(
         cls,
         row: Mapping[str, object],
-    ) -> StoredReplayArtifact:
+    ) -> ContentAddressedArtifact:
         fields = (
             "artifact_id",
             "content_sha256",
@@ -584,18 +591,8 @@ class PostgresReplayV3Repository:
             "created_at",
             "encryption_key_id",
             "redaction_policy_id",
-            "content",
         )
-        values = list(cls._mapping_values(row, fields))
-        content = values[8]
-        if isinstance(content, memoryview):
-            content = content.tobytes()
-            values[8] = content
-        if type(content) is not bytes:
-            raise PostgresReplayV3PersistenceError(
-                "TBM_POSTGRES_REPLAY_PERSISTENCE",
-                "PostgreSQL replay artifact bytes have an invalid shape",
-            )
+        values = cls._mapping_values(row, fields)
         try:
             artifact = ContentAddressedArtifact(
                 artifact_id=cast(str, values[0]),
@@ -612,16 +609,47 @@ class PostgresReplayV3Repository:
                 "TBM_POSTGRES_REPLAY_PERSISTENCE",
                 "PostgreSQL replay artifact metadata failed validation",
             ) from error
+        if values != cls._artifact_descriptor_values(artifact):
+            raise PostgresReplayV3PersistenceError(
+                "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                "PostgreSQL replay artifact descriptor columns do not match",
+            )
+        return artifact
+
+    @classmethod
+    def _stored_artifact(
+        cls,
+        row: Mapping[str, object],
+    ) -> StoredReplayArtifact:
+        artifact = cls._stored_artifact_descriptor(row)
+        content = row.get("content")
+        if isinstance(content, memoryview):
+            content = content.tobytes()
+        if type(content) is not bytes:
+            raise PostgresReplayV3PersistenceError(
+                "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                "PostgreSQL replay artifact bytes have an invalid shape",
+            )
         if artifact.classification not in {"public", "internal"}:
             raise PostgresReplayV3PersistenceError(
                 "TBM_POSTGRES_REPLAY_PERSISTENCE",
                 "PostgreSQL replay cannot load sensitive artifact bytes",
             )
         expected = cls._artifact_values(artifact, content)
-        if tuple(values) != expected or not verify_artifact_content(
-            artifact,
-            content,
-        ):
+        actual = cls._mapping_values(
+            row,
+            (
+                "artifact_id",
+                "content_sha256",
+                "size_bytes",
+                "media_type",
+                "classification",
+                "created_at",
+                "encryption_key_id",
+                "redaction_policy_id",
+            ),
+        ) + (content,)
+        if actual != expected or not verify_artifact_content(artifact, content):
             raise PostgresReplayV3PersistenceError(
                 "TBM_POSTGRES_REPLAY_PERSISTENCE",
                 "PostgreSQL replay artifact columns or bytes do not match",
@@ -887,24 +915,27 @@ class PostgresReplayV3Repository:
             )
         return inserted
 
-    def _load_artifact(
+    def _load_artifact_descriptor(
         self,
         cursor: object,
         artifact_id: str,
-    ) -> StoredReplayArtifact:
-        sizes = self._select_one(
+    ) -> ContentAddressedArtifact:
+        stored = self._select_one(
             cursor,
             """
-            SELECT size_bytes, pg_catalog.octet_length(content) AS content_size
+            SELECT artifact_id, content_sha256, size_bytes, media_type,
+                   classification, created_at, encryption_key_id,
+                   redaction_policy_id,
+                   pg_catalog.octet_length(content) AS content_size
             FROM trace_backed_memory_v3_replay.replay_artifacts
             WHERE artifact_id = %s
             """,
             (artifact_id,),
         )
-        if sizes is None:
+        if stored is None:
             raise KeyError(artifact_id)
-        size_bytes = sizes.get("size_bytes")
-        content_size = sizes.get("content_size")
+        size_bytes = stored.get("size_bytes")
+        content_size = stored.get("content_size")
         if (
             type(size_bytes) is not int
             or type(content_size) is not int
@@ -915,6 +946,25 @@ class PostgresReplayV3Repository:
                 "TBM_POSTGRES_REPLAY_PERSISTENCE",
                 "PostgreSQL replay artifact exceeds bounded load contract",
             )
+        artifact = self._stored_artifact_descriptor(stored)
+        if artifact.size_bytes != content_size:
+            raise PostgresReplayV3PersistenceError(
+                "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                "PostgreSQL replay artifact size differs from stored content",
+            )
+        if artifact.classification not in {"public", "internal"}:
+            raise PostgresReplayV3PersistenceError(
+                "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                "PostgreSQL replay cannot preflight sensitive artifact bytes",
+            )
+        return artifact
+
+    def _load_artifact(
+        self,
+        cursor: object,
+        artifact_id: str,
+    ) -> StoredReplayArtifact:
+        self._load_artifact_descriptor(cursor, artifact_id)
         stored = self._select_one(
             cursor,
             """
@@ -1169,6 +1219,30 @@ class PostgresReplayV3Repository:
             self._raise_database_error(
                 error,
                 "failed to store complete replay bundle",
+            )
+
+    @_synchronized
+    def load_artifact_descriptor(
+        self,
+        artifact_id: str,
+    ) -> ContentAddressedArtifact:
+        self._require_open()
+        _validate_artifact_id(artifact_id)
+        psycopg, _dict_row, _Jsonb = _load_psycopg()
+        try:
+            with self._connection.transaction():
+                with self._cursor() as cursor:
+                    self._lock_schema(cursor)
+                    return self._load_artifact_descriptor(
+                        cursor,
+                        artifact_id,
+                    )
+        except (KeyError, PostgresReplayV3SchemaError):
+            raise
+        except psycopg.Error as error:
+            self._raise_database_error(
+                error,
+                "failed to load replay artifact descriptor",
             )
 
     @_synchronized

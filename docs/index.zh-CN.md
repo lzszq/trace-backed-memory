@@ -24,7 +24,7 @@
 - [Append-only 审计与恢复 v3](protocols/audit-recovery-v3.zh-CN.md)
 - [结构化 regression evidence v3](protocols/evidence-v3.zh-CN.md)
 - [FixEvidence v3](protocols/fix-evidence-v3.zh-CN.md)
-- [不可变 MemoryRevision v3](protocols/memory-revision-v3.zh-CN.md)
+- [MemoryRevision proposal 与 publication event v3](protocols/memory-revision-v3.zh-CN.md)
 - [SQLite MemoryRevision proposal ledger v3](protocols/sqlite-memory-revision-v3.zh-CN.md)
 - [PostgreSQL MemoryRevision proposal ledger v3](protocols/postgres-memory-revision-v3.zh-CN.md)
 - [可回放 RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.zh-CN.md)
@@ -84,8 +84,9 @@ linkage 持久化多条独立核验的 claim。opt-in SQLite 与隔离 PostgreSQ
 Completion Outbox authority 会在同一 transaction 原子增加一条 immutable
 completion event 与 append-only leased delivery chain。authenticated
 evaluator/artifact 检查与 active runtime emission 仍待完成。
-approval、activation、其余 persistence 与 active integration 仍属于统一推进的
-schema version 3 计划。与存储实现无关的
+storage-neutral approval/activation 契约已经发布；publication persistence、
+audit linkage 与 active integration 仍属于统一推进的 schema version 3 计划。
+与存储实现无关的
 `tbm.replay.v3` artifact 与 replay manifest 契约及 opt-in 隔离 SQLite immutable
 字节/descriptor 账本已经发布，但 active adapter 尚不使用它，且它不提供授权、
 retention、encryption 或 GateSession authority。只读 v3 迁移预检和不可激活的 staging

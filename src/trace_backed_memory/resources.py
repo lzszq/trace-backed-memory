@@ -102,6 +102,16 @@ _RESOURCE_SPECS: tuple[
     ("examples/memory_context.example.json", "example", "application/json"),
     ("examples/memory_decision.example.json", "example", "application/json"),
     (
+        "examples/memory_revision_activation_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/memory_revision_approval_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/memory_revision_v3.example.json",
         "example",
         "application/json",
@@ -234,6 +244,16 @@ _RESOURCE_SPECS: tuple[
     ("schemas/lesson.schema.json", "schema", "application/schema+json"),
     ("schemas/memory_context.schema.json", "schema", "application/schema+json"),
     ("schemas/memory_decision.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/memory_revision_activation_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/memory_revision_approval_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/memory_revision_v3.schema.json",
         "schema",

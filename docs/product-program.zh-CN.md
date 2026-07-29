@@ -572,6 +572,14 @@
   fingerprint，兼容 caller transaction，保存 immutable evidence 闭包，强制线性
   parent continuity，并在 replay 时拒绝而不是修补被篡改的 proposal。它仍只保存
   proposal，不接入 active v2 projection、approval、activation 或 authorization。
+- 发布独立、storage-neutral、内容派生的
+  `tbm.memory-revision-approval.v3` 与
+  `tbm.memory-revision-activation.v3` event。重新验证精确 artifact 字节、evidence
+  闭包、proposal lineage、历史 approval authorization、当前 activation
+  authorization、actor 分离、target 与线性 predecessor linkage。禁止 global
+  MemoryRevision publication 与 target relocation。持久化、audit linkage、
+  attestation authentication 和 active-v2 projection 留到 publication-authority
+  阶段，包括 durable current-head 锁。
 - 发布内容寻址 `tbm.retrieval-snapshot.v3` 以及嵌套 RetrievalHit/IndexVersion，
   绑定精确 authorization/context/query、有序 revision 命中、候选哈希、有限的
   stage/fusion 分数、retriever/index 版本、边界与截断原因。在 UTF-8 编码前拒绝

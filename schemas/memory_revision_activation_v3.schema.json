@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lzszq/trace-backed-memory/schemas/memory_revision_activation_v3.schema.json",
+  "title": "Trace-backed Memory revision activation version 3 contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "activation_id",
+    "revision_id",
+    "approval_id",
+    "memory_id",
+    "revision_number",
+    "previous_revision_id",
+    "activation_sequence",
+    "previous_activation_id",
+    "tenant_id",
+    "repository_id",
+    "activated_by",
+    "activated_via_client_id",
+    "authorization_event_id",
+    "authorization_request_sha256",
+    "authorization_policy_sha256",
+    "activated_at",
+    "activation_attestation_sha256"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "tbm.memory-revision-activation.v3"
+    },
+    "activation_id": {
+      "pattern": "^memory_activation_sha256_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "revision_id": {
+      "$ref": "#/$defs/revisionId"
+    },
+    "approval_id": {
+      "pattern": "^memory_approval_sha256_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "memory_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "revision_number": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "previous_revision_id": {
+      "$ref": "#/$defs/nullableRevisionId"
+    },
+    "activation_sequence": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "previous_activation_id": {
+      "$ref": "#/$defs/nullableActivationId"
+    },
+    "tenant_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "repository_id": {
+      "$ref": "#/$defs/nullableIdentifier"
+    },
+    "activated_by": {
+      "$ref": "#/$defs/identifier"
+    },
+    "activated_via_client_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "authorization_event_id": {
+      "pattern": "^authz_sha256_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "authorization_request_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "authorization_policy_sha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "activated_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "activation_attestation_sha256": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "activation_sequence": {
+            "const": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "previous_activation_id": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "previous_activation_id": {
+            "$ref": "#/$defs/activationId"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "revision_number": {
+            "const": 1
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "previous_revision_id": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "previous_revision_id": {
+            "$ref": "#/$defs/revisionId"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": ".*\\S.*"
+    },
+    "nullableIdentifier": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/identifier"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "revisionId": {
+      "pattern": "^memory_revision_sha256_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "nullableRevisionId": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/revisionId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "activationId": {
+      "pattern": "^memory_activation_sha256_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "nullableActivationId": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/activationId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?(?:Z|[+-](?:0[0-9]|1[0-4]):[0-5][0-9])$"
+    }
+  }
+}

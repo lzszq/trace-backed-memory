@@ -1366,6 +1366,15 @@ Track:
   immutable evidence closure, linear parent continuity, and replay that
   rejects rather than repairs tampered stored proposals. Keep it proposal-only
   and outside active v2 projection, approval, activation, and authorization.
+- Publish separate storage-neutral
+  `tbm.memory-revision-approval.v3` and
+  `tbm.memory-revision-activation.v3` content-derived events. Re-verify exact
+  artifact bytes, evidence closure, proposal lineage, historical approval
+  authorization, current activation authorization, actor separation, target,
+  and linear predecessor linkage. Forbid global MemoryRevision publication and
+  target relocation. Keep persistence, audit linkage, attestation
+  authentication, and active-v2 projection for the publication-authority
+  stage, including durable current-head locking.
 - Publish content-addressed `tbm.retrieval-snapshot.v3` and nested
   RetrievalHit/IndexVersion records with exact authorization/context/query
   linkage, ordered revision hits, candidate hashes, finite stage/fusion scores,

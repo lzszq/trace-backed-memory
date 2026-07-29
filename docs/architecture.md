@@ -258,7 +258,7 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 ## Packaged Distribution Resources
 
 The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 115 canonical Schema, SQL/migration, memory-support, and
+the repository's 119 canonical Schema, SQL/migration, memory-support, and
 example files. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
@@ -1150,7 +1150,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 115 resources.
+contains 119 resources.
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1650,10 +1650,19 @@ The proposal-only `tbm.memory-revision.v3` contract then binds a stable memory
 identity to an immutable, content-derived revision, exact parent revision,
 content artifact, canonical authorization scope, case/fix/evidence references,
 and server-owned proposer context. Its evidence preflight rejects missing,
-non-passing, cross-case, or proposer-conflicted evidence. It deliberately has
-no approval or activation state: those require authenticated authorization,
-transactional parent/sequence checks, and append-only audit service operations.
-See [Immutable MemoryRevision v3](protocols/memory-revision-v3.md).
+non-passing, cross-case, or proposer-conflicted evidence. Separate
+`tbm.memory-revision-approval.v3` and
+`tbm.memory-revision-activation.v3` content-derived events now provide the
+storage-neutral publication contract. Approval re-verifies exact bytes,
+evidence, lineage, actor separation, and `memory:review`; activation replays
+that complete approval verification and independently checks
+`memory:activate`, a third actor, and linear immediate-predecessor linkage.
+Only a future authority can lock and prove the durable current head; the
+storage-neutral builder does not trustfully establish currentness by itself.
+Global revision publication and target relocation inside a chain are
+forbidden. These events are not signatures and are not yet backed by a
+publication repository or active adapter. See
+[MemoryRevision proposal and publication events v3](protocols/memory-revision-v3.md).
 
 Opt-in isolated SQLite and PostgreSQL proposal ledgers persist that revision
 with its exact FixEvidence and ordered regression-evidence closure. Both
@@ -1661,8 +1670,9 @@ validate the complete stored bundle on replay before inserting anything, so
 tampered records are rejected rather than repaired. The PostgreSQL peer adds
 active-metadata lock ordering, a catalog/ACL fingerprint, immutable
 UPDATE/DELETE/TRUNCATE triggers, caller-compatible transactions, and a
-fail-closed rollback resource. Neither ledger performs approval, activation,
-authorization, retention, or active-v2 projection. See the
+fail-closed rollback resource. Neither proposal ledger persists
+approval/activation events or performs publication authority, authorization,
+retention, or active-v2 projection. See the
 [SQLite](protocols/sqlite-memory-revision-v3.md) and
 [PostgreSQL](protocols/postgres-memory-revision-v3.md) ledger contracts.
 

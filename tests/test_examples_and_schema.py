@@ -149,17 +149,17 @@ def test_current_docs_publish_postgres_v2_and_43_resource_contracts():
             "schemas/postgres-v2-lock-order-hotfix.sql" in document
         ), f"{name} must publish the version-2 hotfix resource"
 
-    assert "contains 115 resources" in current_english_documents["README.md"]
+    assert "contains 119 resources" in current_english_documents["README.md"]
     assert (
-        "contains 115 resources"
+        "contains 119 resources"
         in current_english_documents["docs/architecture.md"]
     )
     assert (
-        "115 installed resource copies"
+        "119 installed resource copies"
         in current_english_documents["docs/usage-policy.md"]
     )
     assert (
-        "Distribution resources | 115"
+        "Distribution resources | 119"
         in current_english_documents["docs/product.en.md"]
     )
 
@@ -2346,7 +2346,7 @@ def test_docs_publish_conservative_failure_extraction_accuracy():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_linear_snapshot_usage_log_validation():
@@ -2384,7 +2384,7 @@ def test_docs_publish_linear_snapshot_usage_log_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_indexed_usage_log_operations():
@@ -2422,7 +2422,7 @@ def test_docs_publish_indexed_usage_log_operations():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_indexed_run_to_trace_lookup():
@@ -2461,7 +2461,7 @@ def test_docs_publish_indexed_run_to_trace_lookup():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_referenced_live_memory_id_validation():
@@ -2499,7 +2499,7 @@ def test_docs_publish_referenced_live_memory_id_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_single_pass_store_metrics():
@@ -2537,7 +2537,7 @@ def test_docs_publish_single_pass_store_metrics():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_single_pass_memory_run_metrics():
@@ -2577,7 +2577,7 @@ def test_docs_publish_single_pass_memory_run_metrics():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_serialized_snapshot_cli_writes():
@@ -2619,7 +2619,7 @@ def test_docs_publish_serialized_snapshot_cli_writes():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_active_only_lesson_imports():
@@ -2661,7 +2661,7 @@ def test_docs_publish_active_only_lesson_imports():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_bounded_pr_change_sets():
@@ -2701,7 +2701,7 @@ def test_docs_publish_bounded_pr_change_sets():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_linear_legacy_pr_warnings():
@@ -2742,7 +2742,7 @@ def test_docs_publish_linear_legacy_pr_warnings():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_bounded_git_capture():
@@ -2789,7 +2789,7 @@ def test_docs_publish_bounded_git_capture():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_durable_atomic_publish():
@@ -2828,7 +2828,7 @@ def test_docs_publish_durable_atomic_publish():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_bounded_semantic_top_k():
@@ -2867,7 +2867,7 @@ def test_docs_publish_bounded_semantic_top_k():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_public_snapshot_write_lock():
@@ -2908,7 +2908,7 @@ def test_docs_publish_public_snapshot_write_lock():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_bounded_runtime_trace_json():
@@ -2957,7 +2957,7 @@ def test_docs_publish_bounded_runtime_trace_json():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_postgres_loaded_row_payloads():
@@ -3010,7 +3010,7 @@ def test_docs_publish_postgres_loaded_row_payloads():
     postgres_schema = _postgres_schema()
     assert postgres_schema.count("updated_at TIMESTAMPTZ DEFAULT now()") == 3
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_snapshot_lock_sidecar_safety():
@@ -3062,7 +3062,7 @@ def test_docs_publish_snapshot_lock_sidecar_safety():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_git_metadata_output_validation():
@@ -3114,7 +3114,7 @@ def test_docs_publish_git_metadata_output_validation():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_explicit_failure_text_classification():
@@ -3162,7 +3162,7 @@ def test_docs_publish_explicit_failure_text_classification():
     }
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_measured_completion_cli_and_compatibility():
@@ -3732,7 +3732,7 @@ def test_docs_publish_runtime_cardinality_limits_and_schema_change():
         / "memory_decision.schema.json"
     ).read_bytes()
     assert packaged_schema == canonical_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3799,7 +3799,7 @@ def test_docs_publish_postgres_concurrent_insert_revalidation():
         / "postgres.sql"
     ).read_bytes()
     assert packaged_postgres == canonical_postgres
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -3851,7 +3851,7 @@ def test_docs_publish_strict_json_object_key_uniqueness():
         assert "unique_json_object_pairs" in runtime_files[name]
         assert "object_pairs_hook" in runtime_files[name]
 
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
         "type": "integer",
@@ -3916,7 +3916,7 @@ def test_docs_publish_recover_batch_argument_cardinality():
         "_validate_recover_batch_cardinality(args)"
     ) < main_source.index("TraceBackedMemoryStore.load_json(args.snapshot)")
 
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
         "type": "integer",
@@ -3977,7 +3977,7 @@ def test_docs_publish_recover_attribution_final_delimiter():
         "const": 2,
     }
     assert "VALUES (true, 2)" in _postgres_schema()
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_non_negative_trace_latency_contract():
@@ -4055,7 +4055,7 @@ def test_docs_publish_non_negative_trace_latency_contract():
     ).read_bytes()
     assert packaged_postgres == canonical_postgres
     assert b"traces_latency_ms_non_negative" in canonical_postgres
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -4091,7 +4091,7 @@ def test_docs_publish_public_project_policy_obsolescence_export():
 
     assert tbm.obsolete_project_policy is lifecycle.obsolete_project_policy
     assert "obsolete_project_policy" in tbm.__all__
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -4169,7 +4169,7 @@ def test_docs_publish_postgres_compatible_trace_latency_range():
     assert packaged_postgres == canonical_postgres
     assert b"latency_ms INTEGER" in canonical_postgres
     assert b"traces_latency_ms_non_negative" in canonical_postgres
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
     snapshot_schema = _json_schema("memory_store_snapshot.schema.json")
     assert snapshot_schema["properties"]["snapshot_version"] == {
@@ -4234,7 +4234,7 @@ def test_docs_publish_postgres_bounded_load_payloads():
     postgres_schema = _postgres_schema()
     assert "VALUES (true, 2)" in postgres_schema
     assert "snapshot_payload_bytes" not in postgres_schema
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_portable_nonblank_persisted_strings():
@@ -4287,7 +4287,7 @@ def test_docs_publish_portable_nonblank_persisted_strings():
         "type": "integer",
         "const": 2,
     }
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_docs_publish_postgres_completion_outbox_parity():
@@ -4338,7 +4338,7 @@ def test_docs_publish_postgres_completion_outbox_parity():
         ).read_bytes()
         == canonical_rollback
     )
-    assert len(packaged_resources()) == 115
+    assert len(packaged_resources()) == 119
 
 
 def test_postgres_memory_id_registry_rejects_direct_dml():

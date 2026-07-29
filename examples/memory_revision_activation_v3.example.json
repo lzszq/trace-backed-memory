@@ -1,0 +1,20 @@
+{
+  "activated_at": "2026-07-27T00:08:00Z",
+  "activated_by": "publication_activator",
+  "activated_via_client_id": "publication_service",
+  "activation_attestation_sha256": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "activation_id": "memory_activation_sha256_61ba3a14e5f0e90972e12341a6742592f6a15ab1008c09b1e9404bfcc51c0b76",
+  "activation_sequence": 1,
+  "approval_id": "memory_approval_sha256_22638e50b40ffd91a36811993504de70319fce575e19d06d0a12c270c6da0dd2",
+  "authorization_event_id": "authz_sha256_53abb0ab1fdeca097218ef26b953fca00cae10412abe1e4bb8982348cec74b77",
+  "authorization_policy_sha256": "sha256:d48461d267cf63b56d5bfa8f938360991c2a1d2632d16aa790cbe60ed3b8f944",
+  "authorization_request_sha256": "sha256:ccc2b6126775f2daa2fa4ce39ed96d96441e33b62eb563f112004a165cb1dc2f",
+  "contract_version": "tbm.memory-revision-activation.v3",
+  "memory_id": "memory_001",
+  "previous_activation_id": null,
+  "previous_revision_id": null,
+  "repository_id": "repository_001",
+  "revision_id": "memory_revision_sha256_1fe830d73f2ea62165a3169999994c47981b6ace334d2f182a3f99fa459a64cd",
+  "revision_number": 1,
+  "tenant_id": "tenant_001"
+}

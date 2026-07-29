@@ -25,7 +25,7 @@ orientation; these documents define the engineering contracts.
 - [Append-only audit and recovery v3](protocols/audit-recovery-v3.md)
 - [Structured regression evidence v3](protocols/evidence-v3.md)
 - [FixEvidence v3](protocols/fix-evidence-v3.md)
-- [Immutable MemoryRevision v3](protocols/memory-revision-v3.md)
+- [MemoryRevision proposal and publication events v3](protocols/memory-revision-v3.md)
 - [SQLite MemoryRevision proposal ledger v3](protocols/sqlite-memory-revision-v3.md)
 - [PostgreSQL MemoryRevision proposal ledger v3](protocols/postgres-memory-revision-v3.md)
 - [Replayable RetrievalSnapshot v3](protocols/retrieval-snapshot-v3.md)
@@ -91,8 +91,9 @@ opt-in SQLite and isolated PostgreSQL Completion Outbox authorities atomically
 add one immutable completion event and an append-only leased delivery chain to
 that transaction. Authenticated evaluator/artifact checks and active runtime
 emission remain outstanding.
-Approval, activation, remaining persistence, and active integration remain
-part of the coordinated schema-version-3 program. The
+Storage-neutral approval and activation contracts are published; publication
+persistence, audit linkage, and active integration remain part of the
+coordinated schema-version-3 program. The
 storage-neutral `tbm.replay.v3` artifact and replay-manifest contract is
 published with an opt-in isolated SQLite immutable byte/descriptor ledger, but
 no active adapter uses it and it provides no authorization, retention,

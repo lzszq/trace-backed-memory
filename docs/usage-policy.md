@@ -162,7 +162,7 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 115 installed resource copies must remain byte-identical to the top-level
+The 119 installed resource copies must remain byte-identical to the top-level
 authoring files. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
@@ -172,7 +172,8 @@ The allowlist includes fresh-install PostgreSQL schema version 2, the
 atomic `schemas/postgres-v1-to-v2.sql` operator migration, and the idempotent
 `schemas/postgres-v2-lock-order-hotfix.sql` operator script. It also includes
 the agent protocol, v3 migration staging, GateSession, and content-addressed
-replay, MemoryRevision, and entity-registry contract Schemas and examples, plus
+replay, MemoryRevision proposal/approval/activation, and entity-registry
+contract Schemas and examples, plus
 isolated SQLite GateSession/replay/audit/authorization/MemoryRevision/
 RunOutcome/OutcomeAttribution/completion-outbox ledgers and normalized
 entity-registry DDL,
@@ -1208,18 +1209,27 @@ source commit, and fix commit across them, a passing result, and a proposer
 distinct from all evidence submitters, reviewers, and verifiers. The
 regression-only compatibility helper is not a publication preflight.
 
-Do not interpret a valid revision hash as approval or activation. The active
-runtime exposes no revision publication operation. Approval and activation
-must be separate authenticated, authorized, append-only service events with
-transactional parent/sequence and current-policy checks. Corrections create a
-new revision; they never mutate an existing one.
+Do not interpret a valid revision hash as approval or activation. The
+storage-neutral approval and activation contracts require separate actors,
+exact artifact/evidence replay, exact `memory:review`/`memory:activate`
+authorization decisions, and linear immediate-predecessor linkage. Activation
+must re-verify the full approval inputs; an isolated content-valid approval
+event is not sufficient. A publication authority must lock and verify the
+durable current head because a caller-supplied predecessor event cannot prove
+currentness. Global MemoryRevision publication and target relocation inside a
+revision chain are forbidden. Corrections create a new revision; they never
+mutate an existing one.
 
 The isolated SQLite and PostgreSQL proposal ledgers may persist only a fully
 verified exact evidence bundle. Require linear parent/revision continuity,
 immutable idempotent replay, and exact read-back before commit. PostgreSQL
 installation and rollback must validate the isolated schema catalog and ACLs.
 Ledger presence is not publication authority and proposals must never be
-projected into active v2 memory.
+projected into active v2 memory. No publication repository or active runtime
+operation is delivered yet. A future authority must authenticate actors,
+validate attestation material, and append approval, activation, authorization,
+and audit linkage atomically. Content and attestation hashes are not
+signatures.
 
 ## Version-3 retrieval snapshot policy
 

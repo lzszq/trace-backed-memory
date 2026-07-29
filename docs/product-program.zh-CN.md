@@ -844,6 +844,16 @@
   每个 digest 与 linkage。两个 opt-in replay repository 通过 storage-neutral
   reader protocol 复用且无需改变 schema。replay-read authorization 与
   Agent/HTTP/MCP 暴露仍待完成。
+- 为 `AuthenticatedDurableAgentMemory` 增加 session-bound replay-read
+  authorization。从已保留 GateSession 的 decision/usage/injection linkage 解析
+  唯一 manifest，不接受调用方选择的内容 ID；持久化并回读新的 repository-scoped
+  `artifact:read` decision；把请求绑定到精确 session version、显式 classification
+  allowlist 与 byte limit；export 后复查授权与未变化 session。为
+  SQLite/PostgreSQL 增加 descriptor-only `load_manifest_for_session()` 对等实现，
+  确保 manifest lookup 不会在 export preflight 前加载 injection bytes。覆盖
+  allow/deny、stale version、ambiguous linkage、授权前不读字节、精确 bundle 与
+  PostgreSQL lifecycle 对等测试。transport-authenticated HTTP/MCP/SDK 暴露、
+  受保护内容加密与 retention 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-

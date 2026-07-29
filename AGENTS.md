@@ -99,7 +99,8 @@ Start with:
   orchestration; not active Agent/MCP state.
 - `durable_agent_v3.py`: adapter-neutral authenticated durable lifecycle facade
   over preparation, Semantic Gate, finalization, execution, cancellation, and
-  completion; reconstructs retained retrieval scope and rejects a mismatched
+  completion plus session-bound replay export; reconstructs retained retrieval
+  scope, appends a fresh artifact-read decision, and rejects a mismatched
   authority graph, but is not wired to the default Agent/MCP profile.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
@@ -149,10 +150,11 @@ Start with:
 - `replay_v3.py`: content-addressed artifact, exact injection, and fixed
   decision replay manifest contracts; not an artifact repository.
 - `sqlite_replay_v3.py`: opt-in isolated immutable artifact-byte, injection,
-  and replay-manifest ledger; not wired to active runtime or authorization.
+  and replay-manifest ledger with descriptor-only session-manifest lookup; not
+  wired to active runtime.
 - `postgres_replay_v3.py`: opt-in isolated PostgreSQL replay ledger with
-  exact-byte/descriptor revalidation, nested transactions, and schema drift
-  checks; not wired to active runtime or authorization.
+  exact-byte/descriptor revalidation, descriptor-only session lookup, nested
+  transactions, and schema drift checks; not wired to active runtime.
 - `migration_v3.py`: inert content-addressed migration bundles and replay.
 - `execution.py`: callback orchestration and recovery context.
 - `sqlite.py` / `postgres.py`: persistence adapters.

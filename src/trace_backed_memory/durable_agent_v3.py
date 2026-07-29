@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import NoReturn, Protocol, TypeVar
+from typing import NoReturn, Protocol, TypeVar, cast
 
 from .durable_execution_v3 import (
     AuthenticatedOutcomeEvaluatorContext,
@@ -34,6 +34,14 @@ from .durable_semantic_gate_v3 import (
 from .gate_completion_v3 import GateCompletionRequest
 from .gate_service_v3 import AuthenticatedPreparedGateResult
 from .gate_session_v3 import GateSession
+from .replay_export_v3 import (
+    REPLAY_EXPORT_MAX_CONTENT_BYTES,
+    ReplayBundleExport,
+    ReplayExportError,
+    ReplayExportReader,
+    export_replay_bundle as export_authorized_replay_bundle,
+)
+from .replay_v3 import DataClassification, DecisionReplayManifest
 from .retrieval_preparation_v3 import PreparedRetrievalEvidence
 from .retrieval_v3 import RetrievalSnapshot
 from .semantic_gate_service_v3 import (
@@ -50,15 +58,20 @@ from .service_v3 import (
 
 
 DURABLE_AGENT_CONTRACT_VERSION = "tbm.durable-agent.v3"
+DURABLE_REPLAY_EXPORT_CONTRACT_VERSION = "tbm.durable-replay-export.v3"
 _Result = TypeVar("_Result")
 
 __all__ = [
     "DURABLE_AGENT_CONTRACT_VERSION",
+    "DURABLE_REPLAY_EXPORT_CONTRACT_VERSION",
     "AuthenticatedDurableAgentMemory",
     "DurableAgentCancelRequest",
     "DurableAgentCancelResult",
     "DurableAgentEvidenceReader",
+    "DurableAgentReplayExportReader",
     "DurableAgentSessionAuthority",
+    "DurableReplayExportRequest",
+    "DurableReplayExportResult",
     "DurableAgentV3Error",
 ]
 
@@ -88,6 +101,16 @@ class DurableAgentEvidenceReader(Protocol):
     def load_snapshot(self, snapshot_id: str) -> RetrievalSnapshot: ...
 
 
+class DurableAgentReplayExportReader(ReplayExportReader, Protocol):
+    def load_manifest_for_session(
+        self,
+        session_id: str,
+        decision_id: str,
+        usage_decision_id: str,
+        injection_artifact_id: str,
+    ) -> DecisionReplayManifest: ...
+
+
 @dataclass(frozen=True)
 class DurableAgentCancelRequest:
     session_id: str
@@ -114,6 +137,51 @@ class DurableAgentCancelResult:
     session: GateSession
     transition_authorization_event_id: str
     replayed: bool
+
+
+@dataclass(frozen=True)
+class DurableReplayExportRequest:
+    session_id: str
+    expected_session_version: int
+    allowed_classifications: tuple[DataClassification, ...]
+    max_content_bytes: int = REPLAY_EXPORT_MAX_CONTENT_BYTES
+    contract_version: str = DURABLE_REPLAY_EXPORT_CONTRACT_VERSION
+
+    def __post_init__(self) -> None:
+        if (
+            self.contract_version != DURABLE_REPLAY_EXPORT_CONTRACT_VERSION
+            or not _is_identifier(self.session_id)
+            or type(self.expected_session_version) is not int
+            or self.expected_session_version < 1
+            or type(self.allowed_classifications) is not tuple
+            or not self.allowed_classifications
+            or len(self.allowed_classifications) > 4
+            or any(
+                type(classification) is not str
+                or classification
+                not in {
+                    "public",
+                    "internal",
+                    "confidential",
+                    "restricted",
+                }
+                for classification in self.allowed_classifications
+            )
+            or len(set(self.allowed_classifications))
+            != len(self.allowed_classifications)
+            or type(self.max_content_bytes) is not int
+            or self.max_content_bytes < 1
+            or self.max_content_bytes > REPLAY_EXPORT_MAX_CONTENT_BYTES
+        ):
+            _invalid("durable replay export request is invalid")
+
+
+@dataclass(frozen=True)
+class DurableReplayExportResult:
+    session: GateSession
+    bundle: ReplayBundleExport
+    read_authorization_event_id: str
+    retrieval_authorization_event_id: str
 
 
 class AuthenticatedDurableAgentMemory:
@@ -153,6 +221,7 @@ class AuthenticatedDurableAgentMemory:
         retrieval_service = preparation_service._retrieval_service  # noqa: SLF001
         session_authority = gate_service._session_writer  # noqa: SLF001
         evidence_reader = preparation_service._evidence_authority  # noqa: SLF001
+        replay_export_reader = finalization_service._replay_authority  # noqa: SLF001
         semantic_gate_service = semantic_service._semantic_gate_service  # noqa: SLF001
         if (
             gate_service._authorization_service is not authorization_service  # noqa: SLF001
@@ -214,6 +283,19 @@ class AuthenticatedDurableAgentMemory:
             )
         if not callable(getattr(evidence_reader, "load_snapshot", None)):
             raise TypeError("Gate evidence authority must support snapshot reads")
+        if not all(
+            callable(getattr(replay_export_reader, name, None))
+            for name in (
+                "load_manifest",
+                "load_manifest_for_session",
+                "load_injection",
+                "load_artifact_descriptor",
+                "load_artifact",
+            )
+        ):
+            raise TypeError(
+                "replay authority must support authorized bundle export reads"
+            )
 
         self._authorization_service = authorization_service
         self._preparation_service = preparation_service
@@ -222,6 +304,10 @@ class AuthenticatedDurableAgentMemory:
         self._execution_service = execution_service
         self._session_authority: DurableAgentSessionAuthority = session_authority
         self._evidence_reader: DurableAgentEvidenceReader = evidence_reader
+        self._replay_export_reader = cast(
+            DurableAgentReplayExportReader,
+            replay_export_reader,
+        )
 
     def prepare(
         self,
@@ -408,6 +494,37 @@ class AuthenticatedDurableAgentMemory:
         session, _ = self._recover_retrieval_scope(context, session_id)
         return session
 
+    def export_replay_bundle(
+        self,
+        context: AuthenticatedServiceContext,
+        request: DurableReplayExportRequest,
+    ) -> DurableReplayExportResult:
+        """Authorize and export the exact bundle linked to one durable session."""
+
+        if (
+            type(context) is not AuthenticatedServiceContext
+            or type(request) is not DurableReplayExportRequest
+        ):
+            _invalid("durable replay export input is invalid")
+        session, retrieval_scope = self._recover_retrieval_scope(
+            context,
+            request.session_id,
+        )
+        self._verify_expected_session_version(
+            session,
+            request.expected_session_version,
+        )
+        return self._authorize_replay_read(
+            context,
+            lambda read_scope: self._export_replay_authorized(
+                context,
+                request,
+                session,
+                retrieval_scope,
+                read_scope,
+            ),
+        )
+
     def _decide_authorized(
         self,
         context: AuthenticatedServiceContext,
@@ -523,6 +640,150 @@ class AuthenticatedDurableAgentMemory:
             raise
         return authorized.value
 
+    def _authorize_replay_read(
+        self,
+        context: AuthenticatedServiceContext,
+        operation: Callable[[AuthorizedRetrievalScope], _Result],
+    ) -> _Result:
+        def verified_operation(scope: AuthorizedRetrievalScope) -> _Result:
+            self._verify_replay_read_scope(context, scope)
+            return operation(scope)
+
+        try:
+            authorized = self._authorization_service.authorize_permission(
+                context,
+                permission="artifact:read",
+                operation=verified_operation,
+            )
+        except AuthenticatedServiceV3Error as error:
+            cause = error.__cause__
+            if (
+                error.code == "TBM_SERVICE_RETRIEVAL_FAILED"
+                and isinstance(
+                    cause,
+                    (
+                        AuthenticatedServiceV3Error,
+                        DurableAgentV3Error,
+                        DurableFinalizationV3Error,
+                    ),
+                )
+            ):
+                raise cause
+            raise
+        return authorized.value
+
+    def _export_replay_authorized(
+        self,
+        context: AuthenticatedServiceContext,
+        request: DurableReplayExportRequest,
+        expected_session: GateSession,
+        expected_retrieval_scope: AuthorizedRetrievalScope,
+        read_scope: AuthorizedRetrievalScope,
+    ) -> DurableReplayExportResult:
+        self._verify_replay_read_scope(context, read_scope)
+        session, retrieval_scope = self._recover_retrieval_scope(
+            context,
+            request.session_id,
+        )
+        if (
+            session != expected_session
+            or retrieval_scope != expected_retrieval_scope
+        ):
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_SESSION_CHANGED",
+                "GateSession changed before replay export",
+            )
+        self._verify_session_scope(session, read_scope)
+        self._verify_expected_session_version(
+            session,
+            request.expected_session_version,
+        )
+        if (
+            session.status
+            not in {
+                "finalized",
+                "executing",
+                "completed",
+                "abandoned",
+            }
+            or session.decision_id is None
+            or session.usage_decision_id is None
+            or session.injection_artifact_id is None
+        ):
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_REPLAY_UNAVAILABLE",
+                "GateSession has no exportable replay bundle",
+            )
+        try:
+            manifest = self._replay_export_reader.load_manifest_for_session(
+                session.session_id,
+                session.decision_id,
+                session.usage_decision_id,
+                session.injection_artifact_id,
+            )
+        except Exception as error:
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_REPLAY_UNAVAILABLE",
+                "durable replay manifest could not be resolved",
+            ) from error
+        if (
+            type(manifest) is not DecisionReplayManifest
+            or manifest.session_id != session.session_id
+            or manifest.decision_id != session.decision_id
+            or manifest.usage_decision_id != session.usage_decision_id
+            or manifest.injection_artifact_id
+            != session.injection_artifact_id
+            or manifest.completeness != "complete"
+        ):
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_REPLAY_LINKAGE_INVALID",
+                "durable replay manifest linkage is invalid",
+            )
+        self._verify_replay_read_scope(context, read_scope)
+        try:
+            bundle = export_authorized_replay_bundle(
+                self._replay_export_reader,
+                manifest.manifest_sha256,
+                allowed_classifications=frozenset(
+                    request.allowed_classifications
+                ),
+                max_content_bytes=request.max_content_bytes,
+            )
+        except ReplayExportError as error:
+            raise DurableAgentV3Error(error.code, str(error)) from None
+        except Exception as error:
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_REPLAY_UNAVAILABLE",
+                "durable replay bundle could not be loaded",
+            ) from error
+        if bundle.manifest != manifest:
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_REPLAY_LINKAGE_INVALID",
+                "durable replay export manifest linkage is invalid",
+            )
+        self._verify_replay_read_scope(context, read_scope)
+        retained_session, retained_scope = self._recover_retrieval_scope(
+            context,
+            request.session_id,
+        )
+        if (
+            retained_session != expected_session
+            or retained_scope != expected_retrieval_scope
+        ):
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_SESSION_CHANGED",
+                "GateSession changed during replay export",
+            )
+        self._verify_session_scope(retained_session, read_scope)
+        return DurableReplayExportResult(
+            session=retained_session,
+            bundle=bundle,
+            read_authorization_event_id=read_scope.authorization_event_id,
+            retrieval_authorization_event_id=(
+                retained_scope.authorization_event_id
+            ),
+        )
+
     def _verify_transition_scope(
         self,
         context: AuthenticatedServiceContext,
@@ -532,6 +793,17 @@ class AuthenticatedDurableAgentMemory:
             context,
             scope,
             permission="gate_session:transition",
+        )
+
+    def _verify_replay_read_scope(
+        self,
+        context: AuthenticatedServiceContext,
+        scope: AuthorizedRetrievalScope,
+    ) -> None:
+        self._authorization_service.verify_authorized_scope(
+            context,
+            scope,
+            permission="artifact:read",
         )
 
     def _recover_retrieval_scope(
@@ -605,6 +877,17 @@ class AuthenticatedDurableAgentMemory:
                 "durable Agent session read-back is invalid",
             )
         return session
+
+    @staticmethod
+    def _verify_expected_session_version(
+        session: GateSession,
+        expected_version: int,
+    ) -> None:
+        if session.version != expected_version:
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_SESSION_CHANGED",
+                "GateSession does not match the expected replay revision",
+            )
 
     @staticmethod
     def _verify_session_scope(

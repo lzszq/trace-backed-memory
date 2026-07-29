@@ -1037,6 +1037,101 @@ class PostgresReplayV3Repository:
             )
         return injection, artifact.content
 
+    def _load_manifest(
+        self,
+        cursor: object,
+        manifest_sha256: str,
+    ) -> DecisionReplayManifest:
+        size = self._select_one(
+            cursor,
+            """
+            SELECT pg_catalog.octet_length(descriptor) AS descriptor_size
+            FROM trace_backed_memory_v3_replay.replay_manifests
+            WHERE manifest_sha256 = %s
+            """,
+            (manifest_sha256,),
+        )
+        if size is None:
+            raise KeyError(manifest_sha256)
+        descriptor_size = size.get("descriptor_size")
+        if (
+            type(descriptor_size) is not int
+            or not 1 <= cast(int, descriptor_size) <= REPLAY_JSON_MAX_BYTES
+        ):
+            raise PostgresReplayV3PersistenceError(
+                "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                "PostgreSQL replay manifest exceeds bounded load contract",
+            )
+        stored = self._select_one(
+            cursor,
+            """
+            SELECT manifest_sha256, session_id, decision_id,
+                   usage_decision_id, injection_artifact_id,
+                   completeness, descriptor
+            FROM trace_backed_memory_v3_replay.replay_manifests
+            WHERE manifest_sha256 = %s
+            """,
+            (manifest_sha256,),
+        )
+        if stored is None:
+            raise PostgresReplayV3PersistenceError(
+                "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                "PostgreSQL replay manifest disappeared during load",
+            )
+        manifest = self._stored_manifest(stored)
+        if manifest.injection_artifact_id is not None:
+            injection_size = self._select_one(
+                cursor,
+                """
+                SELECT pg_catalog.octet_length(descriptor)
+                           AS descriptor_size
+                FROM trace_backed_memory_v3_replay.replay_injections
+                WHERE artifact_id = %s
+                """,
+                (manifest.injection_artifact_id,),
+            )
+            if injection_size is None:
+                raise PostgresReplayV3PersistenceError(
+                    "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                    "PostgreSQL replay manifest references an unknown injection",
+                )
+            stored_size = injection_size.get("descriptor_size")
+            if (
+                type(stored_size) is not int
+                or not 1 <= cast(int, stored_size) <= REPLAY_JSON_MAX_BYTES
+            ):
+                raise PostgresReplayV3PersistenceError(
+                    "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                    "PostgreSQL replay injection exceeds bounded load contract",
+                )
+            injection_row = self._select_one(
+                cursor,
+                """
+                SELECT artifact_id, session_id, decision_id,
+                       usage_decision_id, descriptor
+                FROM trace_backed_memory_v3_replay.replay_injections
+                WHERE artifact_id = %s
+                """,
+                (manifest.injection_artifact_id,),
+            )
+            if injection_row is None:
+                raise PostgresReplayV3PersistenceError(
+                    "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                    "PostgreSQL replay injection disappeared during "
+                    "manifest load",
+                )
+            injection = self._stored_injection(injection_row)
+            if (
+                manifest.session_id != injection.session_id
+                or manifest.decision_id != injection.decision_id
+                or manifest.usage_decision_id != injection.usage_decision_id
+            ):
+                raise PostgresReplayV3PersistenceError(
+                    "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                    "PostgreSQL replay manifest linkage differs from injection",
+                )
+        return manifest
+
     def _cursor(self) -> object:
         _psycopg, dict_row, _Jsonb = _load_psycopg()
         return self._connection.cursor(row_factory=dict_row)
@@ -1290,72 +1385,87 @@ class PostgresReplayV3Repository:
             with self._connection.transaction():
                 with self._cursor() as cursor:
                     self._lock_schema(cursor)
-                    size = self._select_one(
-                        cursor,
-                        """
-                        SELECT pg_catalog.octet_length(descriptor)
-                                   AS descriptor_size
-                        FROM trace_backed_memory_v3_replay.replay_manifests
-                        WHERE manifest_sha256 = %s
-                        """,
-                        (manifest_sha256,),
-                    )
-                    if size is None:
-                        raise KeyError(manifest_sha256)
-                    descriptor_size = size.get("descriptor_size")
-                    if (
-                        type(descriptor_size) is not int
-                        or not 1 <= cast(int, descriptor_size) <= REPLAY_JSON_MAX_BYTES
-                    ):
-                        raise PostgresReplayV3PersistenceError(
-                            "TBM_POSTGRES_REPLAY_PERSISTENCE",
-                            "PostgreSQL replay manifest exceeds bounded load contract",
-                        )
-                    stored = self._select_one(
-                        cursor,
-                        """
-                        SELECT manifest_sha256, session_id, decision_id,
-                               usage_decision_id, injection_artifact_id,
-                               completeness, descriptor
-                        FROM
-                            trace_backed_memory_v3_replay.replay_manifests
-                        WHERE manifest_sha256 = %s
-                        """,
-                        (manifest_sha256,),
-                    )
-                    if stored is None:
-                        raise PostgresReplayV3PersistenceError(
-                            "TBM_POSTGRES_REPLAY_PERSISTENCE",
-                            "PostgreSQL replay manifest disappeared during load",
-                        )
-                    manifest = self._stored_manifest(stored)
-                    if manifest.injection_artifact_id is not None:
-                        try:
-                            injection, _ = self._load_injection(
-                                cursor,
-                                manifest.injection_artifact_id,
-                            )
-                        except KeyError as error:
-                            raise PostgresReplayV3PersistenceError(
-                                "TBM_POSTGRES_REPLAY_PERSISTENCE",
-                                "PostgreSQL replay manifest references an "
-                                "unknown injection",
-                            ) from error
-                        if (
-                            manifest.session_id != injection.session_id
-                            or manifest.decision_id != injection.decision_id
-                            or manifest.usage_decision_id != injection.usage_decision_id
-                        ):
-                            raise PostgresReplayV3PersistenceError(
-                                "TBM_POSTGRES_REPLAY_PERSISTENCE",
-                                "PostgreSQL replay manifest linkage differs "
-                                "from injection",
-                            )
-                    return manifest
+                    return self._load_manifest(cursor, manifest_sha256)
         except (KeyError, PostgresReplayV3SchemaError):
             raise
         except psycopg.Error as error:
             self._raise_database_error(error, "failed to load replay manifest")
+
+    @_synchronized
+    def load_manifest_for_session(
+        self,
+        session_id: str,
+        decision_id: str,
+        usage_decision_id: str,
+        injection_artifact_id: str,
+    ) -> DecisionReplayManifest:
+        """Resolve one exact retained manifest without accepting a content ID."""
+
+        self._require_open()
+        _validate_identifier(session_id, "session_id")
+        _validate_identifier(decision_id, "decision_id")
+        _validate_identifier(usage_decision_id, "usage_decision_id")
+        _validate_artifact_id(injection_artifact_id)
+        psycopg, _dict_row, _Jsonb = _load_psycopg()
+        try:
+            with self._connection.transaction():
+                with self._cursor() as cursor:
+                    self._lock_schema(cursor)
+                    cursor.execute(
+                        """
+                        SELECT manifest_sha256
+                        FROM trace_backed_memory_v3_replay.replay_manifests
+                        WHERE session_id = %s
+                          AND decision_id = %s
+                          AND usage_decision_id = %s
+                          AND injection_artifact_id = %s
+                        ORDER BY manifest_sha256
+                        LIMIT 2
+                        """,
+                        (
+                            session_id,
+                            decision_id,
+                            usage_decision_id,
+                            injection_artifact_id,
+                        ),
+                    )
+                    matches = cursor.fetchall()
+                    if not matches:
+                        raise KeyError(session_id)
+                    if (
+                        len(matches) != 1
+                        or not isinstance(matches[0], Mapping)
+                        or type(matches[0].get("manifest_sha256")) is not str
+                    ):
+                        raise PostgresReplayV3PersistenceError(
+                            "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                            "PostgreSQL replay session manifest linkage "
+                            "is ambiguous",
+                        )
+                    manifest = self._load_manifest(
+                        cursor,
+                        cast(str, matches[0]["manifest_sha256"]),
+                    )
+                    if (
+                        manifest.session_id != session_id
+                        or manifest.decision_id != decision_id
+                        or manifest.usage_decision_id != usage_decision_id
+                        or manifest.injection_artifact_id
+                        != injection_artifact_id
+                    ):
+                        raise PostgresReplayV3PersistenceError(
+                            "TBM_POSTGRES_REPLAY_PERSISTENCE",
+                            "PostgreSQL replay session manifest linkage "
+                            "is invalid",
+                        )
+                    return manifest
+        except (KeyError, PostgresReplayV3SchemaError):
+            raise
+        except psycopg.Error as error:
+            self._raise_database_error(
+                error,
+                "failed to load replay manifest for session",
+            )
 
     @staticmethod
     def _raise_database_error(
@@ -1437,6 +1547,16 @@ def _validate_complete_bundle_inputs(
 def _validate_artifact_id(value: object) -> None:
     if type(value) is not str or _ARTIFACT_ID_RE.fullmatch(value) is None:
         raise ValueError("artifact_id must use artifact_sha256_<64 lowercase hex>")
+
+
+def _validate_identifier(value: object, field_name: str) -> None:
+    if (
+        type(value) is not str
+        or not value
+        or value.strip() != value
+        or len(value) > 128
+    ):
+        raise ValueError(f"{field_name} must be a nonblank bounded identifier")
 
 
 def _validate_digest(value: object, name: str) -> None:

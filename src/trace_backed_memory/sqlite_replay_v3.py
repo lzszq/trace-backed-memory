@@ -842,6 +842,83 @@ class SQLiteReplayV3Repository:
             )
         return injection, stored.content
 
+    def _load_manifest(
+        self,
+        cursor: sqlite3.Cursor,
+        manifest_sha256: str,
+    ) -> DecisionReplayManifest:
+        cursor.execute(
+            "SELECT length(CAST(descriptor AS BLOB)) "
+            "FROM v3_replay_manifests WHERE manifest_sha256 = ?",
+            (manifest_sha256,),
+        )
+        size = cursor.fetchone()
+        if size is None:
+            raise KeyError(manifest_sha256)
+        if (
+            len(size) != 1
+            or type(size[0]) is not int
+            or size[0] < 1
+            or size[0] > REPLAY_JSON_MAX_BYTES
+        ):
+            raise SQLiteReplayV3PersistenceError(
+                "SQLite replay manifest exceeds bounded load contract"
+            )
+        cursor.execute(
+            "SELECT manifest_sha256, session_id, decision_id, "
+            "usage_decision_id, injection_artifact_id, "
+            "completeness, descriptor "
+            "FROM v3_replay_manifests WHERE manifest_sha256 = ?",
+            (manifest_sha256,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            raise SQLiteReplayV3PersistenceError(
+                "SQLite replay manifest disappeared during load"
+            )
+        manifest = self._stored_manifest(row)
+        if manifest.injection_artifact_id is not None:
+            cursor.execute(
+                "SELECT length(CAST(descriptor AS BLOB)) "
+                "FROM v3_replay_injections WHERE artifact_id = ?",
+                (manifest.injection_artifact_id,),
+            )
+            injection_size = cursor.fetchone()
+            if injection_size is None:
+                raise SQLiteReplayV3PersistenceError(
+                    "SQLite replay manifest references an unknown injection"
+                )
+            if (
+                len(injection_size) != 1
+                or type(injection_size[0]) is not int
+                or injection_size[0] < 1
+                or injection_size[0] > REPLAY_JSON_MAX_BYTES
+            ):
+                raise SQLiteReplayV3PersistenceError(
+                    "SQLite replay injection exceeds bounded load contract"
+                )
+            cursor.execute(
+                "SELECT artifact_id, session_id, decision_id, "
+                "usage_decision_id, descriptor "
+                "FROM v3_replay_injections WHERE artifact_id = ?",
+                (manifest.injection_artifact_id,),
+            )
+            injection_row = cursor.fetchone()
+            if injection_row is None:
+                raise SQLiteReplayV3PersistenceError(
+                    "SQLite replay injection disappeared during manifest load"
+                )
+            injection = self._stored_injection(injection_row)
+            if (
+                manifest.session_id != injection.session_id
+                or manifest.decision_id != injection.decision_id
+                or manifest.usage_decision_id != injection.usage_decision_id
+            ):
+                raise SQLiteReplayV3PersistenceError(
+                    "SQLite replay manifest linkage differs from injection"
+                )
+        return manifest
+
     @_synchronized
     def store_complete_bundle(
         self,
@@ -958,59 +1035,78 @@ class SQLiteReplayV3Repository:
             with self._transaction(write=False):
                 with closing(self._connection.cursor()) as cursor:
                     self._require_schema(cursor)
-                    cursor.execute(
-                        "SELECT length(CAST(descriptor AS BLOB)) "
-                        "FROM v3_replay_manifests WHERE manifest_sha256 = ?",
-                        (manifest_sha256,),
-                    )
-                    size = cursor.fetchone()
-                    if size is None:
-                        raise KeyError(manifest_sha256)
-                    if (
-                        len(size) != 1
-                        or type(size[0]) is not int
-                        or size[0] < 1
-                        or size[0] > REPLAY_JSON_MAX_BYTES
-                    ):
-                        raise SQLiteReplayV3PersistenceError(
-                            "SQLite replay manifest exceeds bounded load contract"
-                        )
-                    cursor.execute(
-                        "SELECT manifest_sha256, session_id, decision_id, "
-                        "usage_decision_id, injection_artifact_id, "
-                        "completeness, descriptor "
-                        "FROM v3_replay_manifests WHERE manifest_sha256 = ?",
-                        (manifest_sha256,),
-                    )
-                    row = cursor.fetchone()
-                    if row is None:
-                        raise SQLiteReplayV3PersistenceError(
-                            "SQLite replay manifest disappeared during load"
-                        )
-                    manifest = self._stored_manifest(row)
-                    if manifest.injection_artifact_id is not None:
-                        try:
-                            injection, _ = self._load_injection(
-                                cursor,
-                                manifest.injection_artifact_id,
-                            )
-                        except KeyError as error:
-                            raise SQLiteReplayV3PersistenceError(
-                                "SQLite replay manifest references an unknown injection"
-                            ) from error
-                        if (
-                            manifest.session_id != injection.session_id
-                            or manifest.decision_id != injection.decision_id
-                            or manifest.usage_decision_id != injection.usage_decision_id
-                        ):
-                            raise SQLiteReplayV3PersistenceError(
-                                "SQLite replay manifest linkage differs from injection"
-                            )
-                    return manifest
+                    return self._load_manifest(cursor, manifest_sha256)
         except (KeyError, SQLiteReplayV3SchemaError):
             raise
         except sqlite3.DatabaseError as error:
             self._raise_database_error(error, "load replay manifest")
+
+    @_synchronized
+    def load_manifest_for_session(
+        self,
+        session_id: str,
+        decision_id: str,
+        usage_decision_id: str,
+        injection_artifact_id: str,
+    ) -> DecisionReplayManifest:
+        """Resolve one exact retained manifest without accepting a content ID."""
+
+        self._require_open()
+        _validate_identifier(session_id, "session_id")
+        _validate_identifier(decision_id, "decision_id")
+        _validate_identifier(usage_decision_id, "usage_decision_id")
+        _validate_artifact_id(injection_artifact_id)
+        try:
+            with self._transaction(write=False):
+                with closing(self._connection.cursor()) as cursor:
+                    self._require_schema(cursor)
+                    cursor.execute(
+                        "SELECT manifest_sha256 "
+                        "FROM v3_replay_manifests "
+                        "WHERE session_id = ? AND decision_id = ? "
+                        "AND usage_decision_id = ? "
+                        "AND injection_artifact_id = ? "
+                        "ORDER BY manifest_sha256 LIMIT 2",
+                        (
+                            session_id,
+                            decision_id,
+                            usage_decision_id,
+                            injection_artifact_id,
+                        ),
+                    )
+                    matches = cursor.fetchall()
+                    if not matches:
+                        raise KeyError(session_id)
+                    if (
+                        len(matches) != 1
+                        or len(matches[0]) != 1
+                        or type(matches[0][0]) is not str
+                    ):
+                        raise SQLiteReplayV3PersistenceError(
+                            "SQLite replay session manifest linkage is ambiguous"
+                        )
+                    manifest = self._load_manifest(
+                        cursor,
+                        cast(str, matches[0][0]),
+                    )
+                    if (
+                        manifest.session_id != session_id
+                        or manifest.decision_id != decision_id
+                        or manifest.usage_decision_id != usage_decision_id
+                        or manifest.injection_artifact_id
+                        != injection_artifact_id
+                    ):
+                        raise SQLiteReplayV3PersistenceError(
+                            "SQLite replay session manifest linkage is invalid"
+                        )
+                    return manifest
+        except (KeyError, SQLiteReplayV3SchemaError):
+            raise
+        except sqlite3.DatabaseError as error:
+            self._raise_database_error(
+                error,
+                "load replay manifest for session",
+            )
 
     def _raise_database_error(
         self,
@@ -1087,6 +1183,16 @@ def _validate_complete_bundle_inputs(
 def _validate_artifact_id(value: object) -> None:
     if type(value) is not str or _ARTIFACT_ID_RE.fullmatch(value) is None:
         raise ValueError("artifact_id must use artifact_sha256_<64 lowercase hex>")
+
+
+def _validate_identifier(value: object, field_name: str) -> None:
+    if (
+        type(value) is not str
+        or not value
+        or value.strip() != value
+        or len(value) > 128
+    ):
+        raise ValueError(f"{field_name} must be a nonblank bounded identifier")
 
 
 def _validate_digest(value: object, field_name: str) -> None:

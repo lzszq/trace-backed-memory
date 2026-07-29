@@ -432,8 +432,10 @@ content-derived export digest 下，按规范顺序打包 manifest、可选 inje
 descriptor 与全部现存 component 的精确字节。解码内容上限为 8 MiB，外部 JSON
 envelope 上限为 16 MiB。reader adapter 要求显式 classification allowlist、重新计算
 每一份字节 hash，并由两个 opt-in replay repository 直接满足而无需改变 schema。
-在 replay-read authorization 与 durable version-3 session identity 激活前，它刻意
-不进入 `tbm.agent.v1`、HTTP 或 MCP。
+repository 会用 descriptor-only read 从 session linkage 解析唯一 manifest。已认证
+durable Agent 现在会先持久化新的 `artifact:read` decision 并检查精确 session
+version，再调用 reader。除非 transport 通过已认证 identity 构造 durable facade，
+replay export 仍刻意不进入 `tbm.agent.v1`、HTTP 或 MCP。
 
 `usage_decision_v3.py` 增加 content-addressed 最终使用审计。它保留有序
 retrieval/System/Semantic/rendered 集合、精确补集与 System block 原因，以及当前
@@ -586,8 +588,9 @@ replay-manifest/finalization 挂接：它在确定性有界渲染前后复查当
 event、active head 与 policy，保留并读回完整 component bundle，再通过 CAS 发布
 `FINALIZED`。共享 SQLite/PostgreSQL connection 时，调用方可一起回滚 lease、bundle
 与最终 session revision；authority 分离时使用显式恢复。有签名 provider attestation、
-受保护内容加密、retention/replay-read authorization、持久 transition-event linkage
-与 active emission 尚未提供。`durable_execution_v3.py` 提供 opt-in runtime 后半段：
+受保护内容加密、retention、transport-authenticated replay 暴露、持久
+transition-event linkage 与 active emission 尚未提供。`durable_execution_v3.py`
+提供 opt-in runtime 后半段：
 回放并核验精确保留 finalization bundle，要求当前 owner-matched transition 授权，
 通过 CAS 发布 `EXECUTING`，支持精确 revision 的 resume/abandonment，通过每次调用的
 可信 authenticator 认证已注册 outcome evaluator，并组合现有原子 RunOutcome、
@@ -726,9 +729,11 @@ decide/finalize/start/resume/cancel/abandon/complete 会追加当前
 `gate_session:transition` decision。service-graph identity check 要求共享同一个
 authorization service、
 GateSession authority、evidence authority、Semantic Gate authority、
-ActivatedRevision source 与 finalization replay path。SQLite/PostgreSQL 测试覆盖
-对等 lifecycle continuation。该组合仍依赖嵌入 transport 提供可信 context，尚不是
-默认 MCP/HTTP/SDK wiring。
+ActivatedRevision source 与 finalization replay path。session-bound replay
+export 会追加并复查新的 `artifact:read` decision，从已保留
+session linkage 解析 manifest，并拒绝已变化的 session revision。SQLite/PostgreSQL
+测试覆盖对等 lifecycle continuation。该组合仍依赖嵌入 transport 提供可信 context，
+尚不是默认 MCP/HTTP/SDK wiring。
 
 storage-neutral completion-outbox 契约把一条 immutable
 `execution_completed` event 与 append-only delivery revision 分离。opt-in

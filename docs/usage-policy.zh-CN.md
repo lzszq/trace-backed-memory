@@ -576,11 +576,20 @@ finalize、start、resume、cancel、abandon 与 completion 都会持久化新�
 capability。facade 在调用之间无状态，adapter 应在自己的 versioned protocol 中持久
 保存返回的 session ID/version。
 
+replay export 只能接受 `DurableReplayExportRequest`，不得接受调用方提供的 manifest
+digest 或 artifact ID。必须要求精确当前 session version、恢复原始 retrieval scope、
+持久化并回读新的 repository-scoped `artifact:read` decision，再从 session 已保留
+decision/usage/injection linkage 解析唯一 manifest；映射缺失或不唯一必须 fail
+closed。classification allowlist 只能收窄已授权 read。manifest lookup 必须只读
+descriptor，确保 classification/size preflight 发生在 artifact bytes 读取之前；
+export 后还要复查 read scope 与未变化的 GateSession。
+
 该 facade 不是 transport authenticator，默认 Agent/MCP profile 当前也不调用它。
 在 shared transport 暴露前，transport 必须派生可信 identity 与
 provider/evaluator credential，服务端必须配置完整 authority graph，外部执行必须按
-`run_id` 幂等，并具备精确 retry/recovery conformance test。当前 finalization 只支持
-public/internal plaintext replay profile。
+`run_id` 幂等，并具备精确 retry/recovery conformance test。直接 Python durable
+facade 现在会授权 public/internal replay read；存储仍只支持 public/internal
+plaintext replay profile。
 
 ## Version-3 结果与归因策略
 

@@ -402,12 +402,16 @@ from .durable_execution_v3 import (
 )
 from .durable_agent_v3 import (
     DURABLE_AGENT_CONTRACT_VERSION,
+    DURABLE_REPLAY_EXPORT_CONTRACT_VERSION,
     AuthenticatedDurableAgentMemory,
     DurableAgentCancelRequest,
     DurableAgentCancelResult,
     DurableAgentEvidenceReader,
+    DurableAgentReplayExportReader,
     DurableAgentSessionAuthority,
     DurableAgentV3Error,
+    DurableReplayExportRequest,
+    DurableReplayExportResult,
 )
 from .sdk import (
     SDK_RESPONSE_MAX_BYTES,
@@ -1791,12 +1795,16 @@ __all__ = [
     "OutcomeEvaluatorStatus",
     "TrustedOutcomeEvaluator",
     "DURABLE_AGENT_CONTRACT_VERSION",
+    "DURABLE_REPLAY_EXPORT_CONTRACT_VERSION",
     "AuthenticatedDurableAgentMemory",
     "DurableAgentCancelRequest",
     "DurableAgentCancelResult",
     "DurableAgentEvidenceReader",
+    "DurableAgentReplayExportReader",
     "DurableAgentSessionAuthority",
     "DurableAgentV3Error",
+    "DurableReplayExportRequest",
+    "DurableReplayExportResult",
     "SDK_RESPONSE_MAX_BYTES",
     "SDK_RESPONSE_MAX_DEPTH",
     "SDK_RESPONSE_MAX_NODES",

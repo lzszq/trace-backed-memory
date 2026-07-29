@@ -68,7 +68,12 @@ The facade exposes:
    replay; and
 8. `get_session(context, session_id)`:
    returns current durable state only after recovering and verifying the
-   original retrieval authorization.
+   original retrieval authorization; and
+9. `export_replay_bundle(context, request)`:
+   resolves the manifest from the exact durable-session linkage, persists and
+   reads back a fresh `artifact:read` decision, preflights every descriptor,
+   and returns the canonical portable replay bundle plus both authorization
+   event IDs.
 
 The facade does not expose `AuthorizedRetrievalScope` in its public method
 inputs. Adapters pass only trusted contexts and versioned requests.
@@ -115,6 +120,33 @@ the replay and recovery semantics of their underlying services. The facade
 does not rerender a snippet, repeat a retained provider success, or infer a
 measurement.
 
+## Authorized replay export
+
+`DurableReplayExportRequest` binds the trusted operation to:
+
+- `session_id`;
+- `expected_session_version`;
+- a non-empty, duplicate-free classification allowlist; and
+- a caller content limit no larger than the global 8 MiB export limit.
+
+The request deliberately does not accept a manifest digest or artifact ID.
+After recovering the original `memory:retrieve` scope, the facade requires an
+exact current session version and persists a new repository-scoped
+`artifact:read` decision. Only inside that authorized callback does it resolve
+the unique manifest matching the session's retained decision, usage decision,
+and injection IDs. Missing or ambiguous linkage fails closed.
+
+Manifest lookup reads bounded manifest and injection descriptors, not artifact
+content. The portable exporter then checks every descriptor's classification,
+size, digest, and manifest linkage before reading bytes. It rechecks the
+current artifact-read authorization and the unchanged GateSession before
+returning `DurableReplayExportResult`. The result links the bundle to both the
+fresh read event and the original retrieval event.
+
+The current SQLite and PostgreSQL replay authorities only support
+`public`/`internal` plaintext. This method does not broaden that storage
+boundary and does not grant access based on the classification allowlist.
+
 ## Trust boundary
 
 This composition is not a transport authenticator. The embedding service must:
@@ -127,8 +159,9 @@ This composition is not a transport authenticator. The embedding service must:
 - configure durable authorities and provider callbacks on the server.
 
 The current composition supports the existing public/internal plaintext replay
-profile. Protected-content encryption, replay-read authorization, retention
-integration, durable transition-authorization linkage in GateSession
+profile and an authenticated direct-Python replay-read boundary.
+Protected-content encryption, retention integration, transport-authenticated
+replay exposure, durable transition-authorization linkage in GateSession
 revisions, and physical repository attestation remain separate required work.
 
 ## Adapter status
@@ -136,7 +169,8 @@ revisions, and physical repository attestation remain separate required work.
 The facade is the shared application boundary intended for future MCP, HTTP,
 CLI-daemon, and SDK adapters. The default `LocalAgentMemory` and `tbm-mcp`
 profiles still use `tbm.agent.v1` with process-local pending handles. No current
-network adapter constructs this facade, and this protocol does not claim
+network adapter constructs this facade or exposes replay export, and this
+protocol does not claim
 transport authentication, shared multi-tenant readiness, or schema-version-3
 cutover.
 

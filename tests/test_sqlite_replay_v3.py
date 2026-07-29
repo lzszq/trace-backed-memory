@@ -346,6 +346,60 @@ def test_store_bundle_links_and_replays_all_records_in_one_transaction():
     assert replay.injection_inserted is False
     assert replay.manifest_inserted is False
     assert repository.load_manifest(manifest.manifest_sha256) == manifest
+    assert (
+        repository.load_manifest_for_session(
+            manifest.session_id,
+            manifest.decision_id,
+            manifest.usage_decision_id,
+            injection.artifact.artifact_id,
+        )
+        == manifest
+    )
+
+
+def test_manifest_reads_preflight_injection_metadata_without_loading_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    injection, content = _injection()
+    manifest = _manifest(injection)
+    repository = SQLiteReplayV3Repository.connect(initialize=True)
+    repository.store_bundle(injection, content, manifest)
+
+    def fail_if_content_is_loaded(*args: object) -> None:
+        del args
+        pytest.fail("manifest lookup must not load injection content")
+
+    monkeypatch.setattr(repository, "_load_injection", fail_if_content_is_loaded)
+
+    assert repository.load_manifest(manifest.manifest_sha256) == manifest
+
+
+def test_manifest_session_lookup_fails_closed_on_ambiguous_linkage() -> None:
+    injection, content = _injection()
+    manifest = _manifest(injection)
+    duplicate = build_decision_replay_manifest(
+        session_id=manifest.session_id,
+        decision_id=manifest.decision_id,
+        usage_decision_id=manifest.usage_decision_id,
+        component_hashes=dict(manifest.components),
+        injection_artifact_id=manifest.injection_artifact_id,
+        completeness="complete",
+        created_at="2026-07-30T00:01:00Z",
+    )
+    repository = SQLiteReplayV3Repository.connect(initialize=True)
+    repository.store_bundle(injection, content, manifest)
+    assert repository.store_manifest(duplicate) is True
+
+    with pytest.raises(
+        SQLiteReplayV3PersistenceError,
+        match="ambiguous",
+    ):
+        repository.load_manifest_for_session(
+            manifest.session_id,
+            manifest.decision_id,
+            manifest.usage_decision_id,
+            injection.artifact.artifact_id,
+        )
 
 
 def test_store_bundle_rejects_link_mismatch_without_partial_rows():

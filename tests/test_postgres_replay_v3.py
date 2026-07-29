@@ -413,6 +413,15 @@ def test_postgres_replay_repository_bundle_round_trip_and_idempotency(
             content,
         )
         assert repository.load_manifest(manifest.manifest_sha256) == manifest
+        assert (
+            repository.load_manifest_for_session(
+                manifest.session_id,
+                manifest.decision_id,
+                manifest.usage_decision_id,
+                injection.artifact.artifact_id,
+            )
+            == manifest
+        )
 
         replayed = repository.store_bundle(injection, content, manifest)
         assert replayed.artifact_inserted is False
@@ -500,6 +509,39 @@ def test_postgres_complete_bundle_is_atomic_and_usage_bound(
                 injection,
                 snippet,
                 manifest,
+            )
+
+
+def test_postgres_manifest_session_lookup_rejects_ambiguous_linkage(
+    postgres_cluster: PostgresCluster,
+) -> None:
+    psycopg = pytest.importorskip("psycopg")
+    _install(postgres_cluster)
+    injection, content = _injection()
+    manifest = _manifest(injection)
+    duplicate = build_decision_replay_manifest(
+        session_id=manifest.session_id,
+        decision_id=manifest.decision_id,
+        usage_decision_id=manifest.usage_decision_id,
+        component_hashes=dict(manifest.components),
+        injection_artifact_id=manifest.injection_artifact_id,
+        completeness="complete",
+        created_at="2026-07-27T00:01:00Z",
+    )
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        repository = tbm.PostgresReplayV3Repository(connection)
+        repository.store_bundle(injection, content, manifest)
+        assert repository.store_manifest(duplicate) is True
+
+        with pytest.raises(
+            tbm.PostgresReplayV3PersistenceError,
+            match="ambiguous",
+        ):
+            repository.load_manifest_for_session(
+                manifest.session_id,
+                manifest.decision_id,
+                manifest.usage_decision_id,
+                injection.artifact.artifact_id,
             )
 
 

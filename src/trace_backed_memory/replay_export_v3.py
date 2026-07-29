@@ -364,7 +364,7 @@ def export_replay_bundle(
                 "TBM_REPLAY_EXPORT_HASH_MISMATCH",
                 "loaded manifest differs from the requested digest",
             )
-        stored_by_name: dict[str, StoredReplayArtifact] = {}
+        descriptors_by_name: dict[str, ContentAddressedArtifact] = {}
         total_content_bytes = 0
         for name, content_sha256 in manifest.components:
             if content_sha256 is None:
@@ -391,7 +391,12 @@ def export_replay_bundle(
                     "TBM_REPLAY_EXPORT_TOO_LARGE",
                     "replay export content exceeds the caller limit",
                 )
+            total_content_bytes += descriptor.size_bytes
+            descriptors_by_name[name] = descriptor
 
+        stored_by_name: dict[str, StoredReplayArtifact] = {}
+        for name, descriptor in descriptors_by_name.items():
+            artifact_id = descriptor.artifact_id
             stored = reader.load_artifact(artifact_id)
             if type(stored) is not StoredReplayArtifact:
                 _invalid(
@@ -407,7 +412,6 @@ def export_replay_bundle(
                     "TBM_REPLAY_EXPORT_HASH_MISMATCH",
                     "loaded artifact bytes differ from their preflight size",
                 )
-            total_content_bytes += len(stored.content)
             stored_by_name[name] = stored
 
         injection: InjectionArtifact | None = None

@@ -1718,6 +1718,18 @@ Track:
   digest and linkage. Reuse both opt-in replay repositories through a
   storage-neutral reader protocol without schema changes. Keep replay-read
   authorization and Agent/HTTP/MCP exposure outstanding.
+- Add session-bound replay-read authorization to
+  `AuthenticatedDurableAgentMemory`. Resolve one unique manifest from the
+  retained GateSession decision/usage/injection linkage rather than a
+  caller-selected content ID; persist and read back a fresh repository-scoped
+  `artifact:read` decision; bind the request to the exact session version,
+  explicit classification allowlist, and byte limit; and recheck authorization
+  and unchanged session state after export. Add descriptor-only
+  `load_manifest_for_session()` parity to SQLite/PostgreSQL so manifest lookup
+  never loads injection bytes before export preflight. Cover allow/deny,
+  stale-version, ambiguous-linkage, no-preauthorization-byte-read, exact bundle,
+  and PostgreSQL lifecycle parity. Keep transport-authenticated HTTP/MCP/SDK
+  exposure, protected-content encryption, and retention outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

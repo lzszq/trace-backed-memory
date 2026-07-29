@@ -32,9 +32,11 @@ This directory implements the trusted runtime kernel and its adapters.
 - The authenticated durable Agent facade is the only adapter-neutral
   composition of the complete v3 lifecycle. It must recover the original
   retrieval scope from retained Gate evidence, append fresh transition
-  decisions for every post-prepare GateSession mutation, and reject services
-  that do not share one authority graph. Do not treat it as transport
-  authentication or default Agent/MCP wiring.
+  decisions for every post-prepare GateSession mutation, append and recheck a
+  fresh artifact-read decision before session-bound replay export, and reject
+  services that do not share one authority graph. Never accept replay
+  manifest/artifact IDs from caller input. Do not treat the facade as
+  transport authentication or default Agent/MCP wiring.
 - The local STDIO MCP profile is runtime-only. Keep its repository root and
   optional tenant server-owned, preserve bounded strict transport parsing,
   require Git ancestry capture, and expose no curator or activation surface.

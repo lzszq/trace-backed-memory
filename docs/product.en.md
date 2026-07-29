@@ -68,7 +68,7 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Operations CLI | Dependency-free `tbm` and module entry point for snapshots, v3 migration preflight/bundle verification, lessons, obsolescence, audits, metrics, PR reports, completion, and recovery |
 | Migration preparation | Content-addressed inert v2-to-v3 bundles, exact plan replay, immutable SQLite staging, and version-gated PostgreSQL staging/rollback without changing active runtime versions |
 | GateSession persistence preparation | Opt-in side-by-side SQLite and isolated PostgreSQL append-only revisions, scoped idempotency, CAS transitions, trusted clocks, bounded due discovery, and fail-closed PostgreSQL rollback without changing active SQLite v1/PostgreSQL v2 |
-| Replay persistence preparation | Storage-neutral content-addressed artifact, exact injection, fixed-component decision-manifest, and portable `tbm.replay-export.v3` contracts plus opt-in isolated SQLite/PostgreSQL immutable byte/descriptor ledgers; bounded export requires an explicit classification allowlist, while active adapters do not use it |
+| Replay persistence preparation | Storage-neutral content-addressed artifact, exact injection, fixed-component decision-manifest, and portable `tbm.replay-export.v3` contracts plus opt-in isolated SQLite/PostgreSQL immutable byte/descriptor ledgers; the durable facade now authorizes an exact-version, session-bound direct-Python export with a fresh `artifact:read` decision, while active transports do not expose it |
 | Authorization contract preparation | Storage-neutral canonical repository, exact alias, principal/client, role-binding, and linked-decision v3 contracts plus opt-in isolated SQLite/PostgreSQL immutable authorities; active adapters do not yet enforce them |
 | Structured evidence preparation | Content-addressed FixEvidence and regression evidence bind the exact case, source Trace, source/fix/verification commits, artifacts, independent reviewers/verifiers, and attestation provenance; strict MemoryRevision preflight verifies their cross-record linkage, while active v2 records do not use them |
 | Immutable revision publication | Content-derived proposals and separate approval/activation events bind exact artifact, evidence, authorization, actors, scope, and lineage; isolated SQLite/PostgreSQL authorities persist canonical provenance, validate attestations through a caller boundary, and CAS-lock the durable target head; an authorized ActivatedRevision source revalidates the current head, publication provenance, structured evidence, and encrypted content through SQLite/PostgreSQL Artifact authorities for future v3 retrieval; active-v2 projection and retrieval integration remain outstanding |
@@ -109,8 +109,10 @@ scope from retained RetrievalSnapshot authorization linkage, rechecks the
 current registry and physical service graph, adds authorized exact-version
 cancellation, and requests a fresh transition decision for each post-prepare
 GateSession mutation. The facade keeps no process-local lifecycle handles and
-has SQLite/PostgreSQL continuation parity. It is not yet the default Agent/MCP
-path and does not supply transport authentication.
+has SQLite/PostgreSQL continuation parity. It also resolves replay manifests
+from retained session linkage and authorizes bounded replay export without
+accepting content-derived lookup IDs. It is not yet the default Agent/MCP path
+and does not supply transport authentication.
 
 ### 5.2 From Failure to Reusable Lesson
 
@@ -277,7 +279,8 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
   descriptor, idempotency, savepoint, drift, and concurrency parity. The
   opt-in finalization composition authorizes and rechecks one exact scope,
   atomically retains the complete component bundle, and links it to
-  `FINALIZED`; active usage logs/adapters, replay-read authorization,
+  `FINALIZED`; the durable facade now authorizes session-bound direct-Python
+  replay reads, while active usage logs/adapters, transport exposure,
   retention, and encryption remain outstanding.
 - The opt-in SQLite and PostgreSQL audit ledgers persist immutable parent-linked AuditEvents
   and atomically pairs RecoveryAction evidence with its matching event. It is

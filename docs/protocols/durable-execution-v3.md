@@ -100,7 +100,9 @@ This service is opt-in. `AuthenticatedDurableAgentMemory` now calls it as the
 execution stage of the shared durable application facade, but the default
 Store, LocalAgentMemory, STDIO MCP, HTTP, and SDK adapters do not construct
 that facade, and the v1 process-local request-token contract is unchanged.
-Protected-content encryption, retention, replay-read authorization, transport
-authentication, active adapter wiring, and a durable
-transition-authorization linkage field remain separate production work. See
+The durable Agent now provides direct-Python, session-bound replay-read
+authorization after this execution service retains the bundle.
+Protected-content encryption, retention, transport-authenticated replay
+exposure, active adapter wiring, and a durable transition-authorization
+linkage field remain separate production work. See
 [authenticated durable Agent v3](durable-agent-v3.md).

@@ -475,7 +475,10 @@ repository through `ReplayExportReader` and requires an explicit
 classification allowlist; `dumps_`/`loads_replay_bundle_export()` preserve a
 bounded canonical JSON envelope; and `verify_replay_bundle_export()` rechecks
 the self-hash, component ordering, byte digests, and injection linkage. This
-is a package-root Python API, not an Agent/HTTP/MCP endpoint.
+is a package-root Python API, not an Agent/HTTP/MCP endpoint. Both SQL peers
+also expose `load_manifest_for_session()` so an authenticated facade can
+resolve one unique manifest from retained session linkage without accepting a
+caller-selected content ID or reading artifact bytes during manifest lookup.
 
 `tbm.usage-decision.v3` records the exact ordered narrowing audit, deterministic
 System blocks, current authorization/evidence/policy/renderer linkage, and
@@ -485,8 +488,10 @@ set, retains and reads back the exact UsageDecision plus complete replay
 bundle, and CAS-publishes `FINALIZED`. Shared SQLite/PostgreSQL connections
 support caller-owned outer rollback; separated authorities use ordered
 recovery. The current Store, active SQL adapters, local agent, and MCP do not
-use this service. Replay-read authorization, protected-content encryption,
-retention, and active adapter integration remain outstanding. See
+use this service. The opt-in authenticated durable Agent now adds
+direct-Python, session-bound `artifact:read` authorization for replay export.
+Protected-content encryption, retention, and transport adapter integration
+remain outstanding. See
 [the replay contract](protocols/replay-v3.md).
 
 The storage-neutral authorization-v3 contract defines canonical repositories,
@@ -640,6 +645,7 @@ remain outside database transactions and must deduplicate by GateSession
 
 `AuthenticatedDurableAgentMemory` composes
 `prepare/decide/finalize/start/resume/cancel/abandon/complete/get_session`
+and authorized `export_replay_bundle`
 over one exact authority graph. Public calls accept trusted contexts and
 versioned request records, not authorization scopes. Continuations load the
 session-linked RetrievalSnapshot and call
@@ -647,7 +653,10 @@ session-linked RetrievalSnapshot and call
 authorization event; every post-prepare GateSession mutation appends a fresh
 transition decision.
 `DurableAgentCancelRequest` supports exact-version cancellation and exact
-terminal replay. See
+terminal replay. `DurableReplayExportRequest` binds an exact session version,
+classification allowlist, and byte limit; `DurableReplayExportResult` links
+the canonical bundle to the fresh read authorization and original retrieval
+authorization. See
 [authenticated durable Agent v3](protocols/durable-agent-v3.md).
 
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the

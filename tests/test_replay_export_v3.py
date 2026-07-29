@@ -80,6 +80,8 @@ class _Reader:
         self.injection = injection
         self.artifacts = artifacts
         self.artifact_loads = 0
+        self.descriptor_loads = 0
+        self.injection_loads = 0
 
     def load_manifest(
         self,
@@ -95,6 +97,7 @@ class _Reader:
     ) -> tuple[tbm.InjectionArtifact, bytes]:
         if artifact_id != self.injection.artifact.artifact_id:
             raise KeyError(artifact_id)
+        self.injection_loads += 1
         return (
             self.injection,
             self.artifacts["injection_artifact"].content,
@@ -116,6 +119,7 @@ class _Reader:
     ) -> tbm.ContentAddressedArtifact:
         for stored in self.artifacts.values():
             if stored.artifact.artifact_id == artifact_id:
+                self.descriptor_loads += 1
                 return stored.artifact
         raise KeyError(artifact_id)
 
@@ -239,6 +243,54 @@ def test_reader_export_requires_explicit_classifications_and_bounds():
             allowed_classifications=frozenset({"internal"}),
         )
     assert mismatched.value.code == "TBM_REPLAY_EXPORT_HASH_MISMATCH"
+
+
+def test_reader_preflights_every_classification_before_loading_any_bytes():
+    manifest, injection, artifacts = _records()
+    late_name = REPLAY_COMPONENT_NAMES[-1]
+    late_artifact = artifacts[late_name]
+    artifacts[late_name] = tbm.StoredReplayArtifact(
+        replace(
+            late_artifact.artifact,
+            classification="restricted",
+            encryption_key_id="key_restricted",
+        ),
+        late_artifact.content,
+    )
+    reader = _Reader(manifest, injection, artifacts)
+
+    with pytest.raises(tbm.ReplayExportError) as forbidden:
+        tbm.export_replay_bundle(
+            reader,
+            manifest.manifest_sha256,
+            allowed_classifications=frozenset({"internal"}),
+        )
+
+    assert forbidden.value.code == "TBM_REPLAY_EXPORT_FORBIDDEN"
+    assert reader.descriptor_loads == len(REPLAY_COMPONENT_NAMES)
+    assert reader.artifact_loads == 0
+    assert reader.injection_loads == 0
+
+
+def test_reader_preflights_total_size_before_loading_any_bytes():
+    manifest, injection, artifacts = _records()
+    total_bytes = sum(
+        stored.artifact.size_bytes for stored in artifacts.values()
+    )
+    reader = _Reader(manifest, injection, artifacts)
+
+    with pytest.raises(tbm.ReplayExportError) as too_large:
+        tbm.export_replay_bundle(
+            reader,
+            manifest.manifest_sha256,
+            allowed_classifications=frozenset({"internal"}),
+            max_content_bytes=total_bytes - 1,
+        )
+
+    assert too_large.value.code == "TBM_REPLAY_EXPORT_TOO_LARGE"
+    assert reader.descriptor_loads == len(REPLAY_COMPONENT_NAMES)
+    assert reader.artifact_loads == 0
+    assert reader.injection_loads == 0
 
 
 def test_replay_export_rejects_tampering_and_unbounded_input():

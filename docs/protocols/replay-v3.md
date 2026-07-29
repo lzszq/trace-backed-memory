@@ -93,10 +93,18 @@ manifest and injection schemas. The packaged example is
 manifest/component ordering remain value-level checks after JSON Schema
 validation.
 
-This contract is intentionally not exposed through `tbm.agent.v1`, local
-HTTP, or MCP. Those profiles lack replay-read authorization and durable
-version-3 session identity. Adding a network tool before that boundary exists
-would turn content-derived IDs into a data-discovery oracle.
+`AuthenticatedDurableAgentMemory.export_replay_bundle()` now supplies the
+opt-in direct-Python authorization boundary. Its versioned request contains a
+durable session ID rather than a manifest or artifact ID. The facade recovers
+the original retrieval scope, appends and reads back a fresh `artifact:read`
+decision, resolves one unique manifest from the session's retained linkage,
+and rechecks authorization and session version before returning the bundle.
+
+This contract remains intentionally unexposed through `tbm.agent.v1`, local
+HTTP, or MCP. Those profiles do not construct the authenticated durable facade
+or establish transport-authenticated durable session identity. Adding a
+network tool before that boundary exists would turn content-derived IDs into a
+data-discovery oracle.
 
 ## Opt-in SQLite replay ledger
 
@@ -118,9 +126,13 @@ length without fetching the content BLOB. Full loads repeat that preflight,
 then reparse the descriptor, compare duplicated relational columns, and
 rehash the stored bytes. Canonical schema metadata, tables, indexes,
 immutable triggers, foreign keys, and caller savepoint ownership are verified
-fail closed. The ledger does
-not authorize reads, encrypt content, apply retention, prove evidence truth,
-or link to a durable GateSession. The repository rejects
+fail closed. `load_manifest_for_session()` resolves a unique manifest from
+session/decision/usage/injection linkage without accepting a content-derived
+lookup ID. Manifest loading verifies bounded manifest and injection
+descriptors without reading injection bytes, so export classification and size
+preflight still precede content reads. The ledger itself does not authorize
+reads, encrypt content, apply retention, prove evidence truth, or link to a
+durable GateSession. The repository rejects
 confidential/restricted artifacts until a transparent encryption provider can
 preserve exact content identity.
 
@@ -176,6 +188,7 @@ internal composition rather than an active runtime adapter.
 The current v2 Store, active SQLite v1 adapter, PostgreSQL v2 adapter, local
 agent, and STDIO MCP do not persist or emit these records. The opt-in SQLite
 ledger and opt-in PostgreSQL repository provide the retained storage boundary
-and implement the `ReplayExportReader` surface. A production runtime must
-additionally authorize replay reads and apply retention/encryption before
-exposing replay export over a network.
+and implement the replay export reader surfaces. The authenticated durable
+Agent provides direct-Python replay-read authorization over that exact graph.
+A production network runtime must additionally authenticate transport
+identity and apply retention/encryption before exposing replay export.

@@ -54,7 +54,10 @@ facade 暴露：
 7. `cancel(context, request)`：恢复已保留 retrieval evidence，从 `PREPARED` 或
    `AWAITING_DECISION` 授权精确版本取消，并支持精确幂等回放；
 8. `get_session(context, session_id)`：只有恢复并核验原始 retrieval 授权后，才返回
-   当前 durable 状态。
+   当前 durable 状态；以及
+9. `export_replay_bundle(context, request)`：从精确 durable-session linkage 解析
+   manifest，持久化并回读新的 `artifact:read` decision，预检每个 descriptor，
+   然后返回 canonical 可移植 replay bundle 及两条 authorization event ID。
 
 facade 的公共方法输入不暴露 `AuthorizedRetrievalScope`。adapter 只能传入可信
 context 与带版本的 request。
@@ -91,6 +94,30 @@ finalization、execution start、completion、resume 与 abandonment 保留底�
 replay/recovery 语义。facade 不会重新渲染 snippet、重复已保留的 provider success，
 也不会推断 measurement。
 
+## 已授权 replay export
+
+`DurableReplayExportRequest` 把可信操作绑定到：
+
+- `session_id`；
+- `expected_session_version`；
+- 非空、无重复的 classification allowlist；以及
+- 不超过全局 8 MiB export 上限的调用方内容限制。
+
+该请求刻意不接受 manifest digest 或 artifact ID。facade 恢复原始
+`memory:retrieve` scope 后，会要求当前 session version 精确匹配，并持久化新的
+repository-scoped `artifact:read` decision。只有进入这段已授权 callback 后，才会按
+session 已保留的 decision、usage decision 与 injection ID 解析唯一 manifest；
+linkage 缺失或不唯一都会 fail closed。
+
+manifest lookup 只读取有界 manifest/injection descriptor，不读取 artifact 内容。
+可移植 exporter 会在读取字节前检查每个 descriptor 的 classification、size、digest
+与 manifest linkage；返回 `DurableReplayExportResult` 前还会再次核验当前
+artifact-read 授权以及未变化的 GateSession。结果同时关联新的 read event 与原始
+retrieval event。
+
+当前 SQLite/PostgreSQL replay authority 只支持 `public`/`internal` 明文。该方法
+不会放宽此存储边界，也不会把 classification allowlist 当成授权。
+
 ## 信任边界
 
 该组合不是 transport authenticator。嵌入服务必须：
@@ -101,16 +128,18 @@ replay/recovery 语义。facade 不会重新渲染 snippet、重复已保留的 
 - 按 GateSession `run_id` 保持外部 executor effect 幂等；
 - 在服务端配置 durable authority 与 provider callback。
 
-当前组合只支持既有 public/internal plaintext replay profile。受保护内容加密、
-replay-read authorization、retention 集成、GateSession revision 中的持久
-transition-authorization linkage 与物理 repository attestation 仍是独立必做项。
+当前组合支持既有 public/internal plaintext replay profile，以及已认证的直接
+Python replay-read 边界。受保护内容加密、retention 集成、transport-authenticated
+replay 暴露、GateSession revision 中的持久 transition-authorization linkage 与
+物理 repository attestation 仍是独立必做项。
 
 ## Adapter 状态
 
 该 facade 是未来 MCP、HTTP、CLI-daemon 与 SDK adapter 共用的应用边界。默认
 `LocalAgentMemory` 与 `tbm-mcp` profile 仍使用带进程内 pending handle 的
-`tbm.agent.v1`。当前尚无 network adapter 构造此 facade；本协议不宣称 transport
-authentication、shared multi-tenant readiness 或 schema version 3 cutover。
+`tbm.agent.v1`。当前尚无 network adapter 构造此 facade 或暴露 replay export；
+本协议不宣称 transport authentication、shared multi-tenant readiness 或 schema
+version 3 cutover。
 
 facade 测试覆盖 SQLite/PostgreSQL 生命周期对等性；底层 authority 继续保持既有
 transaction、savepoint、CAS 与 rollback 契约。

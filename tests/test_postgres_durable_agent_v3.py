@@ -49,6 +49,7 @@ def test_postgres_authenticated_durable_agent_lifecycle_parity(
             permissions=(
                 "memory:retrieve",
                 "gate_session:transition",
+                "artifact:read",
             ),
             sessions=outbox.gate_sessions,
         )
@@ -143,6 +144,14 @@ def test_postgres_authenticated_durable_agent_lifecycle_parity(
                 EVALUATOR_CONTEXT,
                 _completion(resumed.session),
             )
+            exported = agent.export_replay_bundle(
+                context,
+                tbm.DurableReplayExportRequest(
+                    completed.session.session_id,
+                    completed.session.version,
+                    ("internal",),
+                ),
+            )
             prepared_for_cancel = agent.prepare(
                 context,
                 replace(
@@ -165,6 +174,9 @@ def test_postgres_authenticated_durable_agent_lifecycle_parity(
             assert resumed.session.status == "executing"
             assert resumed.replayed is True
             assert completed.session.status == "completed"
+            assert exported.session == completed.session
+            assert exported.bundle.manifest == finalized.manifest
+            assert tbm.verify_replay_bundle_export(exported.bundle)
             assert canceled.session.status == "canceled"
             assert replayed_cancel.session == canceled.session
             assert replayed_cancel.replayed is True

@@ -1466,13 +1466,23 @@ start, resume, cancel, abandon, and completion call persists a fresh
 capability. Treat the facade as stateless across calls and persist the returned
 session ID/version in the adapter's own versioned protocol.
 
+For replay export, accept only `DurableReplayExportRequest`, never a caller
+manifest digest or artifact ID. Require the exact current session version,
+recover the original retrieval scope, persist and read back a fresh
+repository-scoped `artifact:read` decision, and resolve the unique manifest
+from the session's retained decision/usage/injection linkage. A missing or
+ambiguous mapping fails closed. The classification allowlist may only narrow
+the authorized read. Manifest lookup must stay descriptor-only so
+classification and size preflight happens before artifact bytes are loaded.
+Recheck the read scope and unchanged GateSession after export.
+
 This facade is not a transport authenticator and is not currently used by the
 default Agent/MCP profile. Do not expose it through a shared transport until
 the transport derives trusted identities and provider/evaluator credentials,
 the server configures the complete authority graph, external execution is
 idempotent by `run_id`, and the adapter has exact retry/recovery conformance
-tests. Public/internal plaintext replay remains the only supported finalization
-profile.
+tests. The direct-Python durable facade now authorizes public/internal replay
+reads; public/internal plaintext remains the only supported storage profile.
 
 ## Version-3 outcome and attribution policy
 

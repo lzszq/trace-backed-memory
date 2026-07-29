@@ -322,6 +322,9 @@ manifest，并要求显式 classification allowlist；
 `dumps_`/`loads_replay_bundle_export()` 保持有界 canonical JSON envelope；
 `verify_replay_bundle_export()` 复核 self-hash、component 顺序、byte digest 与
 injection linkage。它是 package-root Python API，不是 Agent/HTTP/MCP endpoint。
+两个 SQL peer 还提供 `load_manifest_for_session()`，使已认证 facade 能从已保留
+session linkage 解析唯一 manifest，而无需接受调用方选择的内容 ID，也不会在
+manifest lookup 时读取 artifact bytes。
 
 `tbm.usage-decision.v3` 记录精确有序收窄审计、确定性 System block、当前
 authorization/evidence/policy/renderer 关联与固定 replay component map。
@@ -329,8 +332,9 @@ authorization/evidence/policy/renderer 关联与固定 replay component map。
 最终允许集合，保留并读回精确 UsageDecision 与完整 replay bundle，再通过 CAS 发布
 `FINALIZED`。共享 SQLite/PostgreSQL connection 支持 caller-owned outer rollback；
 authority 分离时使用有序恢复。当前 Store、active SQL adapter、本地 Agent 与 MCP
-均不使用该服务。replay-read authorization、受保护内容加密、retention 与 active
-adapter integration 仍待完成。详见
+均不使用该服务。opt-in 已认证 durable Agent 现在会为 replay export 增加直接
+Python、session-bound 的 `artifact:read` 授权。受保护内容加密、retention 与
+transport adapter integration 仍待完成。详见
 [重放契约](protocols/replay-v3.zh-CN.md)。
 
 与存储实现无关的授权 v3 契约定义 canonical repository、精确的租户作用域别名、
@@ -457,12 +461,16 @@ executor side effect 不属于数据库 transaction，必须按 GateSession `run
 详见 [durable execution v3](protocols/durable-execution-v3.zh-CN.md)。
 
 `AuthenticatedDurableAgentMemory` 会在一个精确 authority graph 上组合
-`prepare/decide/finalize/start/resume/cancel/abandon/complete/get_session`。
+`prepare/decide/finalize/start/resume/cancel/abandon/complete/get_session` 与已授权
+`export_replay_bundle`。
 公共调用接收可信 context 与带版本 request record，不接收 authorization scope。
 续接会加载 session-linked RetrievalSnapshot，并针对其中保留的 authorization event
 调用 `AuthenticatedRetrievalService.recover_authorized_scope()`；`PREPARED`
 之后的每次 GateSession 修改都会新增当前 transition decision。
-`DurableAgentCancelRequest` 支持精确版本取消与精确终态回放。详见
+`DurableAgentCancelRequest` 支持精确版本取消与精确终态回放。
+`DurableReplayExportRequest` 绑定精确 session version、classification allowlist 与
+byte limit；`DurableReplayExportResult` 把 canonical bundle 同新的 read 授权及原始
+retrieval 授权关联。详见
 [已认证 durable Agent v3](protocols/durable-agent-v3.zh-CN.md)。
 
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的

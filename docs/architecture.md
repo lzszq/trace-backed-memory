@@ -1576,9 +1576,12 @@ component's exact bytes in canonical order under a content-derived export
 digest. Decoded content is capped at 8 MiB and the external JSON envelope at
 16 MiB. The reader adapter requires an explicit classification allowlist,
 rehashes every byte, and is implemented by both opt-in replay repositories
-without changing either schema. It deliberately remains outside
-`tbm.agent.v1`, HTTP, and MCP until replay-read authorization and durable
-version-3 session identity are active.
+without changing either schema. The repositories resolve a unique manifest
+from session linkage using descriptor-only reads. The authenticated durable
+Agent now places a fresh, durable `artifact:read` decision and exact session
+version check before that reader. Replay export deliberately remains outside
+`tbm.agent.v1`, HTTP, and MCP until those transports construct the durable
+facade from authenticated identity.
 
 `usage_decision_v3.py` adds the content-addressed final-use audit. It preserves
 the ordered retrieval/System/Semantic/rendered sets, the exact complement and
@@ -1768,8 +1771,9 @@ rendering; retains and reads back the complete component bundle; and
 CAS-publishes `FINALIZED`. Shared SQLite/PostgreSQL connections allow caller
 rollback across lease, bundle, and final session revision; separated
 authorities use explicit recovery. Signed provider attestation,
-protected-content encryption, retention/replay-read authorization, durable
-transition-event linkage, and active emission are not yet provided.
+protected-content encryption, retention, transport-authenticated replay
+exposure, durable transition-event linkage, and active emission are not yet
+provided.
 `durable_execution_v3.py` supplies the opt-in runtime back half: it replays
 and verifies the exact retained finalization bundle, requires current
 owner-matched transition authorization, CAS-publishes `EXECUTING`, supports
@@ -1934,8 +1938,11 @@ decide/finalize/start/resume/cancel/abandon/complete append a current
 `gate_session:transition` decision. Service-graph identity checks require one
 authorization service, GateSession authority, evidence authority, Semantic
 Gate authority, ActivatedRevision source, and finalization replay path.
-SQLite/PostgreSQL tests exercise equivalent lifecycle continuation. The
-composition still depends on trusted contexts supplied by an embedding
+Session-bound replay export appends and rechecks a fresh `artifact:read`
+decision, resolves the manifest from retained session linkage, and rejects a
+changed session revision. SQLite/PostgreSQL tests exercise equivalent
+lifecycle continuation. The composition still depends on trusted contexts
+supplied by an embedding
 transport and is not default MCP/HTTP/SDK wiring.
 
 The storage-neutral completion-outbox contract separates one immutable

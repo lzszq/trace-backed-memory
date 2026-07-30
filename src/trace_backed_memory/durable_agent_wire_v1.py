@@ -3,10 +3,22 @@ from __future__ import annotations
 import base64
 import binascii
 from dataclasses import dataclass
+from functools import wraps
 import hmac
 import math
 import re
-from typing import Callable, Literal, NoReturn, TypeAlias, cast
+from threading import RLock
+from typing import (
+    Callable,
+    Concatenate,
+    Literal,
+    NoReturn,
+    ParamSpec,
+    Protocol,
+    TypeAlias,
+    TypeVar,
+    cast,
+)
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -153,6 +165,14 @@ OutcomeEvaluatorResolver: TypeAlias = Callable[
     [AuthenticatedOutcomeEvaluatorContext],
     TrustedOutcomeEvaluator,
 ]
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+class _OperationLock(Protocol):
+    def __enter__(self) -> object: ...
+
+    def __exit__(self, *args: object) -> object: ...
 
 
 def _base64_max_chars(maximum: int) -> int:
@@ -484,6 +504,27 @@ class DurableAgentWireError(RuntimeError):
         }
 
 
+def _serialized(
+    method: Callable[
+        Concatenate[DurableAgentProtocolDispatcher, _P],
+        _R,
+    ],
+) -> Callable[
+    Concatenate[DurableAgentProtocolDispatcher, _P],
+    _R,
+]:
+    @wraps(method)
+    def wrapped(
+        self: DurableAgentProtocolDispatcher,
+        *args: _P.args,
+        **kwargs: _P.kwargs,
+    ) -> _R:
+        with self._operation_lock:
+            return method(self, *args, **kwargs)
+
+    return wrapped
+
+
 class DurableAgentProtocolDispatcher:
     """Strict adapter-neutral boundary over AuthenticatedDurableAgentMemory.
 
@@ -498,6 +539,7 @@ class DurableAgentProtocolDispatcher:
         *,
         repository_id_resolver: RepositoryIdResolver,
         evaluator_resolver: OutcomeEvaluatorResolver,
+        operation_lock: _OperationLock | None = None,
     ) -> None:
         if type(configuration) is not DurableAgentWireConfiguration:
             raise TypeError(
@@ -511,11 +553,18 @@ class DurableAgentProtocolDispatcher:
             raise TypeError("repository_id_resolver must be callable")
         if not callable(evaluator_resolver):
             raise TypeError("evaluator_resolver must be callable")
+        if operation_lock is not None and not (
+            callable(getattr(operation_lock, "__enter__", None))
+            and callable(getattr(operation_lock, "__exit__", None))
+        ):
+            raise TypeError("operation_lock must be a context manager")
         self._configuration = configuration
         self._runtime = runtime
         self._repository_id_resolver = repository_id_resolver
         self._evaluator_resolver = evaluator_resolver
+        self._operation_lock: _OperationLock = operation_lock or RLock()
 
+    @_serialized
     def capabilities(self) -> dict[str, object]:
         operations = [
             "prepare",
@@ -558,6 +607,7 @@ class DurableAgentProtocolDispatcher:
             },
         }
 
+    @_serialized
     def prepare(
         self,
         context: AuthenticatedServiceContext,
@@ -649,6 +699,7 @@ class DurableAgentProtocolDispatcher:
         except Exception as error:
             _raise_public(error, operation)
 
+    @_serialized
     def decide(
         self,
         context: AuthenticatedServiceContext,
@@ -754,6 +805,7 @@ class DurableAgentProtocolDispatcher:
         except Exception as error:
             _raise_public(error, operation)
 
+    @_serialized
     def finalize(
         self,
         context: AuthenticatedServiceContext,
@@ -791,6 +843,7 @@ class DurableAgentProtocolDispatcher:
         except Exception as error:
             _raise_public(error, operation)
 
+    @_serialized
     def start(
         self,
         context: AuthenticatedServiceContext,
@@ -810,6 +863,7 @@ class DurableAgentProtocolDispatcher:
         except Exception as error:
             _raise_public(error, operation)
 
+    @_serialized
     def resume(
         self,
         context: AuthenticatedServiceContext,
@@ -830,6 +884,7 @@ class DurableAgentProtocolDispatcher:
         except Exception as error:
             _raise_public(error, operation)
 
+    @_serialized
     def abandon(
         self,
         context: AuthenticatedServiceContext,
@@ -859,6 +914,7 @@ class DurableAgentProtocolDispatcher:
         except Exception as error:
             _raise_public(error, operation)
 
+    @_serialized
     def complete(
         self,
         context: AuthenticatedServiceContext,
@@ -938,6 +994,7 @@ class DurableAgentProtocolDispatcher:
         except Exception as error:
             _raise_public(error, operation)
 
+    @_serialized
     def cancel(
         self,
         context: AuthenticatedServiceContext,
@@ -967,6 +1024,7 @@ class DurableAgentProtocolDispatcher:
         except Exception as error:
             _raise_public(error, operation)
 
+    @_serialized
     def get_session(
         self,
         context: AuthenticatedServiceContext,
@@ -985,6 +1043,7 @@ class DurableAgentProtocolDispatcher:
         except Exception as error:
             _raise_public(error, operation)
 
+    @_serialized
     def export_replay(
         self,
         context: AuthenticatedServiceContext,

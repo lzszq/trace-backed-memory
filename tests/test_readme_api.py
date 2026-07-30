@@ -1,4 +1,5 @@
 from dataclasses import replace
+import json
 from pathlib import Path
 import re
 
@@ -962,7 +963,14 @@ def test_readme_publishes_and_executes_packaged_resource_contract(tmp_path):
         assert contract in normalized
 
     descriptions = packaged_resources()
-    assert len(descriptions) == 149
+    manifest = json.loads(
+        (
+            Path(__file__).resolve().parents[1]
+            / "resources"
+            / "manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert len(descriptions) == len(manifest["resources"])
     sqlite_expected = read_packaged_resource("schemas/sqlite.sql")
     sqlite_destination = tmp_path / "sqlite.sql"
     assert export_packaged_resource(

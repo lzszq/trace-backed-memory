@@ -11,10 +11,13 @@ from .gate_service_v3 import (
     AuthenticatedGateSessionService,
     AuthenticatedPreparedGateResult,
     GatePreparationRequest,
+    GateSessionReplayError,
+    GateSessionWriter,
     PreparedGateEvidence,
 )
 from .gate_session_v3 import GateSession
 from .retrieval_preparation_v3 import (
+    ActivatedRevisionRetrievalSource,
     AuthenticatedRetrievalPreparationService,
     PreparedRetrievalEvidence,
     RetrievalPreparationContext,
@@ -24,6 +27,7 @@ from .retrieval_preparation_v3 import (
 )
 from .retrieval_v3 import RetrievalMode, RetrievalSnapshot
 from .service_v3 import (
+    AuthenticatedRetrievalService,
     AuthenticatedServiceContext,
     AuthorizedRetrievalScope,
 )
@@ -174,8 +178,8 @@ class DurableRetrievalPreparationService:
                 "retrieval_service must be AuthenticatedRetrievalPreparationService"
             )
         if (
-            gate_session_service._authorization_service
-            is not retrieval_service._authorization_service
+            gate_session_service.authorization_service
+            is not retrieval_service.authorization_service
         ):
             raise TypeError(
                 "gate and retrieval services must share one authorization service"
@@ -192,6 +196,30 @@ class DurableRetrievalPreparationService:
             evidence_authority
         )
 
+    @property
+    def authorization_service(self) -> AuthenticatedRetrievalService:
+        """Return the shared authorization service."""
+
+        return self._gate_session_service.authorization_service
+
+    @property
+    def session_authority(self) -> GateSessionWriter:
+        """Return the shared durable GateSession authority."""
+
+        return self._gate_session_service.session_authority
+
+    @property
+    def evidence_authority(self) -> GateEvidenceAuthority:
+        """Return the exact retrieval/System-Gate evidence authority."""
+
+        return self._evidence_authority
+
+    @property
+    def revision_source(self) -> ActivatedRevisionRetrievalSource:
+        """Return the exact activated-revision source."""
+
+        return self._retrieval_service.revision_source
+
     def prepare(
         self,
         context: AuthenticatedServiceContext,
@@ -201,6 +229,32 @@ class DurableRetrievalPreparationService:
             _invalid("authenticated service context is invalid")
         if type(request) is not DurableRetrievalPreparationRequest:
             _invalid("durable retrieval request is invalid")
+
+        finder = getattr(
+            self._gate_session_service.session_authority,
+            "find_by_idempotency",
+            None,
+        )
+        if callable(finder):
+            try:
+                existing = finder(
+                    tenant_id=context.tenant_id,
+                    repository_id=request.context.repository_id,
+                    principal_id=context.principal.principal_id,
+                    agent_client_id=context.agent_client.agent_client_id,
+                    idempotency_key=request.idempotency_key,
+                )
+            except Exception as error:
+                raise DurableRetrievalPreparationV3Error(
+                    "TBM_DURABLE_RETRIEVAL_REPLAY_LOOKUP_FAILED",
+                    "durable retrieval replay lookup failed",
+                ) from error
+            if existing is not None:
+                return self._recover_exact_replay(
+                    context,
+                    request,
+                    existing,
+                )
 
         def prepare_authorized(
             scope: AuthorizedRetrievalScope,
@@ -233,10 +287,72 @@ class DurableRetrievalPreparationService:
             self._evidence_verifier(scope, session, prepared)
             return prepared
 
-        return self._gate_session_service.prepare(
-            context,
-            request.gate_request(),
-            prepare_authorized,
+        try:
+            return self._gate_session_service.prepare(
+                context,
+                request.gate_request(),
+                prepare_authorized,
+            )
+        except GateSessionReplayError as error:
+            return self._recover_exact_replay(
+                context,
+                request,
+                error.session,
+            )
+
+    def _recover_exact_replay(
+        self,
+        context: AuthenticatedServiceContext,
+        request: DurableRetrievalPreparationRequest,
+        session: GateSession,
+    ) -> AuthenticatedPreparedGateResult[PreparedRetrievalEvidence]:
+        if (
+            session.status != "prepared"
+            or session.request_fingerprint != request.request_fingerprint
+            or session.idempotency_key != request.idempotency_key
+            or session.retrieval_snapshot_id is None
+            or session.system_gate_evaluation_id is None
+        ):
+            raise GateSessionReplayError(session)
+        try:
+            snapshot = self._evidence_authority.load_snapshot(
+                session.retrieval_snapshot_id
+            )
+            evaluation = self._evidence_authority.load_evaluation(
+                session.system_gate_evaluation_id
+            )
+            scope = self.authorization_service.recover_authorized_scope(
+                context,
+                snapshot.authorization_event_id,
+                permission="memory:retrieve",
+            )
+            decision = self.authorization_service.verify_authorized_scope(
+                context,
+                scope,
+                permission="memory:retrieve",
+            )
+            evidence = self._retrieval_service.recover_persisted_evidence(
+                context,
+                scope,
+                snapshot,
+                evaluation,
+            )
+            prepared = PreparedGateEvidence(
+                retrieval_snapshot_id=snapshot.snapshot_id,
+                system_gate_evaluation_id=evaluation.evaluation_id,
+                value=evidence,
+            )
+            self._evidence_verifier(scope, session, prepared)
+        except Exception as replay_error:
+            raise DurableRetrievalPreparationV3Error(
+                "TBM_DURABLE_RETRIEVAL_REPLAY_INVALID",
+                "durable retrieval replay could not be verified",
+            ) from replay_error
+        return AuthenticatedPreparedGateResult(
+            authorization=decision,
+            scope=scope,
+            session=session,
+            value=evidence,
         )
 
     @staticmethod

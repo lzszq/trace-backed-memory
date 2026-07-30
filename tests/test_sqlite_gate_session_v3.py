@@ -165,7 +165,21 @@ def test_sqlite_gate_session_idempotency_scope_and_conflicts():
         initialize=True,
         clock=clock,
     )
-    _create(repository)
+    created = _create(repository).session
+    assert repository.find_by_idempotency(
+        tenant_id=created.tenant_id,
+        repository_id=created.repository_id,
+        principal_id=created.principal_id,
+        agent_client_id=created.agent_client_id,
+        idempotency_key=created.idempotency_key,
+    ) == created
+    assert repository.find_by_idempotency(
+        tenant_id=created.tenant_id,
+        repository_id=created.repository_id,
+        principal_id=created.principal_id,
+        agent_client_id=created.agent_client_id,
+        idempotency_key="idempotency_missing",
+    ) is None
 
     with pytest.raises(
         tbm.SQLiteGateSessionConflictError,

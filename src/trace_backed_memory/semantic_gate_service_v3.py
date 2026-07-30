@@ -338,6 +338,18 @@ class AuthenticatedSemanticGateService:
         self._authority = authority
         self._clock = clock
 
+    @property
+    def evidence_authority(self) -> SemanticGateEvidenceReader:
+        """Return the exact deterministic Gate evidence authority."""
+
+        return self._evidence_reader
+
+    @property
+    def semantic_authority(self) -> SemanticGateAttemptAuthority:
+        """Return the exact Semantic Gate attempt/artifact authority."""
+
+        return self._authority
+
     def invoke(
         self,
         context: AuthenticatedSemanticProviderContext,

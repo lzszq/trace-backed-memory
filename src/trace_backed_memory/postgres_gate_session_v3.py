@@ -1072,6 +1072,68 @@ class PostgresGateSessionRepository:
             )
 
     @_synchronized
+    def find_by_idempotency(
+        self,
+        *,
+        tenant_id: str,
+        repository_id: str,
+        principal_id: str,
+        agent_client_id: str,
+        idempotency_key: str,
+    ) -> GateSession | None:
+        self._require_open()
+        values = (
+            tenant_id,
+            repository_id,
+            principal_id,
+            agent_client_id,
+            idempotency_key,
+        )
+        if any(type(value) is not str or not value for value in values):
+            raise ValueError("idempotency lookup values must be nonblank strings")
+        psycopg, dict_row, _Jsonb = _load_psycopg()
+        try:
+            with self._connection.transaction():
+                with self._connection.cursor(row_factory=dict_row) as cursor:
+                    self._lock_schema(cursor)
+                    cursor.execute(
+                        """
+                        SELECT session_id
+                        FROM trace_backed_memory_v3_gate_session
+                                .gate_session_heads
+                        WHERE tenant_id = %s
+                          AND repository_id = %s
+                          AND principal_id = %s
+                          AND agent_client_id = %s
+                          AND idempotency_key = %s
+                        """,
+                        values,
+                    )
+                    rows = cursor.fetchall()
+                    if not rows:
+                        return None
+                    if len(rows) != 1 or not isinstance(rows[0], Mapping):
+                        raise PostgresGateSessionPersistenceError(
+                            "TBM_POSTGRES_GATE_SESSION_PERSISTENCE",
+                            "PostgreSQL idempotency lookup has an invalid shape",
+                        )
+                    return self._select_current(
+                        cursor,
+                        rows[0]["session_id"],
+                        for_update=False,
+                    )
+        except (
+            PostgresGateSessionPersistenceError,
+            PostgresGateSessionSchemaError,
+        ):
+            raise
+        except psycopg.Error as error:
+            self._raise_database_error(
+                error,
+                "failed to find PostgreSQL GateSession",
+            )
+
+    @_synchronized
     def history(self, session_id: str) -> tuple[GateSession, ...]:
         self._require_open()
         if type(session_id) is not str:

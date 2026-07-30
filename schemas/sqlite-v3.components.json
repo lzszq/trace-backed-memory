@@ -1,0 +1,131 @@
+{
+  "manifest_version": "tbm.sqlite-v3-component-manifest.v1",
+  "bundle_contract_version": "tbm.sqlite-bundle.v3",
+  "bundle_resource": "schemas/sqlite-v3.sql",
+  "schema_version": 1,
+  "component_set_sha256": "sha256:975dcbe445e2bf162a744b39cf57e5211acc9f53fe2f3b9029fde2e956e76d19",
+  "catalog_sha256": "sha256:631dd75ed550167802127ad1a4eaa9386b2832542c1d65709e9667ca877e702a",
+  "bundle_sha256": "sha256:bca42cce868856bc506292a1e4fedeba9db908072a388a5a81b9b7819e2dd6ff",
+  "components": [
+    {
+      "component_id": "entity-registry",
+      "resource": "schemas/sqlite-v3-entity-registry.sql",
+      "metadata_table": "trace_backed_memory_v3_entity_registry_schema",
+      "schema_version": 1,
+      "contract_version": "tbm.entity-registry.v3",
+      "sha256": "sha256:ec06c93485fc93a67e583981ce6a88b069c2f15520acff16521d7f26472f7b66"
+    },
+    {
+      "component_id": "authorization",
+      "resource": "schemas/sqlite-v3-authorization.sql",
+      "metadata_table": "trace_backed_memory_v3_authorization_schema",
+      "schema_version": 1,
+      "contract_version": "tbm.authorization.v3",
+      "sha256": "sha256:c3bf559f64eed14db1334d66b3280b18622df83d3ba4d04b45d8ebcb507251aa"
+    },
+    {
+      "component_id": "artifact-authority",
+      "resource": "schemas/sqlite-v3-artifact-authority.sql",
+      "metadata_table": "trace_backed_memory_v3_artifact_authority_schema",
+      "schema_version": 1,
+      "contract_version": null,
+      "sha256": "sha256:7405518541a2eb803b268fa27b03ff1c5afec660e753658ee8d58e32f7501931"
+    },
+    {
+      "component_id": "memory-revision",
+      "resource": "schemas/sqlite-v3-memory-revision.sql",
+      "metadata_table": "trace_backed_memory_v3_memory_revision_schema",
+      "schema_version": 1,
+      "contract_version": null,
+      "sha256": "sha256:dd547af778f4510c8660f3283bb41f1932c94bd774062d9cc3c2d118bc5f1155"
+    },
+    {
+      "component_id": "memory-publication",
+      "resource": "schemas/sqlite-v3-memory-publication.sql",
+      "metadata_table": "trace_backed_memory_v3_memory_publication_schema",
+      "schema_version": 1,
+      "contract_version": null,
+      "sha256": "sha256:26660f544f420bfb3e8be197193023a024f3bf199e03eb43e924cf1401205249"
+    },
+    {
+      "component_id": "managed-index",
+      "resource": "schemas/sqlite-v3-managed-index.sql",
+      "metadata_table": "trace_backed_memory_v3_managed_index_schema",
+      "schema_version": 1,
+      "contract_version": "tbm.managed-index-bundle.v3",
+      "sha256": "sha256:cb9a8670265cb4dfab36408807a34f75a3a617c82506dda0479b9dfbda06f147"
+    },
+    {
+      "component_id": "gate-session",
+      "resource": "schemas/sqlite-v3-gate-session.sql",
+      "metadata_table": "trace_backed_memory_v3_gate_session_schema",
+      "schema_version": 1,
+      "contract_version": "tbm.gate-session.v3",
+      "sha256": "sha256:61ed2a0284f548d63e88b69d4eb86c46113d7f592579c88a9b6868e9bc4e4c4d"
+    },
+    {
+      "component_id": "gate-evidence",
+      "resource": "schemas/sqlite-v3-gate-evidence.sql",
+      "metadata_table": "trace_backed_memory_v3_gate_evidence_schema",
+      "schema_version": 1,
+      "contract_version": null,
+      "sha256": "sha256:d882427fa6397e7f651077cbcb1b86fc7c91b3a74eb13f6878ade498defe0ee2"
+    },
+    {
+      "component_id": "semantic-gate",
+      "resource": "schemas/sqlite-v3-semantic-gate.sql",
+      "metadata_table": "trace_backed_memory_v3_semantic_gate_schema",
+      "schema_version": 1,
+      "contract_version": "tbm.semantic-gate-attempt.v3",
+      "sha256": "sha256:d036177c6c0d96af676460b80074068049871a6dd0a333a17c6d2328bb203896"
+    },
+    {
+      "component_id": "semantic-gate-artifacts",
+      "resource": "schemas/sqlite-v3-semantic-gate-artifacts.sql",
+      "metadata_table": "trace_backed_memory_v3_semantic_gate_artifacts_schema",
+      "schema_version": 1,
+      "contract_version": "tbm.semantic-gate-artifact.v3",
+      "sha256": "sha256:074223a8e8dd6df6c0bb158f12638afff038b1f6e83a63831efe7e0743e3f28f"
+    },
+    {
+      "component_id": "replay",
+      "resource": "schemas/sqlite-v3-replay.sql",
+      "metadata_table": "trace_backed_memory_v3_replay_schema",
+      "schema_version": 1,
+      "contract_version": null,
+      "sha256": "sha256:7e62b7a3f8e11eaa5a025eacb30e83f86ed3d76980620295eaed01d9c3095ce6"
+    },
+    {
+      "component_id": "outcome",
+      "resource": "schemas/sqlite-v3-outcome.sql",
+      "metadata_table": "trace_backed_memory_v3_outcome_schema",
+      "schema_version": 1,
+      "contract_version": "tbm.run-outcome.v3",
+      "sha256": "sha256:018c5d7da27c26ea4c896604faa5cfb9a9b4d0c58909cf8670ddddd346105af3"
+    },
+    {
+      "component_id": "outcome-attribution",
+      "resource": "schemas/sqlite-v3-outcome-attribution.sql",
+      "metadata_table": "trace_backed_memory_v3_outcome_attribution_schema",
+      "schema_version": 1,
+      "contract_version": "tbm.outcome-attribution.v3",
+      "sha256": "sha256:9fcbf2367ad7481a4a9a53406d93ceaf87a2ec50a7058cd214e1b6ab89e6b343"
+    },
+    {
+      "component_id": "completion-outbox",
+      "resource": "schemas/sqlite-v3-completion-outbox.sql",
+      "metadata_table": "trace_backed_memory_v3_completion_outbox_schema",
+      "schema_version": 1,
+      "contract_version": "tbm.completion-outbox.v3",
+      "sha256": "sha256:c07d7fd50641c15d7eec6f4347a8281fb4cce657f5be4be97a35a3e649eac9b8"
+    },
+    {
+      "component_id": "audit",
+      "resource": "schemas/sqlite-v3-audit.sql",
+      "metadata_table": "trace_backed_memory_v3_audit_schema",
+      "schema_version": 1,
+      "contract_version": "tbm.audit-event.v3",
+      "sha256": "sha256:cf632bd58c16c2f4e58272e0315ad398375f6039878d36af233043c739be5b34"
+    }
+  ]
+}

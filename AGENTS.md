@@ -28,6 +28,8 @@ Start with:
 - Full verification: `python tools/verify.py --full`.
 - Required PostgreSQL verification:
   `python tools/verify.py --full --postgres`.
+- Full repository verification, including PostgreSQL, manifest drift, and the
+  preinstalled TypeScript toolchain: `python tools/verify.py --all`.
 - A focused test is useful while iterating, but it never replaces the full
   command before handoff.
 

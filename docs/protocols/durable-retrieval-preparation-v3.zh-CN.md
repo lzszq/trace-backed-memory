@@ -35,9 +35,11 @@ decision。
 
 精确 replay 会返回已有 durable session，不会重复 authorization-side discovery、
 revision read、evidence generation 或 evidence write。
-`prepare_for_authorized_scope()` 是可信内部组合 hook：它不会追加第二条 decision，
-但会重新加载并核验已有 allowed decision、当前 policy、identity、environment 与
-精确 scope。绝不能把它直接暴露给 MCP、HTTP、CLI、SDK 或 caller-owned callback。
+durable authority 会先执行 scope-local idempotency lookup；随后 service 重新加载
+已保留 snapshot/evaluation、恢复原 authorization scope，并重新核验当前 activated
+revision 与 policy，再返回同一 response。`prepare_for_authorized_scope()` 与
+`recover_persisted_evidence()` 都是可信内部组合 hook，绝不能直接暴露给 MCP、HTTP、
+CLI、SDK 或 caller-owned callback。
 
 ## 失败与事务边界
 
@@ -55,5 +57,5 @@ GateSession 与 Gate evidence repository 明确共享同一个 caller-owned conn
 opt-in [durable Semantic Gate 服务](durable-semantic-gate-v3.zh-CN.md) 现在会让
 这些精确 evidence 经 `AWAITING_DECISION` 继续推进到 `DECIDED`。opt-in
 [已认证 durable Agent](durable-agent-v3.zh-CN.md) 会把该续接与 finalization、
-execution、cancellation 和 completion 组合起来。生产 index worker/分片以及 active
-active durable Agent/MCP/HTTP/SDK 接入仍是独立后续工作。
+execution、cancellation 和 completion 组合起来。显式 durable HTTP profile 已选择
+该 service；生产 index worker/分片以及 durable MCP/TypeScript 接入仍是独立后续工作。

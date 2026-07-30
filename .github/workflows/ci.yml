@@ -33,6 +33,11 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: packages/typescript-sdk/package-lock.json
       - name: Install PostgreSQL server tools
         run: |
           sudo apt-get update
@@ -43,20 +48,16 @@ jobs:
       - run: python -m venv .quality
       - run: .quality/bin/python -m pip install --upgrade pip
       - run: .quality/bin/python -m pip install ".[dev]"
+      - run: npm ci --ignore-scripts
+        working-directory: packages/typescript-sdk
       - name: Verify required PostgreSQL runtime
         run: |
           initdb --version
           pg_ctl --version
           psql --version
           .quality/bin/python -c "import psycopg; print(psycopg.__version__)"
-      - name: Lint package sources
-        run: .quality/bin/python -m ruff check src
-      - name: Type-check package sources
-        run: .quality/bin/python -m mypy src/trace_backed_memory
-      - name: Enforce branch coverage
-        run: |
-          .quality/bin/python -m coverage run -m pytest
-          .quality/bin/python -m coverage report
+      - name: Run unified full-repository verification
+        run: .quality/bin/python tools/verify.py --all
       - name: Audit installed dependencies
         run: |
           .quality/bin/python -m pip freeze \
@@ -145,7 +146,7 @@ jobs:
           .package-smoke/bin/python -c "from pathlib import Path; import subprocess, sys; wheel = next(Path('dist').glob('*.whl')); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--no-deps', str(wheel)])"
       - name: Smoke-test installed CLI entry points
         run: |
-          .package-smoke/bin/python -c "from importlib.resources import files; from trace_backed_memory import load_failure_taxonomy, packaged_resources; assert len(packaged_resources()) == 149; assert 'invalid_tool_argument' in load_failure_taxonomy(); assert files('trace_backed_memory').joinpath('py.typed').is_file()"
+          .package-smoke/bin/python -c "import json; from importlib.resources import files; from pathlib import Path; from trace_backed_memory import load_failure_taxonomy, packaged_resources; expected=len(json.loads(Path('resources/manifest.json').read_text())['resources']); assert len(packaged_resources()) == expected; assert 'invalid_tool_argument' in load_failure_taxonomy(); assert files('trace_backed_memory').joinpath('py.typed').is_file()"
           .package-smoke/bin/python -c "import trace_backed_memory as tbm; from trace_backed_memory import lifecycle, obsolete_project_policy; assert obsolete_project_policy is lifecycle.obsolete_project_policy; assert 'obsolete_project_policy' in tbm.__all__"
           .package-smoke/bin/tbm capabilities
           .package-smoke/bin/tbm resource list
@@ -229,7 +230,7 @@ jobs:
         run: |
           python -m venv .sdist-smoke
           .sdist-smoke/bin/python -c "from pathlib import Path; import subprocess, sys; sdist = next(Path('dist').glob('*.tar.gz')); subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--no-deps', str(sdist)])"
-          .sdist-smoke/bin/python -c "from importlib.resources import files; from trace_backed_memory import load_failure_taxonomy, packaged_resources; assert len(packaged_resources()) == 149; assert 'invalid_tool_argument' in load_failure_taxonomy(); assert files('trace_backed_memory').joinpath('py.typed').is_file()"
+          .sdist-smoke/bin/python -c "import json; from importlib.resources import files; from pathlib import Path; from trace_backed_memory import load_failure_taxonomy, packaged_resources; expected=len(json.loads(Path('resources/manifest.json').read_text())['resources']); assert len(packaged_resources()) == expected; assert 'invalid_tool_argument' in load_failure_taxonomy(); assert files('trace_backed_memory').joinpath('py.typed').is_file()"
           .sdist-smoke/bin/python -c "import trace_backed_memory as tbm; from trace_backed_memory import lifecycle, obsolete_project_policy; assert obsolete_project_policy is lifecycle.obsolete_project_policy; assert 'obsolete_project_policy' in tbm.__all__"
           .sdist-smoke/bin/tbm capabilities
           .sdist-smoke/bin/tbm resource export schemas/postgres.sql dist/postgres.sdist.sql

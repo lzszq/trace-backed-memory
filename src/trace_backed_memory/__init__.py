@@ -413,6 +413,12 @@ from .durable_agent_v3 import (
     DurableReplayExportRequest,
     DurableReplayExportResult,
 )
+from .durable_composition_v3 import (
+    DURABLE_COMPOSITION_CONTRACT_VERSION,
+    DurableAuthorityGraph,
+    DurableCompositionV3Error,
+    DurableServiceBundle,
+)
 from .sdk import (
     SDK_RESPONSE_MAX_BYTES,
     SDK_RESPONSE_MAX_DEPTH,
@@ -1805,6 +1811,10 @@ __all__ = [
     "DurableAgentV3Error",
     "DurableReplayExportRequest",
     "DurableReplayExportResult",
+    "DURABLE_COMPOSITION_CONTRACT_VERSION",
+    "DurableAuthorityGraph",
+    "DurableCompositionV3Error",
+    "DurableServiceBundle",
     "SDK_RESPONSE_MAX_BYTES",
     "SDK_RESPONSE_MAX_DEPTH",
     "SDK_RESPONSE_MAX_NODES",

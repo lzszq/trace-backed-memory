@@ -43,6 +43,10 @@ from trace_backed_memory.durable_agent_v3 import (
     DurableReplayExportRequest,
     DurableAgentV3Error,
 )
+from trace_backed_memory.durable_composition_v3 import (
+    DurableCompositionV3Error,
+    DurableServiceBundle,
+)
 
 
 @dataclass
@@ -62,12 +66,14 @@ class _AgentStack:
     authorization: tbm.AuthenticatedRetrievalService
 
     def agent(self) -> AuthenticatedDurableAgentMemory:
-        return AuthenticatedDurableAgentMemory(
-            authorization_service=self.authorization,
+        services = DurableServiceBundle.from_services(
             preparation_service=self.preparation,
             semantic_service=self.semantic_session,
             finalization_service=self.finalization,
             execution_service=self.execution,
+        )
+        return AuthenticatedDurableAgentMemory(
+            service_bundle=services,
         )
 
     def close(self) -> None:
@@ -86,11 +92,18 @@ def _stack(
         "memory:retrieve",
         "gate_session:transition",
     ),
+    check_same_thread: bool = True,
 ) -> _AgentStack:
     registry = _registry(permissions=permissions)
     context = _service_context(registry)
-    authorization, decisions = _retrieval_authorization(registry)
-    connection = sqlite3.connect(":memory:")
+    authorization, decisions = _retrieval_authorization(
+        registry,
+        check_same_thread=check_same_thread,
+    )
+    connection = sqlite3.connect(
+        ":memory:",
+        check_same_thread=check_same_thread,
+    )
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA recursive_triggers = ON")
     for resource in (
@@ -946,14 +959,14 @@ def test_durable_agent_rejects_mismatched_service_graph() -> None:
     stack = _stack()
     other = _stack()
     try:
-        with pytest.raises(TypeError, match="authorization service"):
-            AuthenticatedDurableAgentMemory(
-                authorization_service=stack.authorization,
+        with pytest.raises(DurableCompositionV3Error) as raised:
+            DurableServiceBundle.from_services(
                 preparation_service=stack.preparation,
                 semantic_service=stack.semantic_session,
                 finalization_service=stack.finalization,
                 execution_service=other.execution,
             )
+        assert raised.value.code == "TBM_DURABLE_AUTHORITY_GRAPH_MISMATCH"
     finally:
         other.close()
         stack.close()

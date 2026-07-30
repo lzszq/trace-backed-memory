@@ -7,16 +7,25 @@ orientation; these documents define the engineering contracts.
 
 ## Product and architecture
 
+- [Current capability status](status/current-capability-matrix.md)
+- [Machine-readable capability status](status/current-capabilities.json)
 - [Product definition and current capabilities](product.en.md)
 - [Detailed API and operations reference](reference.md)
 - [Reference architecture](architecture.md)
 - [Memory usage policy](usage-policy.md)
 - [Product delivery program](product-program.md)
+- Accepted architecture decisions:
+  [ADR-0001](adr/0001-v2-compatibility-durable-v3-cutover.md),
+  [ADR-0002](adr/0002-unified-v3-database-bundles.md),
+  [ADR-0003](adr/0003-transport-identity-ownership.md),
+  [ADR-0004](adr/0004-canonical-resource-manifest.md), and
+  [ADR-0005](adr/0005-public-internal-package-boundaries.md)
 
 ## Agent integration
 
 - [Local agent protocol `tbm.agent.v1`](protocols/agent-v1.md)
 - [Local HTTP service and Python/TypeScript SDKs](protocols/agent-http-v1.md)
+- [Durable HTTP profile](protocols/durable-http-v1.md)
 - [Node.js TypeScript SDK package](../packages/typescript-sdk/README.md)
 - [Canonical local Agent OpenAPI 3.1](../schemas/agent-http-v1.openapi.json)
 - [Authorization v3 contract](protocols/authorization-v3.md)
@@ -45,6 +54,7 @@ orientation; these documents define the engineering contracts.
 - [Durable execution composition v3](protocols/durable-execution-v3.md)
 - [Authenticated durable Agent composition v3](protocols/durable-agent-v3.md)
 - [Durable Agent wire boundary v1](protocols/durable-agent-wire-v1.md)
+- [Unified SQLite v3 bundle](protocols/sqlite-bundle-v3.md)
 - [UsageDecision v3](protocols/usage-decision-v3.md)
 - [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md)
 - [PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md)
@@ -70,6 +80,8 @@ orientation; these documents define the engineering contracts.
 ## Development and operations
 
 - [Development and verification](development.md)
+- [Generated packaged-resource index](resources.md)
+- [Canonical resource manifest](../resources/manifest.json)
 - [Snapshot v3 migration preflight](migrations/snapshot-v3-preflight.md)
 - [Version-3 migration bundles and isolated staging](migrations/v3-staging-bundles.md)
 - `schemas/sqlite.sql` for the supported local SQL profile

@@ -733,6 +733,49 @@ class SQLiteGateSessionRepository:
             )
 
     @_synchronized
+    def find_by_idempotency(
+        self,
+        *,
+        tenant_id: str,
+        repository_id: str,
+        principal_id: str,
+        agent_client_id: str,
+        idempotency_key: str,
+    ) -> GateSession | None:
+        self._require_open()
+        values = (
+            tenant_id,
+            repository_id,
+            principal_id,
+            agent_client_id,
+            idempotency_key,
+        )
+        if any(type(value) is not str or not value for value in values):
+            raise ValueError("idempotency lookup values must be nonblank strings")
+        try:
+            with self._transaction(write=False):
+                with closing(self._connection.cursor()) as cursor:
+                    self._require_schema(cursor)
+                    cursor.execute(
+                        "SELECT session_id FROM gate_session_heads "
+                        "WHERE tenant_id = ? AND repository_id = ? "
+                        "AND principal_id = ? AND agent_client_id = ? "
+                        "AND idempotency_key = ?",
+                        values,
+                    )
+                    row = cursor.fetchone()
+                    if row is None:
+                        return None
+                    return self._select_current(cursor, row[0])
+        except SQLiteGateSessionSchemaError:
+            raise
+        except sqlite3.DatabaseError as error:
+            self._raise_database_error(
+                error,
+                "failed to find SQLite GateSession",
+            )
+
+    @_synchronized
     def history(self, session_id: str) -> tuple[GateSession, ...]:
         self._require_open()
         if type(session_id) is not str:

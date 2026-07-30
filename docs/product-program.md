@@ -2,6 +2,11 @@
 
 **English** | [简体中文](product-program.zh-CN.md)
 
+This file preserves historical delivery phases. Use the
+[current capability status ledger](status/current-capability-matrix.md) for
+the active product boundary; a delivered isolated increment is not
+automatically an active user path.
+
 ## Phase 0: Project framing
 
 - Define memory object model.
@@ -1312,6 +1317,12 @@ Track:
 - Add an immutable, side-by-side SQLite staging repository plus version-gated
   PostgreSQL staging and rollback scripts. Keep all staging invisible to
   runtime v2 adapters and expose no activation operation.
+- Add the opt-in unified SQLite v3 runtime bundle and ordered 15-component
+  manifest. Install the complete non-migration authority catalog in one outer
+  transaction on one connection, bind immutable bundle/component metadata,
+  and fail closed on any main/temp table, index, automatic-index, trigger, or
+  version drift. Keep migration staging outside the bundle and preserve the
+  active SQLite v1 transport boundary.
 - Publish the immutable `tbm.gate-session.v3` domain contract, explicit
   lifecycle transition graph, optimistic revision checks, lease/expiry
   invariants, bounded strict JSON parser, and packaged Schema/example. Keep
@@ -1742,6 +1753,17 @@ Track:
   abandonment replay, identity-field rejection, stale revisions, content
   profiles, and authorized replay. Keep transport authentication and active
   HTTP/MCP/CLI/SDK selection outstanding.
+- Add the explicit `tbm-http --profile durable-v3` product adapter over the
+  durable wire and sole runtime factory. Load runtime dependencies and trusted
+  identity contexts from an operator-controlled application factory; require a
+  bounded local bearer before context derivation; reject request identity
+  fields, ambiguous HTTP framing, malformed canonical base64, and stale
+  revisions; keep injection/replay content disabled by default; and support
+  bounded TLS handshakes for non-loopback binds. Cover a real-socket lifecycle,
+  SQLite runtime/server reopen after every lifecycle state, idempotent and
+  stale transitions, replay allow/deny, and sanitized failures. Keep durable
+  MCP, TypeScript, local daemon, and remote multi-tenant service work
+  outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

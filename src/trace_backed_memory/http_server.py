@@ -435,7 +435,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tbm-http",
         description=(
-            "Run the loopback-only Trace-backed Memory agent.v1 HTTP service."
+            "Run a Trace-backed Memory HTTP service. The default compat-v2 "
+            "profile preserves the process-local agent.v1 contract."
+        ),
+    )
+    parser.add_argument(
+        "--profile",
+        choices=("compat-v2", "durable-v3"),
+        default="compat-v2",
+        help=(
+            "HTTP profile. durable-v3 is selected by the tbm-http entry point "
+            "and never enabled implicitly."
         ),
     )
     parser.add_argument(
@@ -507,6 +517,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     runtime: LocalAgentMemory | None = None
     server: AgentHTTPServer | None = None
     try:
+        if args.profile != "compat-v2":
+            raise ValueError(
+                "durable-v3 must be selected through the tbm-http entry point"
+            )
         repo_path = args.repo_path.resolve(strict=True)
         if not repo_path.is_dir():
             raise ValueError("repo_path must be a directory")

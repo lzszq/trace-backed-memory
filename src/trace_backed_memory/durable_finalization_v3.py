@@ -260,6 +260,42 @@ class DurableFinalizationService:
         self._replay_authority = replay_authority
         self._clock = clock
 
+    @property
+    def authorization_service(self) -> AuthenticatedRetrievalService:
+        """Return the shared authorization service."""
+
+        return self._authorization_service
+
+    @property
+    def session_authority(self) -> GateSessionWriter:
+        """Return the exact durable GateSession authority."""
+
+        return self._session_writer
+
+    @property
+    def evidence_authority(self) -> SemanticGateEvidenceReader:
+        """Return the exact deterministic Gate evidence authority."""
+
+        return self._evidence_reader
+
+    @property
+    def semantic_authority(self) -> SemanticGateAttemptAuthority:
+        """Return the exact Semantic Gate attempt/artifact authority."""
+
+        return self._semantic_authority
+
+    @property
+    def revision_source(self) -> ActivatedRevisionRetrievalSource:
+        """Return the exact activated-revision source."""
+
+        return self._revision_source
+
+    @property
+    def replay_authority(self) -> FinalizationReplayAuthority:
+        """Return the exact replay authority."""
+
+        return self._replay_authority
+
     def finalize(
         self,
         context: AuthenticatedServiceContext,

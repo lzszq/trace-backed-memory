@@ -24,6 +24,13 @@ from trace_backed_memory import (
     TraceBackedMemoryStore,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_PACKAGED_RESOURCE_COUNT = len(
+    json.loads(
+        (ROOT / "resources" / "manifest.json").read_text(encoding="utf-8")
+    )["resources"]
+)
+
 
 def _pending_run(
     store: TraceBackedMemoryStore,
@@ -435,7 +442,7 @@ def test_cli_resource_commands_list_read_and_export(tmp_path, capsys):
 
     assert code == 0
     assert error is None
-    assert len(payload["resources"]) == 149
+    assert len(payload["resources"]) == EXPECTED_PACKAGED_RESOURCE_COUNT
     names = [item["name"] for item in payload["resources"]]
     assert names == sorted(names)
     assert "schemas/postgres.sql" in names

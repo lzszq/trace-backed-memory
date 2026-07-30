@@ -80,11 +80,27 @@ JSON 与 Lesson YAML 使用同一持久性边界：同目录临时文件、规�
 
 ## 打包分发资源
 
-`trace_backed_memory.resources` 提供 149 个规范 Schema、SQL/迁移、memory support 和 example 文件的安装后访问接口：`packaged_resources()`、`read_packaged_resource()` 与 `export_packaged_resource()`。
+规范 [`resources/manifest.json`](../resources/manifest.json) 驱动固定安装资源
+allowlist、package data、runtime 声明、精确 digest 与生成的
+[资源索引](resources.zh-CN.md)。`trace_backed_memory.resources` 为 Schema、
+SQL/迁移、memory support 与 example 提供安装后访问接口：
+`packaged_resources()`、`read_packaged_resource()` 与
+`export_packaged_resource()`。
 
 资源名来自固定、按字典序排列的白名单。模块在接触 `importlib.resources` 前验证名称，不接受任意遍历、当前目录 fallback 或暴露包路径。wheel、sdist、editable 与 zip import 使用同一行为。每个 `PackagedResource` 都包含 kind、media type、byte size 和 SHA-256。
 
 顶层文件是规范编辑源，包内 `_resources/` 是字节一致副本。构建验证会比较 wheel 与 sdist 中每个成员。`py.typed` 声明安装包类型信息。无路径 `load_failure_taxonomy()` 使用包内规范 taxonomy；显式路径仍属于调用方输入。
+
+### 统一 SQLite v3 bundle
+
+opt-in durable SQLite factory 不再临时安装一小部分 authority script。
+`schemas/sqlite-v3.components.json` 对 15 个非迁移 component 排序，
+`schemas/sqlite-v3.sql` 从这些精确字节生成一个外层事务。bundle metadata row
+绑定 component set 与 catalog 指纹。构造 durable service graph 前，启动过程会
+校验每个 component version，以及 main/temp catalog 中全部受控 table、index、
+automatic index 与 trigger。隔离 migration staging schema 不包含在 bundle 中。
+这提供完整的本地 v3 install/verifier，但不改变 active SQLite v1 transport 边界。
+详见[统一 SQLite v3 bundle](protocols/sqlite-bundle-v3.zh-CN.md)。
 
 ### 有界本地文档摄取
 
@@ -608,8 +624,11 @@ repository、environment、authorization event 或 authority identity；可信 a
 负责提供这些 context，并解析 canonical repository 与 evaluator registration。
 dispatcher 会在调用 facade 前执行 canonical-base64 prompt/response/query byte、
 精确 session revision、稳定公开 error 与显式 injection/replay content profile
-约束。它不保存 lifecycle handle，也不是 transport authenticator；当前 active HTTP、
-MCP、CLI 或 SDK adapter 均未选择它。详见
+约束。它不保存 lifecycle handle，也不是 transport authenticator。显式的
+`tbm-http --profile durable-v3` adapter 已通过唯一 durable runtime factory
+选择它，在派生服务端持有的 context 前认证本地 bearer，默认隐藏内容，并可在进程重启后
+重新打开统一 SQLite v3 graph。MCP、普通 CLI 与 TypeScript adapter 尚未选择它。详见
+[durable HTTP profile](protocols/durable-http-v1.zh-CN.md)、
 [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)、
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)、
 [durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)、

@@ -1,0 +1,185 @@
+{
+  "ledger_version": "tbm.capability-status.v1",
+  "status_date": "2026-07-30",
+  "product_version": "0.1.0",
+  "status_values": [
+    "active",
+    "opt-in",
+    "contract-only",
+    "planned"
+  ],
+  "compatibility_boundary": {
+    "snapshot_version": 2,
+    "sqlite_schema_version": 1,
+    "postgresql_schema_version": 2,
+    "agent_protocol": "tbm.agent.v1",
+    "pending_gate_requests": "process-local"
+  },
+  "capabilities": [
+    {
+      "id": "core.gated-memory-v2",
+      "status": "active",
+      "evidence": ["src/trace_backed_memory/store.py", "src/trace_backed_memory/policy.py"]
+    },
+    {
+      "id": "compat.agent-v1",
+      "status": "active",
+      "evidence": ["src/trace_backed_memory/agent.py", "src/trace_backed_memory/agent_wire_v1.py"]
+    },
+    {
+      "id": "transport.local-mcp-v1",
+      "status": "active",
+      "evidence": ["src/trace_backed_memory/mcp_server.py"]
+    },
+    {
+      "id": "transport.loopback-http-v1",
+      "status": "active",
+      "evidence": ["src/trace_backed_memory/http_server.py"]
+    },
+    {
+      "id": "sdk.python-v1",
+      "status": "active",
+      "evidence": ["src/trace_backed_memory/sdk.py"]
+    },
+    {
+      "id": "sdk.typescript-v1",
+      "status": "active",
+      "evidence": ["packages/typescript-sdk/src/client.ts"]
+    },
+    {
+      "id": "distribution.strict-resources",
+      "status": "active",
+      "evidence": ["src/trace_backed_memory/resources.py", "tests/verify_distribution.py"]
+    },
+    {
+      "id": "identity.authorization-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/authorization_v3.py", "src/trace_backed_memory/sqlite_authorization_v3.py"]
+    },
+    {
+      "id": "session.gate-session-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/gate_session_v3.py", "src/trace_backed_memory/sqlite_gate_session_v3.py"]
+    },
+    {
+      "id": "agent.durable-lifecycle-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/durable_agent_v3.py"]
+    },
+    {
+      "id": "agent.durable-wire-v1",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/durable_agent_wire_v1.py"]
+    },
+    {
+      "id": "memory.structured-evidence-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/evidence_v3.py"]
+    },
+    {
+      "id": "memory.revision-publication-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/memory_revision_v3.py", "src/trace_backed_memory/memory_publication_v3.py"]
+    },
+    {
+      "id": "retrieval.activated-revision-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/activated_revision_v3.py", "src/trace_backed_memory/retrieval_preparation_v3.py"]
+    },
+    {
+      "id": "retrieval.managed-index-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/managed_index_v3.py"]
+    },
+    {
+      "id": "artifact.encrypted-authority-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/artifact_service_v3.py"]
+    },
+    {
+      "id": "replay.durable-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/replay_v3.py"]
+    },
+    {
+      "id": "completion.outbox-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/completion_outbox_worker_v3.py"]
+    },
+    {
+      "id": "operations.audit-recovery-v3",
+      "status": "opt-in",
+      "evidence": ["src/trace_backed_memory/audit_v3.py"]
+    },
+    {
+      "id": "migration.snapshot-v3",
+      "status": "contract-only",
+      "evidence": ["src/trace_backed_memory/migration_v3.py", "src/trace_backed_memory/sqlite_v3.py"]
+    },
+    {
+      "id": "persistence.unified-sqlite-v3",
+      "status": "opt-in",
+      "evidence": ["schemas/sqlite-v3.sql", "src/trace_backed_memory/sqlite_bundle_v3.py"]
+    },
+    {
+      "id": "persistence.unified-postgresql-v3",
+      "status": "planned",
+      "evidence": ["docs/adr/0002-unified-v3-database-bundles.md"]
+    },
+    {
+      "id": "transport.durable-http",
+      "status": "active",
+      "evidence": [
+        "src/trace_backed_memory/durable_http_entry.py",
+        "src/trace_backed_memory/durable_http_server.py",
+        "tests/test_durable_http_sdk.py",
+        "docs/protocols/durable-http-v1.md"
+      ]
+    },
+    {
+      "id": "transport.durable-mcp",
+      "status": "planned",
+      "evidence": ["docs/adr/0003-transport-identity-ownership.md"]
+    },
+    {
+      "id": "sdk.durable-python-typescript",
+      "status": "planned",
+      "evidence": ["docs/status/current-capability-matrix.md"]
+    },
+    {
+      "id": "service.local-daemon",
+      "status": "planned",
+      "evidence": ["docs/status/current-capability-matrix.md"]
+    },
+    {
+      "id": "service.shared-multitenant",
+      "status": "planned",
+      "evidence": ["docs/status/current-capability-matrix.md"]
+    },
+    {
+      "id": "integration.review-console",
+      "status": "planned",
+      "evidence": ["docs/status/current-capability-matrix.md"]
+    },
+    {
+      "id": "integration.codex-hooks",
+      "status": "planned",
+      "evidence": ["docs/status/current-capability-matrix.md"]
+    },
+    {
+      "id": "integration.github-pr-check",
+      "status": "planned",
+      "evidence": ["docs/status/current-capability-matrix.md"]
+    },
+    {
+      "id": "operations.production-readiness",
+      "status": "planned",
+      "evidence": ["docs/status/current-capability-matrix.md"]
+    },
+    {
+      "id": "governance.stable-release",
+      "status": "planned",
+      "evidence": ["docs/status/current-capability-matrix.md"]
+    }
+  ]
+}

@@ -2,6 +2,10 @@
 
 [English](product-program.md) | **简体中文**
 
+本文件保留历史交付 phase。active 产品边界以
+[当前能力状态账本](status/current-capability-matrix.zh-CN.md)为准；已经交付的隔离
+increment 不会自动成为 active 用户路径。
+
 ## Phase 0：项目定义
 
 - 定义 memory object model、人工维护的 Project Policy 和 System Gate 策略。
@@ -528,6 +532,11 @@
 - 增加 immutable、side-by-side SQLite staging repository，以及带版本门禁的
   PostgreSQL staging/rollback scripts；所有 staging 对 runtime v2 adapter
   不可见，且不提供 activation operation。
+- 增加 opt-in 统一 SQLite v3 runtime bundle 与有序的 15-component manifest。
+  在一条 connection 的一个外层事务中安装完整非迁移 authority catalog，绑定
+  immutable bundle/component metadata，并对任何 main/temp table、index、
+  automatic index、trigger 或 version drift fail closed。migration staging
+  保持在 bundle 之外，active SQLite v1 transport 边界不变。
 - 发布不可变的 `tbm.gate-session.v3` 领域契约、显式生命周期转换图、乐观
   revision 检查、lease/expiry 不变量、有界严格 JSON parser，以及打包
   Schema/示例。领域契约保持 persistence-neutral；opt-in repository 不会自动
@@ -865,6 +874,14 @@
   精确 cancel/abandonment replay、identity 字段拒绝、stale revision、content
   profile 与已授权 replay。transport authentication 与 active
   HTTP/MCP/CLI/SDK selection 仍待完成。
+- 增加显式 `tbm-http --profile durable-v3` 产品 adapter，使用 durable wire 与唯一
+  runtime factory。runtime dependency 与可信身份 context 来自 operator 控制的
+  application factory；派生 context 前必须验证有界本地 bearer；拒绝 request identity
+  字段、歧义 HTTP framing、错误 canonical base64 与 stale revision；默认关闭
+  injection/replay content；非 loopback 绑定使用有界 TLS handshake。测试覆盖真实 socket
+  生命周期、每个生命周期状态之后重新打开 SQLite runtime/server、幂等与 stale transition、
+  replay allow/deny 及经过净化的失败。durable MCP、TypeScript、本地 daemon 与远程多租户
+  service 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-

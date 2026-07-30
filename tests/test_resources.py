@@ -31,7 +31,7 @@ def test_packaged_resources_match_every_canonical_file_byte_for_byte():
     descriptions = tbm.packaged_resources()
 
     assert tuple(item.name for item in descriptions) == CANONICAL_RESOURCE_NAMES
-    assert len(descriptions) == 149
+    assert len(descriptions) == len(CANONICAL_RESOURCE_NAMES)
     for item in descriptions:
         canonical = (ROOT / item.name).read_bytes()
         assert tbm.read_packaged_resource(item.name) == canonical

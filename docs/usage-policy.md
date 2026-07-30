@@ -162,8 +162,10 @@ package filesystem path or fall back to the current checkout. Resource names
 must come from the fixed canonical allowlist; unknown names and traversal-like
 strings are rejected before package access.
 
-The 149 installed resource copies must remain byte-identical to the top-level
-authoring files. Wheel and source-distribution verification must fail on a
+The entries in
+[`resources/manifest.json`](../resources/manifest.json) are the only installed
+resource allowlist. Every installed copy must remain byte-identical to its
+top-level authoring file. Wheel and source-distribution verification must fail on a
 missing, extra, or changed copy. `PackagedResource` metadata is derived from
 installed bytes and includes SHA-256 and byte size. `load_failure_taxonomy()`
 without a path uses the packaged canonical taxonomy; an explicit path remains

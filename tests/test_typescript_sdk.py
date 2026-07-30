@@ -76,7 +76,9 @@ def test_typescript_sdk_ci_and_bilingual_docs_stay_published() -> None:
     assert "packages/typescript-sdk/package-lock.json" in ci
     assert "npm ci --ignore-scripts" in ci
     assert "npm run pack:check" in ci
-    assert ci.count("len(packaged_resources()) == 149") == 2
+    assert "tools/verify.py --all" in ci
+    assert ci.count("resources/manifest.json") >= 2
+    assert "len(packaged_resources()) == 149" not in ci
 
     documents = {
         "README.md": (ROOT / "README.md").read_text(encoding="utf-8"),

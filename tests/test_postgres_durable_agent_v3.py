@@ -109,12 +109,14 @@ def test_postgres_authenticated_durable_agent_lifecycle_parity(
             evaluator_authenticator=_authenticate_evaluator,
             clock=_now,
         )
-        agent = tbm.AuthenticatedDurableAgentMemory(
-            authorization_service=authorization,
+        services = tbm.DurableServiceBundle.from_services(
             preparation_service=preparation,
             semantic_service=semantic,
             finalization_service=finalizer,
             execution_service=execution,
+        )
+        agent = tbm.AuthenticatedDurableAgentMemory(
+            service_bundle=services,
         )
         try:
             finalized = agent.finalize(

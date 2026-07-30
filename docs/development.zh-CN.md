@@ -22,11 +22,15 @@ dependency。
 python tools/verify.py --fast
 python tools/verify.py --full
 python tools/verify.py --full --postgres
+python tools/verify.py --all
 ```
 
 fast 模式执行源码编译、Ruff、mypy 和 pytest。full 模式使用分支覆盖率，
 随后在全新临时目录构建 wheel/sdist，并逐字节验证发行内容。`--postgres`
 会设置 `TBM_REQUIRE_POSTGRES=1`，使缺少数据库前提成为失败。
+`--all` 是离线全仓门禁：还会核验规范 resource manifest、强制 PostgreSQL、
+运行 `pip check`，并调用已经安装的 TypeScript toolchain。它不会运行 `npm ci`
+或下载工具。
 
 ## 变更检查
 
@@ -35,6 +39,10 @@ fast 模式执行源码编译、Ruff、mypy 和 pytest。full 模式使用分支
 - 每个状态转换都增加拒绝路径与精确重放测试。
 - 存储契约变更同步更新 domain、Schema、持久化、示例、资源和文档。
 - 保持规范资源与安装副本字节一致。
+- 运行 `python tools/generate_sqlite_v3_bundle.py --check`；明确修改清单内的
+  SQLite v3 component 后，先运行其 `--refresh`，再运行 resource generator。
+- 运行 `python tools/generate_resources.py --check`；只有在修改 manifest 已列出的
+  规范字节时，才显式使用 `--refresh` 与 `--write`。
 - 没有显式 migration 与 verifier 时不得提升 schema version。
 
 ## 聚焦命令

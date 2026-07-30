@@ -4,6 +4,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import NoReturn, Protocol, TypeVar, cast
 
+from .durable_composition_v3 import (
+    DurableCompositionV3Error,
+    DurableServiceBundle,
+)
 from .durable_execution_v3 import (
     AuthenticatedOutcomeEvaluatorContext,
     DurableExecutionAbandonRequest,
@@ -190,90 +194,65 @@ class AuthenticatedDurableAgentMemory:
     def __init__(
         self,
         *,
-        authorization_service: AuthenticatedRetrievalService,
-        preparation_service: DurableRetrievalPreparationService,
-        semantic_service: AuthenticatedSemanticGateSessionService,
-        finalization_service: DurableFinalizationService,
-        execution_service: DurableExecutionService,
+        service_bundle: DurableServiceBundle | None = None,
+        authorization_service: AuthenticatedRetrievalService | None = None,
+        preparation_service: DurableRetrievalPreparationService | None = None,
+        semantic_service: AuthenticatedSemanticGateSessionService | None = None,
+        finalization_service: DurableFinalizationService | None = None,
+        execution_service: DurableExecutionService | None = None,
     ) -> None:
-        if type(authorization_service) is not AuthenticatedRetrievalService:
-            raise TypeError(
-                "authorization_service must be AuthenticatedRetrievalService"
+        legacy_services = (
+            authorization_service,
+            preparation_service,
+            semantic_service,
+            finalization_service,
+            execution_service,
+        )
+        if service_bundle is None:
+            if (
+                type(authorization_service)
+                is not AuthenticatedRetrievalService
+                or type(preparation_service)
+                is not DurableRetrievalPreparationService
+                or type(semantic_service)
+                is not AuthenticatedSemanticGateSessionService
+                or type(finalization_service) is not DurableFinalizationService
+                or type(execution_service) is not DurableExecutionService
+            ):
+                raise TypeError(
+                    "service_bundle or the complete legacy service set is required"
+                )
+            service_bundle = DurableServiceBundle.from_services(
+                preparation_service=preparation_service,
+                semantic_service=semantic_service,
+                finalization_service=finalization_service,
+                execution_service=execution_service,
             )
-        if type(preparation_service) is not DurableRetrievalPreparationService:
+            if (
+                service_bundle.authority_graph.authorization_service
+                is not authorization_service
+            ):
+                raise DurableCompositionV3Error(
+                    "TBM_DURABLE_AUTHORITY_GRAPH_MISMATCH",
+                    "durable services do not share the configured authority graph",
+                )
+        elif (
+            type(service_bundle) is not DurableServiceBundle
+            or any(value is not None for value in legacy_services)
+        ):
             raise TypeError(
-                "preparation_service must be DurableRetrievalPreparationService"
-            )
-        if type(semantic_service) is not AuthenticatedSemanticGateSessionService:
-            raise TypeError(
-                "semantic_service must be AuthenticatedSemanticGateSessionService"
-            )
-        if type(finalization_service) is not DurableFinalizationService:
-            raise TypeError(
-                "finalization_service must be DurableFinalizationService"
-            )
-        if type(execution_service) is not DurableExecutionService:
-            raise TypeError(
-                "execution_service must be DurableExecutionService"
+                "service_bundle cannot be combined with legacy service arguments"
             )
 
-        gate_service = preparation_service._gate_session_service  # noqa: SLF001
-        retrieval_service = preparation_service._retrieval_service  # noqa: SLF001
-        session_authority = gate_service._session_writer  # noqa: SLF001
-        evidence_reader = preparation_service._evidence_authority  # noqa: SLF001
-        replay_export_reader = finalization_service._replay_authority  # noqa: SLF001
-        semantic_gate_service = semantic_service._semantic_gate_service  # noqa: SLF001
-        if (
-            gate_service._authorization_service is not authorization_service  # noqa: SLF001
-            or retrieval_service._authorization_service  # noqa: SLF001
-            is not authorization_service
-            or finalization_service._authorization_service  # noqa: SLF001
-            is not authorization_service
-            or execution_service._authorization_service  # noqa: SLF001
-            is not authorization_service
-        ):
-            raise TypeError(
-                "durable Agent services must share one authorization service"
-            )
-        if (
-            semantic_service._session_writer is not session_authority  # noqa: SLF001
-            or finalization_service._session_writer  # noqa: SLF001
-            is not session_authority
-            or execution_service._session_writer  # noqa: SLF001
-            is not session_authority
-        ):
-            raise TypeError(
-                "durable Agent services must share one GateSession authority"
-            )
-        if (
-            semantic_gate_service._evidence_reader is not evidence_reader  # noqa: SLF001
-            or finalization_service._evidence_reader  # noqa: SLF001
-            is not evidence_reader
-        ):
-            raise TypeError(
-                "durable Agent services must share one Gate evidence authority"
-            )
-        if (
-            semantic_gate_service._authority  # noqa: SLF001
-            is not finalization_service._semantic_authority  # noqa: SLF001
-        ):
-            raise TypeError(
-                "durable Agent services must share one Semantic Gate authority"
-            )
-        if (
-            retrieval_service._revision_source  # noqa: SLF001
-            is not finalization_service._revision_source  # noqa: SLF001
-        ):
-            raise TypeError(
-                "durable Agent services must share one activated revision source"
-            )
-        if (
-            execution_service._finalization_reader  # noqa: SLF001
-            is not finalization_service
-        ):
-            raise TypeError(
-                "durable execution must replay through the configured finalizer"
-            )
+        graph = service_bundle.authority_graph
+        authorization_service = graph.authorization_service
+        preparation_service = service_bundle.preparation_service
+        semantic_service = service_bundle.semantic_service
+        finalization_service = service_bundle.finalization_service
+        execution_service = service_bundle.execution_service
+        session_authority = graph.session_authority
+        evidence_reader = graph.evidence_authority
+        replay_export_reader = graph.replay_authority
         if not all(
             callable(getattr(session_authority, name, None))
             for name in ("get", "transition")
@@ -297,6 +276,7 @@ class AuthenticatedDurableAgentMemory:
                 "replay authority must support authorized bundle export reads"
             )
 
+        self._service_bundle = service_bundle
         self._authorization_service = authorization_service
         self._preparation_service = preparation_service
         self._semantic_service = semantic_service
@@ -308,6 +288,12 @@ class AuthenticatedDurableAgentMemory:
             DurableAgentReplayExportReader,
             replay_export_reader,
         )
+
+    @property
+    def service_bundle(self) -> DurableServiceBundle:
+        """Return the validated service bundle used by this facade."""
+
+        return self._service_bundle
 
     def prepare(
         self,

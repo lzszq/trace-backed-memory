@@ -23,12 +23,16 @@ has no runtime package dependency.
 python tools/verify.py --fast
 python tools/verify.py --full
 python tools/verify.py --full --postgres
+python tools/verify.py --all
 ```
 
 Fast mode compiles sources, runs Ruff, runs mypy, and runs pytest. Full mode
 uses branch coverage, then builds wheel and sdist in a fresh temporary
 directory and verifies their contents byte-for-byte. `--postgres` sets
 `TBM_REQUIRE_POSTGRES=1`, so missing server prerequisites become failures.
+`--all` is the offline full-repository gate: it also checks the canonical
+resource manifest, requires PostgreSQL, runs `pip check`, and runs the already
+installed TypeScript toolchain. It never runs `npm ci` or downloads tools.
 
 ## Change checklist
 
@@ -38,6 +42,11 @@ directory and verifies their contents byte-for-byte. `--postgres` sets
 - Update domain, schema, persistence, examples, resources, and documentation
   together for stored-contract changes.
 - Keep canonical and installed resource bytes identical.
+- Run `python tools/generate_sqlite_v3_bundle.py --check`; after deliberately
+  editing a listed SQLite v3 component, run its `--refresh` mode before the
+  resource generator.
+- Run `python tools/generate_resources.py --check`; use explicit `--refresh`
+  and `--write` only when changing manifest-listed canonical bytes.
 - Do not update a schema version without an explicit migration and verifier.
 
 ## Focused commands

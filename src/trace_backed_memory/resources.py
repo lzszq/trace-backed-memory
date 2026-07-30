@@ -46,34 +46,71 @@ class PackagedResourceError(RuntimeError):
         super().__init__(message)
 
 
+# BEGIN GENERATED RESOURCE SPECS
 _RESOURCE_SPECS: tuple[
     tuple[str, Literal["schema", "memory", "example"], str],
     ...,
 ] = (
-    ("examples/agent_cancel_request.example.json", "example", "application/json"),
-    ("examples/agent_canceled.example.json", "example", "application/json"),
-    ("examples/agent_capabilities.example.json", "example", "application/json"),
+    (
+        "examples/agent_cancel_request.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/agent_canceled.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/agent_capabilities.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/agent_complete_request.example.json",
         "example",
         "application/json",
     ),
-    ("examples/agent_completed.example.json", "example", "application/json"),
-    ("examples/agent_error.example.json", "example", "application/json"),
+    (
+        "examples/agent_completed.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/agent_error.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/agent_finalize_request.example.json",
         "example",
         "application/json",
     ),
-    ("examples/agent_finalized.example.json", "example", "application/json"),
-    ("examples/agent_health.example.json", "example", "application/json"),
+    (
+        "examples/agent_finalized.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/agent_health.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/agent_prepare_request.example.json",
         "example",
         "application/json",
     ),
-    ("examples/agent_prepared.example.json", "example", "application/json"),
-    ("examples/audit_event_v3.example.json", "example", "application/json"),
+    (
+        "examples/agent_prepared.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/audit_event_v3.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/authorization_decision_v3.example.json",
         "example",
@@ -104,26 +141,46 @@ _RESOURCE_SPECS: tuple[
         "example",
         "application/json",
     ),
-    ("examples/failure_case.example.json", "example", "application/json"),
+    (
+        "examples/failure_case.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/fix_evidence_v3.example.json",
         "example",
         "application/json",
     ),
-    ("examples/gate_session_v3.example.json", "example", "application/json"),
+    (
+        "examples/gate_session_v3.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/injection_artifact_v3.example.json",
         "example",
         "application/json",
     ),
-    ("examples/lesson.example.json", "example", "application/json"),
+    (
+        "examples/lesson.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/managed_index_bundle_v3.example.json",
         "example",
         "application/json",
     ),
-    ("examples/memory_context.example.json", "example", "application/json"),
-    ("examples/memory_decision.example.json", "example", "application/json"),
+    (
+        "examples/memory_context.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/memory_decision.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/memory_revision_activation_v3.example.json",
         "example",
@@ -139,14 +196,26 @@ _RESOURCE_SPECS: tuple[
         "example",
         "application/json",
     ),
-    ("examples/memory_usage_log.example.json", "example", "application/json"),
+    (
+        "examples/memory_usage_log.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/outcome_attribution_v3.example.json",
         "example",
         "application/json",
     ),
-    ("examples/project_policy.example.json", "example", "application/json"),
-    ("examples/quickstart.py", "example", "text/x-python"),
+    (
+        "examples/project_policy.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/quickstart.py",
+        "example",
+        "text/x-python",
+    ),
     (
         "examples/recovery_action_v3.example.json",
         "example",
@@ -167,7 +236,11 @@ _RESOURCE_SPECS: tuple[
         "example",
         "application/json",
     ),
-    ("examples/run_outcome_v3.example.json", "example", "application/json"),
+    (
+        "examples/run_outcome_v3.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/semantic_gate_artifact_v3.example.json",
         "example",
@@ -203,14 +276,26 @@ _RESOURCE_SPECS: tuple[
         "example",
         "application/json",
     ),
-    ("examples/trace.example.json", "example", "application/json"),
+    (
+        "examples/trace.example.json",
+        "example",
+        "application/json",
+    ),
     (
         "examples/usage_decision_v3.example.json",
         "example",
         "application/json",
     ),
-    ("memory/failure_taxonomy.yaml", "memory", "application/yaml"),
-    ("memory/lessons.example.yaml", "memory", "application/yaml"),
+    (
+        "memory/failure_taxonomy.yaml",
+        "memory",
+        "application/yaml",
+    ),
+    (
+        "memory/lessons.example.yaml",
+        "memory",
+        "application/yaml",
+    ),
     (
         "schemas/agent-http-v1.openapi.json",
         "schema",
@@ -241,7 +326,11 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/schema+json",
     ),
-    ("schemas/agent_error.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/agent_error.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/agent_finalize_request.schema.json",
         "schema",
@@ -252,7 +341,11 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/schema+json",
     ),
-    ("schemas/agent_health.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/agent_health.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/agent_prepare_request.schema.json",
         "schema",
@@ -298,26 +391,46 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/schema+json",
     ),
-    ("schemas/failure_case.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/failure_case.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/fix_evidence_v3.schema.json",
         "schema",
         "application/schema+json",
     ),
-    ("schemas/gate_session_v3.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/gate_session_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/injection_artifact_v3.schema.json",
         "schema",
         "application/schema+json",
     ),
-    ("schemas/lesson.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/lesson.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/managed_index_bundle_v3.schema.json",
         "schema",
         "application/schema+json",
     ),
-    ("schemas/memory_context.schema.json", "schema", "application/schema+json"),
-    ("schemas/memory_decision.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/memory_context.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/memory_decision.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/memory_revision_activation_v3.schema.json",
         "schema",
@@ -348,7 +461,11 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/schema+json",
     ),
-    ("schemas/postgres-v1-to-v2.sql", "schema", "application/sql"),
+    (
+        "schemas/postgres-v1-to-v2.sql",
+        "schema",
+        "application/sql",
+    ),
     (
         "schemas/postgres-v2-lock-order-hotfix.sql",
         "schema",
@@ -509,9 +626,21 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/sql",
     ),
-    ("schemas/postgres-v3-staging.sql", "schema", "application/sql"),
-    ("schemas/postgres.sql", "schema", "application/sql"),
-    ("schemas/project_policy.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/postgres-v3-staging.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/project_policy.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/recovery_action_v3.schema.json",
         "schema",
@@ -567,8 +696,16 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/sql",
     ),
-    ("schemas/sqlite-v3-audit.sql", "schema", "application/sql"),
-    ("schemas/sqlite-v3-authorization.sql", "schema", "application/sql"),
+    (
+        "schemas/sqlite-v3-audit.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/sqlite-v3-authorization.sql",
+        "schema",
+        "application/sql",
+    ),
     (
         "schemas/sqlite-v3-completion-outbox.sql",
         "schema",
@@ -579,26 +716,76 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/sql",
     ),
-    ("schemas/sqlite-v3-gate-evidence.sql", "schema", "application/sql"),
-    ("schemas/sqlite-v3-gate-session.sql", "schema", "application/sql"),
-    ("schemas/sqlite-v3-managed-index.sql", "schema", "application/sql"),
-    ("schemas/sqlite-v3-memory-publication.sql", "schema", "application/sql"),
-    ("schemas/sqlite-v3-memory-revision.sql", "schema", "application/sql"),
-    ("schemas/sqlite-v3-migration.sql", "schema", "application/sql"),
+    (
+        "schemas/sqlite-v3-gate-evidence.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/sqlite-v3-gate-session.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/sqlite-v3-managed-index.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/sqlite-v3-memory-publication.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/sqlite-v3-memory-revision.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/sqlite-v3-migration.sql",
+        "schema",
+        "application/sql",
+    ),
     (
         "schemas/sqlite-v3-outcome-attribution.sql",
         "schema",
         "application/sql",
     ),
-    ("schemas/sqlite-v3-outcome.sql", "schema", "application/sql"),
-    ("schemas/sqlite-v3-replay.sql", "schema", "application/sql"),
+    (
+        "schemas/sqlite-v3-outcome.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/sqlite-v3-replay.sql",
+        "schema",
+        "application/sql",
+    ),
     (
         "schemas/sqlite-v3-semantic-gate-artifacts.sql",
         "schema",
         "application/sql",
     ),
-    ("schemas/sqlite-v3-semantic-gate.sql", "schema", "application/sql"),
-    ("schemas/sqlite.sql", "schema", "application/sql"),
+    (
+        "schemas/sqlite-v3-semantic-gate.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/sqlite-v3.components.json",
+        "schema",
+        "application/json",
+    ),
+    (
+        "schemas/sqlite-v3.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/sqlite.sql",
+        "schema",
+        "application/sql",
+    ),
     (
         "schemas/structured_regression_evidence_v3.schema.json",
         "schema",
@@ -609,13 +796,18 @@ _RESOURCE_SPECS: tuple[
         "schema",
         "application/schema+json",
     ),
-    ("schemas/trace.schema.json", "schema", "application/schema+json"),
+    (
+        "schemas/trace.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
     (
         "schemas/usage_decision_v3.schema.json",
         "schema",
         "application/schema+json",
     ),
 )
+# END GENERATED RESOURCE SPECS
 _RESOURCE_SPEC_BY_NAME = {
     name: (kind, media_type) for name, kind, media_type in _RESOURCE_SPECS
 }

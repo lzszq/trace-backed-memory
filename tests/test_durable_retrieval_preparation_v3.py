@@ -173,10 +173,9 @@ def test_durable_retrieval_exact_replay_does_not_repeat_discovery_or_evidence():
     )
     try:
         first = service.prepare(_context(registry), _durable_request())
-        with pytest.raises(tbm.GateSessionReplayError) as replay:
-            service.prepare(_context(registry), _durable_request())
+        replay = service.prepare(_context(registry), _durable_request())
 
-        assert replay.value.session == first.session
+        assert replay == first
         assert discovery.calls == 1
         assert (
             evidence.load_snapshot(first.value.snapshot.snapshot_id)

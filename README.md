@@ -12,6 +12,7 @@ Trace -> Failure Case -> Verified Lesson -> Gated Runtime Memory
 ```
 
 [Documentation](docs/index.md) ·
+[Current status](docs/status/current-capability-matrix.md) ·
 [Detailed reference](docs/reference.md) ·
 [Product and capabilities](docs/product.en.md) ·
 [Architecture](docs/architecture.md) ·
@@ -154,6 +155,7 @@ python -m pip install -e ".[dev]"
 python tools/verify.py --fast
 python tools/verify.py --full
 python tools/verify.py --full --postgres
+python tools/verify.py --all
 ```
 
 PostgreSQL verification is required for changes to PostgreSQL behavior.

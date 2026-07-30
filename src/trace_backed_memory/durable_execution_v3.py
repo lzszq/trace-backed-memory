@@ -249,6 +249,30 @@ class DurableExecutionService:
         self._evaluator_authenticator = evaluator_authenticator
         self._clock = clock
 
+    @property
+    def authorization_service(self) -> AuthenticatedRetrievalService:
+        """Return the shared authorization service."""
+
+        return self._authorization_service
+
+    @property
+    def session_authority(self) -> GateSessionWriter:
+        """Return the exact durable GateSession authority."""
+
+        return self._session_writer
+
+    @property
+    def finalization_reader(self) -> FinalizedReplayReader:
+        """Return the exact finalization replay source."""
+
+        return self._finalization_reader
+
+    @property
+    def completion_authority(self) -> CompletionOutboxAuthority:
+        """Return the exact outcome/completion-outbox authority."""
+
+        return self._completion_authority
+
     def start(
         self,
         context: AuthenticatedServiceContext,

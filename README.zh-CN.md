@@ -12,6 +12,7 @@ Trace -> Failure Case -> Verified Lesson -> Gated Runtime Memory
 ```
 
 [文档索引](docs/index.zh-CN.md) ·
+[当前状态](docs/status/current-capability-matrix.zh-CN.md) ·
 [详细参考](docs/reference.zh-CN.md) ·
 [产品与当前能力](docs/product.md) ·
 [架构](docs/architecture.zh-CN.md) ·
@@ -148,6 +149,7 @@ python -m pip install -e ".[dev]"
 python tools/verify.py --fast
 python tools/verify.py --full
 python tools/verify.py --full --postgres
+python tools/verify.py --all
 ```
 
 涉及 PostgreSQL 行为的变更必须执行 PostgreSQL 验证。runtime、测试与验证工具不得

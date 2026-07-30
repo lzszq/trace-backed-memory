@@ -54,6 +54,7 @@ This directory implements the trusted runtime kernel and its adapters.
   external messages.
 - Package-root exports in `__init__.py` are public compatibility commitments.
 - Run `python tools/verify.py --fast` after focused tests.
+- Run `python tools/verify.py --all` before a cross-language release handoff.
 
 For architecture and invariant details, use the repository skill
 `maintain-trace-backed-memory`.

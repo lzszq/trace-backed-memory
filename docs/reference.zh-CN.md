@@ -223,12 +223,23 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-当前白名单包含 149 项资源。`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有的文件。
+精确白名单与 digest 由
+[`resources/manifest.json`](../resources/manifest.json) 生成。
+`PackagedResource` 描述包含资源种类、媒体类型、字节数和 SHA-256。
+`load_failure_taxonomy()` 默认加载包内规范分类体系；传入路径时仍会加载调用方拥有
+的文件。
 
 新增 managed-index 资源包括 bundle Schema/example，以及隔离 SQLite 与
 PostgreSQL install/rollback SQL。package-root API 导出 builder、
 `ManagedIndexDiscovery`、两个 repository 与 `SemanticQueryVector`；精确边界和
 非目标见[托管索引 bundle v3](protocols/managed-index-v3.zh-CN.md)。
+
+opt-in 统一本地 durable schema 发布为 `schemas/sqlite-v3.sql`，
+`schemas/sqlite-v3.components.json` 是其有序 component manifest。
+`DurableRuntimeFactory.open_sqlite(..., initialize=True)` 在一条 connection 上
+安装全部 15 个非迁移 authority schema，并在暴露 durable dispatcher 前验证精确
+受控 catalog。这不会使 durable-v3 成为 active transport profile。详见
+[统一 SQLite v3 bundle](protocols/sqlite-bundle-v3.zh-CN.md)。
 
 ## 证据摄取完整性
 
@@ -480,6 +491,13 @@ query/prompt/response bytes 使用 canonical base64。
 `DurableAgentWireConfiguration` 默认关闭 injection 与 replay content，而且
 dispatcher 从不认证 transport peer。详见
 [durable Agent wire v1](protocols/durable-agent-wire-v1.zh-CN.md)。
+
+显式 `tbm-http --profile durable-v3` profile 是首个选择该 dispatcher 的产品
+transport。operator 持有的 `DurableHTTPApplication` factory 提供 runtime
+dependency 与可信 context provider；有界 bearer secret 必须在派生 context 前完成
+认证。adapter 通过 `DurableRuntimeFactory` 使用统一 SQLite v3 或隔离 PostgreSQL
+v3，默认隐藏精确内容，非 loopback 绑定必须使用 TLS，并且 HTTP 进程不保留 lifecycle
+handle。详见 [durable HTTP profile](protocols/durable-http-v1.zh-CN.md)。
 
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的
 opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS head

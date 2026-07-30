@@ -45,6 +45,16 @@ class GateSessionWriter(Protocol):
 
     def get(self, session_id: str) -> GateSession: ...
 
+    def find_by_idempotency(
+        self,
+        *,
+        tenant_id: str,
+        repository_id: str,
+        principal_id: str,
+        agent_client_id: str,
+        idempotency_key: str,
+    ) -> GateSession | None: ...
+
     def renew_lease(
         self,
         session_id: str,
@@ -181,6 +191,18 @@ class AuthenticatedGateSessionService:
         self._session_writer = session_writer
         self._session_id_factory = session_id_factory
         self._evidence_verifier = evidence_verifier
+
+    @property
+    def authorization_service(self) -> AuthenticatedRetrievalService:
+        """Return the exact authorization service bound to this composition."""
+
+        return self._authorization_service
+
+    @property
+    def session_authority(self) -> GateSessionWriter:
+        """Return the exact durable GateSession authority."""
+
+        return self._session_writer
 
     def prepare(
         self,

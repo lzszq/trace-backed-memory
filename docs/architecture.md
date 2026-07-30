@@ -257,9 +257,11 @@ no stored field: snapshot version 2, JSON Schemas, and PostgreSQL schema version
 
 ## Packaged Distribution Resources
 
-The `trace_backed_memory.resources` module is the installed-resource seam for
-the repository's 149 canonical Schema, SQL/migration, memory-support, and
-example files. Its
+The canonical [`resources/manifest.json`](../resources/manifest.json) drives
+the fixed installed-resource allowlist, package data, runtime declarations,
+exact digests, and generated [resource index](resources.md) for the
+repository's Schema, SQL/migration, memory-support, and example files. The
+`trace_backed_memory.resources` module is the installed-resource seam. Its
 interface is limited to deterministic `packaged_resources()` descriptions,
 exact-byte `read_packaged_resource()` reads, and explicit
 `export_packaged_resource()` writes. Descriptions are immutable and carry the
@@ -287,6 +289,19 @@ interface. Export refuses replacement unless `--overwrite` is explicit and
 uses same-directory temporary bytes before atomic publication. Resource files
 are distribution artifacts, not Store records; snapshot version 2 and
 PostgreSQL schema version 2 remain unchanged.
+
+### Unified SQLite v3 bundle
+
+The opt-in durable SQLite factory no longer installs an ad hoc subset of
+authority scripts. `schemas/sqlite-v3.components.json` orders 15 non-migration
+components, and `schemas/sqlite-v3.sql` generates one outer transaction from
+those exact bytes. A bundle metadata row binds the component-set and catalog
+fingerprints. Startup verifies every component version plus every controlled
+main/temp table, index, automatic index, and trigger before constructing the
+durable service graph. The isolated migration staging schema is not included.
+This adds a complete local v3 install/verifier without changing the active
+SQLite v1 transport boundary. See
+[Unified SQLite v3 bundle](protocols/sqlite-bundle-v3.md).
 
 ### Bounded Local Document Ingestion
 
@@ -1236,7 +1251,7 @@ either out-of-range direction. `sync()` accepts only a validated Store and
 therefore never writes an out-of-range value, but its additive semantics do not
 inspect unrelated database-only rows. Snapshot version 2 remains unchanged;
 the current PostgreSQL contract is schema version 2 and the packaged allowlist
-contains 149 resources.
+is fixed by [`resources/manifest.json`](../resources/manifest.json).
 
 `sync(store)` first snapshots the in-memory store, then opens one database
 transaction and locks schema metadata `FOR UPDATE`. Synchronization is additive:
@@ -1797,7 +1812,12 @@ canonical repository and evaluator registration. Canonical-base64
 prompt/response/query bytes, exact session revisions, stable public errors, and
 explicit injection/replay content profiles are enforced before the facade is
 called. The dispatcher stores no lifecycle handles and is not a transport
-authenticator; no active HTTP, MCP, CLI, or SDK adapter selects it yet. See
+authenticator. The explicit `tbm-http --profile durable-v3` adapter now selects
+it through the sole durable runtime factory, authenticates a local bearer
+before deriving server-owned contexts, hides content by default, and reopens
+the unified SQLite v3 graph across process restarts. MCP, general CLI, and
+TypeScript adapters do not select it yet. See
+[durable HTTP profile](protocols/durable-http-v1.md),
 [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md),
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md),
 [durable finalization v3](protocols/durable-finalization-v3.md),

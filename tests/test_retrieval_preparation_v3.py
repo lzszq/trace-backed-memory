@@ -289,11 +289,16 @@ def _request(
 
 def _retrieval_authorization(
     registry: tbm.EntityRegistrySnapshot,
+    *,
+    check_same_thread: bool = True,
 ) -> tuple[
     tbm.AuthenticatedRetrievalService,
     tbm.SQLiteAuthorizationV3Repository,
 ]:
-    repository = tbm.SQLiteAuthorizationV3Repository.connect(initialize=True)
+    repository = tbm.SQLiteAuthorizationV3Repository.connect(
+        initialize=True,
+        check_same_thread=check_same_thread,
+    )
     request_number = iter(range(1, 100))
     service = tbm.AuthenticatedRetrievalService(
         registry_provider=lambda: registry,

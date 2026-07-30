@@ -6,16 +6,25 @@
 
 ## 产品与架构
 
+- [当前能力状态](status/current-capability-matrix.zh-CN.md)
+- [机器可读能力状态](status/current-capabilities.json)
 - [产品定义与当前能力](product.md)
 - [详细 API 与运维参考](reference.zh-CN.md)
 - [参考架构](architecture.zh-CN.md)
 - [记忆使用策略](usage-policy.zh-CN.md)
 - [产品交付计划](product-program.zh-CN.md)
+- 已接受架构决策：
+  [ADR-0001](adr/0001-v2-compatibility-durable-v3-cutover.zh-CN.md)、
+  [ADR-0002](adr/0002-unified-v3-database-bundles.zh-CN.md)、
+  [ADR-0003](adr/0003-transport-identity-ownership.zh-CN.md)、
+  [ADR-0004](adr/0004-canonical-resource-manifest.zh-CN.md) 与
+  [ADR-0005](adr/0005-public-internal-package-boundaries.zh-CN.md)
 
 ## Agent 集成
 
 - [本地 Agent 协议 `tbm.agent.v1`](protocols/agent-v1.zh-CN.md)
 - [本地 HTTP 服务与 Python/TypeScript SDK](protocols/agent-http-v1.zh-CN.md)
+- [Durable HTTP profile](protocols/durable-http-v1.zh-CN.md)
 - [Node.js TypeScript SDK 包](../packages/typescript-sdk/README.md)
 - [规范本地 Agent OpenAPI 3.1](../schemas/agent-http-v1.openapi.json)
 - [授权 v3 契约](protocols/authorization-v3.zh-CN.md)
@@ -44,6 +53,7 @@
 - [Durable execution 组合 v3](protocols/durable-execution-v3.zh-CN.md)
 - [已认证 durable Agent 组合 v3](protocols/durable-agent-v3.zh-CN.md)
 - [Durable Agent wire 边界 v1](protocols/durable-agent-wire-v1.zh-CN.md)
+- [统一 SQLite v3 bundle](protocols/sqlite-bundle-v3.zh-CN.md)
 - [UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)
 - [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)
 - [PostgreSQL Semantic Gate artifact 仓库 v3](protocols/postgres-semantic-gate-artifact-v3.zh-CN.md)
@@ -68,6 +78,8 @@
 ## 开发与运维
 
 - [开发与验证](development.zh-CN.md)
+- [生成的 packaged-resource 索引](resources.zh-CN.md)
+- [规范 resource manifest](../resources/manifest.json)
 - [Snapshot v3 迁移预检](migrations/snapshot-v3-preflight.zh-CN.md)
 - [Version-3 迁移 bundle 与隔离 staging](migrations/v3-staging-bundles.zh-CN.md)
 - `schemas/sqlite.sql`：受支持的本地 SQL 形态

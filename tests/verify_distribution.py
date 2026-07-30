@@ -1,20 +1,81 @@
 from __future__ import annotations
 
 import ast
+import hashlib
+import json
 import sys
 import tarfile
 import tomllib
 import zipfile
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, NoReturn, TypeVar
 
 
 ROOT = Path(__file__).resolve().parents[1]
 T = TypeVar("T")
 
 
-def _canonical_resource_names() -> tuple[str, ...]:
-    return tuple(
+def _fail(message: str) -> NoReturn:
+    raise AssertionError(message)
+
+
+def _reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        assert key not in result, f"duplicate manifest JSON key: {key}"
+        result[key] = value
+    return result
+
+
+def _manifest_bytes() -> bytes:
+    return (ROOT / "resources" / "manifest.json").read_bytes()
+
+
+def _canonical_resource_entries() -> tuple[dict[str, object], ...]:
+    manifest = json.loads(
+        _manifest_bytes(),
+        object_pairs_hook=_reject_duplicates,
+        parse_constant=lambda value: _fail(
+            f"non-finite manifest JSON value: {value}"
+        ),
+    )
+    assert type(manifest) is dict
+    assert set(manifest) == {"manifest_version", "resources"}
+    assert manifest["manifest_version"] == "tbm.resource-manifest.v1"
+    entries = manifest["resources"]
+    assert type(entries) is list and entries
+    exact_fields = {
+        "name",
+        "kind",
+        "media_type",
+        "source",
+        "installed",
+        "size_bytes",
+        "sha256",
+    }
+    for entry in entries:
+        assert type(entry) is dict and set(entry) == exact_fields
+        name = entry["name"]
+        assert type(name) is str and name
+        assert entry["source"] == name
+        assert entry["installed"] == (
+            "src/trace_backed_memory/_resources/" + name
+        )
+        assert "\\" not in name
+        assert not name.startswith("/")
+        assert ".." not in Path(name).parts
+        assert name.split("/", 1)[0] in {"examples", "memory", "schemas"}
+        assert entry["kind"] in {"schema", "memory", "example"}
+        assert type(entry["media_type"]) is str and entry["media_type"]
+        assert type(entry["size_bytes"]) is int and entry["size_bytes"] >= 0
+        digest = entry["sha256"]
+        assert type(digest) is str and len(digest) == 64
+        assert all(character in "0123456789abcdef" for character in digest)
+
+    names = tuple(entry["name"] for entry in entries)
+    assert names == tuple(sorted(names))
+    assert len(names) == len(set(names))
+    assert names == tuple(
         sorted(
             path.relative_to(ROOT).as_posix()
             for directory in (
@@ -30,6 +91,11 @@ def _canonical_resource_names() -> tuple[str, ...]:
             )
         )
     )
+    for entry in entries:
+        data = (ROOT / entry["source"]).read_bytes()
+        assert entry["size_bytes"] == len(data)
+        assert entry["sha256"] == hashlib.sha256(data).hexdigest()
+    return tuple(entries)
 
 
 def _declared_resource_names() -> tuple[str, ...]:
@@ -77,7 +143,8 @@ def _only(items: list[T], description: str) -> T:
 
 
 def verify_distributions(dist_directory: Path) -> None:
-    resource_names = _canonical_resource_names()
+    resource_entries = _canonical_resource_entries()
+    resource_names = tuple(str(entry["name"]) for entry in resource_entries)
     assert _declared_resource_names() == resource_names
 
     wheels = sorted(dist_directory.glob("*.whl"))
@@ -89,6 +156,7 @@ def verify_distributions(dist_directory: Path) -> None:
     )
 
     package_prefix = "trace_backed_memory/_resources/"
+    package_manifest = "trace_backed_memory/_resource_manifest.json"
     expected_members = {package_prefix + name for name in resource_names}
     with zipfile.ZipFile(wheels[0]) as archive:
         archived_names = archive.namelist()
@@ -106,6 +174,7 @@ def verify_distributions(dist_directory: Path) -> None:
             assert archive.read(package_prefix + name) == (
                 ROOT / name
             ).read_bytes()
+        assert archive.read(package_manifest) == _manifest_bytes()
         assert _runtime_resource_names(
             archive.read("trace_backed_memory/resources.py")
         ) == resource_names
@@ -135,6 +204,8 @@ def verify_distributions(dist_directory: Path) -> None:
         assert len(roots) == 1, f"expected one source root, found: {roots}"
         source_root = next(iter(roots))
         package_root = f"{source_root}/src/trace_backed_memory"
+        root_manifest = f"{source_root}/resources/manifest.json"
+        installed_manifest = f"{package_root}/_resource_manifest.json"
         resource_prefix = f"{package_root}/_resources/"
         resource_members = [
             member
@@ -166,6 +237,33 @@ def verify_distributions(dist_directory: Path) -> None:
         extracted_module = archive.extractfile(resources_module)
         assert extracted_module is not None
         assert _runtime_resource_names(extracted_module.read()) == resource_names
+
+        generated_contract_members = (
+            (root_manifest, _manifest_bytes()),
+            (
+                f"{source_root}/tools/generate_resources.py",
+                (ROOT / "tools" / "generate_resources.py").read_bytes(),
+            ),
+            (
+                f"{source_root}/tools/generate_sqlite_v3_bundle.py",
+                (
+                    ROOT / "tools" / "generate_sqlite_v3_bundle.py"
+                ).read_bytes(),
+            ),
+            (installed_manifest, _manifest_bytes()),
+        )
+        for member_name, expected in generated_contract_members:
+            member = _only(
+                [
+                    candidate
+                    for candidate in file_members
+                    if candidate.name == member_name
+                ],
+                f"source distribution member {member_name}",
+            )
+            extracted = archive.extractfile(member)
+            assert extracted is not None
+            assert extracted.read() == expected
 
         marker = _only(
             [

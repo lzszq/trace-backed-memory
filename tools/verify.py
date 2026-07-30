@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -41,8 +42,51 @@ def _base_commands(*, fast: bool) -> list[list[str]]:
     return commands
 
 
-def _display_commands(*, fast: bool) -> list[list[str]]:
-    commands = _base_commands(fast=fast)
+def _all_only_commands(*, npm: str) -> list[list[str]]:
+    return [
+        [
+            sys.executable,
+            "tools/generate_sqlite_v3_bundle.py",
+            "--check",
+        ],
+        [sys.executable, "tools/generate_resources.py", "--check"],
+        [sys.executable, "-m", "pip", "check"],
+        [
+            npm,
+            "--prefix",
+            "packages/typescript-sdk",
+            "run",
+            "check",
+        ],
+        [
+            npm,
+            "--prefix",
+            "packages/typescript-sdk",
+            "test",
+        ],
+        [
+            npm,
+            "--prefix",
+            "packages/typescript-sdk",
+            "run",
+            "pack:check",
+        ],
+    ]
+
+
+def _display_commands(
+    *,
+    fast: bool,
+    all_mode: bool,
+) -> list[list[str]]:
+    commands = []
+    if all_mode:
+        commands.extend(
+            _all_only_commands(npm="<npm>")[:2]
+        )
+    commands.extend(_base_commands(fast=fast))
+    if all_mode:
+        commands.extend(_all_only_commands(npm="<npm>")[2:])
     if not fast:
         commands.extend(
             [
@@ -50,6 +94,7 @@ def _display_commands(*, fast: bool) -> list[list[str]]:
                     sys.executable,
                     "-m",
                     "build",
+                    "--no-isolation",
                     "--outdir",
                     "<temporary-dist>",
                 ],
@@ -63,7 +108,11 @@ def _display_commands(*, fast: bool) -> list[list[str]]:
     return commands
 
 
-def _run(command: Sequence[str], *, env: dict[str, str]) -> None:
+def _run(
+    command: Sequence[str],
+    *,
+    env: dict[str, str],
+) -> None:
     rendered = subprocess.list2cmdline(command)
     print(f"+ {rendered}", flush=True)
     subprocess.run(
@@ -82,6 +131,7 @@ def _verify_distribution(*, env: dict[str, str]) -> None:
                 sys.executable,
                 "-m",
                 "build",
+                "--no-isolation",
                 "--outdir",
                 str(destination),
             ],
@@ -112,6 +162,15 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="run the default coverage and distribution verification",
     )
+    mode.add_argument(
+        "--all",
+        action="store_true",
+        dest="all_mode",
+        help=(
+            "require PostgreSQL and run Python, resources, TypeScript, "
+            "dependency-integrity, and distribution verification"
+        ),
+    )
     parser.add_argument(
         "--postgres",
         action="store_true",
@@ -128,14 +187,26 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    fast = bool(args.fast)
+    all_mode = bool(args.all_mode)
+    fast = bool(args.fast) and not all_mode
+    postgres_required = bool(args.postgres) or all_mode
     if args.list_only:
         print(
             json.dumps(
                 {
-                    "mode": "fast" if fast else "full",
-                    "postgres_required": bool(args.postgres),
-                    "commands": _display_commands(fast=fast),
+                    "mode": (
+                        "all"
+                        if all_mode
+                        else "fast"
+                        if fast
+                        else "full"
+                    ),
+                    "postgres_required": postgres_required,
+                    "node_required": all_mode,
+                    "commands": _display_commands(
+                        fast=fast,
+                        all_mode=all_mode,
+                    ),
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -145,10 +216,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     env = os.environ.copy()
-    if args.postgres:
+    if postgres_required:
         env["TBM_REQUIRE_POSTGRES"] = "1"
+    if all_mode:
+        for command in _all_only_commands(npm="<npm>")[:2]:
+            _run(command, env=env)
     for command in _base_commands(fast=fast):
         _run(command, env=env)
+    if all_mode:
+        npm = shutil.which("npm")
+        if npm is None:
+            print(
+                "full repository verification requires Node.js 20+ and npm",
+                file=sys.stderr,
+            )
+            return 2
+        for command in _all_only_commands(npm=npm)[2:]:
+            _run(command, env=env)
     if not fast:
         _verify_distribution(env=env)
     return 0

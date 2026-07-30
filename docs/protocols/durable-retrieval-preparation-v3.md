@@ -40,9 +40,11 @@ For a new idempotency key, the service:
 
 Exact replay returns the existing durable session without repeating
 authorization-side discovery, revision reads, evidence generation, or evidence
-writes. `prepare_for_authorized_scope()` is a trusted internal composition
-hook: it reloads and verifies the existing allowed decision, current policy,
-identity, environment, and exact scope without appending a second decision. It
+writes. The durable authorities first perform a scope-local idempotency lookup;
+the service then reloads the retained snapshot/evaluation, recovers the
+original authorization scope, and revalidates current activated revisions and
+policy before returning the same response. `prepare_for_authorized_scope()` and
+`recover_persisted_evidence()` are trusted internal composition hooks. They
 must never be exposed directly through MCP, HTTP, CLI, SDK, or caller-owned
 callbacks.
 
@@ -65,5 +67,5 @@ The opt-in [durable Semantic Gate service](durable-semantic-gate-v3.md) now
 continues this exact evidence through `AWAITING_DECISION` to `DECIDED`.
 The opt-in [authenticated durable Agent](durable-agent-v3.md) composes that
 continuation with finalization, execution, cancellation, and completion.
-Production index workers/sharding and active durable Agent/MCP/HTTP/SDK wiring remain
-separate work.
+The explicit durable HTTP profile selects this service. Production index
+workers/sharding and durable MCP/TypeScript wiring remain separate work.

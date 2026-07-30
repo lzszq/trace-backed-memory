@@ -54,9 +54,10 @@ def test_package_data_exactly_covers_canonical_resources_and_typing_marker():
     )
 
     assert package_data[0] == "py.typed"
+    assert package_data[1] == "_resource_manifest.json"
     assert sorted(
         path.removeprefix("_resources/")
-        for path in package_data[1:]
+        for path in package_data[2:]
     ) == canonical_names
     for name in canonical_names:
         assert (

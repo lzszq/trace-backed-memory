@@ -460,6 +460,18 @@ class AuthenticatedRetrievalPreparationService:
         self._evaluator_id = evaluator_id
         self._evaluator_version = evaluator_version
 
+    @property
+    def authorization_service(self) -> AuthenticatedRetrievalService:
+        """Return the exact authorization service bound to this composition."""
+
+        return self._authorization_service
+
+    @property
+    def revision_source(self) -> ActivatedRevisionRetrievalSource:
+        """Return the exact activated-revision source."""
+
+        return self._revision_source
+
     def prepare(
         self,
         context: AuthenticatedServiceContext,
@@ -533,6 +545,66 @@ class AuthenticatedRetrievalPreparationService:
                 str(error),
             ) from None
         return self._prepare_authorized(context, scope, request)
+
+    def recover_persisted_evidence(
+        self,
+        context: AuthenticatedServiceContext,
+        scope: AuthorizedRetrievalScope,
+        snapshot: RetrievalSnapshot,
+        evaluation: SystemGateEvaluation,
+    ) -> PreparedRetrievalEvidence:
+        """Rebuild exact prepared evidence without repeating discovery."""
+        if type(context) is not AuthenticatedServiceContext:
+            _invalid("authenticated service context is invalid")
+        if type(scope) is not AuthorizedRetrievalScope:
+            _invalid("authorized retrieval scope is invalid")
+        if type(snapshot) is not RetrievalSnapshot:
+            _invalid("retrieval snapshot is invalid")
+        if type(evaluation) is not SystemGateEvaluation:
+            _invalid("System Gate evaluation is invalid")
+        if snapshot.authorization_event_id != scope.authorization_event_id:
+            _invalid("retrieval snapshot authorization scope is invalid")
+        try:
+            self._authorization_service.verify_authorized_scope(
+                context,
+                scope,
+                permission="memory:retrieve",
+            )
+        except AuthenticatedServiceV3Error as error:
+            raise RetrievalPreparationV3Error(
+                error.code,
+                str(error),
+            ) from None
+        candidates: list[ActivatedRevisionCandidate] = []
+        for hit in snapshot.hits:
+            try:
+                candidate = self._revision_source.load_authorized(
+                    context,
+                    scope,
+                    memory_id=hit.memory_id,
+                )
+                self._revision_source.verify_current(scope, candidate)
+            except RetrievalPreparationV3Error:
+                raise
+            except Exception as error:
+                raise RetrievalPreparationV3Error(
+                    "TBM_RETRIEVAL_PREPARATION_REVISION_UNAVAILABLE",
+                    "activated revision could not be recovered",
+                ) from error
+            if (
+                type(candidate) is not ActivatedRevisionCandidate
+                or candidate.revision.revision_id
+                != hit.memory_revision_id
+                or candidate.candidate_sha256 != hit.candidate_sha256
+            ):
+                _invalid("persisted retrieval candidate changed")
+            candidates.append(candidate)
+        return PreparedRetrievalEvidence(
+            snapshot=snapshot,
+            system_gate_evaluation=evaluation,
+            candidates=tuple(candidates),
+            policy=self._load_policy(),
+        )
 
     def _prepare_authorized(
         self,

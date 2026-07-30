@@ -252,7 +252,9 @@ export_packaged_resource("schemas/sqlite.sql", "sqlite.sql")
 export_packaged_resource("schemas/postgres.sql", "postgres.sql")
 ```
 
-The allowlist currently contains 149 resources. `PackagedResource` descriptions
+The exact allowlist and digests are generated from
+[`resources/manifest.json`](../resources/manifest.json).
+`PackagedResource` descriptions
 include kind, media type, byte size, and
 SHA-256. `load_failure_taxonomy()` uses the packaged canonical taxonomy by
 default; passing a path continues to load a caller-owned taxonomy file.
@@ -262,6 +264,15 @@ builder, `ManagedIndexDiscovery`, both repositories, and
 `SemanticQueryVector`; see
 [managed index bundle v3](protocols/managed-index-v3.md) for the exact bounds
 and non-goals.
+
+The opt-in unified local durable schema is published as
+`schemas/sqlite-v3.sql`, with
+`schemas/sqlite-v3.components.json` as its ordered component manifest.
+`DurableRuntimeFactory.open_sqlite(..., initialize=True)` installs all 15
+non-migration authority schemas on one connection and verifies the exact
+controlled catalog before exposing the durable dispatcher. This does not make
+durable-v3 an active transport profile. See
+[unified SQLite v3 bundle](protocols/sqlite-bundle-v3.md).
 
 ## Evidence Ingestion Integrity
 
@@ -666,6 +677,15 @@ evaluator resolvers remain server-owned. Exact query/prompt/response bytes use
 canonical base64. `DurableAgentWireConfiguration` disables injection and replay
 content by default, and the dispatcher never authenticates a transport peer.
 See [durable Agent wire v1](protocols/durable-agent-wire-v1.md).
+
+The explicit `tbm-http --profile durable-v3` profile is the first product
+transport to select that dispatcher. An operator-owned
+`DurableHTTPApplication` factory supplies the runtime dependencies and trusted
+context provider; a bounded bearer secret is authenticated before context
+derivation. The adapter uses `DurableRuntimeFactory` for unified SQLite v3 or
+isolated PostgreSQL v3, hides exact content by default, requires TLS for
+non-loopback binds, and retains no lifecycle handle in the HTTP process. See
+[durable HTTP profile](protocols/durable-http-v1.md).
 
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
 ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
@@ -2318,8 +2338,8 @@ Implemented pieces:
   and atomic replacement, and literal blocks preserve exact LF-delimited lesson
   text.
 - Zip-safe packaged resource discovery, exact-byte reads, SHA-256 metadata, and
-  explicit atomic export for all 149 canonical Schemas, examples, and memory
-  support files in wheel, source-distribution, and editable installs.
+  explicit atomic export for every manifest-listed canonical Schema, example,
+  and memory support file in wheel, source-distribution, and editable installs.
 - Synchronous SQLite and PostgreSQL repositories with additive atomic sync,
   bounded validated loads, forward-only lifecycle updates, and caller-owned
   transaction savepoints.

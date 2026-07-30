@@ -17,6 +17,8 @@ from .semantic_gate_service_v3 import (
     AuthenticatedSemanticGateService,
     AuthenticatedSemanticProviderContext,
     SemanticGateInvocationRequest,
+    SemanticGateAttemptAuthority,
+    SemanticGateEvidenceReader,
     SemanticGateServiceResult,
     SemanticGateServiceV3Error,
     SemanticProviderCall,
@@ -150,6 +152,24 @@ class AuthenticatedSemanticGateSessionService:
             raise TypeError("session_writer must satisfy GateSessionWriter")
         self._semantic_gate_service = semantic_gate_service
         self._session_writer = session_writer
+
+    @property
+    def session_authority(self) -> GateSessionWriter:
+        """Return the exact durable GateSession authority."""
+
+        return self._session_writer
+
+    @property
+    def evidence_authority(self) -> SemanticGateEvidenceReader:
+        """Return the exact deterministic Gate evidence authority."""
+
+        return self._semantic_gate_service.evidence_authority
+
+    @property
+    def semantic_authority(self) -> SemanticGateAttemptAuthority:
+        """Return the exact Semantic Gate attempt/artifact authority."""
+
+        return self._semantic_gate_service.semantic_authority
 
     def decide(
         self,

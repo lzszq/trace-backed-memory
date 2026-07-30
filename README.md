@@ -135,8 +135,10 @@ For restart-resumable GateSession state, use the advanced explicit
 - CLI: `tbm capabilities`, snapshot operations, migration preflight, and
   resource discovery
 - Local MCP: `tbm-mcp` with the optional `mcp` dependency
-- Local HTTP SDKs: synchronous/asynchronous Python and Node.js TypeScript;
-  see the [HTTP SDK guide](docs/protocols/agent-http-v1.md)
+- Local HTTP SDKs: synchronous/asynchronous Python and Node.js TypeScript for
+  the compatibility profile, plus explicit durable-v3 Python/TypeScript
+  clients; see the [compatibility](docs/protocols/agent-http-v1.md) and
+  [durable](docs/protocols/durable-http-v1.md) guides
 - Opt-in authenticated local MCP: trusted startup selects version-3 identity
   and environment; see the [reference](docs/reference.md#long-running-local-mcp)
 - Restart-safe local MCP: explicit `--profile durable-v3`; see the

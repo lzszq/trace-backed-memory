@@ -1213,7 +1213,8 @@ scope. `durable_semantic_gate_v3.py` then provides the opt-in verified
 `durable_finalization_v3.py` then rechecks authorization/head/policy, renders
 only the final allowed set, retains the exact UsageDecision/injection/replay
 bundle, and CAS-publishes `FINALIZED`. Production sharding/workers,
-protected-content encryption, and active adapter wiring remain outstanding.
+protected-content encryption, and default compatibility cutover remain
+outstanding.
 See
 [authenticated retrieval preparation v3](protocols/retrieval-preparation-v3.md),
 [managed index bundle v3](protocols/managed-index-v3.md), and
@@ -1821,8 +1822,9 @@ deriving server-owned contexts, hides content by default, and reopens the
 unified SQLite v3 graph across process restarts. The explicit
 `tbm-mcp --profile durable-v3` adapter selects the same graph over bounded
 local STDIO with operator-owned startup contexts and no independent peer
-authentication; its session state also survives process restarts. General CLI
-and TypeScript adapters do not select it yet. See
+  authentication; its session state also survives process restarts. The
+  Node.js `DurableAgentHTTPClient` selects it through the explicit HTTP profile;
+  general CLI does not select it yet. See
 [durable HTTP profile](protocols/durable-http-v1.md),
 [durable MCP profile](protocols/durable-mcp-v1.md),
 [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md),

@@ -66,6 +66,8 @@ The isolated
 [PostgreSQL attribution ledger](postgres-outcome-attribution-v3.md) provides
 database parity. The separate
 [SQLite and PostgreSQL completion outboxes](completion-outbox-v3.md) publish
-completion events; attribution outbox delivery, authenticated evaluator and
-artifact checks, and active Agent/MCP/HTTP/SDK integration remain follow-up
-work.
+completion events through the higher-level durable execution/facade
+composition. Attribution claims are not yet appended by the explicit durable
+HTTP/MCP or Python/TypeScript client lifecycle; attribution outbox delivery,
+independent verifier/artifact checks, and default compatibility cutover remain
+follow-up work.

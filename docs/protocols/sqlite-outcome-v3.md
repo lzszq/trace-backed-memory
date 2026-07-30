@@ -59,7 +59,10 @@ SQLite OutcomeAttribution persistence is provided by the separate
 [PostgreSQL parity](postgres-outcome-attribution-v3.md). The opt-in
 [SQLite and PostgreSQL completion outboxes](completion-outbox-v3.md) extend the
 corresponding transaction with an immutable event and append-only delivery
-state. Authenticated evaluator derivation, artifact authorization, network
-dispatch, and active Agent/MCP/HTTP/SDK integration remain follow-up work. Active
-snapshot version 2, SQLite schema version 1, PostgreSQL schema version 2, and
-`tbm.agent.v1` remain unchanged.
+state. The higher-level durable execution/facade composition adds authenticated
+evaluator derivation and atomic outbox publication for explicit durable
+HTTP/MCP and Python/TypeScript clients. Artifact-byte authorization,
+daemon-owned network dispatch, attribution integration, and default
+compatibility cutover remain follow-up work. Active snapshot version 2, SQLite
+schema version 1, PostgreSQL schema version 2, and `tbm.agent.v1` remain
+unchanged.

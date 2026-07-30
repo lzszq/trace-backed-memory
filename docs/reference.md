@@ -207,6 +207,14 @@ invalidates pending request handles. The canonical
 binds all routes to strict request/response schemas and stable errors. See the
 [HTTP and Python/TypeScript SDK guide](protocols/agent-http-v1.md).
 
+For restart-safe sessions, explicitly select
+`tbm-http --profile durable-v3`. Package-root
+`DurableAgentHTTPClient`/`AsyncDurableAgentHTTPClient` and the TypeScript
+package's `DurableAgentHTTPClient` use exact GateSession versions and never
+serialize caller/provider/evaluator identity. See the
+[durable HTTP guide](protocols/durable-http-v1.md); the compatibility profile
+and its process-local request handles remain the default.
+
 ## Packaged Resources
 
 Wheel, source-distribution, and editable installs contain byte-identical copies
@@ -502,11 +510,12 @@ authorization/head/policy state, deterministically renders the final allowed
 set, retains and reads back the exact UsageDecision plus complete replay
 bundle, and CAS-publishes `FINALIZED`. Shared SQLite/PostgreSQL connections
 support caller-owned outer rollback; separated authorities use ordered
-recovery. The current Store, active SQL adapters, local agent, and MCP do not
-use this service. The opt-in authenticated durable Agent now adds
-direct-Python, session-bound `artifact:read` authorization for replay export.
-Protected-content encryption, retention, and transport adapter integration
-remain outstanding. See
+recovery. The default compatibility Store, SQL adapters, local Agent, and MCP
+do not use this service. The opt-in authenticated durable Agent adds
+session-bound `artifact:read` authorization for replay export; explicit durable
+HTTP/MCP and Python/TypeScript clients expose it only under startup content
+policy. Protected-content encryption/retention, shared-service transport, and
+default compatibility cutover remain outstanding. See
 [the replay contract](protocols/replay-v3.md).
 
 The storage-neutral authorization-v3 contract defines canonical repositories,

@@ -128,20 +128,22 @@ retrieval event。
 - 按 GateSession `run_id` 保持外部 executor effect 幂等；
 - 在服务端配置 durable authority 与 provider callback。
 
-当前组合支持既有 public/internal plaintext replay profile，以及已认证的直接
-Python replay-read 边界。受保护内容加密、retention 集成、transport-authenticated
+当前组合支持既有 public/internal plaintext replay profile，以及由显式 durable
+HTTP/MCP 与 Python/TypeScript client 选择的已认证 session-bound replay-read 边界。
+受保护内容加密、retention 集成、transport-authenticated
 replay 暴露、GateSession revision 中的持久 transition-authorization linkage 与
 物理 repository attestation 仍是独立必做项。
 
 ## Adapter 状态
 
-该 facade 是未来 MCP、HTTP、CLI-daemon 与 SDK adapter 共用的应用边界。可选
+该 facade 是 MCP、HTTP、CLI-daemon 与 SDK adapter 共用的应用边界。可选
 [`tbm.durable-agent-wire.v1`](durable-agent-wire-v1.zh-CN.md) dispatcher 现在会用
 严格且不含 identity 的 request model、可信 context 注入、稳定 error 与 fail-closed
-content profile 映射全部 facade operation。默认 `LocalAgentMemory` 与 `tbm-mcp`
-profile 仍使用带进程内 pending handle 的 `tbm.agent.v1`。当前尚无 network adapter
-选择 durable dispatcher 或暴露 replay export；本协议不宣称 transport
-authentication、shared multi-tenant readiness 或 schema version 3 cutover。
+content profile 映射全部 facade operation。显式 durable HTTP 与可信本地 MCP profile
+会选择它；同步/异步 Python 与 Node.js TypeScript client 会选择 durable HTTP。默认
+`LocalAgentMemory`、兼容 `tbm-mcp`/HTTP profile 与普通 CLI 仍使用带进程内 pending
+handle 的 `tbm.agent.v1`。本协议不宣称 shared multi-tenant readiness、本地 STDIO
+具备 peer authentication，或默认完成 schema version 3 cutover。
 
 facade 测试覆盖 SQLite/PostgreSQL 生命周期对等性；底层 authority 继续保持既有
 transaction、savepoint、CAS 与 rollback 契约。

@@ -52,8 +52,9 @@ PostgreSQL parity。SQLite OutcomeAttribution persistence 由独立的
 并有隔离的
 [PostgreSQL parity](postgres-outcome-attribution-v3.zh-CN.md)。opt-in
 [SQLite 与 PostgreSQL completion outbox](completion-outbox-v3.zh-CN.md)会在
-对应 transaction 中加入 immutable event 与 append-only delivery state。
-authenticated evaluator derivation、artifact authorization、network dispatch
-以及 active Agent/MCP/HTTP/SDK 集成仍是后续工作。active snapshot
-version 2、SQLite schema version 1、PostgreSQL schema version 2 与
-`tbm.agent.v1` 均保持不变。
+对应 transaction 中加入 immutable event 与 append-only delivery state。更高层
+durable execution/facade 组合会为显式 durable HTTP/MCP 与 Python/TypeScript client
+增加 authenticated evaluator derivation 和原子 outbox publication。artifact byte
+authorization、daemon 持有的 network dispatch、attribution integration 与默认兼容
+路径 cutover 仍是后续工作。active snapshot version 2、SQLite schema version 1、
+PostgreSQL schema version 2 与 `tbm.agent.v1` 均保持不变。

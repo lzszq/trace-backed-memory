@@ -1,8 +1,9 @@
 # Durable Agent wire boundary v1
 
 Status: opt-in adapter contract selected by the explicit durable HTTP and
-trusted-local durable MCP profiles; the default compatibility transports,
-general CLI, and TypeScript SDK do not select it.
+trusted-local durable MCP profiles. Synchronous/asynchronous Python and
+Node.js TypeScript clients select the HTTP profile; default compatibility
+transports and general CLI do not.
 
 ## Purpose
 
@@ -115,8 +116,10 @@ cancellation, recovery state, finalization replay, completion replay, and
 session-bound replay export remain owned by the durable domain services and
 repositories.
 
-This module is the common contract for durable HTTP, trusted-local MCP, a
-future CLI daemon, Python, and TypeScript adapters. The explicit HTTP and MCP
-profiles construct the complete authority graph and trusted contexts. The MCP
-profile intentionally has no independent peer authentication on local STDIO
-and must not be described as a shared or transport-authenticated service.
+This module is the common contract for durable HTTP, trusted-local MCP,
+Python and TypeScript clients, and a future CLI daemon. The explicit HTTP and MCP
+profiles construct the complete authority graph and trusted contexts;
+`DurableAgentHTTPClient` selects the HTTP profile without adding identity to
+request JSON. The MCP profile intentionally has no independent peer
+authentication on local STDIO and must not be described as a shared or
+transport-authenticated service.

@@ -72,8 +72,9 @@ bundle 与 `FINALIZED` revision。服务本身不会开启或拥有该外层 tra
 ## 集成边界
 
 该服务为 opt-in。`AuthenticatedDurableAgentMemory` 会把它作为共享 durable
-facade 的 finalization 阶段调用。active Store 与默认 local Agent/MCP/HTTP/SDK
-adapter 不构造该 facade；显式 durable HTTP 与可信本地 MCP profile 会构造它。
+facade 的 finalization 阶段调用。active Store 与默认兼容 Agent/MCP/HTTP adapter
+不构造该 facade；显式 durable HTTP 与可信本地 MCP profile 会构造它，
+Python/TypeScript durable client 会选择 HTTP profile。
 它不会推进 `EXECUTING` 或 `COMPLETED`，
 不会产生 RunOutcome，不提供 Review Console 行为，不实现 retention/encryption，
 也不会让默认兼容 MCP profile 的进程内 Gate 变成 durable。

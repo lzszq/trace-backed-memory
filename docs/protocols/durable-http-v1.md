@@ -101,6 +101,72 @@ Every state mutation carries the expected session version. Stale transitions
 fail closed. Retries reuse durable session/run identities; the dispatcher
 does not keep process-local lifecycle handles.
 
+## Python and TypeScript clients
+
+Package-root `DurableAgentHTTPClient` and
+`AsyncDurableAgentHTTPClient` provide synchronous and asynchronous Python
+calls. The dependency-free Node.js package exports its own
+`DurableAgentHTTPClient`, typed request/response records,
+`DurableAgentHTTPError`, and `durableSessionReference()`:
+
+```ts
+import {
+  DurableAgentHTTPClient,
+  durableSessionReference,
+} from "@trace-backed-memory/agent-http";
+
+const client = new DurableAgentHTTPClient({
+  baseUrl: "http://127.0.0.1:8766",
+  token: process.env.TBM_DURABLE_HTTP_TOKEN!,
+});
+
+const capabilities = await client.negotiate();
+if (capabilities.transport_profile !== "durable-v3") {
+  throw new Error("durable HTTP was not selected");
+}
+
+const nonce = Date.now().toString(36);
+const prepared = await client.prepare({
+  request_id: `request_${nonce}`,
+  trace_id: `trace_${nonce}`,
+  run_id: `run_${nonce}`,
+  task_mode: "repair",
+  commit_sha: "replace-with-the-current-commit",
+  attributes: { branch: "main" },
+  retrieval_mode: "hybrid",
+  retriever_id: "reference_retriever",
+  retriever_version: "v1",
+  top_k: 10,
+  idempotency_key: `durable_retrieval_${nonce}`,
+  expires_in_seconds: 3600,
+  lease_seconds: 60,
+  query_base64: "cmVwYWlyIHRoZSBjYWNoZQ==",
+  semantic_query: {
+    provider_id: "reference_embeddings",
+    provider_version: "v1",
+    vector: [0.6, 0.8],
+  },
+});
+await client.cancel({
+  ...durableSessionReference(prepared),
+  reason: "caller canceled the run",
+});
+```
+
+The Python and TypeScript clients run the same complete lifecycle fixture in
+the repository test suite. Request JSON never accepts caller, tenant,
+repository, provider-authentication, or evaluator-authentication identity.
+Each next call must use the exact `session_id` and version returned by the
+previous call.
+
+Python clients and TypeScript both default to no automatic retry. TypeScript
+may opt into at most five attempts with `maxAttempts`; it retries only an error
+whose public envelope says `retryable: true` and reuses the exact serialized
+request. The server's idempotency and exact-version checks remain
+authoritative. `heartbeat()` is a TypeScript alias for `resume()` and renews
+the execution lease. An abort or timeout only stops client-side waiting; it
+does not prove that a mutation already received by the server was canceled.
+
 ## Content and replay
 
 Descriptor-only session and replay responses are the default. Exact rendered

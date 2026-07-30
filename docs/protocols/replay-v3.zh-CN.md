@@ -76,15 +76,17 @@ helper 会在加载 bytes 前预检每个 descriptor 的 classification 与声�
 与 injection schema；打包示例为 `examples/replay_bundle_export_v3.example.json`。
 hash 验证与 manifest/component 顺序仍属于 JSON Schema 之后的 value-level 检查。
 
-`AuthenticatedDurableAgentMemory.export_replay_bundle()` 现在提供 opt-in 的直接
-Python 授权边界。其带版本请求只包含 durable session ID，不接受 manifest 或
+`AuthenticatedDurableAgentMemory.export_replay_bundle()` 提供 opt-in 授权边界。
+其带版本请求只包含 durable session ID，不接受 manifest 或
 artifact ID。facade 会恢复原始 retrieval scope，新增并回读新的 `artifact:read`
 decision，从 session 已保留 linkage 解析唯一 manifest，并在返回 bundle 前再次核验
 授权与 session version。
 
-该契约仍刻意不通过 `tbm.agent.v1`、本地 HTTP 或 MCP 暴露。这些 profile 不会构造
-已认证 durable facade，也没有建立 transport-authenticated durable session identity；
-在该边界完成前加入 network tool，会把 content-derived ID 变成数据探测 oracle。
+该契约仍刻意不通过 `tbm.agent.v1` 与默认兼容 HTTP/MCP profile 暴露。显式 durable
+HTTP/MCP profile 会构造已认证 facade，并仅在启动 content policy 允许时暴露 replay；
+Python/TypeScript durable client 使用同一边界。本地 bearer 或可信 STDIO 启动 context
+不是 shared-service transport identity，不得让 content-derived ID 变成数据探测
+oracle。
 
 ## Opt-in SQLite 重放账本
 
@@ -152,6 +154,7 @@ UsageDecision ID 派生，并原子保存去重后的 supporting artifact、inje
 当前 v2 Store、active SQLite v1 adapter、PostgreSQL v2 adapter、本地 Agent 与
 STDIO MCP 均不会持久化或输出这些记录。opt-in SQLite 账本与 opt-in PostgreSQL
 repository 提供 retained storage boundary，并满足 replay export reader surface。
-已认证 durable Agent 会在这套精确 authority graph 上提供直接 Python replay-read
-authorization。生产 network runtime 在暴露 replay export 前，还必须认证 transport
+已认证 durable Agent 会在这套精确 authority graph 上提供 replay-read authorization；
+显式 durable HTTP/MCP 与 Python/TypeScript client 只会在启动 content policy 允许时
+暴露。生产 shared-service runtime 在暴露 replay export 前，还必须认证 transport
 identity 并执行 retention/encryption。

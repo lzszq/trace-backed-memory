@@ -1775,6 +1775,16 @@ Track:
   replay export. State explicitly that local STDIO has no independent peer
   authentication and is not shared-service MCP. Keep TypeScript, local daemon,
   and remote multi-tenant service work outstanding.
+- Add the dependency-free Node.js `DurableAgentHTTPClient` as the explicit
+  TypeScript selector for `tbm.durable-agent-wire.v1`. Export typed requests,
+  exact operation responses, capability negotiation, stable error mapping,
+  exact-version session references, bounded opt-in retry, and the execution
+  `heartbeat()`/`resume()` path while rejecting every caller/provider/evaluator
+  identity field before serialization. Run the same lifecycle fixture through
+  synchronous/asynchronous Python and TypeScript clients, including
+  cancellation, completion replay, session read, and replay export. Keep the
+  compatibility client/default profile unchanged and keep CLI durable
+  selection, local daemon, and remote multi-tenant service work outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

@@ -91,6 +91,68 @@ prepare → decide → finalize → start/resume/abandon
 每次状态修改都携带 expected session version；stale transition 会 fail closed。
 重试复用 durable session/run identity，dispatcher 不保存进程内 lifecycle handle。
 
+## Python 与 TypeScript client
+
+包根导出的 `DurableAgentHTTPClient` 与
+`AsyncDurableAgentHTTPClient` 分别提供同步/异步 Python 调用。无运行时依赖的
+Node.js 包会导出自己的 `DurableAgentHTTPClient`、类型化 request/response、
+`DurableAgentHTTPError` 与 `durableSessionReference()`：
+
+```ts
+import {
+  DurableAgentHTTPClient,
+  durableSessionReference,
+} from "@trace-backed-memory/agent-http";
+
+const client = new DurableAgentHTTPClient({
+  baseUrl: "http://127.0.0.1:8766",
+  token: process.env.TBM_DURABLE_HTTP_TOKEN!,
+});
+
+const capabilities = await client.negotiate();
+if (capabilities.transport_profile !== "durable-v3") {
+  throw new Error("durable HTTP was not selected");
+}
+
+const nonce = Date.now().toString(36);
+const prepared = await client.prepare({
+  request_id: `request_${nonce}`,
+  trace_id: `trace_${nonce}`,
+  run_id: `run_${nonce}`,
+  task_mode: "repair",
+  commit_sha: "replace-with-the-current-commit",
+  attributes: { branch: "main" },
+  retrieval_mode: "hybrid",
+  retriever_id: "reference_retriever",
+  retriever_version: "v1",
+  top_k: 10,
+  idempotency_key: `durable_retrieval_${nonce}`,
+  expires_in_seconds: 3600,
+  lease_seconds: 60,
+  query_base64: "cmVwYWlyIHRoZSBjYWNoZQ==",
+  semantic_query: {
+    provider_id: "reference_embeddings",
+    provider_version: "v1",
+    vector: [0.6, 0.8],
+  },
+});
+await client.cancel({
+  ...durableSessionReference(prepared),
+  reason: "caller canceled the run",
+});
+```
+
+仓库测试会让 Python 与 TypeScript client 运行同一份完整 lifecycle fixture。request
+JSON 绝不接受 caller、tenant、repository、provider authentication 或 evaluator
+authentication identity。每个后续调用都必须使用上一次响应返回的精确
+`session_id` 与 version。
+
+Python 与 TypeScript 默认都不自动重试。TypeScript 可通过 `maxAttempts` 显式启用
+最多五次尝试；它只重试公开 error envelope 中标记 `retryable: true` 的失败，并复用
+完全相同的序列化 request。服务端 idempotency 与精确版本检查始终是最终依据。
+`heartbeat()` 是 TypeScript 对 `resume()` 的别名，用来续签 execution lease。
+abort 或 timeout 只会停止 client 等待，不能证明服务端已经收到的 mutation 被取消。
+
 ## Content 与 replay
 
 默认只返回 descriptor。精确 rendered injection bytes 需要

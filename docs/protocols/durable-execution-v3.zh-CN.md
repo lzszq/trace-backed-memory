@@ -81,10 +81,12 @@ commit/rollback。任何数据库 transaction 都无法包含外部 executor sid
 execution 与 completion 之间发生 crash 时会留下显式 `EXECUTING` recovery state。
 
 该服务为 opt-in。`AuthenticatedDurableAgentMemory` 现在会把它作为共享 durable
-应用 facade 的 execution 阶段调用；但默认 Store、LocalAgentMemory、STDIO MCP、
-HTTP 与 SDK adapter 尚未构造该 facade，v1 process-local request-token contract
-保持不变。durable Agent 现在会在该 execution service 保留 bundle 后提供直接
-Python、session-bound replay-read authorization。受保护内容加密、retention、
-transport-authenticated replay 暴露、active adapter wiring 以及持久化
+应用 facade 的 execution 阶段调用。默认 Store、LocalAgentMemory、兼容 STDIO
+MCP/HTTP adapter 与普通 CLI 不构造该 facade；显式 durable HTTP/MCP profile 会构造，
+Python/TypeScript durable client 会选择 HTTP。v1 process-local request-token
+contract 保持不变。durable Agent 会在该 execution service 保留 bundle 后提供
+session-bound replay-read authorization；显式 durable HTTP/MCP 与
+Python/TypeScript client 会在启动 content policy 下选择该边界。受保护内容加密、retention、
+transport-authenticated replay 暴露、默认 adapter cutover 以及持久化
 transition-authorization linkage field 仍是独立的生产工作。详见
 [已认证 durable Agent v3](durable-agent-v3.zh-CN.md)。

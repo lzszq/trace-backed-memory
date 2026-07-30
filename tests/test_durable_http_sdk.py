@@ -27,8 +27,10 @@ from trace_backed_memory.durable_agent_wire_v1 import (
     DurableAgentWireError,
     DurableCancelRequest,
     DurableCompleteRequest,
+    DurableDecideRequest,
     DurableFinalizeRequest,
     DurableGetSessionRequest,
+    DurablePrepareRequest,
     DurableReplayRequest,
     DurableResumeRequest,
     DurableStartRequest,
@@ -52,6 +54,13 @@ import trace_backed_memory.durable_http_server as durable_http_server_module
 
 TOKEN = "durable_http_test_token_" + "a" * 48
 WRONG_TOKEN = "durable_http_wrong_token_" + "b" * 48
+LIFECYCLE_FIXTURE = json.loads(
+    (
+        Path(__file__).resolve().parent
+        / "fixtures"
+        / "durable_client_lifecycle.json"
+    ).read_text(encoding="utf-8")
+)
 
 
 def _http_stack(**kwargs):
@@ -210,7 +219,11 @@ def test_durable_http_sdk_runs_complete_persisted_lifecycle() -> None:
             }
             assert client.health()["durable_sessions"] is True
 
-            prepared_response = client.prepare(_prepare_request())
+            prepare_request = DurablePrepareRequest.model_validate(
+                LIFECYCLE_FIXTURE["prepare"]
+            )
+            assert prepare_request == _prepare_request()
+            prepared_response = client.prepare(prepare_request)
             prepared = stack.sessions.get(
                 prepared_response.result["session"]["session_id"]
             )
@@ -218,9 +231,15 @@ def test_durable_http_sdk_runs_complete_persisted_lifecycle() -> None:
                 prepared.system_gate_evaluation_id
             )
 
-            decided_response = client.decide(
-                _decide_request(prepared, evaluation)
+            decide_request = DurableDecideRequest.model_validate(
+                {
+                    "session_id": prepared.session_id,
+                    "expected_session_version": prepared.version,
+                    **LIFECYCLE_FIXTURE["decide"],
+                }
             )
+            assert decide_request == _decide_request(prepared, evaluation)
+            decided_response = client.decide(decide_request)
             decided = stack.sessions.get(prepared.session_id)
             assert decided_response.operation == "decide"
             assert decided_response.result["session"]["status"] == "decided"
@@ -248,28 +267,28 @@ def test_durable_http_sdk_runs_complete_persisted_lifecycle() -> None:
                 DurableResumeRequest(
                     session_id=executing.session_id,
                     expected_session_version=executing.version,
-                    lease_seconds=2_700,
+                    **LIFECYCLE_FIXTURE["resume"],
                 )
             )
             executing = stack.sessions.get(executing.session_id)
             assert resumed_response.result["replayed"] is True
 
             completion = _completion(executing)
-            completed_response = client.complete(
-                DurableCompleteRequest(
-                    session_id=completion.session_id,
-                    expected_session_version=completion.expected_version,
-                    result=completion.result,
-                    evidence_artifact_sha256s=list(
-                        completion.evidence_artifact_sha256s
-                    ),
-                    output_sha256=completion.output_sha256,
-                    tool_outputs_sha256=completion.tool_outputs_sha256,
-                    latency_ms=completion.latency_ms,
-                    cost_usd=completion.cost_usd,
-                    error_code=completion.error_code,
-                )
+            complete_request = DurableCompleteRequest.model_validate(
+                {
+                    "session_id": completion.session_id,
+                    "expected_session_version": completion.expected_version,
+                    **LIFECYCLE_FIXTURE["complete"],
+                }
             )
+            completed_response = client.complete(
+                complete_request
+            )
+            assert complete_request.result == completion.result
+            assert complete_request.evidence_artifact_sha256s == list(
+                completion.evidence_artifact_sha256s
+            )
+            assert complete_request.output_sha256 == completion.output_sha256
             completed = stack.sessions.get(executing.session_id)
             assert completed_response.result["session"]["status"] == "completed"
             assert completed_response.result["outcome"]["result"] == "pass"
@@ -283,7 +302,7 @@ def test_durable_http_sdk_runs_complete_persisted_lifecycle() -> None:
                 DurableReplayRequest(
                     session_id=completed.session_id,
                     expected_session_version=completed.version,
-                    allowed_classifications=["internal"],
+                    **LIFECYCLE_FIXTURE["replay"],
                 )
             )
             assert replay_response.result["content_exposed"] is True
@@ -302,6 +321,99 @@ def test_durable_http_sdk_runs_complete_persisted_lifecycle() -> None:
                 "get_session",
                 "export_replay",
             ]
+    finally:
+        stack.close()
+
+
+def test_async_durable_http_sdk_runs_the_shared_lifecycle_fixture() -> None:
+    stack = _http_stack(
+        permissions=(
+            "memory:retrieve",
+            "gate_session:transition",
+            "artifact:read",
+        )
+    )
+    try:
+        with _running_server(stack) as (server, _sync_client, _authenticator):
+            async def scenario() -> None:
+                client = AsyncDurableAgentHTTPClient(
+                    f"http://127.0.0.1:{server.server_address[1]}",
+                    TOKEN,
+                )
+                try:
+                    capabilities = await client.capabilities()
+                    assert capabilities["transport_profile"] == "durable-v3"
+                    prepared = await client.prepare(
+                        LIFECYCLE_FIXTURE["prepare"]
+                    )
+                    reference = {
+                        "session_id": prepared.result["session"]["session_id"],
+                        "expected_session_version": prepared.result["session"][
+                            "version"
+                        ],
+                    }
+                    decided = await client.decide(
+                        {**reference, **LIFECYCLE_FIXTURE["decide"]}
+                    )
+                    reference = {
+                        "session_id": decided.result["session"]["session_id"],
+                        "expected_session_version": decided.result["session"][
+                            "version"
+                        ],
+                    }
+                    finalized = await client.finalize(reference)
+                    reference = {
+                        "session_id": finalized.result["session"]["session_id"],
+                        "expected_session_version": finalized.result["session"][
+                            "version"
+                        ],
+                    }
+                    started = await client.start(reference)
+                    reference = {
+                        "session_id": started.result["session"]["session_id"],
+                        "expected_session_version": started.result["session"][
+                            "version"
+                        ],
+                    }
+                    resumed = await client.resume(
+                        {**reference, **LIFECYCLE_FIXTURE["resume"]}
+                    )
+                    reference = {
+                        "session_id": resumed.result["session"]["session_id"],
+                        "expected_session_version": resumed.result["session"][
+                            "version"
+                        ],
+                    }
+                    completion_request = {
+                        **reference,
+                        **LIFECYCLE_FIXTURE["complete"],
+                    }
+                    completed = await client.complete(completion_request)
+                    replayed = await client.complete(completion_request)
+                    assert completed.result["session"]["status"] == "completed"
+                    assert replayed.result["replayed"] is True
+                    await client.get_session(
+                        {
+                            "session_id": completed.result["session"][
+                                "session_id"
+                            ]
+                        }
+                    )
+                    await client.export_replay(
+                        {
+                            "session_id": completed.result["session"][
+                                "session_id"
+                            ],
+                            "expected_session_version": completed.result[
+                                "session"
+                            ]["version"],
+                            **LIFECYCLE_FIXTURE["replay"],
+                        }
+                    )
+                finally:
+                    await client.aclose()
+
+            asyncio.run(scenario())
     finally:
         stack.close()
 

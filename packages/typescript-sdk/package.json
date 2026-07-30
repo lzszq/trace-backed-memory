@@ -1,7 +1,7 @@
 {
   "name": "@trace-backed-memory/agent-http",
-  "version": "0.1.0",
-  "description": "Typed Node.js client for the local tbm.agent.v1 HTTP profile",
+  "version": "0.2.0",
+  "description": "Typed Node.js clients for the local compatible and durable Trace-backed Memory HTTP profiles",
   "type": "module",
   "license": "MIT",
   "engines": {

@@ -1,4 +1,7 @@
 export { AgentHTTPClient } from "./client.js";
+export { DurableAgentHTTPClient } from "./durable-client.js";
+export { DurableAgentHTTPError } from "./durable-errors.js";
+export { durableSessionReference } from "./durable-validation.js";
 export { AgentMemoryError } from "./errors.js";
 export {
   JSON_MAX_BYTES,
@@ -6,6 +9,10 @@ export {
   JSON_MAX_NODES,
 } from "./strict-json.js";
 export { AGENT_PROTOCOL_VERSION } from "./types.js";
+export {
+  DURABLE_AGENT_PROTOCOL_VERSION,
+  DURABLE_HTTP_PROFILE,
+} from "./durable-types.js";
 export type {
   AgentCapabilities,
   AgentCancelRequest,
@@ -32,3 +39,46 @@ export type {
   JsonScalar,
   JsonValue,
 } from "./types.js";
+export type {
+  DurableAbandonRequest,
+  DurableAgentHTTPClientOptions,
+  DurableAgentHTTPResponse,
+  DurableCancelRequest,
+  DurableCapabilities,
+  DurableCompleteRequest,
+  DurableCompleteResult,
+  DurableDataClassification,
+  DurableDecideRequest,
+  DurableDecideResult,
+  DurableErrorCategory,
+  DurableExecutionResult,
+  DurableFinalizeRequest,
+  DurableFinalizeResult,
+  DurableGateSession,
+  DurableGateSessionStatus,
+  DurableGetSessionRequest,
+  DurableGetSessionResult,
+  DurableHealth,
+  DurableInjection,
+  DurableJSON,
+  DurablePrepareRequest,
+  DurablePrepareResult,
+  DurableReplayRequest,
+  DurableReplayResult,
+  DurableRequestByOperation,
+  DurableRequestOptions,
+  DurableResultByOperation,
+  DurableResumeRequest,
+  DurableRetrievalMode,
+  DurableRisk,
+  DurableRunResult,
+  DurableSDKOperation,
+  DurableSemanticQueryInput,
+  DurableSessionReference,
+  DurableSessionRevisionRequest,
+  DurableStartRequest,
+  DurableStorageMode,
+  DurableTaskMode,
+  DurableTerminalResult,
+  DurableWireOperation,
+} from "./durable-types.js";

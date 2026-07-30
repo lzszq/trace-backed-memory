@@ -890,6 +890,14 @@ increment 不会自动成为 active 用户路径。
   启动三个子进程完成 prepare、重启续接、精确 completion retry 与 replay export。明确
   本地 STDIO 没有独立 peer authentication，也不是 shared-service MCP。TypeScript、
   本地 daemon 与远程多租户 service 仍待完成。
+- 增加无运行时依赖的 Node.js `DurableAgentHTTPClient`，作为
+  `tbm.durable-agent-wire.v1` 的显式 TypeScript selector。导出类型化 request、精确
+  operation response、capability negotiation、稳定 error mapping、精确版本 session
+  reference、有界显式 retry 与 execution `heartbeat()`/`resume()` 路径；全部
+  caller/provider/evaluator identity 字段都在序列化前拒绝。同步/异步 Python 与
+  TypeScript client 会运行同一份 lifecycle fixture，覆盖 cancellation、completion
+  replay、session read 与 replay export。兼容 client/default profile 保持不变；
+  CLI durable 选择、本地 daemon 与远程多租户 service 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-

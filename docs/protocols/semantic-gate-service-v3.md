@@ -71,7 +71,8 @@ provider exists. Authenticator/credential identity is checked in process but
 is not a signed durable attestation. This single-call service still owns no
 GateSession transition; the opt-in
 [`AuthenticatedSemanticGateSessionService`](durable-semantic-gate-v3.md)
-composes it through `DECIDED`. Replay-manifest/finalization linkage,
-retention/access-control policy, external checkpoints, and active
-Agent/MCP/HTTP/SDK emission remain separate work. The active snapshot-v2,
+composes it through `DECIDED`, and the higher-level durable facade exposes that
+composition through explicit durable HTTP/MCP and Python/TypeScript clients.
+Protected-content retention/access-control policy, external checkpoints, and
+default compatibility cutover remain separate work. The active snapshot-v2,
 SQLite-v1, and PostgreSQL-v2 compatibility boundaries are unchanged.

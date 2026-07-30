@@ -453,10 +453,12 @@ evidence。未保留签名字节时，已存 attestation hash/verifier ID 不代
 不得把语义相似度、融合分数或索引存在性当成授权、适用性、验证或门禁证据。
 System Gate evaluation 与 Semantic Gate attempt 保持独立不可变记录。精确回放
 消费已记录结果，不得从已变化的 catalog/index 静默重算。可选
-retrieval-preparation kernel 会生成该契约和配对 System Gate evaluation，但 active
-Store/adapter 尚未使用它。opt-in durable 组合服务会核验精确记录对，并通过有序
-authority operation 把它挂接到同一 GateSession。snapshot read authorization、
-retention、后续 lifecycle phase 与 active adapter 接入仍待完成。
+retrieval-preparation kernel 会生成该契约和配对 System Gate evaluation。默认
+snapshot-v2 Store 与兼容 adapter 不使用它；显式 durable HTTP/MCP profile 会通过
+durable facade 使用它，包括 Python/TypeScript HTTP client。opt-in durable 组合服务
+会核验精确记录对，并通过有序 authority operation 把它挂接到同一 GateSession。
+snapshot read authorization、受保护内容 retention、生产 index 与默认兼容路径
+cutover 仍待完成。
 
 ## Version-3 检索准备策略
 
@@ -611,8 +613,9 @@ factory 与 operator 持有的可信 context 选择它们。本地 MCP STDIO 没
 authentication，不得被描述为 shared-service MCP。在 shared transport 暴露前，
 transport 必须派生可信 identity 与
 provider/evaluator credential，服务端必须配置完整 authority graph，外部执行必须按
-`run_id` 幂等，并具备精确 retry/recovery conformance test。直接 Python durable
-facade 现在会授权 public/internal replay read；存储仍只支持 public/internal
+`run_id` 幂等，并具备精确 retry/recovery conformance test。durable facade 会授权
+public/internal replay read；显式 durable HTTP/MCP 与 Python/TypeScript client
+只有在启动 policy 启用 content 时才会暴露。存储仍只支持 public/internal
 plaintext replay profile。
 
 ## Version-3 结果与归因策略

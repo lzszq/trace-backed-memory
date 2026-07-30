@@ -72,5 +72,7 @@ The ledger preserves evaluator/verifier IDs, artifact hashes, and the supplied
 trusted timestamp as provenance. It does not authenticate those identities,
 authorize artifact bytes, produce completion/attribution outbox events, or
 promote an observed association to causation. Those responsibilities remain
-with a trusted service boundary. Active Agent/MCP/HTTP/SDK integration remains
-follow-up work.
+with a trusted service boundary. Explicit durable Agent/MCP/HTTP/SDK lifecycle
+integration does not yet append attribution claims; independent verifier and
+artifact checks, attribution outbox delivery, and default compatibility
+cutover remain follow-up work.

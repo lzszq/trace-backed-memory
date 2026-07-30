@@ -133,17 +133,18 @@ abandonment, authenticates the registered outcome evaluator, and composes
 atomic `RunOutcome + COMPLETED + completion outbox` publication with
 SQLite/PostgreSQL parity. Managed production indexes, encrypted
 protected-content finalization, durable transition-event linkage, default
-adapter cutover, TypeScript/CLI durable selection, and shared-service transport
-remain outstanding.
+  adapter cutover, CLI durable selection, and shared-service transport remain
+  outstanding.
 `AuthenticatedDurableAgentMemory` now composes those opt-in stages behind one
 adapter-neutral lifecycle. It reconstructs the original retrieval scope from
 retained RetrievalSnapshot authorization linkage, rejects mismatched service
 graphs, adds authorized exact-version cancellation, and obtains a fresh
 transition decision for each post-prepare GateSession mutation. The facade can
 continue across instances when the same authorities and current trusted
-contexts remain available, but is not yet constructed by the default Agent,
-MCP, HTTP, CLI, or TypeScript SDK adapters. Explicit durable HTTP and
-trusted-local MCP profiles construct it through the shared runtime factory.
+  contexts remain available. Default compatibility Agent/MCP/HTTP adapters and
+  general CLI do not construct it; explicit durable HTTP and trusted-local MCP
+  profiles construct it through the shared runtime factory, and the Node.js
+  `DurableAgentHTTPClient` selects the explicit HTTP profile.
 The optional strict durable wire dispatcher maps the facade without accepting
 caller identity fields or storing process-local handles.
 The opt-in SQLite and isolated PostgreSQL RunOutcome authorities now atomically

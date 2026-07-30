@@ -50,7 +50,7 @@ advance a status.
 | `persistence.unified-postgresql-v3` | Persistence cutover | Unified PostgreSQL v3 schema | `planned` | Current compatibility boundary is PostgreSQL 2. |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | Explicit `tbm-http --profile durable-v3`; trusted application factory, bearer boundary, unified SQLite/PostgreSQL v3 runtime, content hidden by default. |
 | `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | Explicit `tbm-mcp --profile durable-v3`; trusted local application factory, bounded STDIO, unified SQLite/PostgreSQL v3 runtime, restart continuation, and content hidden by default. This is not peer-authenticated shared-service MCP. |
-| `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript clients | `planned` | Cross-language durable conformance is not delivered. |
+| `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript clients | `active` | The explicit durable HTTP profile has synchronous/asynchronous Python clients and a dependency-free Node.js TypeScript client; one shared fixture runs through the Python and TypeScript lifecycle suites. |
 | `service.local-daemon` | Local service | Restartable `tbmd local` daemon | `planned` | No service owns workers and the durable authority graph. |
 | `service.shared-multitenant` | Shared service | Remote transports, OIDC, RBAC/RLS, workload identity | `planned` | The Alpha release is not an untrusted multi-tenant service. |
 | `integration.review-console` | Engineering integration | Review Console | `planned` | No control-plane implementation is delivered. |

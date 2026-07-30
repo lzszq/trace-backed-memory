@@ -84,6 +84,7 @@ repository permission，尚不提供 tenant-wide discovery authorization；不�
 并核验精确记录对，最后通过 CAS 发布 `PREPARED`。底层 preparation service 自身
 仍不执行该 lifecycle transition。详见
 [durable retrieval preparation v3](durable-retrieval-preparation-v3.zh-CN.md)。
-Semantic Gate attempt、`DECIDED -> FINALIZED`、rendering、injection、
-artifact retention，以及 active durable Agent/MCP/HTTP/SDK 接入仍属于后续工作。active
-snapshot-v2 Store 和本地 MCP 仍不生成这份 v3 preparation。
+Semantic Gate、finalization、execution 与显式 durable HTTP/MCP/SDK 接入由更高层
+durable 组合提供。受保护 artifact retention policy、生产 index worker/分片与默认
+兼容路径 cutover 仍是独立后续工作；active snapshot-v2 Store 和兼容 MCP 仍不生成
+这份 v3 preparation。

@@ -1,0 +1,70 @@
+{
+  "prepare": {
+    "request_id": "request_001",
+    "trace_id": "trace_001",
+    "run_id": "run_001",
+    "task_mode": "repair",
+    "commit_sha": "fedcba",
+    "attributes": {
+      "branch": "main"
+    },
+    "evaluation_suite": null,
+    "evaluation_case_id": null,
+    "retrieval_mode": "hybrid",
+    "retriever_id": "reference_retriever",
+    "retriever_version": "v1",
+    "top_k": 10,
+    "idempotency_key": "durable_retrieval_001",
+    "expires_in_seconds": 3600,
+    "lease_seconds": 60,
+    "query_base64": "cmVwYWlyIHRoZSBjYWNoZQ==",
+    "semantic_query": {
+      "provider_id": "reference_embeddings",
+      "provider_version": "v1",
+      "vector": [
+        0.6,
+        0.8
+      ]
+    }
+  },
+  "decide": {
+    "prompt_base64": "UmV2aWV3IHRoZSBleGFjdCBib3VuZGVkIGNhbmRpZGF0ZSBzZXQu",
+    "expected_previous_attempt_id": null,
+    "lease_seconds": 1800,
+    "response_base64": "eyJkZWNpc2lvbiI6ImFsbG93IiwicmVhc29uIjoiYXBwbGljYWJsZSJ9",
+    "provider_request_id": "provider_request_01",
+    "decision_id": "decision_allow_exact",
+    "final_allowed_revision_ids": [
+      "memory_revision_sha256_b050cfc6cc2b39152ca6db436c9862f28f8679dc76f2e6ab5aaead513d4f650f"
+    ],
+    "final_blocked_revision_ids": [],
+    "reason": "The candidate remains directly applicable.",
+    "risk": "low",
+    "recommended_injection": "summary",
+    "input_tokens": 12,
+    "output_tokens": 8
+  },
+  "resume": {
+    "lease_seconds": 2700
+  },
+  "complete": {
+    "result": "pass",
+    "evidence_artifact_sha256s": [
+      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ],
+    "output_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "tool_outputs_sha256": null,
+    "latency_ms": 150,
+    "cost_usd": 0.15,
+    "error_code": null
+  },
+  "cancel": {
+    "reason": "caller canceled durable request"
+  },
+  "replay": {
+    "allowed_classifications": [
+      "internal"
+    ],
+    "max_content_bytes": 8388608
+  }
+}

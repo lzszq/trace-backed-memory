@@ -93,18 +93,20 @@ manifest and injection schemas. The packaged example is
 manifest/component ordering remain value-level checks after JSON Schema
 validation.
 
-`AuthenticatedDurableAgentMemory.export_replay_bundle()` now supplies the
-opt-in direct-Python authorization boundary. Its versioned request contains a
+`AuthenticatedDurableAgentMemory.export_replay_bundle()` supplies the opt-in
+authorization boundary. Its versioned request contains a
 durable session ID rather than a manifest or artifact ID. The facade recovers
 the original retrieval scope, appends and reads back a fresh `artifact:read`
 decision, resolves one unique manifest from the session's retained linkage,
 and rechecks authorization and session version before returning the bundle.
 
-This contract remains intentionally unexposed through `tbm.agent.v1`, local
-HTTP, or MCP. Those profiles do not construct the authenticated durable facade
-or establish transport-authenticated durable session identity. Adding a
-network tool before that boundary exists would turn content-derived IDs into a
-data-discovery oracle.
+This contract remains intentionally unexposed through `tbm.agent.v1` and the
+default compatibility HTTP/MCP profiles. Explicit durable HTTP/MCP profiles
+construct the authenticated facade and expose replay only when startup content
+policy enables it; Python/TypeScript durable clients use that same boundary.
+The local bearer or trusted STDIO startup context is not shared-service
+transport identity and must not turn content-derived IDs into a data-discovery
+oracle.
 
 ## Opt-in SQLite replay ledger
 
@@ -189,6 +191,8 @@ The current v2 Store, active SQLite v1 adapter, PostgreSQL v2 adapter, local
 agent, and STDIO MCP do not persist or emit these records. The opt-in SQLite
 ledger and opt-in PostgreSQL repository provide the retained storage boundary
 and implement the replay export reader surfaces. The authenticated durable
-Agent provides direct-Python replay-read authorization over that exact graph.
-A production network runtime must additionally authenticate transport
-identity and apply retention/encryption before exposing replay export.
+Agent provides replay-read authorization over that exact graph; explicit
+durable HTTP/MCP and Python/TypeScript clients expose it only under startup
+content policy. A production shared-service runtime must additionally
+authenticate transport identity and apply retention/encryption before exposing
+replay export.

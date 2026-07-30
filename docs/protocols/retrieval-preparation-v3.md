@@ -100,6 +100,8 @@ that creates the session first, persists and verifies the exact pair, and
 CAS-publishes `PREPARED`. The underlying preparation service still does not
 perform that lifecycle transition itself. See
 [durable retrieval preparation v3](durable-retrieval-preparation-v3.md).
-Semantic Gate attempts, `DECIDED -> FINALIZED`, rendering, injection, artifact
-retention, and active durable Agent/MCP/HTTP/SDK wiring remain separate work. The
-active snapshot-v2 Store and local MCP still do not emit this v3 preparation.
+Semantic Gate, finalization, execution, and explicit durable HTTP/MCP/SDK
+wiring are supplied by the higher-level durable composition. Protected
+artifact retention policy, production index workers/sharding, and default
+compatibility cutover remain separate work. The active snapshot-v2 Store and
+compatibility MCP still do not emit this v3 preparation.

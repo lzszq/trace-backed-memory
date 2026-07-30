@@ -60,6 +60,7 @@ head，并显式指定该 parent。
 核验，但还不是有签名的 durable attestation。这个 single-call service 本身仍不持有
 GateSession transition；opt-in
 [`AuthenticatedSemanticGateSessionService`](durable-semantic-gate-v3.zh-CN.md)
-会把它组合推进到 `DECIDED`。replay-manifest/finalization linkage、
-retention/access-control policy、外部 checkpoint 与 active Agent/MCP/HTTP/SDK emission
-仍是独立后续工作。active snapshot-v2、SQLite-v1 与 PostgreSQL-v2 兼容边界保持不变。
+会把它组合推进到 `DECIDED`，更高层 durable facade 再通过显式 durable HTTP/MCP
+与 Python/TypeScript client 暴露该组合。受保护内容 retention/access-control
+policy、外部 checkpoint 与默认兼容路径 cutover 仍是独立后续工作。active
+snapshot-v2、SQLite-v1 与 PostgreSQL-v2 兼容边界保持不变。

@@ -89,8 +89,9 @@ that outer transaction.
 
 This service is opt-in. `AuthenticatedDurableAgentMemory` calls it as the
 finalization stage of the shared durable facade. The active Store and default
-local Agent/MCP/HTTP/SDK adapters do not construct that facade; explicit
-durable HTTP and trusted-local MCP profiles do.
+compatibility Agent/MCP/HTTP adapters do not construct that facade; explicit
+durable HTTP and trusted-local MCP profiles do, and Python/TypeScript durable
+clients select the HTTP profile.
 It does not advance `EXECUTING` or `COMPLETED`, emit RunOutcome, provide
 Review Console behavior or implement retention/encryption. It does not change
 the process-local Gate of the default compatibility MCP profile.

@@ -27,7 +27,7 @@ def test_typescript_sdk_metadata_is_dependency_free_and_locked() -> None:
     package = _json(SDK_ROOT / "package.json")
     lock = _json(SDK_ROOT / "package-lock.json")
     assert package["name"] == "@trace-backed-memory/agent-http"
-    assert package["version"] == "0.1.0"
+    assert package["version"] == "0.2.0"
     assert package["type"] == "module"
     assert package["license"] == "MIT"
     assert package["engines"] == {"node": ">=20"}
@@ -66,6 +66,33 @@ def test_typescript_sdk_uses_direct_transport_and_canonical_contract() -> None:
     assert "pendingRequestsAreProcessLocal" in contract_check
     assert "dist/index.js" in package_check
     assert '"--dry-run", "--json"' in package_check
+
+
+def test_typescript_sdk_publishes_the_explicit_durable_profile() -> None:
+    durable_client = (
+        SDK_ROOT / "src" / "durable-client.ts"
+    ).read_text(encoding="utf-8")
+    durable_validation = (
+        SDK_ROOT / "src" / "durable-validation.ts"
+    ).read_text(encoding="utf-8")
+    exports = (SDK_ROOT / "src" / "index.ts").read_text(encoding="utf-8")
+    fixture = _json(
+        ROOT / "tests" / "fixtures" / "durable_client_lifecycle.json"
+    )
+
+    assert "DurableAgentHTTPClient" in exports
+    assert "DurableAgentHTTPError" in exports
+    assert "durableSessionReference" in exports
+    assert "DurableDecideResult" in exports
+    assert "DurableCompleteResult" in exports
+    assert "tbm.durable-agent-wire.v1" in (
+        SDK_ROOT / "src" / "durable-types.ts"
+    ).read_text(encoding="utf-8")
+    assert '"/durable/v1/capabilities"' in durable_client
+    assert "heartbeat(" in durable_client
+    assert "maxAttempts" in durable_client
+    assert "identity fields are never accepted" in durable_validation
+    assert "tenant_id" not in json.dumps(fixture, sort_keys=True)
 
 
 def test_typescript_sdk_ci_and_bilingual_docs_stay_published() -> None:

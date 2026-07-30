@@ -67,5 +67,6 @@ The opt-in [durable Semantic Gate service](durable-semantic-gate-v3.md) now
 continues this exact evidence through `AWAITING_DECISION` to `DECIDED`.
 The opt-in [authenticated durable Agent](durable-agent-v3.md) composes that
 continuation with finalization, execution, cancellation, and completion.
-The explicit durable HTTP profile selects this service. Production index
-workers/sharding and durable MCP/TypeScript wiring remain separate work.
+The explicit durable HTTP and trusted-local MCP profiles select this service,
+and Python/TypeScript clients can use it through durable HTTP. Production
+index workers and sharding remain separate work.

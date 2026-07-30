@@ -1309,11 +1309,13 @@ replay consumes the recorded result; it must not silently recompute from a
 changed catalog or index.
 
 The optional retrieval-preparation kernel emits this contract and a paired
-System Gate evaluation, but the active Store and adapters do not use it. The
-opt-in durable composition service verifies the exact pair and attaches it to
-the same GateSession through ordered authority operations. Authorization for
-snapshot reads, retention, later lifecycle phases, and active adapter wiring
-remain required.
+System Gate evaluation. The default snapshot-v2 Store and compatibility
+adapters do not use it; the explicit durable HTTP/MCP profiles do through the
+durable facade, including Python/TypeScript HTTP clients. The opt-in durable
+composition service verifies the exact pair and attaches it to the same
+GateSession through ordered authority operations. Authorization for snapshot
+reads, protected-content retention, production indexes, and default
+compatibility cutover remain required.
 
 ## Version-3 retrieval preparation policy
 
@@ -1503,8 +1505,10 @@ MCP. Do not expose the dispatcher through a shared transport until
 the transport derives trusted identities and provider/evaluator credentials,
 the server configures the complete authority graph, external execution is
 idempotent by `run_id`, and the adapter has exact retry/recovery conformance
-tests. The direct-Python durable facade now authorizes public/internal replay
-reads; public/internal plaintext remains the only supported storage profile.
+tests. The durable facade authorizes public/internal replay reads; explicit
+durable HTTP/MCP and Python/TypeScript clients expose them only when startup
+policy enables content. Public/internal plaintext remains the only supported
+storage profile.
 
 ## Version-3 outcome and attribution policy
 

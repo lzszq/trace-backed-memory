@@ -41,6 +41,7 @@ public/internal 字节与 attempt 原子持久化；opt-in
 原子精确字节边界及 catalog-validated install/rollback。
 [认证 provider invocation 服务](semantic-gate-service-v3.zh-CN.md)与 opt-in
 [durable GateSession 组合](durable-semantic-gate-v3.zh-CN.md)现已创建、核验并挂接
-这些记录。静态加密、policy-backed artifact access control、签名 provider
-attestation、finalization 与 active adapter 接入仍是后续工作。Artifact 哈希只证明
-字节身份，不证明作者身份或内容真实性。
+这些记录；更高层 durable facade 会继续推进 finalization，并由显式 durable
+HTTP/MCP/SDK profile 暴露。静态加密、policy-backed artifact access control、签名
+provider attestation 与默认兼容路径 cutover 仍是后续工作。Artifact 哈希只证明字节
+身份，不证明作者身份或内容真实性。

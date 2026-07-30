@@ -26,6 +26,14 @@ for (const required of [
   "dist/index.d.ts",
   "dist/client.js",
   "dist/client.d.ts",
+  "dist/durable-client.js",
+  "dist/durable-client.d.ts",
+  "dist/durable-errors.js",
+  "dist/durable-errors.d.ts",
+  "dist/durable-types.js",
+  "dist/durable-types.d.ts",
+  "dist/durable-validation.js",
+  "dist/durable-validation.d.ts",
 ]) {
   assert.equal(names.has(required), true, `package is missing ${required}`);
 }

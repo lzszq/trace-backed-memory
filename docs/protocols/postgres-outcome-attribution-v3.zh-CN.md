@@ -62,5 +62,6 @@ GateSession、RunOutcome、OutcomeAttribution，使所有组合操作采用相�
 ledger 把 evaluator/verifier ID、artifact hash 与调用方提供的可信 timestamp
 作为 provenance 保存。它不认证 identity、不授权 artifact bytes、不产生
 completion/attribution outbox event，也不会把观察 association 提升为因果。
-这些职责仍属于可信 service boundary。active Agent/MCP/HTTP/SDK 集成仍是后续
-工作。
+这些职责仍属于可信 service boundary。显式 durable Agent/MCP/HTTP/SDK lifecycle
+尚不会追加 attribution claim；独立 verifier/artifact check、attribution outbox
+delivery 与默认兼容路径 cutover 仍是后续工作。

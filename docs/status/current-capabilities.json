@@ -148,8 +148,13 @@
     },
     {
       "id": "sdk.durable-python-typescript",
-      "status": "planned",
-      "evidence": ["docs/status/current-capability-matrix.md"]
+      "status": "active",
+      "evidence": [
+        "src/trace_backed_memory/durable_sdk.py",
+        "packages/typescript-sdk/src/durable-client.ts",
+        "tests/test_durable_http_sdk.py",
+        "packages/typescript-sdk/tests/durable-client.test.mjs"
+      ]
     },
     {
       "id": "service.local-daemon",

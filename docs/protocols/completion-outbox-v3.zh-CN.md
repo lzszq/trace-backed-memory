@@ -92,11 +92,12 @@ Delivery 是 **at least once**。Worker 可能已经成功发布，却在 acknow
 报错后原 leased revision 仍是当前状态；`superseded` 表示另一个 durable revision
 已经成为事实来源。
 
-这是 opt-in、side-by-side SQLite 与隔离 PostgreSQL authority。它们不会改变
+这是 opt-in、side-by-side SQLite 与隔离 PostgreSQL authority。它们自身不会改变
 active SQLite schema version 1 或 PostgreSQL schema version 2，不会发起网络
-请求、认证 evaluator、授权 artifact byte、创建 OutcomeAttribution event，也
-不会把 durable completion 接入 active Agent/MCP/HTTP/SDK lifecycle。Active
-adapter integration 仍属于统一推进的 version-3 计划。
+请求、认证 evaluator、授权 artifact byte 或创建 OutcomeAttribution event。
+durable execution/facade 组合会把它们接入显式 durable HTTP/MCP 与
+Python/TypeScript client；默认兼容路径 cutover 和 daemon 持有的 worker dispatch
+仍属于统一推进的 version-3 计划。
 SQLite connection owner 仍是可信 operator boundary：能够替换已注册 SQLite
 function 或删除并重建 trigger 的代码同样能够改写数据库，不得把这种能力暴露给
 不可信调用方。

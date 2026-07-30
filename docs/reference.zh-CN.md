@@ -186,6 +186,14 @@ proxy 的直接本地 transport。这不是 durable v3 facade 或 shared-service
 route 绑定到严格 request/response Schema 与稳定 error。详见
 [HTTP 与 Python/TypeScript SDK 指南](protocols/agent-http-v1.zh-CN.md)。
 
+如需可跨重启续接的 session，应显式选择
+`tbm-http --profile durable-v3`。包根导出的
+`DurableAgentHTTPClient`/`AsyncDurableAgentHTTPClient` 与 TypeScript 包中的
+`DurableAgentHTTPClient` 都使用精确 GateSession version，且不会序列化
+caller/provider/evaluator identity。详见
+[durable HTTP 指南](protocols/durable-http-v1.zh-CN.md)；兼容 profile 及其进程内
+request handle 仍是默认行为。
+
 ## 打包资源
 
 wheel、源码分发包和可编辑安装都会提供 `schemas/` 与 `examples/` 下规范运行时文件的字节一致副本，以及规范的失败分类体系和 active lesson YAML 示例。`AGENTS.md` 等贡献者指引不属于运行时资源。资源名来自严格的 POSIX 规范路径白名单，不能借此读取任意文件系统路径。
@@ -343,10 +351,11 @@ authorization/evidence/policy/renderer 关联与固定 replay component map。
 `DurableFinalizationService` 会复查当前 authorization/head/policy 状态，确定性渲染
 最终允许集合，保留并读回精确 UsageDecision 与完整 replay bundle，再通过 CAS 发布
 `FINALIZED`。共享 SQLite/PostgreSQL connection 支持 caller-owned outer rollback；
-authority 分离时使用有序恢复。当前 Store、active SQL adapter、本地 Agent 与 MCP
-均不使用该服务。opt-in 已认证 durable Agent 现在会为 replay export 增加直接
-Python、session-bound 的 `artifact:read` 授权。受保护内容加密、retention 与
-transport adapter integration 仍待完成。详见
+authority 分离时使用有序恢复。默认兼容 Store、SQL adapter、本地 Agent 与 MCP
+不使用该服务。opt-in 已认证 durable Agent 会为 replay export 增加 session-bound
+`artifact:read` 授权；显式 durable HTTP/MCP 与 Python/TypeScript client 只会在
+启动 content policy 允许时暴露它。受保护内容加密/retention、shared-service
+transport 与默认兼容路径 cutover 仍待完成。详见
 [重放契约](protocols/replay-v3.zh-CN.md)。
 
 与存储实现无关的授权 v3 契约定义 canonical repository、精确的租户作用域别名、

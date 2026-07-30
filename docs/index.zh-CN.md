@@ -121,15 +121,16 @@ PostgreSQL 具备 caller-transaction 对等性。`DurableExecutionService` 随�
 的 resume 与 abandonment，通过每次调用的可信 authenticator 认证 outcome
 evaluator，并以 SQLite/PostgreSQL 对等性组合原子
 `RunOutcome + COMPLETED + completion outbox` 发布。托管生产索引、受保护内容的
-加密 finalization、持久 transition-event linkage、默认 adapter cutover、
-TypeScript/CLI durable 选择与共享服务 transport 仍待完成。
+  加密 finalization、持久 transition-event linkage、默认 adapter cutover、
+  CLI durable 选择与共享服务 transport 仍待完成。
 `AuthenticatedDurableAgentMemory` 现在会在一个 adapter-neutral lifecycle
 后面组合上述 opt-in 阶段。它从已保留 RetrievalSnapshot authorization linkage
 重建原始 retrieval scope，拒绝错配的 service graph，增加已授权的精确版本取消，
 并为 `PREPARED` 之后的每次 GateSession 修改取得新的 transition decision。只要同一组
-authority 与当前可信 context 仍可用，该 facade 就可以跨实例续接；但默认 Agent、
-MCP、HTTP、CLI 与 TypeScript SDK adapter 尚未构造它。显式 durable HTTP 与可信
-本地 MCP profile 会通过共享 runtime factory 构造它。可选严格 durable wire
+  authority 与当前可信 context 仍可用，该 facade 就可以跨实例续接。默认兼容
+  Agent/MCP/HTTP adapter 与普通 CLI 不构造它；显式 durable HTTP 与可信本地 MCP
+  profile 会通过共享 runtime factory 构造它，Node.js
+  `DurableAgentHTTPClient` 则选择该显式 HTTP profile。可选严格 durable wire
 dispatcher 会映射该 facade，但不接受调用方 identity 字段，也不保存进程内 handle。
 opt-in SQLite 与隔离 PostgreSQL RunOutcome authority 现在都可以用一份
 content-addressed outcome 原子完成 executing GateSession。隔离 SQLite

@@ -103,11 +103,12 @@ revision remains current after an acknowledgement or failure-write error;
 `superseded` means another durable revision now owns the truth.
 
 These are opt-in, side-by-side SQLite and isolated PostgreSQL authorities.
-They do not change active SQLite schema version 1 or PostgreSQL schema version
-2, emit network traffic, authenticate an evaluator, authorize artifact bytes,
-create an OutcomeAttribution event, or wire durable completion into the active
-Agent/MCP/HTTP/SDK lifecycle. Active adapter integration remains part of the
-coordinated version-3 program.
+Alone they do not change active SQLite schema version 1 or PostgreSQL schema
+version 2, emit network traffic, authenticate an evaluator, authorize artifact
+bytes, or create an OutcomeAttribution event. The durable execution/facade
+composition wires them into explicit durable HTTP/MCP and Python/TypeScript
+clients; default compatibility cutover and daemon-owned worker dispatch remain
+part of the coordinated version-3 program.
 The SQLite connection owner remains a trusted operator boundary: code that can
 replace registered SQLite functions or drop and recreate triggers can also
 rewrite the database and must not be exposed to untrusted callers.

@@ -159,23 +159,25 @@ This composition is not a transport authenticator. The embedding service must:
 - configure durable authorities and provider callbacks on the server.
 
 The current composition supports the existing public/internal plaintext replay
-profile and an authenticated direct-Python replay-read boundary.
+profile and an authenticated session-bound replay-read boundary selected by
+explicit durable HTTP/MCP and Python/TypeScript clients.
 Protected-content encryption, retention integration, transport-authenticated
 replay exposure, durable transition-authorization linkage in GateSession
 revisions, and physical repository attestation remain separate required work.
 
 ## Adapter status
 
-The facade is the shared application boundary intended for future MCP, HTTP,
-CLI-daemon, and SDK adapters. The optional
+The facade is the shared application boundary for MCP, HTTP, CLI-daemon, and
+SDK adapters. The optional
 [`tbm.durable-agent-wire.v1`](durable-agent-wire-v1.md) dispatcher now maps all
 facade operations with strict identity-free request models, trusted context
-injection, stable errors, and fail-closed content profiles. The default
-`LocalAgentMemory` and `tbm-mcp` profiles still use `tbm.agent.v1` with
-process-local pending handles. No current network adapter selects the durable
-dispatcher or exposes replay export, and this protocol does not claim
-transport authentication, shared multi-tenant readiness, or schema-version-3
-cutover.
+injection, stable errors, and fail-closed content profiles. Explicit durable
+HTTP and trusted-local MCP profiles select it; synchronous/asynchronous Python
+and Node.js TypeScript clients select durable HTTP. The default
+`LocalAgentMemory`, compatibility `tbm-mcp`/HTTP profile, and general CLI still
+use `tbm.agent.v1` with process-local pending handles. This protocol does not
+claim shared multi-tenant readiness, peer-authenticated local STDIO, or a
+default schema-version-3 cutover.
 
 SQLite and PostgreSQL lifecycle parity is covered by the facade tests while
 the underlying authorities preserve their existing transaction, savepoint,

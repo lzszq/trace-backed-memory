@@ -97,12 +97,15 @@ an external executor side effect, so a crash between execution and completion
 leaves an explicit `EXECUTING` recovery state.
 
 This service is opt-in. `AuthenticatedDurableAgentMemory` now calls it as the
-execution stage of the shared durable application facade, but the default
-Store, LocalAgentMemory, STDIO MCP, HTTP, and SDK adapters do not construct
-that facade, and the v1 process-local request-token contract is unchanged.
-The durable Agent now provides direct-Python, session-bound replay-read
-authorization after this execution service retains the bundle.
+execution stage of the shared durable application facade. The default Store,
+LocalAgentMemory, compatibility STDIO MCP/HTTP adapters, and general CLI do
+not construct that facade; explicit durable HTTP/MCP profiles do, and
+Python/TypeScript durable clients select HTTP. The v1 process-local
+request-token contract is unchanged.
+The durable Agent provides session-bound replay-read authorization after this
+execution service retains the bundle; explicit durable HTTP/MCP and
+Python/TypeScript clients select that boundary under startup content policy.
 Protected-content encryption, retention, transport-authenticated replay
-exposure, active adapter wiring, and a durable transition-authorization
+exposure, default-adapter cutover, and a durable transition-authorization
 linkage field remain separate production work. See
 [authenticated durable Agent v3](durable-agent-v3.md).

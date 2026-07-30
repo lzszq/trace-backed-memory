@@ -322,7 +322,7 @@ durable `CREATED` GateSession，在同一授权 scope 下保存并读回精确 e
 这些 evidence 提供 opt-in、已核验的 `AWAITING_DECISION`/`DECIDED` 延续。
 `durable_finalization_v3.py` 随后会复查 authorization/head/policy，只渲染最终允许
 集合，保留精确 UsageDecision/injection/replay bundle，并通过 CAS 发布 `FINALIZED`。
-生产分片/worker、受保护内容加密与 active adapter 接入仍待完成。详见
+生产分片/worker、受保护内容加密与默认兼容路径 cutover 仍待完成。详见
 [已认证检索准备 v3](protocols/retrieval-preparation-v3.zh-CN.md)、
 [托管索引 bundle v3](protocols/managed-index-v3.zh-CN.md)，以及
 [durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.zh-CN.md)，
@@ -631,8 +631,8 @@ dispatcher 会在调用 facade 前执行 canonical-base64 prompt/response/query 
 它，在派生服务端持有的 context 前认证本地 bearer，默认隐藏内容，并可在进程重启后重新
 打开统一 SQLite v3 graph。显式 `tbm-mcp --profile durable-v3` adapter 也会通过
 有界本地 STDIO 选择同一 graph，由 operator 启动配置提供可信 context；它没有独立 peer
-authentication，但 session state 同样可跨进程重启。普通 CLI 与 TypeScript adapter
-尚未选择它。详见
+  authentication，但 session state 同样可跨进程重启。Node.js
+  `DurableAgentHTTPClient` 会通过显式 HTTP profile 选择它；普通 CLI 尚未选择。详见
 [durable HTTP profile](protocols/durable-http-v1.zh-CN.md)、
 [durable MCP profile](protocols/durable-mcp-v1.zh-CN.md)、
 [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)、

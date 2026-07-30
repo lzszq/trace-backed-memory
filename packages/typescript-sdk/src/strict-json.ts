@@ -296,8 +296,15 @@ class Parser {
   }
 }
 
-export function parseBoundedJson(bytes: Uint8Array): unknown {
-  if (bytes.byteLength > JSON_MAX_BYTES) {
+export function parseBoundedJson(
+  bytes: Uint8Array,
+  maxBytes = JSON_MAX_BYTES,
+): unknown {
+  if (
+    !Number.isSafeInteger(maxBytes) ||
+    maxBytes < 1 ||
+    bytes.byteLength > maxBytes
+  ) {
     invalid("JSON exceeds the wire size limit");
   }
   const source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);

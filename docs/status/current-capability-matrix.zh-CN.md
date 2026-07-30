@@ -47,7 +47,7 @@
 | `persistence.unified-postgresql-v3` | 持久化切换 | 统一 PostgreSQL v3 schema | `planned` | 当前兼容边界为 PostgreSQL 2。 |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | 显式 `tbm-http --profile durable-v3`；可信 application factory、bearer 边界、统一 SQLite/PostgreSQL v3 runtime，默认隐藏内容。 |
 | `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | 显式 `tbm-mcp --profile durable-v3`；可信本地 application factory、有界 STDIO、统一 SQLite/PostgreSQL v3 runtime、跨重启续接，且默认隐藏内容。它不是带 peer authentication 的 shared-service MCP。 |
-| `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript client | `planned` | 尚未交付跨语言 durable conformance。 |
+| `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript client | `active` | 显式 durable HTTP profile 已提供同步/异步 Python client 与无运行时依赖的 Node.js TypeScript client；同一份共享 fixture 会通过 Python 与 TypeScript lifecycle 测试。 |
 | `service.local-daemon` | 本地服务 | 可重启的 `tbmd local` daemon | `planned` | 尚无服务统一持有 worker 和 durable authority graph。 |
 | `service.shared-multitenant` | 共享服务 | Remote transport、OIDC、RBAC/RLS、workload identity | `planned` | 当前 Alpha 不能作为不可信多租户服务。 |
 | `integration.review-console` | 工程集成 | Review Console | `planned` | 尚无 control-plane 实现。 |

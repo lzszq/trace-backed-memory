@@ -125,7 +125,7 @@ with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
     )
 ```
 
-`tbm capabilities` 不需要加载快照即可返回 `tbm.agent.v1` 协议、存储模式、操作和硬限制。当前 schema 中，prepared gate request 仍有意保留为进程内状态，因此必须让同一个 `LocalAgentMemory` 实例存活到 finalize 或 cancel。Trace、finalized usage decision 和 measured completion 会同步到 SQLite 或 PostgreSQL。更多说明见 [Agent 协议](protocols/agent-v1.zh-CN.md) 与 [Codex 集成指南](integrations/codex.zh-CN.md)。
+`tbm capabilities` 不需要加载快照即可返回 `tbm.agent.v1` 协议、存储模式、操作和硬限制。当前 schema 中，prepared gate request 仍有意保留为进程内状态，因此必须让同一个 `LocalAgentMemory` 实例存活到 finalize 或 cancel。Trace、finalized usage decision 和 measured completion 会同步到 SQLite 或 PostgreSQL。更多说明见 [Agent 协议](protocols/agent-v1.zh-CN.md)，以及 [Codex](integrations/codex.zh-CN.md)、[Claude Code](integrations/claude-code.zh-CN.md) 和 [Pi](integrations/pi.zh-CN.md) 集成指南。
 
 ### 长驻本地 MCP
 
@@ -143,9 +143,10 @@ ancestry，不提供 curation 或 activation 操作，并要求显式且只能�
 Pending Gate request 仍为进程内状态，因此 Codex 必须让 server 从 prepare
 存活到 finalize 或 cancel；重启后必须重新 prepare。opaque request ID 带有新的
 128-bit Store-session namespace，因此 stale handle 不会与重启后的新 request
-碰撞。项目
-`.codex/config.toml` 与精确工具顺序见
-[Codex 集成指南](integrations/codex.zh-CN.md)。
+碰撞。各客户端配置与精确工具顺序见
+[Codex](integrations/codex.zh-CN.md)、
+[Claude Code](integrations/claude-code.zh-CN.md) 与
+[Pi + `pi-mcp-adapter`](integrations/pi.zh-CN.md) 指南。
 
 如需可选的本地授权边界，必须同时提供以下五项可信启动选择：
 
@@ -492,18 +493,26 @@ query/prompt/response bytes 使用 canonical base64。
 dispatcher 从不认证 transport peer。详见
 [durable Agent wire v1](protocols/durable-agent-wire-v1.zh-CN.md)。
 
-显式 `tbm-http --profile durable-v3` profile 是首个选择该 dispatcher 的产品
-transport。operator 持有的 `DurableHTTPApplication` factory 提供 runtime
+显式 `tbm-http --profile durable-v3` profile 是首个选择该 dispatcher 的 HTTP
+产品 transport。operator 持有的 `DurableHTTPApplication` factory 提供 runtime
 dependency 与可信 context provider；有界 bearer secret 必须在派生 context 前完成
 认证。adapter 通过 `DurableRuntimeFactory` 使用统一 SQLite v3 或隔离 PostgreSQL
 v3，默认隐藏精确内容，非 loopback 绑定必须使用 TLS，并且 HTTP 进程不保留 lifecycle
 handle。详见 [durable HTTP profile](protocols/durable-http-v1.zh-CN.md)。
 
+显式 `tbm-mcp --profile durable-v3` profile 会通过有界本地 STDIO 选择同一个
+dispatcher 与 runtime factory。operator 持有的 `DurableMCPApplication` factory
+在 tool JSON 之外提供固定可信 service、provider 与 evaluator context。它只暴露十一项
+durable runtime tool，不保存进程内 session handle，默认隐藏内容，并已通过三个 MCP
+子进程的真实 client 续接与精确 completion/replay 测试。本地 STDIO 没有独立 peer
+authentication；该 profile 不是 shared-service MCP。详见
+[durable MCP profile](protocols/durable-mcp-v1.zh-CN.md)。
+
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的
 opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS head
 强制一条有界线性 sequence，支持精确幂等重放，通过 savepoint 保留调用方
 transaction，并在读取时复核完整 chain。字节存储由上述独立 opt-in repository
-提供；opt-in session 组合会使用两个 repository，但 active Agent/MCP transaction
+提供；opt-in session 组合会使用两个 repository，但默认兼容 Agent/MCP transaction
 集成仍未完成。详见
 [SQLite Semantic Gate ledger 契约](protocols/sqlite-semantic-gate-v3.zh-CN.md)。
 
@@ -579,8 +588,9 @@ GateSession/remediation transition。详见
 `SQLiteGateSessionRepository`。它保存 append-only canonical revision、
 逐 version CAS head、scoped idempotency、可信时钟 lease 与有界 due-session
 discovery，并可与 active SQLite v1 Store 共用一个数据库文件而不改变其 schema。
-当前 Agent 与 MCP 不使用该 repository，也不会恢复私有 pending request token；
-详见 [GateSession 契约](protocols/gate-session-v3.zh-CN.md)。
+默认兼容 Agent 与 MCP 不使用该 repository，也不会恢复私有 pending request token；
+显式 durable profile 会通过统一 authority graph 使用它。详见
+[GateSession 契约](protocols/gate-session-v3.zh-CN.md)。
 
 如需 opt-in 的共享数据库持久化，`PostgresGateSessionRepository` 使用
 `schemas/postgres-v3-gate-session.sql` 安装的隔离
@@ -588,8 +598,9 @@ discovery，并可与 active SQLite v1 Store 共用一个数据库文件而不�
 scoped idempotency、append-only revision、exact-version CAS、catalog drift
 检查与调用方 savepoint；配套
 `schemas/postgres-v3-gate-session-rollback.sql` fail-closed。两个脚本都要求并
-保留 active PostgreSQL schema version 2；该 adapter 尚不是 active Agent/MCP
-state，也不表示 distributed service 已就绪。
+保留 active PostgreSQL schema version 2；该 adapter 不是默认兼容 Agent/MCP
+state，也不表示 distributed service 已就绪。显式 durable profile 会通过统一
+authority graph 选择它。
 
 `recover-batch` 在重复项检查前统计提交值，decision ID 与 attribution 各自最多接受 10,000 项。每个 `--attribution DECISION_ID=true|false` 使用最后一个 `=` 作为分隔符，因此 `decision=regional` 这样的 ID 仍可寻址；后缀必须是严格的小写 `true` 或 `false`。
 
@@ -1243,7 +1254,11 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- index.zh-CN.md
 |   |-- integrations/
 |   |   |-- codex.md
-|   |   `-- codex.zh-CN.md
+|   |   |-- codex.zh-CN.md
+|   |   |-- claude-code.md
+|   |   |-- claude-code.zh-CN.md
+|   |   |-- pi.md
+|   |   `-- pi.zh-CN.md
 |   |-- migrations/
 |   |   |-- snapshot-v3-preflight*.md
 |   |   `-- v3-staging-bundles*.md

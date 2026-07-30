@@ -134,8 +134,10 @@ operations, and hard limits without loading a snapshot. Prepared gate requests
 remain deliberately process-local in the current schema; keep one
 `LocalAgentMemory` instance alive through finalize or cancel. Traces, finalized
 usage decisions, and measured completion are synchronized to SQLite or
-PostgreSQL. See [the agent protocol](protocols/agent-v1.md) and
-[Codex integration guide](integrations/codex.md).
+PostgreSQL. See [the agent protocol](protocols/agent-v1.md) and the
+[Codex](integrations/codex.md),
+[Claude Code](integrations/claude-code.md), and
+[Pi](integrations/pi.md) integration guides.
 
 ### Long-running local MCP
 
@@ -156,8 +158,10 @@ requests remain process-local, so Codex must keep the server alive from
 prepare through finalize or cancel; a restart requires a new prepare. Opaque
 request IDs carry a fresh 128-bit Store-session namespace so stale handles
 cannot collide with new requests after restart. See the
-[Codex integration guide](integrations/codex.md) for the project
-`.codex/config.toml` and the exact tool sequence.
+[Codex](integrations/codex.md),
+[Claude Code](integrations/claude-code.md), and
+[Pi with `pi-mcp-adapter`](integrations/pi.md) guides for client-specific
+configuration and the exact tool sequence.
 
 For an opt-in local authorization boundary, provide all five trusted startup
 selectors together:
@@ -678,7 +682,7 @@ canonical base64. `DurableAgentWireConfiguration` disables injection and replay
 content by default, and the dispatcher never authenticates a transport peer.
 See [durable Agent wire v1](protocols/durable-agent-wire-v1.md).
 
-The explicit `tbm-http --profile durable-v3` profile is the first product
+The explicit `tbm-http --profile durable-v3` profile is the first HTTP product
 transport to select that dispatcher. An operator-owned
 `DurableHTTPApplication` factory supplies the runtime dependencies and trusted
 context provider; a bounded bearer secret is authenticated before context
@@ -687,13 +691,23 @@ isolated PostgreSQL v3, hides exact content by default, requires TLS for
 non-loopback binds, and retains no lifecycle handle in the HTTP process. See
 [durable HTTP profile](protocols/durable-http-v1.md).
 
+The explicit `tbm-mcp --profile durable-v3` profile selects the same dispatcher
+and runtime factory over bounded local STDIO. Its operator-owned
+`DurableMCPApplication` factory supplies fixed trusted service, provider, and
+evaluator contexts outside tool JSON. It exposes only the eleven durable
+runtime tools, persists no process-local session handle, hides content by
+default, and has real-client continuation and exact completion/replay tests
+across three MCP child processes. Local STDIO has no independent peer
+authentication; this profile is not shared-service MCP. See
+[durable MCP profile](protocols/durable-mcp-v1.md).
+
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
 ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
 schema, enforces one bounded linear sequence through a CAS head, supports
 exact idempotent replay, preserves caller transactions with savepoints, and
 revalidates the entire chain on reads. Byte storage is a separate opt-in
 repository above. The opt-in session composition uses both repositories, but
-active Agent/MCP transaction integration is still absent. See
+default compatibility Agent/MCP transaction integration is still absent. See
 [the SQLite Semantic Gate ledger contract](protocols/sqlite-semantic-gate-v3.md).
 
 `PostgresSemanticGateV3Repository` provides the isolated PostgreSQL peer. It
@@ -777,8 +791,10 @@ For opt-in local durability of the version-3 lifecycle itself,
 `schemas/sqlite-v3-gate-session.sql` contract. It stores append-only canonical
 revisions, a one-version-at-a-time CAS head, scoped idempotency, trusted-clock
 leases, and bounded due-session discovery. It can share a database file with
-the active SQLite v1 Store without changing that schema. The current Agent and
-MCP do not use this repository or recover private pending request tokens; see
+the active SQLite v1 Store without changing that schema. The default
+compatibility Agent and MCP do not use this repository or recover private
+pending request tokens; the explicit durable profiles use it through the
+unified authority graph. See
 [the GateSession contract](protocols/gate-session-v3.md).
 
 For opt-in shared-database durability, `PostgresGateSessionRepository` uses
@@ -788,7 +804,9 @@ locking and provides scoped idempotency, append-only revisions, exact-version
 CAS, catalog drift checks, and caller savepoints. The paired
 `schemas/postgres-v3-gate-session-rollback.sql` is fail-closed. Both scripts
 require and preserve active PostgreSQL schema version 2; this adapter is not
-yet active Agent/MCP state or a claim of distributed service readiness.
+default compatibility Agent/MCP state or a claim of distributed service
+readiness. The explicit durable profiles select it through the unified
+authority graph.
 
 Completion and recovery commands return the serialized completions, ordered
 decision IDs, and a `written` flag. They are dry-run by default: the input
@@ -2408,7 +2426,11 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- index.zh-CN.md
 |   |-- integrations/
 |   |   |-- codex.md
-|   |   `-- codex.zh-CN.md
+|   |   |-- codex.zh-CN.md
+|   |   |-- claude-code.md
+|   |   |-- claude-code.zh-CN.md
+|   |   |-- pi.md
+|   |   `-- pi.zh-CN.md
 |   |-- migrations/
 |   |   |-- snapshot-v3-preflight*.md
 |   |   `-- v3-staging-bundles*.md

@@ -41,6 +41,6 @@ def aware_datetime_to_rfc3339(value: object) -> str:
 
 
 def utc_timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace(
-        "+00:00", "Z"
-    )
+    return datetime.now(timezone.utc).isoformat(
+        timespec="microseconds"
+    ).replace("+00:00", "Z")

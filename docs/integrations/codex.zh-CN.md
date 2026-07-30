@@ -2,13 +2,15 @@
 
 [English](codex.md) | **简体中文**
 
-仓库现在提供四层 Codex 接口，同时不削弱当前进程内 Gate 边界：
+仓库现在提供五层边界清晰的 Codex 接口：
 
 1. 根目录与嵌套 `AGENTS.md` 映射不变量、验证、Schema 和适配器边界。
 2. 仓库本地技能分别指导维护者与运行时调用方。
 3. `LocalAgentMemory` 和 `tbm.agent.v1` 为宿主应用提供聚焦、带版本的
    Python/JSON 边界。
-4. `tbm-mcp` 以长驻本地 STDIO MCP server 暴露同一套 runtime-only 生命周期。
+4. 默认 `tbm-mcp` 以长驻本地 STDIO MCP server 暴露同一套兼容生命周期。
+5. 显式 `tbm-mcp --profile durable-v3` 暴露可跨重启续接的 durable Agent
+   生命周期，并把可信 identity 保留在 tool JSON 之外。
 
 ## 贡献者使用
 
@@ -38,8 +40,8 @@ command -v tbm-mcp
 
 ## 连接 Codex
 
-Codex Desktop 与 Codex CLI 共用 project-scoped `.codex/config.toml`。替换
-checkout 路径后增加该文件；Codex 只会为受信任项目加载项目配置。
+Codex Desktop、Codex CLI 与 Codex IDE 扩展共享 MCP 配置。替换 checkout 路径后
+增加以下 project-scoped `.codex/config.toml`；Codex 只会为受信任项目加载项目配置。
 
 ```toml
 [mcp_servers.trace_backed_memory]
@@ -57,8 +59,31 @@ tool_timeout_sec = 60.0
 
 Windows TOML 路径使用正斜杠，例如 `C:/Users/name/source/repository`。若 Codex
 Desktop 找不到 `tbm-mcp`，把 `command` 改为 `Get-Command` 或 `command -v`
-输出的绝对路径。打开或信任仓库并重启 Codex Desktop，或从配置的 `cwd` 启动新的
-Codex CLI session。
+输出的绝对路径。加载此文件前先打开或信任仓库。
+
+### Desktop
+
+打开 **Settings > MCP servers** 检查该 server，选择 **Restart**，再在输入区使用
+`/mcp` 确认 `trace_backed_memory` 已连接。
+
+### CLI
+
+从配置的 `cwd` 启动新 session，并使用以下只读检查：
+
+```bash
+codex mcp get trace_backed_memory --json
+codex mcp list
+```
+
+在 terminal UI 内使用 `/mcp` 查看 active tools。也可执行全局配置命令
+`codex mcp add trace_backed_memory -- tbm-mcp --repo-path
+/absolute/path/to/repository --sqlite .tbm/memory.sqlite3`；如果 server 只属于当前仓库，
+应优先使用项目文件。
+
+### IDE 扩展
+
+打开 gear menu，选择 **MCP servers**，检查共享配置，再选择
+**Restart extension**。这里同样遵守受信任项目规则。
 
 其他客户端：[Claude Code](claude-code.zh-CN.md) | [Pi](pi.zh-CN.md)
 
@@ -74,7 +99,7 @@ version 2 中，这只是适用性元数据，不是授权边界。
 
 ## 运行时顺序
 
-MCP 进程在 Codex 完成整个生命周期期间保持存活：
+默认兼容 MCP 进程在 Codex 完成整个生命周期期间保持存活：
 
 ```text
 tbm_capabilities / tbm_health
@@ -95,18 +120,20 @@ STDIO 输入采用 strict JSON，每帧拒绝重复 key 和非有限数字，并
 8 MiB、100,000 个 JSON nodes、depth 100；工具请求模型拒绝未知字段。
 Agent-facing failure 使用有界 `tbm.agent.v1` error envelope。
 
-## 当前边界
+## 可跨重启的 durable profile
 
-server 必须长驻，因为 pending Gate request 与 finalized replay tombstone 仍为
-进程内状态。SQLite 和 PostgreSQL 会持久化 Trace、finalized usage decision
-与 measured completion，但 server 重启会放弃所有尚未 finalized 的 request。
-客户端重启后必须重新 prepare，不得重建私有 request token。request ID 是
-opaque value，并带有每个 Store 新生成的 128-bit namespace，因此 stale handle
-不能在重启后 finalize 或 cancel 新 prepared request。
+当 GateSession 必须跨 Codex 或 MCP 进程重启续接时，使用显式
+`tbm-mcp --profile durable-v3`。它要求 operator 持有的 application factory 提供统一
+authority graph，以及固定的 service、Semantic Gate provider 与 evaluator identity。
+factory、一次性 SQLite 初始化、PostgreSQL 选择、content exposure flag 和精确工具顺序见
+[durable MCP profile 指南](../protocols/durable-mcp-v1.zh-CN.md)。
 
-远程 Streamable HTTP、OAuth、canonical repository 授权、durable
-idempotency/expiry 与跨进程 replay 仍需要产品交付计划中的统一 schema
-version 3 工作。
+这是可信本地 STDIO profile，不是带 peer authentication 的共享服务。重启后用已持久化的
+`session_id` 调用 `tbm_durable_get_session`，并从返回的精确版本继续。默认兼容 profile
+仍把 pending Gate request 与 finalized replay tombstone 保存在进程内；其 client
+重启后必须重新 prepare，也不得重建私有 request token。
+
+远程 Streamable HTTP MCP、OAuth 与不可信多租户服务仍不属于该本地 profile。
 
 ## 一致性验证
 

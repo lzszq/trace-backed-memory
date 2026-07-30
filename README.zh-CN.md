@@ -78,7 +78,7 @@ with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
 协议细节与生命周期约束见
 [`tbm.agent.v1` 指南](docs/protocols/agent-v1.zh-CN.md)。
 
-## 两分钟连接 MCP 客户端
+## 两分钟连接 MCP + Codex（也支持 Claude Code 与 Pi）
 
 安装 MCP 可选依赖并创建项目本地状态目录：
 
@@ -86,20 +86,29 @@ Windows PowerShell：
 
 ```powershell
 py -m pip install -e ".[mcp]"
-New-Item -ItemType Directory -Force .tbm
+New-Item -ItemType Directory -Force .tbm,.codex
 ```
 
 macOS 或 Linux：
 
 ```bash
 python3 -m pip install -e '.[mcp]'
-mkdir -p .tbm
+mkdir -p .tbm .codex
 ```
 
-然后连接你使用的客户端：
+Codex Desktop、Codex CLI 与 IDE 扩展共享 MCP 配置。把以下项目级文件保存到仓库：
 
-- **Codex Desktop 与 Codex CLI：**添加项目级
-  [Codex 配置](docs/integrations/codex.zh-CN.md)，然后重新打开受信任仓库。
+```toml
+# .codex/config.toml
+[mcp_servers.trace_backed_memory]
+command = "tbm-mcp"
+args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
+```
+
+重新打开受信任仓库，重启当前 Codex 端，并让 Codex 调用 `tbm_capabilities`。
+[Codex 多端指南](docs/integrations/codex.zh-CN.md)覆盖 Desktop、CLI、IDE 扩展、
+故障排查与可跨重启的 durable profile。其他客户端：
+
 - **Claude Code：**执行
   [单命令配置](docs/integrations/claude-code.zh-CN.md#连接-claude-code)，用
   `claude mcp get trace-backed-memory` 验证，再打开 `/mcp`。
@@ -107,9 +116,12 @@ mkdir -p .tbm
   [Pi 客户端教程](docs/integrations/pi.zh-CN.md#连接-pi)完成配置；授予项目信任前
   应先审查这个可执行 adapter。
 
-所有客户端都必须让 `tbm-mcp` 在完整的
+使用默认兼容 profile 的客户端必须让 `tbm-mcp` 在完整的
 `prepare -> finalize -> complete` 生命周期内保持存活；若不再执行，则应在 finalize
 前调用 `cancel`。该服务只暴露 runtime operation，不能 review、verify 或 activate memory。
+
+如需可跨重启续接的 GateSession state，请使用进阶的显式
+[durable MCP profile](docs/protocols/durable-mcp-v1.zh-CN.md)。
 
 ## 接口
 
@@ -120,6 +132,8 @@ mkdir -p .tbm
   [HTTP SDK 指南](docs/protocols/agent-http-v1.zh-CN.md)
 - 可选认证本地 MCP：可信启动配置选择 version-3 identity/environment；详见
   [参考文档](docs/reference.zh-CN.md#长驻本地-mcp)
+- 可跨重启的本地 MCP：显式 `--profile durable-v3`；详见
+  [durable MCP 指南](docs/protocols/durable-mcp-v1.zh-CN.md)
 - 持久化：内存、SQLite 与 PostgreSQL adapter
 - Version-3 准备能力：认证 retrieval 前边界、GateSession、授权、实体注册表、
   replay、audit/recovery、结构化 evidence、不可变 revision、retrieval snapshot、
@@ -133,11 +147,12 @@ mkdir -p .tbm
 
 active 兼容边界仍是 snapshot version 2、SQLite schema version 1、PostgreSQL
 schema version 2 与 `tbm.agent.v1`。Version-3 契约及其隔离、opt-in repository
-不会暗中改变 active Store、Agent 或 MCP 生命周期。
+不会暗中改变默认 Store、Agent 或 MCP 生命周期。显式 durable HTTP 与可信本地
+MCP profile 会选择 version-3 authority graph。
 
-在完成带版本的 durable GateSession migration 与 authenticated service integration
-之前，pending gate request 仍是进程内状态。Scope matching 不是 tenant
-authorization。不要把当前 Alpha 作为不受信任的共享多租户服务部署。
+默认兼容 profile 的 pending gate request 仍是进程内状态；显式 durable profile
+会持久化 GateSession state。Scope matching 不是 tenant authorization。不要把当前
+Alpha 作为不受信任的共享多租户服务部署。
 
 精确交付行为见[产品与当前能力](docs/product.md)，operator 规则见
 [记忆使用策略](docs/usage-policy.zh-CN.md)。

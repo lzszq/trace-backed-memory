@@ -138,8 +138,13 @@
     },
     {
       "id": "transport.durable-mcp",
-      "status": "planned",
-      "evidence": ["docs/adr/0003-transport-identity-ownership.md"]
+      "status": "active",
+      "evidence": [
+        "src/trace_backed_memory/durable_mcp_entry.py",
+        "src/trace_backed_memory/durable_mcp_server.py",
+        "tests/test_durable_mcp_server.py",
+        "docs/protocols/durable-mcp-v1.md"
+      ]
     },
     {
       "id": "sdk.durable-python-typescript",

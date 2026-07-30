@@ -882,6 +882,14 @@ increment 不会自动成为 active 用户路径。
   生命周期、每个生命周期状态之后重新打开 SQLite runtime/server、幂等与 stale transition、
   replay allow/deny 及经过净化的失败。durable MCP、TypeScript、本地 daemon 与远程多租户
   service 仍待完成。
+- 增加显式可信本地 `tbm-mcp --profile durable-v3` adapter，复用同一 durable wire
+  与 runtime factory。dependency 以及固定 service/provider/evaluator context 来自
+  operator 控制的 application factory；全部 identity 保持在 tool JSON 之外；只暴露
+  十一项带 annotation 的 runtime lifecycle tool，使用有界 STDIO，默认隐藏内容，且不
+  保存进程内 session handle。测试覆盖进程内完整 lifecycle，并由真实 MCP client 连续
+  启动三个子进程完成 prepare、重启续接、精确 completion retry 与 replay export。明确
+  本地 STDIO 没有独立 peer authentication，也不是 shared-service MCP。TypeScript、
+  本地 daemon 与远程多租户 service 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-

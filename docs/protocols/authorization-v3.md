@@ -3,12 +3,13 @@
 **English** | [简体中文](authorization-v3.zh-CN.md)
 
 Status: published preparation contract with opt-in isolated SQLite and
-PostgreSQL authorization authorities. They are not wired into the active
-snapshot-v2 Store, local Agent, MCP adapter, or GateSession repositories. Those
-paths remain process-local or explicitly opt-in as documented elsewhere.
+PostgreSQL authorization authorities. They are not wired into the default
+snapshot-v2 Store, local Agent, or MCP adapter. Explicit durable HTTP and
+trusted-local MCP profiles select them through the unified GateSession
+authority graph; the default paths remain process-local.
 
 Authorization v3 defines the identities, repository registry, role bindings,
-requests, and content-derived decisions needed before a future service may
+requests, and content-derived decisions needed before a durable service may
 retrieve any tenant or repository data. It does not turn applicability matching
 into authorization.
 

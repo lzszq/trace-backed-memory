@@ -1,7 +1,8 @@
 # Managed index bundle v3
 
 Status: delivered as an opt-in, isolated v3 retrieval component. It is not
-wired to the active Agent or MCP runtime.
+wired to default compatibility Agent/MCP retrieval. An operator may supply it
+to the explicit durable runtime graph.
 
 [简体中文](managed-index-v3.zh-CN.md)
 

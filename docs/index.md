@@ -26,6 +26,7 @@ orientation; these documents define the engineering contracts.
 - [Local agent protocol `tbm.agent.v1`](protocols/agent-v1.md)
 - [Local HTTP service and Python/TypeScript SDKs](protocols/agent-http-v1.md)
 - [Durable HTTP profile](protocols/durable-http-v1.md)
+- [Durable MCP profile](protocols/durable-mcp-v1.md)
 - [Node.js TypeScript SDK package](../packages/typescript-sdk/README.md)
 - [Canonical local Agent OpenAPI 3.1](../schemas/agent-http-v1.openapi.json)
 - [Authorization v3 contract](protocols/authorization-v3.md)
@@ -92,20 +93,23 @@ orientation; these documents define the engineering contracts.
 
 The current formats are snapshot version 2, SQLite schema version 1,
 PostgreSQL schema version 2, and agent protocol `tbm.agent.v1`. The optional
-`tbm-mcp` command is a long-running local STDIO transport for that protocol,
-not another persistence version. Pending gate requests remain process-local.
+default `tbm-mcp` command is a long-running local STDIO transport for that
+protocol, not another persistence version. Its pending gate requests remain
+process-local.
 The persistence-neutral `tbm.gate-session.v3` lifecycle contract and opt-in
 side-by-side SQLite and isolated PostgreSQL revision repositories are
 published. Opt-in preparation, Semantic Gate, completion, and recovery
-services/workers use them, but the active Store/MCP lifecycle does not. The
+services/workers use them. The default compatibility Store/MCP lifecycle does
+not; explicit durable HTTP and trusted-local MCP profiles select the unified
+version-3 authority graph. The
 storage-neutral authorization-v3 policy/evaluator contract
 defines canonical repositories, exact tenant aliases, authenticated identity
 slots, role bindings, and linked decisions. The authenticated retrieval
 service kernel now persists and rechecks those decisions before a retrieval
-callback, but transport-authenticated durable Agent wiring remains
-outstanding. A loopback-only bearer-authenticated HTTP profile and typed
-Python client now expose the active version-2 lifecycle through the same
-dispatcher as STDIO MCP. The storage-neutral, content-addressed FixEvidence and
+callback. Peer-authenticated shared-service wiring remains outstanding. The
+default loopback-only bearer-authenticated HTTP profile and typed Python client
+expose the active version-2 lifecycle through the same dispatcher as default
+STDIO MCP. The storage-neutral, content-addressed FixEvidence and
 structured regression evidence contracts are published with a strict
 cross-record MemoryRevision preflight and opt-in isolated SQLite/PostgreSQL
 proposal ledgers. Active v2 records/adapters do not use these ledgers, and
@@ -128,9 +132,9 @@ injection, and complete eight-component replay bundle; and CAS-publishes
 abandonment, authenticates the registered outcome evaluator, and composes
 atomic `RunOutcome + COMPLETED + completion outbox` publication with
 SQLite/PostgreSQL parity. Managed production indexes, encrypted
-protected-content finalization, durable transition-event linkage, active
-retriever/GateSession persistence, and active durable transport wiring remain
-outstanding.
+protected-content finalization, durable transition-event linkage, default
+adapter cutover, TypeScript/CLI durable selection, and shared-service transport
+remain outstanding.
 `AuthenticatedDurableAgentMemory` now composes those opt-in stages behind one
 adapter-neutral lifecycle. It reconstructs the original retrieval scope from
 retained RetrievalSnapshot authorization linkage, rejects mismatched service
@@ -138,9 +142,10 @@ graphs, adds authorized exact-version cancellation, and obtains a fresh
 transition decision for each post-prepare GateSession mutation. The facade can
 continue across instances when the same authorities and current trusted
 contexts remain available, but is not yet constructed by the default Agent,
-MCP, HTTP, CLI, or SDK adapters. The optional strict durable wire dispatcher
-now maps the facade for future adapters without accepting caller identity
-fields or storing process-local handles.
+MCP, HTTP, CLI, or TypeScript SDK adapters. Explicit durable HTTP and
+trusted-local MCP profiles construct it through the shared runtime factory.
+The optional strict durable wire dispatcher maps the facade without accepting
+caller identity fields or storing process-local handles.
 The opt-in SQLite and isolated PostgreSQL RunOutcome authorities now atomically
 complete an executing GateSession with one content-addressed outcome. The
 isolated SQLite and PostgreSQL OutcomeAttribution ledgers persist multiple

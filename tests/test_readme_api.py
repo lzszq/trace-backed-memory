@@ -1088,6 +1088,13 @@ def test_readmes_link_all_supported_mcp_client_guides():
         assert client in chinese
         assert link in chinese
 
+    assert "Codex Desktop, Codex CLI, and the IDE extension" in english
+    assert "Codex Desktop、Codex CLI 与 IDE 扩展" in chinese
+    assert "[mcp_servers.trace_backed_memory]" in english
+    assert "[mcp_servers.trace_backed_memory]" in chinese
+    assert "docs/protocols/durable-mcp-v1.md" in english
+    assert "docs/protocols/durable-mcp-v1.zh-CN.md" in chinese
+
 
 def test_mcp_client_guides_publish_install_and_lifecycle_contracts():
     integrations = Path(__file__).resolve().parents[1] / "docs" / "integrations"
@@ -1130,6 +1137,31 @@ def test_mcp_client_guides_publish_install_and_lifecycle_contracts():
     assert "/mcp setup" in pi
     assert "/mcp reconnect trace-backed-memory" in pi
     assert '"lifecycle": "keep-alive"' in pi
+
+    codex = english_guides[0].read_text(encoding="utf-8")
+    codex_chinese = chinese_guides[0].read_text(encoding="utf-8")
+    for contract in [
+        "Codex Desktop",
+        "Codex CLI",
+        "Codex IDE extension",
+        "codex mcp get trace_backed_memory --json",
+        "codex mcp list",
+        "tbm-mcp --profile durable-v3",
+        "tbm_durable_get_session",
+        "../protocols/durable-mcp-v1.md",
+    ]:
+        assert contract in codex
+    for contract in [
+        "Codex Desktop",
+        "Codex CLI",
+        "Codex IDE 扩展",
+        "codex mcp get trace_backed_memory --json",
+        "codex mcp list",
+        "tbm-mcp --profile durable-v3",
+        "tbm_durable_get_session",
+        "../protocols/durable-mcp-v1.zh-CN.md",
+    ]:
+        assert contract in codex_chinese
 
 
 def test_readme_publishes_pr_report_cli_contract():

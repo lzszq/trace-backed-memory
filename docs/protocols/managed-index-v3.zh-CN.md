@@ -1,7 +1,7 @@
 # 托管索引 bundle v3
 
-状态：已作为可选、隔离的 v3 检索组件交付；尚未接入当前 Agent 或 MCP
-运行时。
+状态：已作为可选、隔离的 v3 检索组件交付；未接入默认兼容 Agent/MCP retrieval。
+operator 可把它提供给显式 durable runtime graph。
 
 [English](managed-index-v3.md)
 

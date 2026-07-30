@@ -605,8 +605,11 @@ descriptor 与 null snippet；未显式启用 replay content 时，从 capabilit
 要求 injection 暴露。这些设置不授予访问权；普通 transition 或 `artifact:read`
 authorization 仍然适用。
 
-facade 与 dispatcher 都不是 transport authenticator，默认 Agent/MCP profile 当前
-也不调用它们。在 shared transport 暴露前，transport 必须派生可信 identity 与
+facade 与 dispatcher 都不是 transport authenticator，默认兼容 Agent/MCP profile
+不调用它们。显式 durable HTTP 与可信本地 durable MCP profile 只能通过规范 runtime
+factory 与 operator 持有的可信 context 选择它们。本地 MCP STDIO 没有独立 peer
+authentication，不得被描述为 shared-service MCP。在 shared transport 暴露前，
+transport 必须派生可信 identity 与
 provider/evaluator credential，服务端必须配置完整 authority graph，外部执行必须按
 `run_id` 幂等，并具备精确 retry/recovery conformance test。直接 Python durable
 facade 现在会授权 public/internal replay read；存储仍只支持 public/internal

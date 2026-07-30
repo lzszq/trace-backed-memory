@@ -25,6 +25,7 @@
 - [本地 Agent 协议 `tbm.agent.v1`](protocols/agent-v1.zh-CN.md)
 - [本地 HTTP 服务与 Python/TypeScript SDK](protocols/agent-http-v1.zh-CN.md)
 - [Durable HTTP profile](protocols/durable-http-v1.zh-CN.md)
+- [Durable MCP profile](protocols/durable-mcp-v1.zh-CN.md)
 - [Node.js TypeScript SDK 包](../packages/typescript-sdk/README.md)
 - [规范本地 Agent OpenAPI 3.1](../schemas/agent-http-v1.openapi.json)
 - [授权 v3 契约](protocols/authorization-v3.zh-CN.md)
@@ -89,17 +90,18 @@
 ## 兼容性边界
 
 当前格式为 snapshot version 2、SQLite schema version 1、PostgreSQL schema
-version 2 和 Agent 协议 `tbm.agent.v1`。可选 `tbm-mcp` 命令是该协议的长驻
-本地 STDIO transport，不是新的持久化版本。pending gate request 仍为进程内
+version 2 和 Agent 协议 `tbm.agent.v1`。可选的默认 `tbm-mcp` 命令是该协议的长驻
+本地 STDIO transport，不是新的持久化版本；其 pending gate request 仍为进程内
 状态。与持久化实现无关的 `tbm.gate-session.v3` 生命周期契约及 opt-in、
 side-by-side SQLite 和隔离 PostgreSQL revision repository 已经发布。opt-in
 preparation、Semantic Gate、completion 与 recovery service/worker 已经使用它们，
-但 active Store/MCP lifecycle 尚未使用。与存储实现无关的授权
+但默认兼容 Store/MCP lifecycle 尚未使用；显式 durable HTTP 与可信本地 MCP
+profile 会选择统一 version-3 authority graph。与存储实现无关的授权
 v3 policy/evaluator 契约已定义 canonical repository、精确租户别名、认证身份
 位置、role binding 与关联 decision。认证 retrieval service kernel 现在会在
-retrieval callback 前持久化并复查这些 decision，但 transport-authenticated
-durable Agent 接入仍待完成。当前已有 loopback-only、bearer-authenticated HTTP
-profile 与类型化 Python client，并与 STDIO MCP 共用同一个 active version-2
+retrieval callback 前持久化并复查这些 decision；带 peer authentication 的共享服务
+接入仍待完成。默认 loopback-only、bearer-authenticated HTTP profile 与类型化
+Python client 会暴露 active version-2 lifecycle，并与默认 STDIO MCP 共用
 dispatcher。storage-neutral、content-addressed
 FixEvidence 与结构化 regression evidence 契约已经发布，并提供严格的跨记录
 MemoryRevision preflight 及 opt-in、隔离的 SQLite/PostgreSQL proposal ledger。
@@ -119,16 +121,16 @@ PostgreSQL 具备 caller-transaction 对等性。`DurableExecutionService` 随�
 的 resume 与 abandonment，通过每次调用的可信 authenticator 认证 outcome
 evaluator，并以 SQLite/PostgreSQL 对等性组合原子
 `RunOutcome + COMPLETED + completion outbox` 发布。托管生产索引、受保护内容的
-加密 finalization、持久 transition-event linkage、active
-retriever/GateSession 持久化以及 active durable transport 接入仍待完成。
+加密 finalization、持久 transition-event linkage、默认 adapter cutover、
+TypeScript/CLI durable 选择与共享服务 transport 仍待完成。
 `AuthenticatedDurableAgentMemory` 现在会在一个 adapter-neutral lifecycle
 后面组合上述 opt-in 阶段。它从已保留 RetrievalSnapshot authorization linkage
 重建原始 retrieval scope，拒绝错配的 service graph，增加已授权的精确版本取消，
 并为 `PREPARED` 之后的每次 GateSession 修改取得新的 transition decision。只要同一组
 authority 与当前可信 context 仍可用，该 facade 就可以跨实例续接；但默认 Agent、
-MCP、HTTP、CLI 与 SDK adapter 尚未构造它。可选严格 durable wire dispatcher
-现在会为未来 adapter 映射该 facade，但不接受调用方 identity 字段，也不保存进程内
-handle。
+MCP、HTTP、CLI 与 TypeScript SDK adapter 尚未构造它。显式 durable HTTP 与可信
+本地 MCP profile 会通过共享 runtime factory 构造它。可选严格 durable wire
+dispatcher 会映射该 facade，但不接受调用方 identity 字段，也不保存进程内 handle。
 opt-in SQLite 与隔离 PostgreSQL RunOutcome authority 现在都可以用一份
 content-addressed outcome 原子完成 executing GateSession。隔离 SQLite
 与 PostgreSQL OutcomeAttribution ledger 会用精确 durable outcome/session

@@ -39,17 +39,17 @@ advance a status.
 | `agent.durable-wire-v1` | Durable wire | `tbm.durable-agent-wire.v1` | `opt-in` | Strict dispatcher; it does not authenticate peers. |
 | `memory.structured-evidence-v3` | Evidence | Structured regression evidence | `opt-in` | Active v2 publication still uses the compatibility model. |
 | `memory.revision-publication-v3` | Publication | Immutable revision authorities | `opt-in` | Active v2 publication still uses the compatibility model. |
-| `retrieval.activated-revision-v3` | Retrieval | ActivatedRevision source | `opt-in` | Active adapters still retrieve compatibility records. |
-| `retrieval.managed-index-v3` | Retrieval | Managed-index source | `opt-in` | Active adapters still retrieve compatibility records. |
-| `artifact.encrypted-authority-v3` | Protected content | Encrypted Artifact authorities | `opt-in` | No active finalization/object-storage/KMS path. |
-| `replay.durable-v3` | Replay | Durable replay authorities | `opt-in` | Active transports do not export the durable replay bundle. |
+| `retrieval.activated-revision-v3` | Retrieval | ActivatedRevision source | `opt-in` | Default adapters retrieve compatibility records; explicit durable runtimes consume operator-supplied v3 sources. |
+| `retrieval.managed-index-v3` | Retrieval | Managed-index source | `opt-in` | Default adapters retrieve compatibility records; explicit durable runtimes may use this source. |
+| `artifact.encrypted-authority-v3` | Protected content | Encrypted Artifact authorities | `opt-in` | Explicit durable runtimes use configured authorities; no object-storage/KMS product path. |
+| `replay.durable-v3` | Replay | Durable replay authorities | `opt-in` | Explicit durable HTTP/MCP export session-bound replay when startup policy enables content; default adapters do not. |
 | `completion.outbox-v3` | Completion | Outcome and outbox authority/worker | `opt-in` | No product daemon operates the worker. |
 | `operations.audit-recovery-v3` | Operations | Audit and recovery authority/worker | `opt-in` | No product daemon operates the worker. |
 | `migration.snapshot-v3` | Migration | Snapshot v3 plan/bundle/verify/staging | `contract-only` | No apply, cutover, or rollback orchestration. |
 | `persistence.unified-sqlite-v3` | Persistence cutover | Unified SQLite v3 schema | `opt-in` | One generated bundle installs and fingerprints all 15 durable authority schemas; active compatibility remains SQLite 1. |
 | `persistence.unified-postgresql-v3` | Persistence cutover | Unified PostgreSQL v3 schema | `planned` | Current compatibility boundary is PostgreSQL 2. |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | Explicit `tbm-http --profile durable-v3`; trusted application factory, bearer boundary, unified SQLite/PostgreSQL v3 runtime, content hidden by default. |
-| `transport.durable-mcp` | Durable transport | Durable MCP profile | `planned` | No product entry point selects the durable wire. |
+| `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | Explicit `tbm-mcp --profile durable-v3`; trusted local application factory, bounded STDIO, unified SQLite/PostgreSQL v3 runtime, restart continuation, and content hidden by default. This is not peer-authenticated shared-service MCP. |
 | `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript clients | `planned` | Cross-language durable conformance is not delivered. |
 | `service.local-daemon` | Local service | Restartable `tbmd local` daemon | `planned` | No service owns workers and the durable authority graph. |
 | `service.shared-multitenant` | Shared service | Remote transports, OIDC, RBAC/RLS, workload identity | `planned` | The Alpha release is not an untrusted multi-tenant service. |

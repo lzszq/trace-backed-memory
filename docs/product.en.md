@@ -70,7 +70,7 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Runtime closure | Two-phase prepare/finalize, atomic single and batch completion, and deferred outcome sealing |
 | Runtime orchestration | `run_memory_execution()` joins decision and execution callbacks with atomic completion |
 | Agent application boundary | `LocalAgentMemory`, Git-backed Trace capture, stable errors, `tbm capabilities`, versioned `tbm.agent.v1` request/response schemas, canonical local OpenAPI 3.1, one strict MCP/HTTP dispatcher, optional long-running local STDIO MCP and loopback HTTP, dependency-free typed synchronous/asynchronous Python clients, a dependency-free Node.js TypeScript SDK, and real-process cross-language/adapter conformance |
-| Durable Agent adapter boundary | `tbm.durable-agent-wire.v1` strict request models and dispatcher map the full authenticated durable facade without caller identity fields or process-local handles; the explicit `tbm-http --profile durable-v3` transport selects it through an operator-owned trusted application factory and the unified runtime factory, while MCP, general CLI, and TypeScript do not yet |
+| Durable Agent adapter boundary | `tbm.durable-agent-wire.v1` strict request models and dispatcher map the full authenticated durable facade without caller identity fields or process-local handles; explicit `tbm-http --profile durable-v3` and trusted-local `tbm-mcp --profile durable-v3` transports select it through operator-owned application factories and the unified runtime factory, while general CLI and TypeScript do not yet |
 | Operations recovery | Five-state audits, remediation actions, single/batch recovery, and ready-recovery sweeps |
 | Operations CLI | Dependency-free `tbm` and module entry point for snapshots, v3 migration preflight/bundle verification, lessons, obsolescence, audits, metrics, PR reports, completion, and recovery |
 | Migration preparation | Content-addressed inert v2-to-v3 bundles, exact plan replay, immutable SQLite staging, and version-gated PostgreSQL staging/rollback without changing active runtime versions |
@@ -102,14 +102,15 @@ All caller-owned JSON is checked for duplicate object keys before conversion to 
 5. The harness executes and evaluates the task.
 6. `complete_memory_run()` or `complete_memory_runs()` atomically writes the Trace and decision outcome. Snapshot operators can submit measured results with `tbm complete` or `tbm complete-batch`.
 
-Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Applications that do not need the lower-level Store lifecycle can use `LocalAgentMemory`, which also owns Trace registration, repository synchronization, stable errors, and callback recovery IDs. The optional `tbm-mcp` command exposes only this runtime lifecycle over bounded local STDIO, fixes provenance to a configured checkout root, and captures complete Git ancestry before retrieval. SQLite and PostgreSQL synchronize durable phases; pending requests remain process-local. The `tbm.gate-session.v3` contract defines the target lifecycle, revision, lease, and expiry semantics, with opt-in side-by-side SQLite and isolated PostgreSQL repositories for immutable revisions. The authorization-v3 contract defines the pre-retrieval policy boundary; opt-in isolated SQLite and PostgreSQL authorities verify exact policy/request/decision triples and durably record immutable decisions. `AuthenticatedRetrievalService` provides the shared ordering kernel that matches trusted identity records, persists and reloads the decision, rechecks registry rotation and environment binding, and only then calls retrieval. `AuthenticatedGateSessionService` then durably creates and reads back a scoped session before preparation, suppresses duplicate retrieval, requires trusted retrieval/System-Gate evidence, and CAS-publishes `PREPARED` with explicit compensation. The opt-in SQLite/PostgreSQL Gate evidence authorities atomically store and reload each exact content-addressed pair, while the shared verifier binds it to the authorized session and identity scope. `DurableRetrievalPreparationService` composes these opt-in boundaries under one authorization scope: it creates the session first, prepares retrieval without a second authorization decision, stores and verifies the pair, and then publishes `PREPARED`. `AuthenticatedSemanticGateSessionService` then verifies that durable evidence and the complete immutable attempt chain, publishes `AWAITING_DECISION` before provider work, and publishes `DECIDED` only after exact attempt/artifact read-back; failed attempts remain explicitly retryable and a retained success is recoverable without another provider call. Separate authorities retain ordered recovery; same-database repositories may share a caller-owned outer transaction. `GateSessionRecoveryWorker` performs bounded due scans, expires only legally session-expired prepared/awaiting heads, and reports graph-blocked or concurrent state for explicit recovery. The default agent/MCP profile does not use these kernels; the opt-in local MCP `--auth-*` profile uses the authenticated retrieval kernel and SQLite authorization authority. The opt-in `DurableFinalizationService` now rechecks authorization/head/policy, retains the complete replay bundle, and CAS-publishes `FINALIZED` with SQLite/PostgreSQL caller-transaction parity. `DurableExecutionService` then verifies that exact retained injection, authorizes and CAS-publishes `EXECUTING`, supports explicit resume/abandonment, authenticates the outcome evaluator, and composes atomic outcome/completion-outbox publication. Transport authentication, protected-content encryption, durable transition-event linkage, shared-service MCP, and the other active adapters remain outstanding. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
+Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Applications that do not need the lower-level Store lifecycle can use `LocalAgentMemory`, which also owns Trace registration, repository synchronization, stable errors, and callback recovery IDs. The optional default `tbm-mcp` command exposes only this runtime lifecycle over bounded local STDIO, fixes provenance to a configured checkout root, and captures complete Git ancestry before retrieval. SQLite and PostgreSQL synchronize durable phases; pending requests in that compatibility profile remain process-local. The `tbm.gate-session.v3` contract defines the target lifecycle, revision, lease, and expiry semantics, with opt-in side-by-side SQLite and isolated PostgreSQL repositories for immutable revisions. The authorization-v3 contract defines the pre-retrieval policy boundary; opt-in isolated SQLite and PostgreSQL authorities verify exact policy/request/decision triples and durably record immutable decisions. `AuthenticatedRetrievalService` provides the shared ordering kernel that matches trusted identity records, persists and reloads the decision, rechecks registry rotation and environment binding, and only then calls retrieval. `AuthenticatedGateSessionService` then durably creates and reads back a scoped session before preparation, suppresses duplicate retrieval, requires trusted retrieval/System-Gate evidence, and CAS-publishes `PREPARED` with explicit compensation. The opt-in SQLite/PostgreSQL Gate evidence authorities atomically store and reload each exact content-addressed pair, while the shared verifier binds it to the authorized session and identity scope. `DurableRetrievalPreparationService` composes these opt-in boundaries under one authorization scope: it creates the session first, prepares retrieval without a second authorization decision, stores and verifies the pair, and then publishes `PREPARED`. `AuthenticatedSemanticGateSessionService` then verifies that durable evidence and the complete immutable attempt chain, publishes `AWAITING_DECISION` before provider work, and publishes `DECIDED` only after exact attempt/artifact read-back; failed attempts remain explicitly retryable and a retained success is recoverable without another provider call. Separate authorities retain ordered recovery; same-database repositories may share a caller-owned outer transaction. `GateSessionRecoveryWorker` performs bounded due scans, expires only legally session-expired prepared/awaiting heads, and reports graph-blocked or concurrent state for explicit recovery. The default agent/MCP profile does not use these kernels; the opt-in local MCP `--auth-*` profile uses the authenticated retrieval kernel and SQLite authorization authority, while explicit durable HTTP and trusted-local MCP profiles select the complete durable facade. The opt-in `DurableFinalizationService` now rechecks authorization/head/policy, retains the complete replay bundle, and CAS-publishes `FINALIZED` with SQLite/PostgreSQL caller-transaction parity. `DurableExecutionService` then verifies that exact retained injection, authorizes and CAS-publishes `EXECUTING`, supports explicit resume/abandonment, authenticates the outcome evaluator, and composes atomic outcome/completion-outbox publication. Peer-authenticated shared-service transport, protected-content encryption, durable transition-event linkage, default adapter cutover, CLI/TypeScript durable selection, and shared-service MCP remain outstanding. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
 
-The local loopback HTTP adapter, synchronous/asynchronous Python clients, and
-Node.js TypeScript SDK expose the active version-2 lifecycle through the same
-strict dispatcher as MCP. Their bearer secret protects a local process
+The default local loopback HTTP adapter, synchronous/asynchronous Python
+clients, and Node.js TypeScript SDK expose the active version-2 lifecycle
+through the same strict dispatcher as default MCP. Their bearer secret protects a local process
 boundary; it is not the service-identity transport authentication required by
-the durable v3 composition. Remote or shared deployment and durable-facade
-adapter wiring remain outstanding.
+the durable v3 composition. Explicit durable HTTP and trusted-local MCP select
+the durable facade; remote/shared deployment, CLI/TypeScript durable selection,
+and default-profile cutover remain outstanding.
 
 `AuthenticatedDurableAgentMemory` now provides one adapter-neutral facade over
 the complete opt-in durable lifecycle. It recovers the original retrieval
@@ -119,16 +120,18 @@ cancellation, and requests a fresh transition decision for each post-prepare
 GateSession mutation. The facade keeps no process-local lifecycle handles and
 has SQLite/PostgreSQL continuation parity. It also resolves replay manifests
 from retained session linkage and authorizes bounded replay export without
-accepting content-derived lookup IDs. It is not yet the default Agent/MCP path
-and does not supply transport authentication.
+accepting content-derived lookup IDs. It is not the default Agent/MCP path and
+does not itself supply transport authentication. Explicit durable HTTP and
+trusted-local MCP adapters select it under separate transport boundaries.
 
 `DurableAgentProtocolDispatcher` now maps that complete facade into the
 optional `tbm.durable-agent-wire.v1` Python boundary. Strict request models
 exclude all caller/provider/evaluator and scope identities, exact bytes use
 canonical base64, semantic replay rechecks retained response bytes, and
 injection/replay content are disabled unless the embedding adapter explicitly
-enables them. The dispatcher itself authenticates no peer, and the active
-HTTP, MCP, CLI, Python SDK, and TypeScript SDK still use `tbm.agent.v1`.
+enables them. The dispatcher itself authenticates no peer. Explicit durable
+HTTP and trusted-local MCP profiles select it; default compatibility HTTP/MCP,
+general CLI, and the TypeScript SDK still use `tbm.agent.v1`.
 
 ### 5.2 From Failure to Reusable Lesson
 
@@ -261,14 +264,15 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
 - An LLM cannot activate, verify, or reopen memory.
 - Snapshot version 2 has no canonical repository ID or explicit global/repository/tenant scope kind; the separate authorization-v3 preparation contract does not make declared-scope matching multi-tenant authorization.
 - `regression_passed` is not yet structured run/evaluator evidence.
-- Gate requests and finalized tombstones remain process-local. Pending requests
-  are bounded and explicitly cancellable, finalized tombstones are bounded,
-  high-level requests bind Trace/run identity, and final usage logs persist the
-  `request_id`. The version-3 GateSession contract has opt-in SQLite and
-  isolated PostgreSQL revision repositories, but they are not yet active
-  agent/MCP state. The authenticated retrieval kernel persists and rechecks
-  authorization before its callback. The default active-v2 adapters do not
-  invoke it; the opt-in local MCP `--auth-*` profile is the explicit exception.
+- Gate requests and finalized tombstones in the default compatibility profile
+  remain process-local. Pending requests are bounded and explicitly
+  cancellable, finalized tombstones are bounded, high-level requests bind
+  Trace/run identity, and final usage logs persist the `request_id`. The
+  version-3 GateSession contract has opt-in SQLite and isolated PostgreSQL
+  revision repositories. The authenticated retrieval kernel persists and
+  rechecks authorization before its callback. Default active-v2 adapters do
+  not invoke it; the local MCP `--auth-*` profile and the explicit durable HTTP
+  and trusted-local MCP profiles are the active exceptions.
   The opt-in durable retrieval-preparation bridge now creates the same scoped
   GateSession, stores and verifies the paired evidence, and publishes
   `PREPARED`. The durable Semantic Gate composition then verifies the exact
@@ -284,9 +288,9 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
   The authenticated durable Agent facade now recovers the original retrieval
   scope from retained evidence, rejects mismatched authority graphs, and
   provides one stateless lifecycle boundary with SQLite/PostgreSQL parity.
-  Transport authentication, protected-content encryption, durable
-  transition-event linkage, shared-service workers, and active adapter
-  integration remain out of scope.
+  Peer-authenticated shared-service transport, protected-content encryption,
+  durable transition-event linkage, shared-service workers, default adapter
+  cutover, and CLI/TypeScript durable selection remain out of scope.
 - Storage-neutral replay descriptors now define the required retriever/index,
   Gate prompt/response, ancestry, policy, renderer, and exact snippet hashes,
   and the opt-in SQLite replay ledger stores exact bytes/descriptors. Isolated

@@ -79,7 +79,7 @@ with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
 For protocol details and lifecycle constraints, read the
 [`tbm.agent.v1` guide](docs/protocols/agent-v1.md).
 
-## MCP clients in 2 minutes
+## MCP + Codex in 2 minutes (Claude Code and Pi too)
 
 Install the MCP profile and create project-local state:
 
@@ -87,21 +87,32 @@ Windows PowerShell:
 
 ```powershell
 py -m pip install -e ".[mcp]"
-New-Item -ItemType Directory -Force .tbm
+New-Item -ItemType Directory -Force .tbm,.codex
 ```
 
 macOS or Linux:
 
 ```bash
 python3 -m pip install -e '.[mcp]'
-mkdir -p .tbm
+mkdir -p .tbm .codex
 ```
 
-Then connect the client you use:
+Codex Desktop, Codex CLI, and the IDE extension share MCP configuration. Save
+this project-level file:
 
-- **Codex Desktop and Codex CLI:** add the project-level
-  [Codex configuration](docs/integrations/codex.md), then reopen
-  the trusted repository.
+```toml
+# .codex/config.toml
+[mcp_servers.trace_backed_memory]
+command = "tbm-mcp"
+args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
+```
+
+Reopen the trusted repository, restart the current Codex surface, and ask
+Codex to call `tbm_capabilities`. The
+[Codex multi-surface guide](docs/integrations/codex.md) covers Desktop, CLI,
+the IDE extension, troubleshooting, and the restart-safe durable profile.
+Other clients:
+
 - **Claude Code:** run the
   [one-command setup](docs/integrations/claude-code.md#connect-claude-code),
   verify it with `claude mcp get trace-backed-memory`, and open `/mcp`.
@@ -109,10 +120,14 @@ Then connect the client you use:
   the [Pi client tutorial](docs/integrations/pi.md#connect-pi). Review the
   executable adapter before granting project trust.
 
-All clients must keep `tbm-mcp` alive for the complete
+Clients using the default compatibility profile must keep `tbm-mcp` alive for
+the complete
 `prepare -> finalize -> complete` lifecycle, or call `cancel` before
 finalization. The server exposes runtime operations only; it cannot review,
 verify, or activate memory.
+
+For restart-resumable GateSession state, use the advanced explicit
+[durable MCP profile](docs/protocols/durable-mcp-v1.md).
 
 ## Interfaces
 
@@ -124,6 +139,8 @@ verify, or activate memory.
   see the [HTTP SDK guide](docs/protocols/agent-http-v1.md)
 - Opt-in authenticated local MCP: trusted startup selects version-3 identity
   and environment; see the [reference](docs/reference.md#long-running-local-mcp)
+- Restart-safe local MCP: explicit `--profile durable-v3`; see the
+  [durable MCP guide](docs/protocols/durable-mcp-v1.md)
 - Persistence: in-memory, SQLite, and PostgreSQL adapters
 - Version-3 preparation: authenticated pre-retrieval boundary, GateSession,
   authorization, entity registry, replay, audit/recovery, structured evidence,
@@ -138,10 +155,11 @@ available through `tbm resource list` or the Python resource API.
 The active compatibility boundary remains snapshot version 2, SQLite schema
 version 1, PostgreSQL schema version 2, and `tbm.agent.v1`. Version-3
 contracts and their isolated opt-in repositories do not silently change the
-active Store, Agent, or MCP lifecycle.
+default Store, Agent, or MCP lifecycle. Explicit durable HTTP and trusted-local
+MCP profiles select the version-3 authority graph.
 
-Pending gate requests remain process-local until a versioned durable
-gate-session migration and authenticated service integration are complete.
+Pending gate requests in the default compatibility profile remain
+process-local; the explicit durable profiles persist GateSession state.
 Scope matching is not tenant authorization. Do not deploy the current Alpha as
 an untrusted shared multi-tenant service.
 

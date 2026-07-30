@@ -1495,8 +1495,11 @@ requires injection exposure. These settings do not grant access; normal
 transition or `artifact:read` authorization still applies.
 
 The facade and dispatcher are not transport authenticators and are not
-currently used by the default Agent/MCP profile. Do not expose them through a
-shared transport until
+used by the default compatibility Agent/MCP profile. Explicit durable HTTP and
+trusted-local durable MCP profiles may select them only through the canonical
+runtime factory and operator-owned trusted contexts. Local MCP STDIO has no
+independent peer authentication and must not be represented as shared-service
+MCP. Do not expose the dispatcher through a shared transport until
 the transport derives trusted identities and provider/evaluator credentials,
 the server configures the complete authority graph, external execution is
 idempotent by `run_id`, and the adapter has exact retry/recovery conformance

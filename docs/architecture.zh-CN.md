@@ -567,7 +567,8 @@ decision，并只在同一已授权 scope 内运行 preparation。服务先写�
 discovery 或 evidence write。authority 分离时，后续 transition 失败可能留下
 immutable orphan evidence 与已取消 session。如果 SQLite 两个 repository 或
 PostgreSQL 两个 repository 明确共享同一个 caller-owned connection，调用方可用
-外层 transaction 一起回滚。该桥接仍为 opt-in，尚未接入 active Agent/MCP。详见
+外层 transaction 一起回滚。该桥接仍为 opt-in，不接入默认兼容 Agent/MCP，但显式
+durable HTTP 与可信本地 MCP runtime graph 会选择它。详见
 [durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.zh-CN.md)。
 
 `sqlite_semantic_gate_v3.py` 在该 SQLite evidence 边界上，为每个 System Gate
@@ -577,7 +578,8 @@ head 拒绝 fork；canonical 读回会核验全部 descriptor 与关系列；完
 ledger。`postgres_semantic_gate_v3.py` 提供隔离 PostgreSQL 对等实现，包含
 active-v2 install 门禁、row-lock 串行化、deferred chain consistency、精确安全
 catalog 校验、调用方 savepoint 与 fail-closed `RESTRICT` rollback。两者均未接入
-active Agent/MCP emission。`semantic_gate_artifact_v3.py` 现已把精确非空
+默认兼容 Agent/MCP emission，但会由显式 durable runtime graph 选择。
+`semantic_gate_artifact_v3.py` 现已把精确非空
 prompt/response 字节、内容派生 ID、classification 与 encryption metadata
 绑定到 attempt 对应角色，但不会把字节嵌入 JSON。durable artifact 仓库、
 `sqlite_semantic_gate_artifact_v3.py` 现已提供 SQLite 持久化：一个外层
@@ -624,11 +626,15 @@ repository、environment、authorization event 或 authority identity；可信 a
 负责提供这些 context，并解析 canonical repository 与 evaluator registration。
 dispatcher 会在调用 facade 前执行 canonical-base64 prompt/response/query byte、
 精确 session revision、稳定公开 error 与显式 injection/replay content profile
-约束。它不保存 lifecycle handle，也不是 transport authenticator。显式的
-`tbm-http --profile durable-v3` adapter 已通过唯一 durable runtime factory
-选择它，在派生服务端持有的 context 前认证本地 bearer，默认隐藏内容，并可在进程重启后
-重新打开统一 SQLite v3 graph。MCP、普通 CLI 与 TypeScript adapter 尚未选择它。详见
+约束。它不保存 lifecycle handle，也不是 transport authenticator。显式
+`tbm-http --profile durable-v3` adapter 已通过唯一 durable runtime factory 选择
+它，在派生服务端持有的 context 前认证本地 bearer，默认隐藏内容，并可在进程重启后重新
+打开统一 SQLite v3 graph。显式 `tbm-mcp --profile durable-v3` adapter 也会通过
+有界本地 STDIO 选择同一 graph，由 operator 启动配置提供可信 context；它没有独立 peer
+authentication，但 session state 同样可跨进程重启。普通 CLI 与 TypeScript adapter
+尚未选择它。详见
 [durable HTTP profile](protocols/durable-http-v1.zh-CN.md)、
+[durable MCP profile](protocols/durable-mcp-v1.zh-CN.md)、
 [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)、
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)、
 [durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)、

@@ -1,6 +1,7 @@
 # Durable Agent wire 边界 v1
 
-状态：可选 adapter 契约；当前 active HTTP、MCP、CLI 或 SDK transport 均未选择它。
+状态：可选 adapter 契约；显式 durable HTTP 与可信本地 durable MCP profile 已选择
+它，默认兼容 transport、普通 CLI 与 TypeScript SDK 尚未选择。
 
 ## 目的
 
@@ -106,6 +107,7 @@ version 续接。idempotency、expiry、lease、cancellation、recovery state、
 finalization replay、completion replay 与 session-bound replay export 仍由 durable
 domain service/repository 拥有。
 
-该模块是未来 durable HTTP、MCP、CLI-daemon、Python 与 TypeScript adapter 的共用
-契约。在任何 adapter 构造完整 authority graph 与可信 context 前，不得把它描述为
-active 或 transport-authenticated service。
+该模块是 durable HTTP、可信本地 MCP、未来 CLI daemon、Python 与 TypeScript adapter
+的共用契约。显式 HTTP/MCP profile 已构造完整 authority graph 与可信 context。MCP
+profile 的本地 STDIO 刻意没有独立 peer authentication，因此不得把它描述为共享或
+transport-authenticated service。

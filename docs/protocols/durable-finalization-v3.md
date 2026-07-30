@@ -88,11 +88,12 @@ that outer transaction.
 ## Integration boundary
 
 This service is opt-in. `AuthenticatedDurableAgentMemory` calls it as the
-finalization stage of the shared durable facade, but the active Store, default
-local Agent, STDIO MCP, HTTP, and SDK adapters do not construct that facade.
+finalization stage of the shared durable facade. The active Store and default
+local Agent/MCP/HTTP/SDK adapters do not construct that facade; explicit
+durable HTTP and trusted-local MCP profiles do.
 It does not advance `EXECUTING` or `COMPLETED`, emit RunOutcome, provide
-Review Console behavior, implement retention/encryption, or make the
-process-local active MCP Gate durable.
+Review Console behavior or implement retention/encryption. It does not change
+the process-local Gate of the default compatibility MCP profile.
 The separate opt-in
 [durable execution composition](durable-execution-v3.md) consumes its
 authenticated exact replay boundary. See also

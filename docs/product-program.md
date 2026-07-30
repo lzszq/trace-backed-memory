@@ -1764,6 +1764,17 @@ Track:
   stale transitions, replay allow/deny, and sanitized failures. Keep durable
   MCP, TypeScript, local daemon, and remote multi-tenant service work
   outstanding.
+- Add the explicit trusted-local `tbm-mcp --profile durable-v3` adapter over
+  the same durable wire and runtime factory. Load dependencies plus fixed
+  service/provider/evaluator contexts from an operator-controlled application
+  factory; keep every identity outside tool JSON; expose only the eleven
+  runtime lifecycle tools with annotations and bounded STDIO; hide content by
+  default; and persist no process-local session handle. Cover an in-process
+  complete lifecycle and a real MCP client across three consecutive child
+  processes for prepare, restart continuation, exact completion retry, and
+  replay export. State explicitly that local STDIO has no independent peer
+  authentication and is not shared-service MCP. Keep TypeScript, local daemon,
+  and remote multi-tenant service work outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

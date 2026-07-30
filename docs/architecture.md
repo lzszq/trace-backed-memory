@@ -1561,12 +1561,13 @@ Deterministic C-collated identity indexes, fixed-search-path trigger functions,
 catalog-shape verification, caller savepoints, and payload/head cross-checks
 provide database-specific enforcement without activating the schema.
 
-Neither repository is wired to the private Store request token. The active
-local agent and STDIO MCP remain process-local. Opt-in preparation, Semantic
-Gate, finalization, completion, and expiry/recovery services now exercise the
-durable lifecycle, but active transport authorization, later phase
-orchestration, and full cross-adapter conformance are required before the
-session contract becomes the distributed runtime authority.
+Neither repository is wired to the private Store request token. The default
+local Agent and STDIO MCP remain process-local. Explicit durable HTTP and
+trusted-local MCP profiles exercise the durable lifecycle through these
+repositories, but peer-authenticated shared-service transport, default
+adapter cutover, production worker orchestration, and full cross-adapter
+conformance remain required before the session contract becomes a distributed
+runtime authority.
 
 ## Content-addressed replay version-3 contract
 
@@ -1737,8 +1738,9 @@ discovery or evidence writes. With separate authorities, later-transition
 failure may leave immutable orphan evidence beside a canceled session. When
 both SQLite or both PostgreSQL repositories deliberately share one
 caller-owned connection, the caller may wrap the operation in an outer
-transaction and roll back both. This bridge remains opt-in and outside active
-Agent/MCP adapters. See
+transaction and roll back both. This bridge remains opt-in, is outside the
+default compatibility Agent/MCP adapters, and is selected through the explicit
+durable HTTP and trusted-local MCP runtime graph. See
 [durable retrieval preparation v3](protocols/durable-retrieval-preparation-v3.md).
 
 `sqlite_semantic_gate_v3.py` extends that SQLite evidence boundary with one
@@ -1749,8 +1751,9 @@ monotonic narrowing against the stored Gate evidence. It remains an opt-in
 side-by-side ledger. `postgres_semantic_gate_v3.py` provides the isolated
 PostgreSQL peer with active-v2 install gating, row-lock serialization,
 deferred chain consistency, exact security-catalog validation, caller
-savepoints, and fail-closed `RESTRICT` rollback. Both remain outside active
-Agent/MCP emission. `semantic_gate_artifact_v3.py` now binds exact non-empty
+savepoints, and fail-closed `RESTRICT` rollback. Both remain outside default
+compatibility Agent/MCP emission and are selected by the explicit durable
+runtime graph. `semantic_gate_artifact_v3.py` now binds exact non-empty
 prompt/response bytes, content-derived IDs, classifications, and encryption
 metadata to each attempt role without embedding the bytes in JSON. Durable
 SQLite storage is now provided by
@@ -1812,12 +1815,16 @@ canonical repository and evaluator registration. Canonical-base64
 prompt/response/query bytes, exact session revisions, stable public errors, and
 explicit injection/replay content profiles are enforced before the facade is
 called. The dispatcher stores no lifecycle handles and is not a transport
-authenticator. The explicit `tbm-http --profile durable-v3` adapter now selects
-it through the sole durable runtime factory, authenticates a local bearer
-before deriving server-owned contexts, hides content by default, and reopens
-the unified SQLite v3 graph across process restarts. MCP, general CLI, and
-TypeScript adapters do not select it yet. See
+authenticator. The explicit `tbm-http --profile durable-v3` adapter selects it
+through the sole durable runtime factory, authenticates a local bearer before
+deriving server-owned contexts, hides content by default, and reopens the
+unified SQLite v3 graph across process restarts. The explicit
+`tbm-mcp --profile durable-v3` adapter selects the same graph over bounded
+local STDIO with operator-owned startup contexts and no independent peer
+authentication; its session state also survives process restarts. General CLI
+and TypeScript adapters do not select it yet. See
 [durable HTTP profile](protocols/durable-http-v1.md),
+[durable MCP profile](protocols/durable-mcp-v1.md),
 [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md),
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md),
 [durable finalization v3](protocols/durable-finalization-v3.md),

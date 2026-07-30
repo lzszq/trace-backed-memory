@@ -3,10 +3,11 @@
 [English](authorization-v3.md) | **简体中文**
 
 状态：已发布的准备性契约，并包含 opt-in 隔离 SQLite 与 PostgreSQL
-authorization authority。它们尚未接入现行 snapshot-v2 Store、本地 Agent、MCP 适配器或
-GateSession 仓储；这些路径仍保持其他文档所述的进程内或显式 opt-in 边界。
+authorization authority。它们未接入默认 snapshot-v2 Store、本地 Agent 或 MCP
+adapter；显式 durable HTTP 与可信本地 MCP profile 会通过统一 GateSession
+authority graph 选择它们，默认路径仍保持进程内边界。
 
-授权 v3 定义未来服务在读取任何租户或仓库数据之前所需的身份、仓库注册表、角色
+授权 v3 定义 durable 服务在读取任何租户或仓库数据之前所需的身份、仓库注册表、角色
 绑定、请求与内容派生决策。它不会把适用性匹配变成授权。
 
 ## 信任边界

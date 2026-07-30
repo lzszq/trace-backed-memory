@@ -854,6 +854,17 @@
   allow/deny、stale version、ambiguous linkage、授权前不读字节、精确 bundle 与
   PostgreSQL lifecycle 对等测试。transport-authenticated HTTP/MCP/SDK 暴露、
   受保护内容加密与 retention 仍待完成。
+- 增加 `tbm.durable-agent-wire.v1`，作为
+  `AuthenticatedDurableAgentMemory` 之上的可选严格 adapter-neutral
+  request/response dispatcher。映射 prepare、Semantic decision、finalization、
+  start/resume/abandon、completion、cancellation、当前状态读取与显式启用的 replay
+  export。全部 caller/provider/evaluator/scope identity 保留在 request JSON 之外；
+  canonical repository 与 evaluator registration 通过 server-owned callback
+  解析；精确 bytes 必须使用 canonical base64；拒绝与已 decided response 不同的
+  replay；injection/replay content exposure 默认关闭。覆盖完整 SQLite lifecycle、
+  精确 cancel/abandonment replay、identity 字段拒绝、stale revision、content
+  profile 与已授权 replay。transport authentication 与 active
+  HTTP/MCP/CLI/SDK selection 仍待完成。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-

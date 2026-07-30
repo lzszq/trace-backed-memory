@@ -102,6 +102,10 @@ Start with:
   completion plus session-bound replay export; reconstructs retained retrieval
   scope, appends a fresh artifact-read decision, and rejects a mismatched
   authority graph, but is not wired to the default Agent/MCP profile.
+- `durable_agent_wire_v1.py`: optional strict adapter-neutral request/response
+  dispatcher over the durable facade. Caller, provider, evaluator, and
+  repository identities come from trusted adapter objects, never request JSON;
+  no active HTTP/MCP/SDK transport selects it yet.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
 - `sqlite_semantic_gate_artifact_v3.py`: opt-in atomic SQLite attempt plus

@@ -64,6 +64,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 运行闭环 | 两阶段 prepare/finalize、单项/批量原子完成、延迟 outcome sealing |
 | 运行编排 | `run_memory_execution()` 同步串联 decision callback、execution callback 与原子完成；`MemoryRunMeasurement` 无需调用方复制 decision ID |
 | Agent 应用边界 | `LocalAgentMemory`、Git-backed Trace capture、稳定错误、`tbm capabilities`、带版本的 `tbm.agent.v1` 请求/响应 Schema、规范本地 OpenAPI 3.1、MCP/HTTP 共用的严格 dispatcher、可选长驻本地 STDIO MCP 与 loopback HTTP、无依赖类型化同步/异步 Python client、无运行时依赖的 Node.js TypeScript SDK，以及真实进程跨语言/adapter conformance |
+| Durable Agent adapter 边界 | 可选 `tbm.durable-agent-wire.v1` 严格 request model 与 dispatcher 会映射完整 authenticated durable facade，不接受调用方 identity 字段或进程内 handle；canonical repository/evaluator 解析与可信 context 仍由 adapter 提供，内容暴露默认 fail closed，当前 active transport 尚未选择该边界 |
 | 运维修复 | 五态 audit、remediation action、单项/批量恢复、ready recovery sweep |
 | 运维 CLI | dependency-free `tbm` / `python -m trace_backed_memory`；snapshot validate/stats、v3 migration preflight/bundle verification、active lessons 原子导出与 dry-run 导入、failure case/lesson/project policy forward-only 淘汰预览与显式写入、audit/metrics/remediation、只读 PR report、单项与清单式批量 measured completion、dry-run 恢复与显式 `--write` 原子替换 |
 | 迁移准备 | content-addressed、不可激活的 v2→v3 bundle、精确 plan replay、immutable SQLite staging，以及不改变 active runtime version 的 PostgreSQL version-gated staging/rollback |
@@ -117,6 +118,13 @@ transition decision。该 facade 不保存进程内 lifecycle handle，并具备
 SQLite/PostgreSQL continuation 对等测试；它还会从已保留 session linkage 解析
 replay manifest，并在不接受内容派生 lookup ID 的前提下授权有界 replay export。
 它尚不是默认 Agent/MCP path，也不提供 transport authentication。
+
+`DurableAgentProtocolDispatcher` 现在会把该完整 facade 映射为可选
+`tbm.durable-agent-wire.v1` Python 边界。严格 request model 排除全部
+caller/provider/evaluator 与 scope identity，精确 bytes 使用 canonical base64，
+Semantic replay 会复查已保留 response bytes；embedding adapter 未显式启用时，
+injection/replay content 默认关闭。dispatcher 本身不认证 peer，active HTTP、MCP、
+CLI、Python SDK 与 TypeScript SDK 仍使用 `tbm.agent.v1`。
 
 ### 5.2 从失败到可复用 Lesson
 

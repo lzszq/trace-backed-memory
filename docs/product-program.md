@@ -1730,6 +1730,18 @@ Track:
   stale-version, ambiguous-linkage, no-preauthorization-byte-read, exact bundle,
   and PostgreSQL lifecycle parity. Keep transport-authenticated HTTP/MCP/SDK
   exposure, protected-content encryption, and retention outstanding.
+- Add `tbm.durable-agent-wire.v1` as the optional strict adapter-neutral
+  request/response dispatcher over `AuthenticatedDurableAgentMemory`. Map
+  prepare, Semantic decision, finalization, start/resume/abandon, completion,
+  cancellation, current-state reads, and explicitly enabled replay export.
+  Keep all caller/provider/evaluator/scope identities outside request JSON;
+  resolve canonical repositories and evaluator registrations through
+  server-owned callbacks; require canonical base64 for exact bytes; reject a
+  mismatched decided response replay; and default injection/replay content
+  exposure to disabled. Cover the complete SQLite lifecycle, exact cancel and
+  abandonment replay, identity-field rejection, stale revisions, content
+  profiles, and authorized replay. Keep transport authentication and active
+  HTTP/MCP/CLI/SDK selection outstanding.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

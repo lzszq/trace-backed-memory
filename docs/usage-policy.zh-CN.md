@@ -584,8 +584,21 @@ closed。classification allowlist 只能收窄已授权 read。manifest lookup �
 descriptor，确保 classification/size preflight 发生在 artifact bytes 读取之前；
 export 后还要复查 read scope 与未变化的 GateSession。
 
-该 facade 不是 transport authenticator，默认 Agent/MCP profile 当前也不调用它。
-在 shared transport 暴露前，transport 必须派生可信 identity 与
+在该 facade 上构建 versioned adapter 时使用 `DurableAgentProtocolDispatcher`。
+principal/client/tenant/repository/environment、provider、evaluator、credential、
+authorization event 与 authority handle 均不得进入 request JSON。adapter 必须根据
+实时 authentication 构造可信 context，在服务端解析 canonical repository，并在构造
+completion 前解析已注册 evaluator。精确 query、prompt 与 provider response bytes
+必须使用 canonical base64；已 decided 的重放必须匹配已保留 response bytes。
+
+内容暴露必须另外 fail closed。adapter 未显式启用 injection content 时，只返回
+descriptor 与 null snippet；未显式启用 replay content 时，从 capabilities 移除
+`export_replay`，并在 replay authorization 或 storage access 前拒绝。replay 暴露还
+要求 injection 暴露。这些设置不授予访问权；普通 transition 或 `artifact:read`
+authorization 仍然适用。
+
+facade 与 dispatcher 都不是 transport authenticator，默认 Agent/MCP profile 当前
+也不调用它们。在 shared transport 暴露前，transport 必须派生可信 identity 与
 provider/evaluator credential，服务端必须配置完整 authority graph，外部执行必须按
 `run_id` 幂等，并具备精确 retry/recovery conformance test。直接 Python durable
 facade 现在会授权 public/internal replay read；存储仍只支持 public/internal

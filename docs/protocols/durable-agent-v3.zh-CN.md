@@ -135,11 +135,13 @@ replay 暴露、GateSession revision 中的持久 transition-authorization linka
 
 ## Adapter 状态
 
-该 facade 是未来 MCP、HTTP、CLI-daemon 与 SDK adapter 共用的应用边界。默认
-`LocalAgentMemory` 与 `tbm-mcp` profile 仍使用带进程内 pending handle 的
-`tbm.agent.v1`。当前尚无 network adapter 构造此 facade 或暴露 replay export；
-本协议不宣称 transport authentication、shared multi-tenant readiness 或 schema
-version 3 cutover。
+该 facade 是未来 MCP、HTTP、CLI-daemon 与 SDK adapter 共用的应用边界。可选
+[`tbm.durable-agent-wire.v1`](durable-agent-wire-v1.zh-CN.md) dispatcher 现在会用
+严格且不含 identity 的 request model、可信 context 注入、稳定 error 与 fail-closed
+content profile 映射全部 facade operation。默认 `LocalAgentMemory` 与 `tbm-mcp`
+profile 仍使用带进程内 pending handle 的 `tbm.agent.v1`。当前尚无 network adapter
+选择 durable dispatcher 或暴露 replay export；本协议不宣称 transport
+authentication、shared multi-tenant readiness 或 schema version 3 cutover。
 
 facade 测试覆盖 SQLite/PostgreSQL 生命周期对等性；底层 authority 继续保持既有
 transaction、savepoint、CAS 与 rollback 契约。

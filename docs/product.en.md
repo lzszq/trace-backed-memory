@@ -64,6 +64,7 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Runtime closure | Two-phase prepare/finalize, atomic single and batch completion, and deferred outcome sealing |
 | Runtime orchestration | `run_memory_execution()` joins decision and execution callbacks with atomic completion |
 | Agent application boundary | `LocalAgentMemory`, Git-backed Trace capture, stable errors, `tbm capabilities`, versioned `tbm.agent.v1` request/response schemas, canonical local OpenAPI 3.1, one strict MCP/HTTP dispatcher, optional long-running local STDIO MCP and loopback HTTP, dependency-free typed synchronous/asynchronous Python clients, a dependency-free Node.js TypeScript SDK, and real-process cross-language/adapter conformance |
+| Durable Agent adapter boundary | Opt-in `tbm.durable-agent-wire.v1` strict request models and dispatcher map the full authenticated durable facade without caller identity fields or process-local handles; canonical repository/evaluator resolution and trusted contexts remain adapter-owned, content exposure is fail closed, and no active transport selects this boundary yet |
 | Operations recovery | Five-state audits, remediation actions, single/batch recovery, and ready-recovery sweeps |
 | Operations CLI | Dependency-free `tbm` and module entry point for snapshots, v3 migration preflight/bundle verification, lessons, obsolescence, audits, metrics, PR reports, completion, and recovery |
 | Migration preparation | Content-addressed inert v2-to-v3 bundles, exact plan replay, immutable SQLite staging, and version-gated PostgreSQL staging/rollback without changing active runtime versions |
@@ -113,6 +114,14 @@ has SQLite/PostgreSQL continuation parity. It also resolves replay manifests
 from retained session linkage and authorizes bounded replay export without
 accepting content-derived lookup IDs. It is not yet the default Agent/MCP path
 and does not supply transport authentication.
+
+`DurableAgentProtocolDispatcher` now maps that complete facade into the
+optional `tbm.durable-agent-wire.v1` Python boundary. Strict request models
+exclude all caller/provider/evaluator and scope identities, exact bytes use
+canonical base64, semantic replay rechecks retained response bytes, and
+injection/replay content are disabled unless the embedding adapter explicitly
+enables them. The dispatcher itself authenticates no peer, and the active
+HTTP, MCP, CLI, Python SDK, and TypeScript SDK still use `tbm.agent.v1`.
 
 ### 5.2 From Failure to Reusable Lesson
 

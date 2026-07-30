@@ -37,6 +37,10 @@ This directory implements the trusted runtime kernel and its adapters.
   services that do not share one authority graph. Never accept replay
   manifest/artifact IDs from caller input. Do not treat the facade as
   transport authentication or default Agent/MCP wiring.
+- The optional durable Agent wire dispatcher must keep identity, provider,
+  evaluator, repository resolution, authorization events, and authority
+  handles out of request JSON. Content exposure is explicit and fail closed.
+  The dispatcher is not a transport authenticator or an active adapter.
 - The local STDIO MCP profile is runtime-only. Keep its repository root and
   optional tenant server-owned, preserve bounded strict transport parsing,
   require Git ancestry capture, and expose no curator or activation surface.

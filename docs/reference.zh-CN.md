@@ -473,6 +473,14 @@ byte limit；`DurableReplayExportResult` 把 canonical bundle 同新的 read 授
 retrieval 授权关联。详见
 [已认证 durable Agent v3](protocols/durable-agent-v3.zh-CN.md)。
 
+`DurableAgentProtocolDispatcher` 为每个 facade operation 提供可选严格
+`tbm.durable-agent-wire.v1` projection。它的 request model 不包含 identity 或
+authority 字段；可信 repository/evaluator resolver 仍由服务端持有。精确
+query/prompt/response bytes 使用 canonical base64。
+`DurableAgentWireConfiguration` 默认关闭 injection 与 replay content，而且
+dispatcher 从不认证 transport peer。详见
+[durable Agent wire v1](protocols/durable-agent-wire-v1.zh-CN.md)。
+
 `SQLiteSemanticGateV3Repository` 是有序 Semantic Gate attempt chain 的
 opt-in durable 实现。它依赖 SQLite Gate evidence v3 schema，通过 CAS head
 强制一条有界线性 sequence，支持精确幂等重放，通过 savepoint 保留调用方

@@ -659,6 +659,14 @@ the canonical bundle to the fresh read authorization and original retrieval
 authorization. See
 [authenticated durable Agent v3](protocols/durable-agent-v3.md).
 
+`DurableAgentProtocolDispatcher` provides the optional strict
+`tbm.durable-agent-wire.v1` projection of every facade operation. Its request
+models contain no identity or authority fields; trusted repository and
+evaluator resolvers remain server-owned. Exact query/prompt/response bytes use
+canonical base64. `DurableAgentWireConfiguration` disables injection and replay
+content by default, and the dispatcher never authenticates a transport peer.
+See [durable Agent wire v1](protocols/durable-agent-wire-v1.md).
+
 `SQLiteSemanticGateV3Repository` is the opt-in durable implementation for the
 ordered Semantic Gate attempt chain. It requires the SQLite Gate evidence v3
 schema, enforces one bounded linear sequence through a CAS head, supports

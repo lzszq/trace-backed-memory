@@ -44,6 +44,7 @@ orientation; these documents define the engineering contracts.
 - [Durable finalization composition v3](protocols/durable-finalization-v3.md)
 - [Durable execution composition v3](protocols/durable-execution-v3.md)
 - [Authenticated durable Agent composition v3](protocols/durable-agent-v3.md)
+- [Durable Agent wire boundary v1](protocols/durable-agent-wire-v1.md)
 - [UsageDecision v3](protocols/usage-decision-v3.md)
 - [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md)
 - [PostgreSQL Semantic Gate artifact repository v3](protocols/postgres-semantic-gate-artifact-v3.md)
@@ -116,7 +117,7 @@ abandonment, authenticates the registered outcome evaluator, and composes
 atomic `RunOutcome + COMPLETED + completion outbox` publication with
 SQLite/PostgreSQL parity. Managed production indexes, encrypted
 protected-content finalization, durable transition-event linkage, active
-retriever/GateSession persistence, and durable Agent adapter wiring remain
+retriever/GateSession persistence, and active durable transport wiring remain
 outstanding.
 `AuthenticatedDurableAgentMemory` now composes those opt-in stages behind one
 adapter-neutral lifecycle. It reconstructs the original retrieval scope from
@@ -125,7 +126,9 @@ graphs, adds authorized exact-version cancellation, and obtains a fresh
 transition decision for each post-prepare GateSession mutation. The facade can
 continue across instances when the same authorities and current trusted
 contexts remain available, but is not yet constructed by the default Agent,
-MCP, HTTP, CLI, or SDK adapters.
+MCP, HTTP, CLI, or SDK adapters. The optional strict durable wire dispatcher
+now maps the facade for future adapters without accepting caller identity
+fields or storing process-local handles.
 The opt-in SQLite and isolated PostgreSQL RunOutcome authorities now atomically
 complete an executing GateSession with one content-addressed outcome. The
 isolated SQLite and PostgreSQL OutcomeAttribution ledgers persist multiple

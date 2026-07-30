@@ -601,14 +601,21 @@ transition-event linkage 与 active emission 尚未提供。`durable_execution_v
 GateSession 与已保留 RetrievalSnapshot，核验 session/Trace/run linkage，从已保留
 authorization decision 与当前 registry 重建原始 scope，并在构造时拒绝任一错配
 authority graph。`PREPARED` 之后的每次 GateSession 修改都会取得新的 transition
-authorization。该 facade 还增加
-精确版本 cancellation 与当前状态读取，但默认 Agent 或 transport adapter 尚未构造
-它。详见
+authorization。该 facade 还增加精确版本 cancellation 与当前状态读取。
+`durable_agent_wire_v1.py` 现在为每个 facade operation 提供严格的可选 request/
+response dispatcher。request JSON 不包含 caller/provider/evaluator、tenant、
+repository、environment、authorization event 或 authority identity；可信 adapter
+负责提供这些 context，并解析 canonical repository 与 evaluator registration。
+dispatcher 会在调用 facade 前执行 canonical-base64 prompt/response/query byte、
+精确 session revision、稳定公开 error 与显式 injection/replay content profile
+约束。它不保存 lifecycle handle，也不是 transport authenticator；当前 active HTTP、
+MCP、CLI 或 SDK adapter 均未选择它。详见
 [已认证 Semantic Gate 服务 v3](protocols/semantic-gate-service-v3.zh-CN.md)、
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.zh-CN.md)、
 [durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)、
 [durable execution v3](protocols/durable-execution-v3.zh-CN.md)、
 [已认证 durable Agent v3](protocols/durable-agent-v3.zh-CN.md)、
+[durable Agent wire v1](protocols/durable-agent-wire-v1.zh-CN.md)、
 [UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)、
 [Semantic Gate artifact 绑定 v3](protocols/semantic-gate-artifact-v3.zh-CN.md)、
 [SQLite Semantic Gate artifact 仓库 v3](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)、

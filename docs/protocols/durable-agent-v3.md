@@ -167,10 +167,13 @@ revisions, and physical repository attestation remain separate required work.
 ## Adapter status
 
 The facade is the shared application boundary intended for future MCP, HTTP,
-CLI-daemon, and SDK adapters. The default `LocalAgentMemory` and `tbm-mcp`
-profiles still use `tbm.agent.v1` with process-local pending handles. No current
-network adapter constructs this facade or exposes replay export, and this
-protocol does not claim
+CLI-daemon, and SDK adapters. The optional
+[`tbm.durable-agent-wire.v1`](durable-agent-wire-v1.md) dispatcher now maps all
+facade operations with strict identity-free request models, trusted context
+injection, stable errors, and fail-closed content profiles. The default
+`LocalAgentMemory` and `tbm-mcp` profiles still use `tbm.agent.v1` with
+process-local pending handles. No current network adapter selects the durable
+dispatcher or exposes replay export, and this protocol does not claim
 transport authentication, shared multi-tenant readiness, or schema-version-3
 cutover.
 

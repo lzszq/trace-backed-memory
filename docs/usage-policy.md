@@ -1476,8 +1476,25 @@ the authorized read. Manifest lookup must stay descriptor-only so
 classification and size preflight happens before artifact bytes are loaded.
 Recheck the read scope and unchanged GateSession after export.
 
-This facade is not a transport authenticator and is not currently used by the
-default Agent/MCP profile. Do not expose it through a shared transport until
+Use `DurableAgentProtocolDispatcher` when building a versioned adapter over
+this facade. Keep every principal/client/tenant/repository/environment,
+provider, evaluator, credential, authorization event, and authority handle out
+of request JSON. The adapter must construct trusted contexts from live
+authentication, resolve the canonical repository server-side, and resolve the
+registered evaluator before constructing completion. Canonical base64 is
+required for exact query, prompt, and provider response bytes. A decided replay
+must match the retained response bytes.
+
+Content exposure is separately fail closed. Unless an adapter explicitly
+enables injection content, return descriptors and a null snippet. Unless it
+explicitly enables replay content, omit `export_replay` from capabilities and
+reject it before replay authorization or storage access. Replay exposure also
+requires injection exposure. These settings do not grant access; normal
+transition or `artifact:read` authorization still applies.
+
+The facade and dispatcher are not transport authenticators and are not
+currently used by the default Agent/MCP profile. Do not expose them through a
+shared transport until
 the transport derives trusted identities and provider/evaluator credentials,
 the server configures the complete authority graph, external execution is
 idempotent by `run_id`, and the adapter has exact retry/recovery conformance

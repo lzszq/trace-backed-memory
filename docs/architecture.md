@@ -1787,14 +1787,23 @@ caller-built scope. For continuation it reloads the GateSession and retained
 RetrievalSnapshot, verifies session/Trace/run linkage, reconstructs the
 original scope from the retained authorization decision and current registry,
 and rejects any mismatched authority graph at construction. Every post-prepare
-GateSession mutation obtains a fresh transition authorization. The facade adds exact-version
-cancellation and current-state reads, but it is not yet constructed by the
-default Agent or transport adapters. See
+GateSession mutation obtains a fresh transition authorization. The facade adds
+exact-version cancellation and current-state reads.
+`durable_agent_wire_v1.py` now supplies a strict optional request/response
+dispatcher over every facade operation. Request JSON contains no caller,
+provider, evaluator, tenant, repository, environment, authorization-event, or
+authority identity. A trusted adapter supplies those contexts and resolves the
+canonical repository and evaluator registration. Canonical-base64
+prompt/response/query bytes, exact session revisions, stable public errors, and
+explicit injection/replay content profiles are enforced before the facade is
+called. The dispatcher stores no lifecycle handles and is not a transport
+authenticator; no active HTTP, MCP, CLI, or SDK adapter selects it yet. See
 [Authenticated Semantic Gate service v3](protocols/semantic-gate-service-v3.md),
 [durable Semantic Gate v3](protocols/durable-semantic-gate-v3.md),
 [durable finalization v3](protocols/durable-finalization-v3.md),
 [durable execution v3](protocols/durable-execution-v3.md),
 [authenticated durable Agent v3](protocols/durable-agent-v3.md),
+[durable Agent wire v1](protocols/durable-agent-wire-v1.md),
 [UsageDecision v3](protocols/usage-decision-v3.md),
 [Semantic Gate artifact binding v3](protocols/semantic-gate-artifact-v3.md),
 [SQLite Semantic Gate artifact repository v3](protocols/sqlite-semantic-gate-artifact-v3.md),

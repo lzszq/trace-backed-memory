@@ -630,7 +630,7 @@ from .lifecycle import (
     review_failure_case,
     verify_failure_case,
 )
-from .locking import snapshot_write_lock
+from .locking import exclusive_file_lock, snapshot_write_lock
 from .migration_v3 import (
     V3_MIGRATION_BUNDLE_MAX_BYTES,
     V3_MIGRATION_BUNDLE_MAX_DEPTH,
@@ -1990,6 +1990,7 @@ __all__ = [
     "read_packaged_resource",
     "run_memory_execution",
     "snapshot_write_lock",
+    "exclusive_file_lock",
     "system_gate",
     "transition_gate_session",
     "build_injection_snippet",

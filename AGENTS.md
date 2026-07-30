@@ -107,7 +107,12 @@ Start with:
 - `durable_agent_wire_v1.py`: optional strict adapter-neutral request/response
   dispatcher over the durable facade. Caller, provider, evaluator, and
   repository identities come from trusted adapter objects, never request JSON;
-  no active HTTP/MCP/SDK transport selects it yet.
+  explicit durable HTTP/MCP/SDK profiles and `tbmd local` select it while
+  compatibility adapters remain unchanged.
+- `local_daemon_v3.py` / `daemon_entry.py`: explicit owner-controlled local
+  SQLite v3 process composition and `tbmd init/local/doctor/health`; one
+  locked runtime/dispatcher serves bounded STDIO MCP, loopback HTTP,
+  GateSession recovery, and completion-outbox delivery.
 - `sqlite_semantic_gate_v3.py`: opt-in immutable ordered Semantic Gate attempt
   chain with one CAS head per System Gate evaluation; not active runtime state.
 - `sqlite_semantic_gate_artifact_v3.py`: opt-in atomic SQLite attempt plus

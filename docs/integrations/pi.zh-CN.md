@@ -77,6 +77,13 @@ tbm_capabilities / tbm_health
 若不再执行，应在 finalize 前调用 `tbm_cancel_run`。不得在 prepare 与 finalize 或
 cancel 之间重启 MCP process。
 
+如需可跨重启 durable session，先按
+[本地 daemon 指南](../protocols/local-daemon-v1.zh-CN.md)初始化一次，再让
+`pi-mcp-adapter` 使用 `"command": "/absolute/path/to/tbmd"` 与
+`"args": ["local", "--state-dir", "/absolute/path/to/repository/.tbm"]`。
+外部 adapter 仍是 MCP client；`tbmd` 是 server/process owner，并通过已持久化
+`session_id` 与精确 version 续接。
+
 Pi 的 extension 与 trust model 见
 [Pi 官方文档](https://pi.dev/docs/latest)和
 [安全指南](https://pi.dev/docs/latest/security)。本教程使用

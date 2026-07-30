@@ -150,6 +150,22 @@ profile still keeps pending Gate requests and finalized replay tombstones
 in-process; its clients must prepare again after restart and must not recreate
 private request tokens.
 
+To let one process also own loopback HTTP, recovery, and outbox delivery,
+initialize the [local daemon](../protocols/local-daemon-v1.md) once and replace
+the project MCP command:
+
+```text
+tbmd init --state-dir .tbm
+```
+
+```toml
+[mcp_servers.trace_backed_memory]
+command = "tbmd"
+args = ["local", "--state-dir", ".tbm"]
+```
+
+The daemon uses the same durable tools and exact-version continuation rules.
+
 Remote Streamable HTTP MCP, OAuth, and an untrusted multi-tenant service remain
 outside this local profile.
 

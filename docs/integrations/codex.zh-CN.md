@@ -133,6 +133,21 @@ factory、一次性 SQLite 初始化、PostgreSQL 选择、content exposure flag
 仍把 pending Gate request 与 finalized replay tombstone 保存在进程内；其 client
 重启后必须重新 prepare，也不得重建私有 request token。
 
+如需让一个进程同时持有 loopback HTTP、recovery 与 outbox delivery，先初始化一次
+[本地 daemon](../protocols/local-daemon-v1.zh-CN.md)，再替换项目 MCP command：
+
+```text
+tbmd init --state-dir .tbm
+```
+
+```toml
+[mcp_servers.trace_backed_memory]
+command = "tbmd"
+args = ["local", "--state-dir", ".tbm"]
+```
+
+daemon 使用同一套 durable tool 与精确版本续接规则。
+
 远程 Streamable HTTP MCP、OAuth 与不可信多租户服务仍不属于该本地 profile。
 
 ## 一致性验证

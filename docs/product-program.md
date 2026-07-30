@@ -1785,6 +1785,18 @@ Track:
   cancellation, completion replay, session read, and replay export. Keep the
   compatibility client/default profile unchanged and keep CLI durable
   selection, local daemon, and remote multi-tenant service work outstanding.
+- Add the explicit `tbmd init/local/doctor/health` local SQLite v3 process
+  owner. Require an operator application factory with trusted MCP/HTTP
+  contexts and an outbox consumer; create owner-controlled fixed local state;
+  hold one race-checked cross-platform lock; and share one runtime,
+  dispatcher, connection, and operation lock across bounded STDIO MCP,
+  loopback HTTP, GateSession recovery, and completion-outbox delivery. Stop
+  HTTP, workers, runtime, and the state lock in order. Cover real MCP plus HTTP,
+  concurrent clients, second-process exclusion, hard crash/reopen, expired
+  session recovery, pre-ack outbox lease reclaim, permission/alias rejection,
+  doctor/health, packaging, and deterministic public errors. Keep the default
+  compatibility profile, SQLite v1 data, shared-service workers, and migration
+  cutover unchanged.
 
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.

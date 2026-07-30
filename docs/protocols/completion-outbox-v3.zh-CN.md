@@ -96,8 +96,9 @@ Delivery 是 **at least once**。Worker 可能已经成功发布，却在 acknow
 active SQLite schema version 1 或 PostgreSQL schema version 2，不会发起网络
 请求、认证 evaluator、授权 artifact byte 或创建 OutcomeAttribution event。
 durable execution/facade 组合会把它们接入显式 durable HTTP/MCP 与
-Python/TypeScript client；默认兼容路径 cutover 和 daemon 持有的 worker dispatch
-仍属于统一推进的 version-3 计划。
+Python/TypeScript client。显式 `tbmd local` 会运行有界 SQLite delivery page 并
+reclaim 过期 lease；默认兼容路径 cutover、PostgreSQL shared-service dispatch 与
+远程 consumer 运维仍属于统一推进的 version-3 计划。
 SQLite connection owner 仍是可信 operator boundary：能够替换已注册 SQLite
 function 或删除并重建 trigger 的代码同样能够改写数据库，不得把这种能力暴露给
 不可信调用方。

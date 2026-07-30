@@ -898,6 +898,15 @@ increment 不会自动成为 active 用户路径。
   TypeScript client 会运行同一份 lifecycle fixture，覆盖 cancellation、completion
   replay、session read 与 replay export。兼容 client/default profile 保持不变；
   CLI durable 选择、本地 daemon 与远程多租户 service 仍待完成。
+- 增加显式 `tbmd init/local/doctor/health` 本地 SQLite v3 进程 owner。要求
+  operator application factory 提供可信 MCP/HTTP context 与 outbox consumer；
+  创建由 owner 控制的固定本地 state；持有一把经过竞态检查的跨平台锁；让有界
+  STDIO MCP、loopback HTTP、GateSession recovery 与 completion-outbox delivery
+  共用同一 runtime、dispatcher、connection 与 operation lock；并按顺序关闭 HTTP、
+  worker、runtime 与 state lock。测试覆盖真实 MCP+HTTP、并发 client、第二进程
+  排除、硬 crash/reopen、过期 session recovery、ack 前 outbox lease reclaim、
+  permission/alias 拒绝、doctor/health、打包与确定性 public error。默认兼容
+  profile、SQLite v1 数据、shared-service worker 与 migration cutover 保持不变。
 
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-

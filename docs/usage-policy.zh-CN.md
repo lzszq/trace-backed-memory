@@ -544,7 +544,8 @@ SQLite/PostgreSQL connection 可以提供一层外部 transaction，但默认跨
 路径是有序恢复，不是 distributed atomicity。独立的 opt-in
 `DurableFinalizationService` 可以核验 `DECIDED` session、渲染最终
 public/internal snippet、保留完整 replay bundle 并发布 `FINALIZED`；active
-durable Agent、MCP、HTTP 与 SDK emission 仍不可用。
+durable HTTP/MCP 与 Python/TypeScript SDK profile 已暴露这套组合。默认兼容
+profile、CLI durable 选择与远程 shared-service emission 仍不可用。
 
 只能在提供 UsageDecision 保留的原始 `memory:retrieve` scope，以及同一
 authenticated principal、client、tenant、repository、environment 当前有效的
@@ -608,14 +609,18 @@ descriptor 与 null snippet；未显式启用 replay content 时，从 capabilit
 authorization 仍然适用。
 
 facade 与 dispatcher 都不是 transport authenticator，默认兼容 Agent/MCP profile
-不调用它们。显式 durable HTTP 与可信本地 durable MCP profile 只能通过规范 runtime
-factory 与 operator 持有的可信 context 选择它们。本地 MCP STDIO 没有独立 peer
+不调用它们。显式 durable HTTP、可信本地 durable MCP 与 `tbmd local` profile
+只能通过规范 runtime factory 与 operator 持有的可信 context 选择它们。
+`tbmd local` 必须持有由 owner 控制的 state lock，让 transport/worker 共用一套
+runtime dispatcher，要求可按 event 去重的 outbox consumer，并让 due
+DECIDED/FINALIZED/EXECUTING session 保持 `recovery_required`，不得虚构
+abandonment。本地 MCP STDIO 没有独立 peer
 authentication，不得被描述为 shared-service MCP。在 shared transport 暴露前，
 transport 必须派生可信 identity 与
 provider/evaluator credential，服务端必须配置完整 authority graph，外部执行必须按
 `run_id` 幂等，并具备精确 retry/recovery conformance test。durable facade 会授权
-public/internal replay read；显式 durable HTTP/MCP 与 Python/TypeScript client
-只有在启动 policy 启用 content 时才会暴露。存储仍只支持 public/internal
+public/internal replay read；显式 durable HTTP/MCP、`tbmd local` 与
+Python/TypeScript client 只有在启动 policy 启用 content 时才会暴露。存储仍只支持 public/internal
 plaintext replay profile。
 
 ## Version-3 结果与归因策略
@@ -665,7 +670,9 @@ leased revision 执行 acknowledge 或 fail，并允许过期 lease 被重新领
 是 at least once，因此 downstream consumer 必须按 immutable `event_id` 去重；
 response digest 只是 audit metadata，不能证明远端副作用 exactly once。outcome
 已存在但 event 缺失时不得静默修补，应调查并恢复被破坏的 transaction boundary。
-通过 Agent/MCP/HTTP/SDK 的 active durable completion-outbox emission 仍不可用。
+显式 durable HTTP/MCP 与 Python/TypeScript SDK profile 已提供 active durable
+completion-outbox emission，`tbmd local` 也会执行有界 SQLite delivery page。
+默认兼容 profile 与远程 shared-service worker plane 不会选择该 authority。
 每个 database connection/schema owner
 都属于 privileged boundary：不得暴露 raw connection，也不得允许调用方替换
 function、trigger 或 catalog object。

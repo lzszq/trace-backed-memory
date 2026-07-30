@@ -41,43 +41,9 @@ Python 3.11 or newer is required.
 python -m pip install -e .
 ```
 
-```python
-from trace_backed_memory import (
-    LocalAgentMemory,
-    MemoryContext,
-    MemoryRunMeasurement,
-    capture_local_trace,
-)
-
-trace = capture_local_trace(".", tenant="acme")
-context = MemoryContext(
-    mode="repair",
-    repo=trace.repo,
-    tenant=trace.tenant,
-    commit_sha=trace.commit_sha,
-)
-
-with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
-    prepared = memory.prepare(trace, context, task="repair the failed run")
-    finalized = memory.finalize(
-        prepared.request_id,
-        {
-            "use_memory": False,
-            "allowed_memory_ids": [],
-            "blocked_memory_ids": [],
-            "reason": "No prepared lesson is needed.",
-            "risk": "none",
-            "recommended_injection": "none",
-        },
-    )
-    memory.complete(
-        finalized.decision_id,
-        MemoryRunMeasurement(eval_result="pass"),
-    )
-```
-
-For protocol details and lifecycle constraints, read the
-[`tbm.agent.v1` guide](docs/protocols/agent-v1.md).
+The first complete Python lifecycle is in the
+[`tbm.agent.v1` guide](docs/protocols/agent-v1.md); storage, review, migration,
+and operations examples live in the [detailed reference](docs/reference.md).
 
 ## MCP + Codex in 2 minutes (Claude Code and Pi too)
 
@@ -127,7 +93,9 @@ finalization. The server exposes runtime operations only; it cannot review,
 verify, or activate memory.
 
 For restart-resumable GateSession state, use the advanced explicit
-[durable MCP profile](docs/protocols/durable-mcp-v1.md).
+[durable MCP profile](docs/protocols/durable-mcp-v1.md), or let one
+[`tbmd local` daemon](docs/protocols/local-daemon-v1.md) own MCP, HTTP,
+recovery, and outbox delivery over the same SQLite v3 graph.
 
 ## Interfaces
 
@@ -143,6 +111,8 @@ For restart-resumable GateSession state, use the advanced explicit
   and environment; see the [reference](docs/reference.md#long-running-local-mcp)
 - Restart-safe local MCP: explicit `--profile durable-v3`; see the
   [durable MCP guide](docs/protocols/durable-mcp-v1.md)
+- Restartable local durable service: `tbmd init/local/doctor/health`; see the
+  [local daemon guide](docs/protocols/local-daemon-v1.md)
 - Persistence: in-memory, SQLite, and PostgreSQL adapters
 - Version-3 preparation: authenticated pre-retrieval boundary, GateSession,
   authorization, entity registry, replay, audit/recovery, structured evidence,
@@ -158,7 +128,7 @@ The active compatibility boundary remains snapshot version 2, SQLite schema
 version 1, PostgreSQL schema version 2, and `tbm.agent.v1`. Version-3
 contracts and their isolated opt-in repositories do not silently change the
 default Store, Agent, or MCP lifecycle. Explicit durable HTTP and trusted-local
-MCP profiles select the version-3 authority graph.
+MCP profiles, including `tbmd local`, select the version-3 authority graph.
 
 Pending gate requests in the default compatibility profile remain
 process-local; the explicit durable profiles persist GateSession state.

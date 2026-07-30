@@ -215,6 +215,28 @@ serialize caller/provider/evaluator identity. See the
 [durable HTTP guide](protocols/durable-http-v1.md); the compatibility profile
 and its process-local request handles remain the default.
 
+### Restartable local durable daemon
+
+Install `.[mcp,service]`, provide one operator-controlled
+`DurableLocalApplication`, and initialize the fixed owner-controlled state:
+
+```text
+tbmd init --state-dir .tbm
+tbmd doctor --state-dir .tbm
+tbmd local --state-dir .tbm
+```
+
+`tbmd local` holds one OS advisory lock and one unified SQLite v3 runtime. Its
+bounded STDIO MCP, bearer-authenticated loopback HTTP, GateSession recovery,
+and completion-outbox delivery all share the same dispatcher, connection, and
+operation lock. `tbmd health` queries the live durable HTTP profile;
+`--no-mcp` is an explicit SDK-only background mode. A process restart reopens
+the persisted GateSession; an expired outbox lease can be reclaimed and
+redelivered, so the configured consumer must deduplicate by immutable event
+ID. See the [local daemon guide](protocols/local-daemon-v1.md) for the
+application factory, permission boundary, client configuration, worker limits,
+and shutdown order.
+
 ## Packaged Resources
 
 Wheel, source-distribution, and editable installs contain byte-identical copies
@@ -536,8 +558,9 @@ retrieval.
 trusted service context is matched to the current registry, the exact decision
 is persisted and read back, registry rotation and environment binding are
 rechecked, and only then may a retrieval callback run. Trusted local MCP
-bootstrap integration is available; transport authentication and the other
-active adapters remain outstanding. See
+bootstrap plus explicit durable HTTP/MCP transport authentication are
+available. Default compatibility-adapter cutover and the remote shared-service
+boundary remain outstanding. See
 [the authorization contract](protocols/authorization-v3.md) and
 [authenticated service boundary](protocols/authenticated-service-v3.md).
 `AuthenticatedGateSessionService` adds durable `CREATED`-before-preparation

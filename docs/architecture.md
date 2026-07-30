@@ -1522,8 +1522,9 @@ documented in
 ## Durable GateSession version-3 contract
 
 `gate_session_v3.py` publishes the persistence-neutral
-`tbm.gate-session.v3` record and explicit transition graph required by future
-SQLite v2, PostgreSQL v3, `tbmd`, HTTP, MCP, and SDK implementations. One
+`tbm.gate-session.v3` record and explicit transition graph used by the
+opt-in SQLite/PostgreSQL v3 authorities, durable HTTP/MCP/SDK profiles, and
+the active explicit `tbmd local` SQLite composition. One
 immutable record binds tenant, canonical repository, principal, agent client,
 Trace/run identity, request fingerprint, idempotency key, expiry, lease, and
 the IDs of lifecycle evidence. Every state change requires the current
@@ -1789,10 +1790,10 @@ authorization event, active heads, and policy around deterministic bounded
 rendering; retains and reads back the complete component bundle; and
 CAS-publishes `FINALIZED`. Shared SQLite/PostgreSQL connections allow caller
 rollback across lease, bundle, and final session revision; separated
-authorities use explicit recovery. Signed provider attestation,
-protected-content encryption, retention, transport-authenticated replay
-exposure, durable transition-event linkage, and active emission are not yet
-provided.
+authorities use explicit recovery. Explicit durable HTTP/MCP transports expose
+authorized replay only under their startup content policy. Production
+shared-service protected-content encryption/retention, signed provider
+attestation, and durable transition-event linkage are not yet provided.
 `durable_execution_v3.py` supplies the opt-in runtime back half: it replays
 and verifies the exact retained finalization bundle, requires current
 owner-matched transition authorization, CAS-publishes `EXECUTING`, supports
@@ -1918,8 +1919,10 @@ Semantic Gate composition now authenticates provider work, verifies the whole
 attempt/artifact chain, and advances a prepared GateSession to `DECIDED`.
 The opt-in finalization composition then verifies live
 authorization/head/policy state, retains exact final-use evidence, and
-advances it to `FINALIZED`. Active runtime policy execution and Agent/MCP
-Semantic Gate/finalization/execution emission remain outstanding. See
+advances it to `FINALIZED`. Explicit durable HTTP/MCP and Python/TypeScript SDK
+profiles expose Semantic Gate, finalization, and execution; default
+compatibility-profile cutover and shared-service policy execution remain
+outstanding. See
 [Gate evaluation v3](protocols/gate-evaluation-v3.md).
 
 The paired `tbm.run-outcome.v3` and `tbm.outcome-attribution.v3` contracts
@@ -2005,8 +2008,9 @@ or recovery-required state explicitly. It does not provide a network client;
 the caller-owned consumer must be idempotent by event ID and must choose a
 lease that covers its maximum processing time.
 The opt-in durable execution composition now supplies evaluator
-authentication; artifact authorization and active runtime emission remain
-separate work. See
+authentication and is selected by the explicit durable transports. Protected
+Artifact integration and shared-service worker deployment remain separate
+work. See
 [SQLite RunOutcome completion v3](protocols/sqlite-outcome-v3.md),
 [PostgreSQL RunOutcome completion v3](protocols/postgres-outcome-v3.md), and
 [SQLite OutcomeAttribution ledger v3](protocols/sqlite-outcome-attribution-v3.md)

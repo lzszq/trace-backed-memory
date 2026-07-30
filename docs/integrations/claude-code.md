@@ -62,6 +62,13 @@ Call `tbm_cancel_run` before finalization when execution will not proceed.
 Keep the same server process alive from prepare through finalize or cancel;
 pending requests are process-local in the current schema.
 
+For restart-safe sessions plus daemon-owned HTTP/recovery/outbox workers,
+follow the [local daemon guide](../protocols/local-daemon-v1.md), run
+`tbmd init --state-dir .tbm` once, and register `tbmd local --state-dir .tbm`
+as the project MCP command. The durable tools use persisted `session_id` plus
+the exact returned version; they do not require one process-local request
+handle.
+
 `tbm-mcp` derives Git provenance from `--repo-path`, rejects caller-supplied
 provenance, and exposes no review, verification, publication, activation,
 snapshot, or migration operation. Project MCP configuration is executable

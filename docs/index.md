@@ -27,6 +27,7 @@ orientation; these documents define the engineering contracts.
 - [Local HTTP service and Python/TypeScript SDKs](protocols/agent-http-v1.md)
 - [Durable HTTP profile](protocols/durable-http-v1.md)
 - [Durable MCP profile](protocols/durable-mcp-v1.md)
+- [Restartable local durable daemon](protocols/local-daemon-v1.md)
 - [Node.js TypeScript SDK package](../packages/typescript-sdk/README.md)
 - [Canonical local Agent OpenAPI 3.1](../schemas/agent-http-v1.openapi.json)
 - [Authorization v3 contract](protocols/authorization-v3.md)
@@ -145,6 +146,9 @@ continue across instances when the same authorities and current trusted
   general CLI do not construct it; explicit durable HTTP and trusted-local MCP
   profiles construct it through the shared runtime factory, and the Node.js
   `DurableAgentHTTPClient` selects the explicit HTTP profile.
+The explicit `tbmd local` profile owns one locked SQLite v3 graph and shares
+its dispatcher across local MCP, loopback HTTP, bounded recovery, and outbox
+delivery. It does not change the default compatibility adapters.
 The optional strict durable wire dispatcher maps the facade without accepting
 caller identity fields or storing process-local handles.
 The opt-in SQLite and isolated PostgreSQL RunOutcome authorities now atomically
@@ -155,8 +159,9 @@ opt-in SQLite and isolated PostgreSQL Completion Outbox authorities atomically
 add one immutable completion event and an append-only leased delivery chain to
 that transaction. The opt-in durable execution composition now supplies
 registered evaluator authentication and exact retained-injection replay around
-these authorities. Artifact attestation checks and active runtime
-emission remain outstanding.
+these authorities, and explicit durable transports select it. Protected
+Artifact attestation/integration and shared-service worker deployment remain
+outstanding.
 Storage-neutral approval/activation contracts and isolated SQLite/PostgreSQL
 publication authorities are published. Opt-in authenticated SQLite and
 isolated PostgreSQL Artifact authorities encrypt exact bytes through a

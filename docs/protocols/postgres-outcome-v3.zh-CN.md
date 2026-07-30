@@ -66,7 +66,8 @@ SQLite OutcomeAttribution persistence 由独立的
 [PostgreSQL attribution ledger](postgres-outcome-attribution-v3.zh-CN.md)
 提供 database parity。更高层 durable execution/facade 组合会为显式 durable
 HTTP/MCP 与 Python/TypeScript client 增加 authenticated evaluator derivation 和
-原子 outbox publication。artifact byte authorization、daemon 持有的 network
-dispatch、attribution integration 与默认兼容路径 cutover 仍是后续工作。snapshot
+原子 outbox publication。本地 daemon 只选择 SQLite；PostgreSQL shared-service
+delivery、artifact byte authorization、attribution integration 与默认兼容路径
+cutover 仍是后续工作。snapshot
 version 2、SQLite schema version 1、PostgreSQL schema version 2 与
 `tbm.agent.v1` 均保持不变。

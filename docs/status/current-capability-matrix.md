@@ -43,15 +43,15 @@ advance a status.
 | `retrieval.managed-index-v3` | Retrieval | Managed-index source | `opt-in` | Default adapters retrieve compatibility records; explicit durable runtimes may use this source. |
 | `artifact.encrypted-authority-v3` | Protected content | Encrypted Artifact authorities | `opt-in` | Explicit durable runtimes use configured authorities; no object-storage/KMS product path. |
 | `replay.durable-v3` | Replay | Durable replay authorities | `opt-in` | Explicit durable HTTP/MCP export session-bound replay when startup policy enables content; default adapters do not. |
-| `completion.outbox-v3` | Completion | Outcome and outbox authority/worker | `opt-in` | No product daemon operates the worker. |
-| `operations.audit-recovery-v3` | Operations | Audit and recovery authority/worker | `opt-in` | No product daemon operates the worker. |
+| `completion.outbox-v3` | Completion | Outcome and outbox authority/worker | `opt-in` | Explicit `tbmd local` runs bounded SQLite delivery pages and reclaims expired leases; shared-service dispatch remains outstanding. |
+| `operations.audit-recovery-v3` | Operations | Audit and recovery authority/worker | `opt-in` | Explicit `tbmd local` expires due PREPARED/AWAITING_DECISION sessions; it does not execute arbitrary audit remediation actions. |
 | `migration.snapshot-v3` | Migration | Snapshot v3 plan/bundle/verify/staging | `contract-only` | No apply, cutover, or rollback orchestration. |
 | `persistence.unified-sqlite-v3` | Persistence cutover | Unified SQLite v3 schema | `opt-in` | One generated bundle installs and fingerprints all 15 durable authority schemas; active compatibility remains SQLite 1. |
 | `persistence.unified-postgresql-v3` | Persistence cutover | Unified PostgreSQL v3 schema | `planned` | Current compatibility boundary is PostgreSQL 2. |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | Explicit `tbm-http --profile durable-v3`; trusted application factory, bearer boundary, unified SQLite/PostgreSQL v3 runtime, content hidden by default. |
 | `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | Explicit `tbm-mcp --profile durable-v3`; trusted local application factory, bounded STDIO, unified SQLite/PostgreSQL v3 runtime, restart continuation, and content hidden by default. This is not peer-authenticated shared-service MCP. |
 | `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript clients | `active` | The explicit durable HTTP profile has synchronous/asynchronous Python clients and a dependency-free Node.js TypeScript client; one shared fixture runs through the Python and TypeScript lifecycle suites. |
-| `service.local-daemon` | Local service | Restartable `tbmd local` daemon | `planned` | No service owns workers and the durable authority graph. |
+| `service.local-daemon` | Local service | Restartable `tbmd local` daemon | `active` | One locked owner-controlled SQLite process shares one runtime/dispatcher across bounded STDIO MCP, loopback HTTP, GateSession recovery, and outbox delivery; `init`, `doctor`, and `health` are deterministic. |
 | `service.shared-multitenant` | Shared service | Remote transports, OIDC, RBAC/RLS, workload identity | `planned` | The Alpha release is not an untrusted multi-tenant service. |
 | `integration.review-console` | Engineering integration | Review Console | `planned` | No control-plane implementation is delivered. |
 | `integration.codex-hooks` | Engineering integration | Codex hooks/App Server adapter | `planned` | Existing integration is documentation, skills, and local MCP. |

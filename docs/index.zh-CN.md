@@ -26,6 +26,7 @@
 - [本地 HTTP 服务与 Python/TypeScript SDK](protocols/agent-http-v1.zh-CN.md)
 - [Durable HTTP profile](protocols/durable-http-v1.zh-CN.md)
 - [Durable MCP profile](protocols/durable-mcp-v1.zh-CN.md)
+- [可重启本地 durable daemon](protocols/local-daemon-v1.zh-CN.md)
 - [Node.js TypeScript SDK 包](../packages/typescript-sdk/README.md)
 - [规范本地 Agent OpenAPI 3.1](../schemas/agent-http-v1.openapi.json)
 - [授权 v3 契约](protocols/authorization-v3.zh-CN.md)
@@ -130,8 +131,11 @@ evaluator，并以 SQLite/PostgreSQL 对等性组合原子
   authority 与当前可信 context 仍可用，该 facade 就可以跨实例续接。默认兼容
   Agent/MCP/HTTP adapter 与普通 CLI 不构造它；显式 durable HTTP 与可信本地 MCP
   profile 会通过共享 runtime factory 构造它，Node.js
-  `DurableAgentHTTPClient` 则选择该显式 HTTP profile。可选严格 durable wire
-dispatcher 会映射该 facade，但不接受调用方 identity 字段，也不保存进程内 handle。
+  `DurableAgentHTTPClient` 则选择该显式 HTTP profile。显式 `tbmd local` profile
+会持有一个带锁的 SQLite v3 graph，并让本地 MCP、loopback HTTP、有界 recovery
+与 outbox delivery 共用其 dispatcher；它不会改变默认兼容 adapter。可选严格
+durable wire dispatcher 会映射该 facade，但不接受调用方 identity 字段，也不保存
+进程内 handle。
 opt-in SQLite 与隔离 PostgreSQL RunOutcome authority 现在都可以用一份
 content-addressed outcome 原子完成 executing GateSession。隔离 SQLite
 与 PostgreSQL OutcomeAttribution ledger 会用精确 durable outcome/session
@@ -139,7 +143,8 @@ linkage 持久化多条独立核验的 claim。opt-in SQLite 与隔离 PostgreSQ
 Completion Outbox authority 会在同一 transaction 原子增加一条 immutable
 completion event 与 append-only leased delivery chain。opt-in durable execution
 组合现已围绕这些 authority 提供可信 evaluator authenticator 与精确保留 injection
-replay。artifact attestation 检查与 active runtime emission 仍待完成。
+replay，且显式 durable transport 会选择它。Protected Artifact
+attestation/integration 与 shared-service worker deployment 仍待完成。
 storage-neutral approval/activation 契约与隔离 SQLite/PostgreSQL publication
 authority 已经发布。opt-in、已认证的 SQLite 与隔离 PostgreSQL Artifact Authority
 会通过调用方 provider 加密精确字节、授权每次读写，并执行读取时 retention/legal

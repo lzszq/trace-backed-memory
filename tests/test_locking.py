@@ -43,6 +43,40 @@ def test_snapshot_write_lock_is_exported_from_the_package_root():
     assert callable(tbm.snapshot_write_lock)
 
 
+def test_exclusive_file_lock_is_exported_and_non_reentrant(tmp_path):
+    lock_path = tmp_path / "tbmd.lock"
+
+    assert "exclusive_file_lock" in tbm.__all__
+    with tbm.exclusive_file_lock(lock_path, timeout_seconds=0):
+        assert lock_path.exists()
+        with pytest.raises(
+            TimeoutError,
+            match="timed out waiting for exclusive file lock",
+        ):
+            with tbm.exclusive_file_lock(lock_path, timeout_seconds=0):
+                raise AssertionError("reentrant acquisition succeeded")
+
+    with tbm.exclusive_file_lock(lock_path, timeout_seconds=0):
+        pass
+    assert lock_path.read_bytes() == b"0"
+
+
+def test_exclusive_file_lock_rejects_symbolic_link_without_writing(tmp_path):
+    lock_path = tmp_path / "tbmd.lock"
+    target_path = tmp_path / "unrelated-empty-file"
+    target_path.write_bytes(b"")
+    _symlink_or_skip(lock_path, target_path)
+
+    with pytest.raises(
+        OSError,
+        match="exclusive lock file must be a single-link regular file",
+    ):
+        with tbm.exclusive_file_lock(lock_path, timeout_seconds=0):
+            raise AssertionError("symbolic-link lock acquired")
+
+    assert target_path.read_bytes() == b""
+
+
 def test_snapshot_write_lock_has_documented_default_timeout():
     timeout = inspect.signature(tbm.snapshot_write_lock).parameters[
         "timeout_seconds"

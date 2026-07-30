@@ -40,43 +40,9 @@ Trace -> Failure Case -> Verified Lesson -> Gated Runtime Memory
 python -m pip install -e .
 ```
 
-```python
-from trace_backed_memory import (
-    LocalAgentMemory,
-    MemoryContext,
-    MemoryRunMeasurement,
-    capture_local_trace,
-)
-
-trace = capture_local_trace(".", tenant="acme")
-context = MemoryContext(
-    mode="repair",
-    repo=trace.repo,
-    tenant=trace.tenant,
-    commit_sha=trace.commit_sha,
-)
-
-with LocalAgentMemory.open_sqlite("tbm-memory.sqlite3") as memory:
-    prepared = memory.prepare(trace, context, task="repair the failed run")
-    finalized = memory.finalize(
-        prepared.request_id,
-        {
-            "use_memory": False,
-            "allowed_memory_ids": [],
-            "blocked_memory_ids": [],
-            "reason": "No prepared lesson is needed.",
-            "risk": "none",
-            "recommended_injection": "none",
-        },
-    )
-    memory.complete(
-        finalized.decision_id,
-        MemoryRunMeasurement(eval_result="pass"),
-    )
-```
-
-协议细节与生命周期约束见
-[`tbm.agent.v1` 指南](docs/protocols/agent-v1.zh-CN.md)。
+第一个完整 Python 生命周期见
+[`tbm.agent.v1` 指南](docs/protocols/agent-v1.zh-CN.md)；storage、review、
+migration 与运维示例集中在[详细参考](docs/reference.zh-CN.md)。
 
 ## 两分钟连接 MCP + Codex（也支持 Claude Code 与 Pi）
 
@@ -121,7 +87,9 @@ args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
 前调用 `cancel`。该服务只暴露 runtime operation，不能 review、verify 或 activate memory。
 
 如需可跨重启续接的 GateSession state，请使用进阶的显式
-[durable MCP profile](docs/protocols/durable-mcp-v1.zh-CN.md)。
+[durable MCP profile](docs/protocols/durable-mcp-v1.zh-CN.md)，或让一个
+[`tbmd local` daemon](docs/protocols/local-daemon-v1.zh-CN.md)在同一 SQLite v3
+graph 上统一持有 MCP、HTTP、recovery 与 outbox delivery。
 
 ## 接口
 
@@ -136,6 +104,8 @@ args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
   [参考文档](docs/reference.zh-CN.md#长驻本地-mcp)
 - 可跨重启的本地 MCP：显式 `--profile durable-v3`；详见
   [durable MCP 指南](docs/protocols/durable-mcp-v1.zh-CN.md)
+- 可重启的本地 durable service：`tbmd init/local/doctor/health`；详见
+  [本地 daemon 指南](docs/protocols/local-daemon-v1.zh-CN.md)
 - 持久化：内存、SQLite 与 PostgreSQL adapter
 - Version-3 准备能力：认证 retrieval 前边界、GateSession、授权、实体注册表、
   replay、audit/recovery、结构化 evidence、不可变 revision、retrieval snapshot、
@@ -150,7 +120,7 @@ args = ["--repo-path", ".", "--sqlite", ".tbm/memory.sqlite3"]
 active 兼容边界仍是 snapshot version 2、SQLite schema version 1、PostgreSQL
 schema version 2 与 `tbm.agent.v1`。Version-3 契约及其隔离、opt-in repository
 不会暗中改变默认 Store、Agent 或 MCP 生命周期。显式 durable HTTP 与可信本地
-MCP profile 会选择 version-3 authority graph。
+MCP profile（包括 `tbmd local`）会选择 version-3 authority graph。
 
 默认兼容 profile 的 pending gate request 仍是进程内状态；显式 durable profile
 会持久化 GateSession state。Scope matching 不是 tenant authorization。不要把当前

@@ -42,10 +42,13 @@ def _snapshot_lock_path(snapshot_path: str | Path) -> Path:
     return normalized.with_name(f"{normalized.name}{_SNAPSHOT_LOCK_SUFFIX}")
 
 
-def _unsafe_lock_sidecar_error(lock_path: Path) -> OSError:
+def _unsafe_lock_sidecar_error(
+    lock_path: Path,
+    *,
+    label: str = "snapshot lock sidecar",
+) -> OSError:
     return OSError(
-        "snapshot lock sidecar must be a single-link regular file: "
-        f"{lock_path}"
+        f"{label} must be a single-link regular file: {lock_path}"
     )
 
 
@@ -75,6 +78,8 @@ def _validate_snapshot_write_target(snapshot_path: str | Path) -> None:
 def _validate_lock_sidecar_stat(
     lock_path: Path,
     file_stat: os.stat_result,
+    *,
+    label: str = "snapshot lock sidecar",
 ) -> None:
     reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
     file_attributes = getattr(file_stat, "st_file_attributes", 0)
@@ -83,7 +88,7 @@ def _validate_lock_sidecar_stat(
         or file_stat.st_nlink != 1
         or bool(file_attributes & reparse_attribute)
     ):
-        raise _unsafe_lock_sidecar_error(lock_path)
+        raise _unsafe_lock_sidecar_error(lock_path, label=label)
 
 
 def _wrap_lock_descriptor(descriptor: int) -> BinaryIO:
@@ -99,26 +104,36 @@ def _verified_lock_file(
     lock_path: Path,
     *,
     expected_stat: os.stat_result | None = None,
+    label: str = "snapshot lock sidecar",
 ) -> BinaryIO:
     try:
         descriptor_stat = os.fstat(descriptor)
         path_stat = os.lstat(lock_path)
-        _validate_lock_sidecar_stat(lock_path, descriptor_stat)
-        _validate_lock_sidecar_stat(lock_path, path_stat)
+        _validate_lock_sidecar_stat(
+            lock_path,
+            descriptor_stat,
+            label=label,
+        )
+        _validate_lock_sidecar_stat(lock_path, path_stat, label=label)
         if not os.path.samestat(descriptor_stat, path_stat):
-            raise _unsafe_lock_sidecar_error(lock_path)
+            raise _unsafe_lock_sidecar_error(lock_path, label=label)
         if expected_stat is not None and not os.path.samestat(
             expected_stat,
             descriptor_stat,
         ):
-            raise _unsafe_lock_sidecar_error(lock_path)
+            raise _unsafe_lock_sidecar_error(lock_path, label=label)
     except BaseException:
         os.close(descriptor)
         raise
     return _wrap_lock_descriptor(descriptor)
 
 
-def _open_lock_file(lock_path: Path) -> BinaryIO:
+def _open_lock_file(
+    lock_path: Path,
+    *,
+    label: str = "snapshot lock sidecar",
+    mode: int = 0o666,
+) -> BinaryIO:
     open_flags = os.O_RDWR
     open_flags |= getattr(os, "O_BINARY", 0)
     open_flags |= getattr(os, "O_NOINHERIT", 0)
@@ -126,24 +141,32 @@ def _open_lock_file(lock_path: Path) -> BinaryIO:
         descriptor = os.open(
             lock_path,
             open_flags | os.O_CREAT | os.O_EXCL,
-            0o666,
+            mode,
         )
     except FileExistsError:
         expected_stat = os.lstat(lock_path)
-        _validate_lock_sidecar_stat(lock_path, expected_stat)
+        _validate_lock_sidecar_stat(
+            lock_path,
+            expected_stat,
+            label=label,
+        )
         existing_flags = open_flags | getattr(os, "O_NOFOLLOW", 0)
         try:
             descriptor = os.open(lock_path, existing_flags)
         except OSError as error:
             if error.errno == errno.ELOOP:
-                raise _unsafe_lock_sidecar_error(lock_path) from error
+                raise _unsafe_lock_sidecar_error(
+                    lock_path,
+                    label=label,
+                ) from error
             raise
         return _verified_lock_file(
             descriptor,
             lock_path,
             expected_stat=expected_stat,
+            label=label,
         )
-    return _verified_lock_file(descriptor, lock_path)
+    return _verified_lock_file(descriptor, lock_path, label=label)
 
 
 def _initialize_lock_file(lock_file: BinaryIO) -> None:
@@ -158,6 +181,8 @@ def _acquire_file_lock(
     lock_file: BinaryIO,
     lock_path: Path,
     timeout_seconds: float,
+    *,
+    wait_label: str = "snapshot write lock",
 ) -> None:
     is_windows = os.name == "nt"
     if is_windows:
@@ -184,7 +209,7 @@ def _acquire_file_lock(
             remaining = timeout_seconds - (time.monotonic() - started_at)
             if remaining <= 0:
                 raise TimeoutError(
-                    f"timed out waiting for snapshot write lock: {lock_path}"
+                    f"timed out waiting for {wait_label}: {lock_path}"
                 ) from error
             time.sleep(min(_SNAPSHOT_LOCK_RETRY_SECONDS, remaining))
 
@@ -205,13 +230,68 @@ def _release_file_lock(lock_file: BinaryIO) -> None:
 def _validate_acquired_lock_identity(
     lock_file: BinaryIO,
     lock_path: Path,
+    *,
+    label: str = "snapshot lock sidecar",
 ) -> None:
     descriptor_stat = os.fstat(lock_file.fileno())
     path_stat = os.lstat(lock_path)
-    _validate_lock_sidecar_stat(lock_path, descriptor_stat)
-    _validate_lock_sidecar_stat(lock_path, path_stat)
+    _validate_lock_sidecar_stat(
+        lock_path,
+        descriptor_stat,
+        label=label,
+    )
+    _validate_lock_sidecar_stat(lock_path, path_stat, label=label)
     if not os.path.samestat(descriptor_stat, path_stat):
-        raise _unsafe_lock_sidecar_error(lock_path)
+        raise _unsafe_lock_sidecar_error(lock_path, label=label)
+
+
+def _canonical_lock_path(lock_path: str | Path) -> Path:
+    candidate = Path(lock_path).expanduser()
+    try:
+        parent = candidate.parent.resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise OSError(f"cannot resolve exclusive lock path: {error}") from error
+    return Path(
+        os.path.normcase(os.fspath(parent / candidate.name))
+    )
+
+
+@contextmanager
+def exclusive_file_lock(
+    lock_path: str | Path,
+    *,
+    timeout_seconds: int | float = _SNAPSHOT_LOCK_TIMEOUT_SECONDS,
+) -> Iterator[None]:
+    """Hold one race-checked, cross-platform advisory file lock.
+
+    The persistent placeholder is a single-link regular file. Independent
+    acquisitions are non-reentrant; callers must keep the context open for
+    the full lifetime of the protected process or transaction.
+    """
+    validated_timeout = _validated_timeout_seconds(timeout_seconds)
+    canonical = _canonical_lock_path(lock_path)
+    label = "exclusive lock file"
+    with _open_lock_file(
+        canonical,
+        label=label,
+        mode=0o600,
+    ) as lock_file:
+        _initialize_lock_file(lock_file)
+        _acquire_file_lock(
+            lock_file,
+            canonical,
+            validated_timeout,
+            wait_label="exclusive file lock",
+        )
+        try:
+            _validate_acquired_lock_identity(
+                lock_file,
+                canonical,
+                label=label,
+            )
+            yield
+        finally:
+            _release_file_lock(lock_file)
 
 
 @contextmanager

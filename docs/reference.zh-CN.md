@@ -194,6 +194,26 @@ caller/provider/evaluator identity。详见
 [durable HTTP 指南](protocols/durable-http-v1.zh-CN.md)；兼容 profile 及其进程内
 request handle 仍是默认行为。
 
+### 可重启本地 durable daemon
+
+安装 `.[mcp,service]`，提供一份由 operator 控制的
+`DurableLocalApplication`，并初始化固定、由 owner 控制的 state：
+
+```text
+tbmd init --state-dir .tbm
+tbmd doctor --state-dir .tbm
+tbmd local --state-dir .tbm
+```
+
+`tbmd local` 持有一把 OS advisory lock 与一个统一 SQLite v3 runtime。有界
+STDIO MCP、bearer-authenticated loopback HTTP、GateSession recovery 与
+completion-outbox delivery 全部共用同一 dispatcher、connection 与 operation
+lock。`tbmd health` 查询运行中的 durable HTTP profile；`--no-mcp` 是显式的
+SDK-only 后台模式。进程重启会重开已持久化 GateSession；过期 outbox lease 可以
+reclaim 并再次投递，因此已配置 consumer 必须按 immutable event ID 去重。
+application factory、permission boundary、客户端配置、worker 上限与关闭顺序见
+[本地 daemon 指南](protocols/local-daemon-v1.zh-CN.md)。
+
 ## 打包资源
 
 wheel、源码分发包和可编辑安装都会提供 `schemas/` 与 `examples/` 下规范运行时文件的字节一致副本，以及规范的失败分类体系和 active lesson YAML 示例。`AGENTS.md` 等贡献者指引不属于运行时资源。资源名来自严格的 POSIX 规范路径白名单，不能借此读取任意文件系统路径。
@@ -371,8 +391,8 @@ request identity 前核验精确 policy/request/decision 三元组。PostgreSQL 
 `AuthenticatedRetrievalService` 是共享、与存储无关的顺序 kernel：可信 service
 context 与当前 registry 匹配，精确 decision 会被持久化并读回，registry 轮换与
 environment binding 会被复查，之后 retrieval callback 才能运行。可信本地 MCP
-bootstrap integration 已可用；transport authentication 与其他 active adapter
-接入仍待完成。详见
+bootstrap 与显式 durable HTTP/MCP transport authentication 已可用；默认兼容
+adapter cutover 与远程 shared-service 边界仍待完成。详见
 [授权契约](protocols/authorization-v3.zh-CN.md)与
 [认证 service 边界](protocols/authenticated-service-v3.zh-CN.md)。
 `AuthenticatedGateSessionService` 增加 durable

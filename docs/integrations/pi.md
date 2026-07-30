@@ -82,6 +82,13 @@ tbm_capabilities / tbm_health
 Call `tbm_cancel_run` before finalization when execution will not proceed.
 Do not restart the MCP process between prepare and finalize or cancel.
 
+For restart-safe durable sessions, initialize the
+[local daemon](../protocols/local-daemon-v1.md) once and point
+`pi-mcp-adapter` at `"command": "/absolute/path/to/tbmd"` with
+`"args": ["local", "--state-dir", "/absolute/path/to/repository/.tbm"]`.
+The external adapter remains the MCP client; `tbmd` is the server/process
+owner and continues by persisted `session_id` plus exact version.
+
 Pi's extension and trust model is documented in the
 [official Pi documentation](https://pi.dev/docs/latest) and
 [security guide](https://pi.dev/docs/latest/security). This tutorial uses the

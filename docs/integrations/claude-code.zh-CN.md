@@ -57,6 +57,12 @@ tbm_capabilities / tbm_health
 若不再执行，应在 finalize 前调用 `tbm_cancel_run`。从 prepare 到 finalize 或 cancel
 必须保持同一个 server process 存活；当前 schema 的 pending request 是进程内状态。
 
+如需可跨重启 session 以及由 daemon 持有的 HTTP/recovery/outbox worker，请按
+[本地 daemon 指南](../protocols/local-daemon-v1.zh-CN.md)先运行一次
+`tbmd init --state-dir .tbm`，再把项目 MCP command 注册为
+`tbmd local --state-dir .tbm`。durable tool 使用已持久化 `session_id` 与返回的精确
+version，不依赖单个进程内 request handle。
+
 `tbm-mcp` 从 `--repo-path` 派生 Git provenance，拒绝调用方提供 provenance，也不暴露
 review、verification、publication、activation、snapshot 或 migration 操作。项目 MCP
 配置能够执行代码；只有当所有协作者都应信任其 command 与 arguments 时才提交该文件。

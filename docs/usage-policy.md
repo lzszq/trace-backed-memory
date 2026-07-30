@@ -1419,7 +1419,9 @@ outer transaction, but the default cross-authority path is ordered recovery,
 not distributed atomicity. The separate opt-in `DurableFinalizationService`
 may verify a `DECIDED` session, render the final public/internal snippet,
 retain the complete replay bundle, and publish `FINALIZED`; active durable
-Agent, MCP, HTTP, and SDK emission remain unavailable.
+HTTP/MCP and Python/TypeScript SDK profiles now expose this composition.
+The default compatibility profiles, CLI durable selection, and remote
+shared-service emission remain unavailable.
 
 Use `DurableExecutionService.start()` only with the original
 `memory:retrieve` scope retained by the UsageDecision and a current
@@ -1497,18 +1499,22 @@ requires injection exposure. These settings do not grant access; normal
 transition or `artifact:read` authorization still applies.
 
 The facade and dispatcher are not transport authenticators and are not
-used by the default compatibility Agent/MCP profile. Explicit durable HTTP and
-trusted-local durable MCP profiles may select them only through the canonical
-runtime factory and operator-owned trusted contexts. Local MCP STDIO has no
+used by the default compatibility Agent/MCP profile. Explicit durable HTTP,
+trusted-local durable MCP, and `tbmd local` profiles may select them only
+through the canonical runtime factory and operator-owned trusted contexts.
+`tbmd local` must hold one owner-controlled state lock, share one runtime
+dispatcher across its transports and workers, require a deduplicating outbox
+consumer, and keep due DECIDED/FINALIZED/EXECUTING sessions in
+`recovery_required` rather than inventing abandonment. Local MCP STDIO has no
 independent peer authentication and must not be represented as shared-service
 MCP. Do not expose the dispatcher through a shared transport until
 the transport derives trusted identities and provider/evaluator credentials,
 the server configures the complete authority graph, external execution is
 idempotent by `run_id`, and the adapter has exact retry/recovery conformance
 tests. The durable facade authorizes public/internal replay reads; explicit
-durable HTTP/MCP and Python/TypeScript clients expose them only when startup
-policy enables content. Public/internal plaintext remains the only supported
-storage profile.
+durable HTTP/MCP, `tbmd local`, and Python/TypeScript clients expose them only
+when startup policy enables content. Public/internal plaintext remains the
+only supported storage profile.
 
 ## Version-3 outcome and attribution policy
 
@@ -1565,8 +1571,10 @@ reclaimed. Treat delivery as at least once: downstream consumers must
 deduplicate by the immutable `event_id`. A response digest is audit metadata
 and does not establish exactly-once remote effects. Do not repair an outcome
 that exists without its event; investigate and recover the violated transaction
-boundary. Active durable completion-outbox emission through Agent/MCP/HTTP/SDK
-remains unavailable. Treat each
+boundary. Active durable completion-outbox emission is available through the
+explicit durable HTTP/MCP and Python/TypeScript SDK profiles, and `tbmd local`
+runs bounded SQLite delivery pages. The default compatibility profiles and
+remote shared-service worker plane do not select this authority. Treat each
 database connection/schema owner as privileged; do not expose raw connection
 access or permit callers to replace functions, triggers, or catalog objects.
 

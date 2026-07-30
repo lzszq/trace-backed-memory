@@ -19,6 +19,7 @@ def test_package_metadata_exposes_dependency_free_cli_entry_points():
     assert metadata["project"]["license-files"] == ["LICENSE"]
     assert metadata["project"]["scripts"] == {
         "tbm": "trace_backed_memory.cli:main",
+        "tbmd": "trace_backed_memory.daemon_entry:main",
         "tbm-http": "trace_backed_memory.http_entry:main",
         "tbm-mcp": "trace_backed_memory.mcp_entry:main",
     }

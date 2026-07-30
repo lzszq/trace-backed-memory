@@ -158,8 +158,14 @@
     },
     {
       "id": "service.local-daemon",
-      "status": "planned",
-      "evidence": ["docs/status/current-capability-matrix.md"]
+      "status": "active",
+      "evidence": [
+        "src/trace_backed_memory/daemon_entry.py",
+        "src/trace_backed_memory/local_daemon_v3.py",
+        "tests/test_daemon_entry.py",
+        "tests/test_local_daemon_v3.py",
+        "docs/protocols/local-daemon-v1.md"
+      ]
     },
     {
       "id": "service.shared-multitenant",

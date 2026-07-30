@@ -107,8 +107,10 @@ Alone they do not change active SQLite schema version 1 or PostgreSQL schema
 version 2, emit network traffic, authenticate an evaluator, authorize artifact
 bytes, or create an OutcomeAttribution event. The durable execution/facade
 composition wires them into explicit durable HTTP/MCP and Python/TypeScript
-clients; default compatibility cutover and daemon-owned worker dispatch remain
-part of the coordinated version-3 program.
+clients. Explicit `tbmd local` operates bounded SQLite delivery pages and
+reclaims expired leases; default compatibility cutover, PostgreSQL
+shared-service dispatch, and remote consumer operations remain part of the
+coordinated version-3 program.
 The SQLite connection owner remains a trusted operator boundary: code that can
 replace registered SQLite functions or drop and recreate triggers can also
 rewrite the database and must not be exposed to untrusted callers.

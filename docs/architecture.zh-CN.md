@@ -392,8 +392,9 @@ version 2。完整契约见
 ## Durable GateSession version-3 契约
 
 `gate_session_v3.py` 发布与持久化实现无关的 `tbm.gate-session.v3` 记录和显式
-转换图，供未来 SQLite v2、PostgreSQL v3、`tbmd`、HTTP、MCP 与 SDK
-实现共同使用。一条不可变记录绑定 tenant、canonical repository、principal、
+转换图，供 opt-in SQLite/PostgreSQL v3 authority、durable HTTP/MCP/SDK profile
+与当前显式 `tbmd local` SQLite 组合共同使用。一条不可变记录绑定 tenant、
+canonical repository、principal、
 agent client、Trace/run identity、request fingerprint、idempotency key、expiry、
 lease 与各阶段证据 ID。每次状态转换都要求当前 revision，并返回 `version + 1`；
 stale revision 与非法转换使用不同的稳定错误码。
@@ -605,9 +606,10 @@ transaction 同时包含 session transition 与 attempt-byte storage；否则服
 replay-manifest/finalization 挂接：它在确定性有界渲染前后复查当前 authorization
 event、active head 与 policy，保留并读回完整 component bundle，再通过 CAS 发布
 `FINALIZED`。共享 SQLite/PostgreSQL connection 时，调用方可一起回滚 lease、bundle
-与最终 session revision；authority 分离时使用显式恢复。有签名 provider attestation、
-受保护内容加密、retention、transport-authenticated replay 暴露、持久
-transition-event linkage 与 active emission 尚未提供。`durable_execution_v3.py`
+与最终 session revision；authority 分离时使用显式恢复。显式 durable HTTP/MCP
+transport 只会在启动时 content policy 允许时暴露已授权
+replay。生产 shared-service 的受保护内容加密/retention、有签名 provider
+attestation 与持久 transition-event linkage 尚未提供。`durable_execution_v3.py`
 提供 opt-in runtime 后半段：
 回放并核验精确保留 finalization bundle，要求当前 owner-matched transition 授权，
 通过 CAS 发布 `EXECUTING`，支持精确 revision 的 resume/abandonment，通过每次调用的
@@ -778,8 +780,9 @@ transition 都追加新 revision。Delivery 是 at least once，因此 consumer 
 内容派生 event ID 去重。SQLite 使用 thread-local mutation scope 与共享 connection
 lock；PostgreSQL 使用 database-time transition、row-locked `SKIP LOCKED`
 claim、CAS head、canonical database trigger、精确 catalog 校验与 fail-closed
-rollback。opt-in durable execution 组合现已提供 evaluator authenticator；
-artifact authorization 与 active runtime emission 仍是独立后续工作。storage-neutral
+rollback。opt-in durable execution 组合现已提供 evaluator authenticator，
+并由显式 durable transport 选择；Protected Artifact integration 与 shared-service
+worker deployment 仍是独立后续工作。storage-neutral
 `CompletionOutboxDeliveryWorker` 可以在任一 authority 上执行一次有界 dispatch：
 在 consumer side effect 前校验整个 claim page，只持久化清洗后的 consumer error
 code，使用精确 version 写入 acknowledgement/failure，核验完整 transition 与

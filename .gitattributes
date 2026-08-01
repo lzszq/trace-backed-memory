@@ -1,0 +1,8 @@
+# Canonical packaged resources are hashed byte-for-byte. Keep their text
+# representation stable across Windows and POSIX checkouts.
+/examples/** text eol=lf
+/memory/** text eol=lf
+/schemas/** text eol=lf
+/src/trace_backed_memory/_resources/** text eol=lf
+/resources/manifest.json text eol=lf
+/src/trace_backed_memory/_resource_manifest.json text eol=lf

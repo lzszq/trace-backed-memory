@@ -43,6 +43,7 @@ def test_resource_manifest_is_the_exact_runtime_allowlist() -> None:
         source = ROOT / str(entry["source"])
         installed = ROOT / str(entry["installed"])
         data = source.read_bytes()
+        assert b"\r\n" not in data, f"canonical resource is not LF-only: {name}"
         assert installed.read_bytes() == data
         assert tbm.read_packaged_resource(name) == data
         assert entry["size_bytes"] == len(data)

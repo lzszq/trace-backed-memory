@@ -187,8 +187,8 @@
       "media_type": "application/json",
       "source": "examples/failure_case.example.json",
       "installed": "src/trace_backed_memory/_resources/examples/failure_case.example.json",
-      "size_bytes": 611,
-      "sha256": "c2140e20e53b39bb3156637f33bf2f3fc64c5e965ddb15f017518f25307264bb"
+      "size_bytes": 596,
+      "sha256": "c54602f8ce6268c47c9eaed5d66994d46514679e1722fbd3988d1ca292d36569"
     },
     {
       "name": "examples/fix_evidence_v3.example.json",
@@ -223,8 +223,8 @@
       "media_type": "application/json",
       "source": "examples/lesson.example.json",
       "installed": "src/trace_backed_memory/_resources/examples/lesson.example.json",
-      "size_bytes": 512,
-      "sha256": "c863a94c2c495b6a3b7c2b7f30143bd012622370ac311f7cbc980717edb06759"
+      "size_bytes": 495,
+      "sha256": "b79860c45636acad31b3720fa7abbf386b6f44ffdecbf28c1f320ad19e9258e1"
     },
     {
       "name": "examples/managed_index_bundle_v3.example.json",
@@ -241,8 +241,8 @@
       "media_type": "application/json",
       "source": "examples/memory_context.example.json",
       "installed": "src/trace_backed_memory/_resources/examples/memory_context.example.json",
-      "size_bytes": 207,
-      "sha256": "e21477a433cd12457942cf89264d4b6f4c307908e3212a613bfe81ed4b09fc56"
+      "size_bytes": 198,
+      "sha256": "becfbbb7b6bd1a97c98ed0c3ce5d98eee785024d44f7d336af12705a679b7e50"
     },
     {
       "name": "examples/memory_decision.example.json",
@@ -250,8 +250,8 @@
       "media_type": "application/json",
       "source": "examples/memory_decision.example.json",
       "installed": "src/trace_backed_memory/_resources/examples/memory_decision.example.json",
-      "size_bytes": 272,
-      "sha256": "87359bd32e8152389b60d8b13169c54cfb951d0a81fe214b1f99521e0c8de285"
+      "size_bytes": 264,
+      "sha256": "808d2770e950cea4daee54d76208f2363ee6ac0adbf4959732185abce1d2d3a7"
     },
     {
       "name": "examples/memory_revision_activation_v3.example.json",
@@ -286,8 +286,8 @@
       "media_type": "application/json",
       "source": "examples/memory_usage_log.example.json",
       "installed": "src/trace_backed_memory/_resources/examples/memory_usage_log.example.json",
-      "size_bytes": 788,
-      "sha256": "deea3d59246c37e6d61108c8c75fb5ff4a2230b0612569ede00b07625449829e"
+      "size_bytes": 765,
+      "sha256": "d0720d1bd99eb9c2f43852ebc2ae133f1ad3750d2f233610c715dcb45eef6773"
     },
     {
       "name": "examples/outcome_attribution_v3.example.json",
@@ -304,8 +304,8 @@
       "media_type": "application/json",
       "source": "examples/project_policy.example.json",
       "installed": "src/trace_backed_memory/_resources/examples/project_policy.example.json",
-      "size_bytes": 346,
-      "sha256": "23a9f8d01fe880e8cdc1d43ee69a9992e9fce10ab17f0551dbfe5bcb702f8dce"
+      "size_bytes": 333,
+      "sha256": "86bca1f9377deb81ac53f213854b7a11b78a0588541671631f21331a66ab7f4d"
     },
     {
       "name": "examples/quickstart.py",
@@ -430,8 +430,8 @@
       "media_type": "application/json",
       "source": "examples/trace.example.json",
       "installed": "src/trace_backed_memory/_resources/examples/trace.example.json",
-      "size_bytes": 748,
-      "sha256": "e1d5c58fd1411aaf1fb289b321c13334ad5d4f5fcf98ee4323d164f4ba8204f6"
+      "size_bytes": 723,
+      "sha256": "92c572d8b5e473c5f9837cb95bae3cf15357e39b4bf9e0ad8cde82e1bcedec55"
     },
     {
       "name": "examples/usage_decision_v3.example.json",
@@ -448,8 +448,8 @@
       "media_type": "application/yaml",
       "source": "memory/failure_taxonomy.yaml",
       "installed": "src/trace_backed_memory/_resources/memory/failure_taxonomy.yaml",
-      "size_bytes": 650,
-      "sha256": "2f5d7d44f30f841893e411e3328c2265e81383e2720cc765266d04ec079a6910"
+      "size_bytes": 637,
+      "sha256": "5272b79572e19cc57e9eaba2f5a2e72bcd8dfc4972ab2fd4fa455302be3f7c0d"
     },
     {
       "name": "memory/lessons.example.yaml",
@@ -457,8 +457,8 @@
       "media_type": "application/yaml",
       "source": "memory/lessons.example.yaml",
       "installed": "src/trace_backed_memory/_resources/memory/lessons.example.yaml",
-      "size_bytes": 466,
-      "sha256": "ceba703594d0162a28d5ba37fc30b9b7224ff3c834bd1ce27e0a38783964846d"
+      "size_bytes": 450,
+      "sha256": "42bc87a9e84a3fb235e3e2e4aacadd4b878dfa3a1bdb9605735f3a8847089623"
     },
     {
       "name": "schemas/agent-http-v1.openapi.json",
@@ -664,8 +664,8 @@
       "media_type": "application/schema+json",
       "source": "schemas/failure_case.schema.json",
       "installed": "src/trace_backed_memory/_resources/schemas/failure_case.schema.json",
-      "size_bytes": 2667,
-      "sha256": "6aa481172d9ccc534c4bede6fe7b02c4705d72c9f5967fadfdd0cac48b9d5709"
+      "size_bytes": 2634,
+      "sha256": "2097a98f92b0c3e5fb7e57478cb42716be057218a45cd36e446fa1dc2a6826cb"
     },
     {
       "name": "schemas/fix_evidence_v3.schema.json",
@@ -700,8 +700,8 @@
       "media_type": "application/schema+json",
       "source": "schemas/lesson.schema.json",
       "installed": "src/trace_backed_memory/_resources/schemas/lesson.schema.json",
-      "size_bytes": 1758,
-      "sha256": "91cd31fd68578b3631974d62e9a64e92a8fb372016237a425e37df1363f8252e"
+      "size_bytes": 1709,
+      "sha256": "458259e23a7cb87db8973dac54a3c5f50712eae0b2f9a9705e6032899d0f6ff5"
     },
     {
       "name": "schemas/managed_index_bundle_v3.schema.json",
@@ -718,8 +718,8 @@
       "media_type": "application/schema+json",
       "source": "schemas/memory_context.schema.json",
       "installed": "src/trace_backed_memory/_resources/schemas/memory_context.schema.json",
-      "size_bytes": 1741,
-      "sha256": "1ed4d2c734dab0a19c828abb871e8a5e2f67e9f8fe6ece8c308809556b3220fc"
+      "size_bytes": 1708,
+      "sha256": "98244e7f1d55c81a7a5eb429cc8298d571ec54f3fcf1ec04ceb3593d05ebd177"
     },
     {
       "name": "schemas/memory_decision.schema.json",
@@ -727,8 +727,8 @@
       "media_type": "application/schema+json",
       "source": "schemas/memory_decision.schema.json",
       "installed": "src/trace_backed_memory/_resources/schemas/memory_decision.schema.json",
-      "size_bytes": 1516,
-      "sha256": "10ce068be2461f8934dc80c25e766c1146daf78a498bebe850ea47b83ba556e7"
+      "size_bytes": 1471,
+      "sha256": "1809cf4238a338eb2ea723967c2d02364699cb4adb1a88e1790708470159dbe4"
     },
     {
       "name": "schemas/memory_revision_activation_v3.schema.json",
@@ -763,8 +763,8 @@
       "media_type": "application/schema+json",
       "source": "schemas/memory_store_snapshot.schema.json",
       "installed": "src/trace_backed_memory/_resources/schemas/memory_store_snapshot.schema.json",
-      "size_bytes": 941,
-      "sha256": "35926502ce3cc21dae9c97418e0fcee0b5b29929bd882994402338da452315a8"
+      "size_bytes": 907,
+      "sha256": "1c72c8949a77dcd2434d54892f5ac18ef31869cc2811277470085ff7a1271b9d"
     },
     {
       "name": "schemas/memory_usage_log.schema.json",
@@ -772,8 +772,8 @@
       "media_type": "application/schema+json",
       "source": "schemas/memory_usage_log.schema.json",
       "installed": "src/trace_backed_memory/_resources/schemas/memory_usage_log.schema.json",
-      "size_bytes": 3770,
-      "sha256": "bb5c220e5a64ecc9ec8217469738da7d7ada7e024836e34db4de1c00c571c0f7"
+      "size_bytes": 3656,
+      "sha256": "c2e77548af38c7b5fe26e2cd60f9e1a29a3ee01fb6f58f1f259186357dd4c0f3"
     },
     {
       "name": "schemas/outcome_attribution_v3.schema.json",
@@ -1114,8 +1114,8 @@
       "media_type": "application/sql",
       "source": "schemas/postgres.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/postgres.sql",
-      "size_bytes": 30131,
-      "sha256": "6c32ec2f5c67780496a2951b3d97df5ab908cabcb75c9b7bfcc418278e6b6e25"
+      "size_bytes": 29546,
+      "sha256": "eee6618db61fbce582aade3c29eeb3d60d93898c2674f22cb1be79661a74530a"
     },
     {
       "name": "schemas/project_policy.schema.json",
@@ -1123,8 +1123,8 @@
       "media_type": "application/schema+json",
       "source": "schemas/project_policy.schema.json",
       "installed": "src/trace_backed_memory/_resources/schemas/project_policy.schema.json",
-      "size_bytes": 1526,
-      "sha256": "edbcd34f9f24519f9c016e88da89cb21d08a9b2baafd87256cd482760126fb27"
+      "size_bytes": 1482,
+      "sha256": "71cf4ae8bc82aa34d2a2c7027e7920f25840ad1889c8f48fc847ff075050935a"
     },
     {
       "name": "schemas/recovery_action_v3.schema.json",
@@ -1420,8 +1420,8 @@
       "media_type": "application/schema+json",
       "source": "schemas/trace.schema.json",
       "installed": "src/trace_backed_memory/_resources/schemas/trace.schema.json",
-      "size_bytes": 2460,
-      "sha256": "fda330bff2f808ad5c658a39c4db797e55334ec7e1b1c129713fa4e7f5a01e87"
+      "size_bytes": 2408,
+      "sha256": "7890000168db271ff28c797004244d43f40b6c7bfd0bdb742333d88321c9fb46"
     },
     {
       "name": "schemas/usage_decision_v3.schema.json",

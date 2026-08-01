@@ -228,8 +228,9 @@ HTTP profile；默认兼容 HTTP/MCP、`AgentHTTPClient` 与普通 CLI 仍使用
 
 [ADR-0006](adr/0006-full-persistence-reducer-native-memory.zh-CN.md) 已冻结下一阶段
 产品架构：canonical event ledger、content-addressed artifact 与 versioned deterministic
-reducer。这是交付目标，不是 active 能力；当前持久化模型仍是 durable authority
-graph，`full_persistence` 仍为 `false`。在 event-first import、shadow comparison、
+reducer。这仍不是 active 事实来源能力：reducer/projection kernel 现在只通过显式
+event-ledger operator 路径使用；当前持久化模型仍是 durable authority graph，
+`full_persistence` 仍为 `false`。在 event-first import、shadow comparison、
 projection rebuild 与 cutover 证据全部完成前，既有 durable-v3 authority 都是迁移资产。
 
 可执行 F0 基础现已交付为三个严格契约：`tbm.event.v1` canonical
@@ -239,11 +240,19 @@ subscription 的存储中立 ledger 应用端口。仓库守卫还会把每个�
 SQLite/PostgreSQL 持久化模块登记为 ledger、replaceable projection、compatibility
 migration 或 bundle coordinator，并拒绝未登记 authority。F1 现已增加 opt-in SQLite
 与隔离 PostgreSQL event-ledger 后端，覆盖精确 Artifact descriptor、原子 append/replay、
-integrity/catalog 校验、backup/rollback 和跨后端一致性。reducer runtime、重建
-projection、lifecycle composition、cutover 与 active transport path 尚未选择它们。详见
+integrity/catalog 校验、backup/rollback 和跨后端一致性。lifecycle composition、
+cutover 与 active transport path 尚未选择它们。F1
+现在还交付 opt-in `tbm.reducer.v1` runtime：versioned descriptor 与 sealed registry、
+有界 canonical state、双执行 determinism 检查、typed-event/upcaster consumption、
+checkpoint/resume、poison evidence、shadow comparison、CAS activation、append-only
+rollback、SQLite/PostgreSQL checkpoint parity，以及显式 metadata-only `tbmd ledger` /
+`tbmd projection` operator 命令。同一 golden projection digest 会在 Windows/Linux 的
+Python 3.11-3.13 上核验。这些命令只操作显式选择的 event ledger，不会让当前 Gate 或
+Memory lifecycle 选择它。详见
 [规范事件 v1](protocols/event-v1.zh-CN.md)、
 [Event Type Registry v1](protocols/event-registry-v1.zh-CN.md) 与
-[Event Ledger Port v1](protocols/event-ledger-port-v1.zh-CN.md)。
+[Event Ledger Port v1](protocols/event-ledger-port-v1.zh-CN.md)，以及
+[Reducer 与 Projection Runtime v1](protocols/reducer-v1.zh-CN.md)。
 
 Phase 71 强化可信提升与运行时边界：Failure Case 只能来自 `fail`/`error` Trace，verify 前必须具备 reviewer、root cause 与 review timestamp，dirty source 不能激活 Lesson；LLM response 限制为 64 KiB、1,000 nodes、depth 20，reason 最多 2,000 字符；所有未被 LLM 选中的系统候选都会进入 blocked 审计，超过 50 项时确定性保留前 50 项并记录其余项；`short_summary` 与 `full_case_summary` 使用不同 renderer，关键词检索支持 Unicode。
 

@@ -827,8 +827,12 @@ immutable event/head/idempotency/checkpoint/Artifact-reference row、全库 inte
 与仅 descriptor 的 Artifact reference，先串行化 global position，再 row-lock tenant
 partition stream head；psycopg savepoint 保留 caller transaction，并在每次操作时核验
 精确 catalog digest。其显式 rollback 会锁定 schema，并拒绝 relation、function、trigger
-状态、policy 或 rule drift。两个后端具有跨 adapter receipt/page 一致性测试，但 active
-lifecycle command 还不会写入它们。
+状态、policy 或 rule drift。两个 schema 现在还会保留 immutable、content-addressed
+reducer checkpoint 与 append-only、连续的 projection activation chain。CAS
+activation/rollback 只选择已保留 build，绝不会修改 canonical event。两个后端具有跨
+adapter receipt/page 一致性测试。显式 metadata-only `tbmd ledger` / `tbmd projection`
+operator 命令可以检查并重建所选 SQLite ledger，但 active Gate 或 Memory lifecycle
+command 仍不会写入该 ledger。
 
 ## Full Persistence 目标架构
 
@@ -846,8 +850,14 @@ replay、有界 tenant/classification read、stream verification 和有界 subsc
 event-ledger 应用端口。详见[规范事件 v1](protocols/event-v1.zh-CN.md)、
 [Event Type Registry v1](protocols/event-registry-v1.zh-CN.md) 与
 [Event Ledger Port v1](protocols/event-ledger-port-v1.zh-CN.md)。F1 SQLite 与 PostgreSQL
-后端现已实现 append transaction 和 Artifact-reference 边界；reducer、可重建
-projection、lifecycle integration、migration 与 cutover 仍属于后续里程碑。
+后端现已实现 append transaction 和 Artifact-reference 边界。F1 还交付存储中立
+`tbm.reducer.v1` registry/runtime、有界 deterministic state、checkpoint/resume、poison
+evidence、shadow comparison、CAS activation/rollback、SQLite/PostgreSQL checkpoint
+持久化、显式 projection operator CLI，以及 Windows/Linux × Python 3.11-3.13 的
+golden-digest matrix。详见
+[Reducer 与 Projection Runtime v1](protocols/reducer-v1.zh-CN.md)。GateSession、Memory、
+index、outbox、audit 与 metrics 的领域 reducer，以及 active lifecycle integration、
+migration 与 cutover 仍属于后续里程碑。
 
 机器可读的 [`authority-registry.json`](status/authority-registry.json) 会把每个当前
 已登记 SQLite/PostgreSQL 持久化模块分类为 ledger、replaceable projection、compatibility

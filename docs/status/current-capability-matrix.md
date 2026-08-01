@@ -46,18 +46,18 @@ advance a status.
 | `replay.durable-v3` | Replay | Durable replay authorities | `opt-in` | Explicit durable HTTP/MCP export session-bound replay when startup policy enables content; default adapters do not. |
 | `completion.outbox-v3` | Completion | Outcome and outbox authority/worker | `opt-in` | Explicit `tbmd local` runs bounded SQLite delivery pages and reclaims expired leases; shared-service dispatch remains outstanding. |
 | `operations.audit-recovery-v3` | Operations | Audit and recovery authority/worker | `opt-in` | Explicit `tbmd local` expires due PREPARED/AWAITING_DECISION sessions; it does not execute arbitrary audit remediation actions. |
-| `protocol.canonical-event-v1` | Full Persistence protocol | `tbm.event.v1` canonical envelope | `opt-in` | Strict storage-neutral envelope, schema, example, and bilingual reference are delivered; the isolated SQLite/PostgreSQL event-ledger backends retain it exactly, but no reducer or active composition root selects it. |
-| `protocol.event-type-registry-v1` | Full Persistence protocol | Sealed typed event registry, payload schemas, and upcasters | `contract-only` | Unknown types/versions remain preservable but cannot be silently consumed; no reducer runtime selects the registry yet. |
+| `protocol.canonical-event-v1` | Full Persistence protocol | `tbm.event.v1` canonical envelope | `opt-in` | Strict storage-neutral envelope, schema, example, and bilingual reference are delivered; isolated SQLite/PostgreSQL event ledgers retain it exactly, and the opt-in inventory reducer can replay envelope metadata, but no active composition root selects it. |
+| `protocol.event-type-registry-v1` | Full Persistence protocol | Sealed typed event registry, payload schemas, and upcasters | `contract-only` | Unknown types/versions remain preservable but cannot be silently consumed; the generic reducer runtime can bind a sealed registry, but the end-user operator path exposes only an envelope-only inventory reducer and no typed domain lifecycle. |
 | `protocol.event-ledger-port-v1` | Full Persistence protocol | Atomic append/read/verify/subscribe application port | `opt-in` | Storage-neutral contracts are implemented by WAL/single-owner SQLite and row-locked PostgreSQL backends with exact replay, integrity/catalog verification, and cross-backend conformance. |
 | `migration.snapshot-v3` | Migration | Snapshot v3 plan/bundle/verify/staging | `contract-only` | No apply, cutover, or rollback orchestration. |
 | `persistence.unified-sqlite-v3` | Persistence cutover | Unified SQLite v3 schema | `opt-in` | One generated bundle installs and fingerprints all 16 durable authority schemas, including the event ledger; active compatibility remains SQLite 1. |
 | `persistence.unified-postgresql-v3` | Persistence cutover | Unified PostgreSQL v3 schema | `planned` | Current compatibility boundary is PostgreSQL 2. |
 | `persistence.canonical-event-ledger` | Full Persistence | Canonical append-only event ledger | `opt-in` | Isolated SQLite/PostgreSQL backends and descriptor-only Artifact references are delivered; they are not selected by the active composition root, so the current source-of-truth model remains the authority graph. |
-| `persistence.reducer-runtime` | Full Persistence | Versioned deterministic reducers and rebuildable projections | `planned` | No generic reducer runtime or complete projection rebuild exists yet. |
+| `persistence.reducer-runtime` | Full Persistence | Versioned deterministic reducers and rebuildable projections | `opt-in` | `tbm.reducer.v1` supplies sealed version/code/config registries, bounded double-executed state, typed upcasting, checkpoint/resume, poison evidence, shadow compare, approved CAS activation, and append-only rollback. SQLite/PostgreSQL retain checkpoints/head history; explicit `tbmd` operator commands rebuild the inventory projection. No active Gate/Memory lifecycle selects this runtime. |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | Explicit `tbm-http --profile durable-v3`; trusted application factory, bearer boundary, unified SQLite/PostgreSQL v3 runtime, content hidden by default. |
 | `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | Explicit `tbm-mcp --profile durable-v3`; trusted local application factory, bounded STDIO, unified SQLite/PostgreSQL v3 runtime, restart continuation, and content hidden by default. This is not peer-authenticated shared-service MCP. |
 | `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript clients | `active` | The explicit durable HTTP profile has synchronous/asynchronous Python clients and a dependency-free Node.js TypeScript client; one shared fixture runs through the Python and TypeScript lifecycle suites. |
-| `service.local-daemon` | Local service | Restartable `tbmd local` daemon | `active` | One locked owner-controlled SQLite process shares one runtime/dispatcher across bounded STDIO MCP, loopback HTTP, GateSession recovery, and outbox delivery; `init`, `doctor`, and `health` are deterministic. |
+| `service.local-daemon` | Local service | Restartable `tbmd local` daemon | `active` | One locked owner-controlled SQLite process shares one runtime/dispatcher across bounded STDIO MCP, loopback HTTP, GateSession recovery, and outbox delivery; `init`, `doctor`, and `health` are deterministic. Separate `tbmd ledger/projection` operator commands require an explicit event-ledger database and do not change `tbmd local` source-of-truth selection. |
 | `service.shared-multitenant` | Shared service | Remote transports, OIDC, RBAC/RLS, workload identity | `planned` | The Alpha release is not an untrusted multi-tenant service. |
 | `integration.review-console` | Engineering integration | Review Console | `planned` | No control-plane implementation is delivered. |
 | `integration.codex-hooks` | Engineering integration | Codex hooks/App Server adapter | `planned` | Existing integration is documentation, skills, and local MCP. |
@@ -75,10 +75,11 @@ advance a status.
 - [ADR-0006: Full Persistence and reducer-native memory](../adr/0006-full-persistence-reducer-native-memory.md)
 
 The current machine-readable boundary is
-`persistence_model="authority_graph"`, `ledger_protocol="tbm.event.v1"`, and
-`full_persistence=false`. The envelope and ledger port now have opt-in
-SQLite/PostgreSQL backends, but no active lifecycle composition, reducer, or
-cutover selects them as the current source of truth.
+`persistence_model="authority_graph"`, `ledger_protocol="tbm.event.v1"`,
+`reducer_protocol="tbm.reducer.v1"`, and `full_persistence=false`. The envelope,
+ledger backends, and generic reducer/projection operator path are opt-in; no
+active lifecycle composition or cutover selects them as the current source of
+truth.
 
 ## Promotion rule
 

@@ -42,7 +42,8 @@ BEGIN
         trace_backed_memory_v3_event_ledger.events,
         trace_backed_memory_v3_event_ledger.artifacts,
         trace_backed_memory_v3_event_ledger.idempotency,
-        trace_backed_memory_v3_event_ledger.checkpoints
+        trace_backed_memory_v3_event_ledger.checkpoints,
+        trace_backed_memory_v3_event_ledger.projection_activations
         IN ACCESS EXCLUSIVE MODE;
 
     SELECT array_agg(class.relname ORDER BY class.relname)
@@ -67,10 +68,13 @@ BEGIN
         'event_ledger_global_head_pkey',
         'event_ledger_idempotency_pkey',
         'event_ledger_idempotency_stream',
+        'event_ledger_projection_activations_pkey',
         'event_ledger_stream_heads_pkey',
         'events',
         'global_head',
         'idempotency',
+        'projection_activations',
+        'projection_activations_activation_sha256_key',
         'schema_metadata',
         'schema_metadata_pkey',
         'stream_heads'
@@ -91,6 +95,7 @@ BEGIN
         'validate_event_insert',
         'validate_global_head_insert',
         'validate_global_head_update',
+        'validate_projection_activation_insert',
         'validate_stream_head_insert',
         'validate_stream_head_update'
     ]::text[] THEN
@@ -122,6 +127,9 @@ BEGIN
         'event_ledger_global_head_no_truncate',
         'event_ledger_idempotency_immutable',
         'event_ledger_idempotency_no_truncate',
+        'event_ledger_projection_activations_immutable',
+        'event_ledger_projection_activations_no_truncate',
+        'event_ledger_projection_activations_validate_insert',
         'event_ledger_schema_immutable',
         'event_ledger_schema_no_truncate',
         'event_ledger_stream_heads_advance',
@@ -154,6 +162,7 @@ END
 $$;
 
 DROP TABLE
+    trace_backed_memory_v3_event_ledger.projection_activations,
     trace_backed_memory_v3_event_ledger.checkpoints,
     trace_backed_memory_v3_event_ledger.idempotency,
     trace_backed_memory_v3_event_ledger.artifacts,
@@ -167,6 +176,7 @@ DROP FUNCTION
     trace_backed_memory_v3_event_ledger.reject_immutable_change(),
     trace_backed_memory_v3_event_ledger.validate_global_head_insert(),
     trace_backed_memory_v3_event_ledger.validate_global_head_update(),
+    trace_backed_memory_v3_event_ledger.validate_projection_activation_insert(),
     trace_backed_memory_v3_event_ledger.validate_stream_head_insert(),
     trace_backed_memory_v3_event_ledger.validate_stream_head_update(),
     trace_backed_memory_v3_event_ledger.validate_event_insert(),

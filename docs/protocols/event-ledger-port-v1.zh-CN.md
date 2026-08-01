@@ -2,7 +2,7 @@
 
 [English](event-ledger-port-v1.md) | **简体中文**
 
-`tbm.event-ledger-port.v1` 冻结未来 canonical `tbm.event.v1` ledger 的存储中立应用端口。它定义可信访问、原子批量追加、精确重放、有界读取、stream 校验和有界订阅。F0 交付该契约；F1 现已增加显式 opt-in SQLite 与隔离 PostgreSQL 实现，但 active Agent、daemon、HTTP、MCP、CLI 与 SDK composition 尚未选择它们。
+`tbm.event-ledger-port.v1` 冻结未来 canonical `tbm.event.v1` ledger 的存储中立应用端口。它定义可信访问、原子批量追加、精确重放、有界读取、stream 校验和有界订阅。F0 交付该契约；F1 现已增加显式 opt-in SQLite 与隔离 PostgreSQL 实现，但 active Agent、`tbmd local`、HTTP、MCP 与 SDK composition 尚未选择它们。metadata-only `tbmd ledger` / `tbmd projection` operator 命令可以选择一份显式 SQLite event-ledger 文件，执行 verification 与 inventory rebuild。
 
 ## 可信访问边界
 
@@ -46,4 +46,4 @@
 
 契约区分 invalid request、过期 stream head、idempotency conflict、scope denial、classification denial、隐藏或不存在的记录，以及 unsupported operation。消息保持有界并经过清理。实现必须保留这些含义，不得独立复制 authorization 或 Gate policy。
 
-这些 opt-in 后端不会把现有 durable-v3 authority 变成 event projection，不运行 reducer，也不改变当前 compatibility Store 或默认 Agent/MCP 行为。在 event-first composition root 与已验证 cutover 选择它们之前，机器可读持久化模型仍是 `authority_graph`，且 `full_persistence=false`。
+这些 opt-in 后端不会把现有 durable-v3 authority 变成 event projection，也不会改变当前 compatibility Store 或默认 Agent/MCP 行为。generic F1 reducer runtime 与 operator CLI 可以在这些 schema 中保留 checkpoint 和 projection-head history，但内置的只有 envelope-only inventory reducer。在 event-first composition root 与已验证 cutover 选择 domain lifecycle 之前，机器可读持久化模型仍是 `authority_graph`，且 `full_persistence=false`。

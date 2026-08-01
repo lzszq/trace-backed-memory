@@ -260,6 +260,35 @@ CREATE TABLE trace_backed_memory_v3_event_ledger.checkpoints (
     )
 );
 
+CREATE TABLE trace_backed_memory_v3_event_ledger.projection_activations (
+    projection_name text COLLATE "C" NOT NULL,
+    partition_sha256 text COLLATE "C" NOT NULL CHECK (
+        partition_sha256 ~ '^sha256:[0-9a-f]{64}$'
+    ),
+    head_version bigint NOT NULL CHECK (head_version >= 1),
+    target_build_id text COLLATE "C" NOT NULL CHECK (
+        target_build_id ~ '^sha256:[0-9a-f]{64}$'
+    ),
+    previous_build_id text COLLATE "C" CHECK (
+        previous_build_id IS NULL
+        OR previous_build_id ~ '^sha256:[0-9a-f]{64}$'
+    ),
+    operation text COLLATE "C" NOT NULL CHECK (
+        operation IN ('activate', 'rollback')
+    ),
+    activation_sha256 text COLLATE "C" NOT NULL UNIQUE CHECK (
+        activation_sha256 ~ '^sha256:[0-9a-f]{64}$'
+    ),
+    descriptor text COLLATE "C" NOT NULL CHECK (
+        octet_length(descriptor) BETWEEN 2 AND 1048576
+    ),
+    CONSTRAINT event_ledger_projection_activations_pkey PRIMARY KEY (
+        projection_name,
+        partition_sha256,
+        head_version
+    )
+);
+
 CREATE FUNCTION trace_backed_memory_v3_event_ledger.reject_immutable_change()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -267,6 +296,36 @@ SET search_path = pg_catalog
 AS $$
 BEGIN
     RAISE EXCEPTION 'PostgreSQL event ledger records are immutable';
+END
+$$;
+
+CREATE FUNCTION trace_backed_memory_v3_event_ledger.validate_projection_activation_insert()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog
+AS $$
+BEGIN
+    IF NEW.head_version = 1 THEN
+        IF NEW.previous_build_id IS NOT NULL
+           OR EXISTS (
+                SELECT 1
+                FROM trace_backed_memory_v3_event_ledger.projection_activations
+                WHERE projection_name = NEW.projection_name
+                  AND partition_sha256 = NEW.partition_sha256
+           ) THEN
+            RAISE EXCEPTION 'projection activation does not start its head';
+        END IF;
+    ELSIF NOT EXISTS (
+        SELECT 1
+        FROM trace_backed_memory_v3_event_ledger.projection_activations
+        WHERE projection_name = NEW.projection_name
+          AND partition_sha256 = NEW.partition_sha256
+          AND head_version = NEW.head_version - 1
+          AND target_build_id = NEW.previous_build_id
+    ) THEN
+        RAISE EXCEPTION 'projection activation does not advance its head';
+    END IF;
+    RETURN NEW;
 END
 $$;
 
@@ -482,6 +541,19 @@ FOR EACH ROW EXECUTE FUNCTION
 trace_backed_memory_v3_event_ledger.reject_immutable_change();
 CREATE TRIGGER event_ledger_checkpoints_no_truncate
 BEFORE TRUNCATE ON trace_backed_memory_v3_event_ledger.checkpoints
+FOR EACH STATEMENT EXECUTE FUNCTION
+trace_backed_memory_v3_event_ledger.reject_immutable_change();
+
+CREATE TRIGGER event_ledger_projection_activations_validate_insert
+BEFORE INSERT ON trace_backed_memory_v3_event_ledger.projection_activations
+FOR EACH ROW EXECUTE FUNCTION
+trace_backed_memory_v3_event_ledger.validate_projection_activation_insert();
+CREATE TRIGGER event_ledger_projection_activations_immutable
+BEFORE UPDATE OR DELETE ON trace_backed_memory_v3_event_ledger.projection_activations
+FOR EACH ROW EXECUTE FUNCTION
+trace_backed_memory_v3_event_ledger.reject_immutable_change();
+CREATE TRIGGER event_ledger_projection_activations_no_truncate
+BEFORE TRUNCATE ON trace_backed_memory_v3_event_ledger.projection_activations
 FOR EACH STATEMENT EXECUTE FUNCTION
 trace_backed_memory_v3_event_ledger.reject_immutable_change();
 

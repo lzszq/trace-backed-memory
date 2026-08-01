@@ -60,9 +60,15 @@ python -m pytest tests/test_agent.py -q
 python -m pytest tests/test_mcp_server.py -q
 python -m pytest tests/test_sqlite_repository.py -q
 python -m pytest tests/test_postgres_repository.py -q
+python tools/verify_projection_determinism.py
 python -m ruff check src tools examples
 python -m mypy src/trace_backed_memory
 ```
+
+The projection determinism verifier replays the committed canonical event
+fixture and compares the exact projection digest with its committed golden
+value. CI repeats this check on Ubuntu and Windows for Python 3.11, 3.12, and
+3.13; any digest drift fails the matrix.
 
 PostgreSQL tests may skip in ordinary local runs when server tools are absent.
 Release and CI qualification must require them.

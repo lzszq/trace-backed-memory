@@ -4,7 +4,10 @@
   "product_version": "0.1.0",
   "persistence_model": "authority_graph",
   "ledger_protocol": "tbm.event.v1",
+  "reducer_protocol": "tbm.reducer.v1",
   "full_persistence": false,
+  "projection_rebuild": true,
+  "event_export": false,
   "status_values": [
     "active",
     "opt-in",
@@ -186,8 +189,19 @@
     },
     {
       "id": "persistence.reducer-runtime",
-      "status": "planned",
-      "evidence": ["docs/adr/0006-full-persistence-reducer-native-memory.md"]
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/reducer.py",
+        "src/trace_backed_memory/reducer_registry.py",
+        "src/trace_backed_memory/projection.py",
+        "src/trace_backed_memory/projection_checkpoint.py",
+        "src/trace_backed_memory/daemon_entry.py",
+        "tests/test_reducer_projection.py",
+        "tests/test_sqlite_event_ledger_v1.py",
+        "tests/test_postgres_event_ledger_v1.py",
+        "tools/verify_projection_determinism.py",
+        "docs/protocols/reducer-v1.md"
+      ]
     },
     {
       "id": "transport.durable-http",

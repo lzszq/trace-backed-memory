@@ -41,6 +41,7 @@ orientation; these documents define the engineering contracts.
 - [Canonical event envelope `tbm.event.v1`](protocols/event-v1.md)
 - [Event type registry and upcasters v1](protocols/event-registry-v1.md)
 - [Event ledger application port v1](protocols/event-ledger-port-v1.md)
+- [Reducer and projection runtime v1](protocols/reducer-v1.md)
 - [Structured regression evidence v3](protocols/evidence-v3.md)
 - [FixEvidence v3](protocols/fix-evidence-v3.md)
 - [MemoryRevision proposal and publication events v3](protocols/memory-revision-v3.md)
@@ -104,8 +105,12 @@ process-local.
 The canonical event envelope, sealed typed registry/upcaster catalog, and
 storage-neutral event-ledger port are strict F0 boundaries. F1 adds opt-in
 SQLite/PostgreSQL ledger backends and descriptor-only Artifact linkage; no
-generic reducer or active composition root selects them, so the active
-source-of-truth model remains the registered authority graph.
+active composition root selects them, so the active source-of-truth model
+remains the registered authority graph. The opt-in `tbm.reducer.v1` runtime,
+SQLite/PostgreSQL checkpoints and projection-head history, explicit `tbmd`
+operator rebuild/compare/swap/rollback commands, and six-cell deterministic
+golden matrix are delivered; only the envelope inventory reducer is built in,
+not the active Gate or Memory projections.
 The persistence-neutral `tbm.gate-session.v3` lifecycle contract and opt-in
 side-by-side SQLite and isolated PostgreSQL revision repositories are
 published. Opt-in preparation, Semantic Gate, completion, and recovery

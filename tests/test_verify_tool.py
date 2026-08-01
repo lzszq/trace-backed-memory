@@ -20,11 +20,21 @@ def test_verify_tool_lists_fast_cross_platform_commands_without_running():
     assert payload["mode"] == "fast"
     assert payload["postgres_required"] is False
     assert payload["node_required"] is False
-    assert [command[2] for command in payload["commands"]] == [
-        "compileall",
-        "ruff",
-        "mypy",
-        "pytest",
+    assert payload["commands"] == [
+        [
+            sys.executable,
+            "-m",
+            "compileall",
+            "-q",
+            "src",
+            "tests",
+            "tools",
+            "examples",
+        ],
+        [sys.executable, "-m", "ruff", "check", "src", "tools", "examples"],
+        [sys.executable, "-m", "mypy", "src/trace_backed_memory"],
+        [sys.executable, "tools/verify_projection_determinism.py"],
+        [sys.executable, "-m", "pytest"],
     ]
 
 

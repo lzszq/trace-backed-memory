@@ -28,10 +28,12 @@ from .ledger_port_v1 import (
     EventLedgerConflictError,
     EventLedgerIdempotencyConflictError,
     EventLedgerInvalidRequestError,
+    EventLedgerNotFoundError,
     EventLedgerPortError,
     LedgerAccessContext,
     LedgerAppendReceipt,
     LedgerAppendRequest,
+    LedgerClassificationFilter,
     LedgerGlobalReadRequest,
     LedgerIdempotency,
     LedgerPage,
@@ -49,6 +51,17 @@ from .ledger_port_v1 import (
     verify_ledger_stream_verification,
 )
 from .locking import snapshot_write_lock
+from .projection_checkpoint import (
+    PROJECTION_MAX_ACTIVATIONS_PER_LIST,
+    PROJECTION_MAX_CHECKPOINTS_PER_LIST,
+    ProjectionActivation,
+    ProjectionCheckpoint,
+    ProjectionCheckpointConflictError,
+    ProjectionCheckpointError,
+    ProjectionCheckpointNotFoundError,
+    parse_projection_activation,
+    parse_projection_checkpoint,
+)
 from .resources import PackagedResourceError, read_packaged_resource
 
 
@@ -81,6 +94,10 @@ _SCHEMA_OBJECT_NAMES = (
     "v3_event_ledger_idempotency",
     "v3_event_ledger_idempotency_immutable_delete",
     "v3_event_ledger_idempotency_immutable_update",
+    "v3_event_ledger_projection_activations",
+    "v3_event_ledger_projection_activations_immutable_delete",
+    "v3_event_ledger_projection_activations_immutable_update",
+    "v3_event_ledger_projection_activations_validate_insert",
     "v3_event_ledger_schema_immutable_delete",
     "v3_event_ledger_schema_immutable_update",
     "v3_event_ledger_stream_heads",
@@ -446,6 +463,140 @@ class SQLiteEventLedgerV1:
         ) as error:
             raise _persistence_error(
                 "failed to connect to SQLite event ledger storage"
+            ) from error
+        finally:
+            if connection is not None:
+                connection.close()
+            if lock_context is not None:
+                lock_context.__exit__(None, None, None)
+
+    @classmethod
+    def connect_operator(
+        cls,
+        database: str | Path,
+        *,
+        partition_sha256: str | None = None,
+        timeout_seconds: int | float = 30.0,
+    ) -> SQLiteEventLedgerV1:
+        """Open one existing partition with an explicit local operator view."""
+
+        if type(database) is not str and not isinstance(database, Path):
+            raise ValueError("database must be a string or Path")
+        if partition_sha256 is not None and not _valid_digest(partition_sha256):
+            raise ValueError("partition_sha256 must be a canonical digest")
+        if (
+            type(timeout_seconds) not in {int, float}
+            or not math.isfinite(timeout_seconds)
+            or timeout_seconds < 0
+        ):
+            raise ValueError("timeout_seconds must be non-negative")
+        database_path = Path(database).expanduser().resolve(strict=False)
+        if not database_path.is_file():
+            raise EventLedgerNotFoundError(
+                "TBM_EVENT_LEDGER_NOT_FOUND",
+                "SQLite event ledger database does not exist",
+            )
+        lock_context: AbstractContextManager[None] | None = None
+        connection: sqlite3.Connection | None = None
+        try:
+            lock_context = snapshot_write_lock(
+                database_path,
+                timeout_seconds=timeout_seconds,
+            )
+            lock_context.__enter__()
+            connection = sqlite3.connect(
+                database_path,
+                timeout=float(timeout_seconds),
+                isolation_level=None,
+                check_same_thread=False,
+            )
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute("PRAGMA recursive_triggers = ON")
+            connection.execute("PRAGMA synchronous = FULL")
+            mode = connection.execute("PRAGMA journal_mode = WAL").fetchone()
+            if mode is None or str(mode[0]).casefold() != "wal":
+                raise _schema_error(
+                    "SQLite event ledger requires WAL journal mode"
+                )
+            with closing(connection.cursor()) as cursor:
+                if _read_schema_definitions(cursor) != _canonical_schema_definitions():
+                    raise _schema_error(
+                        "SQLite event ledger schema definition mismatch"
+                    )
+                cursor.execute(
+                    "SELECT DISTINCT partition_sha256, organization_id, "
+                    "tenant_id, repository_id, environment_id "
+                    "FROM v3_event_ledger_events ORDER BY partition_sha256"
+                )
+                rows = cursor.fetchall()
+            partitions: dict[str, LedgerTenantPartition] = {}
+            for row in rows:
+                if len(row) != 5 or any(type(item) is not str for item in row):
+                    raise _integrity_error(
+                        "SQLite event ledger partition inventory is malformed"
+                    )
+                partition = LedgerTenantPartition(
+                    organization_id=row[1],
+                    tenant_id=row[2],
+                    repository_id=row[3],
+                    environment_id=row[4],
+                )
+                if row[0] != partition.partition_sha256:
+                    raise _integrity_error(
+                        "SQLite event ledger partition identity is inconsistent"
+                    )
+                retained = partitions.get(row[0])
+                if retained is not None and retained != partition:
+                    raise _integrity_error(
+                        "SQLite event ledger partition identity is ambiguous"
+                    )
+                partitions[row[0]] = partition
+            if not partitions:
+                raise EventLedgerNotFoundError(
+                    "TBM_EVENT_LEDGER_PARTITION_NOT_FOUND",
+                    "SQLite event ledger has no retained partition",
+                )
+            if partition_sha256 is None:
+                if len(partitions) != 1:
+                    raise EventLedgerInvalidRequestError(
+                        "TBM_EVENT_LEDGER_PARTITION_REQUIRED",
+                        "partition digest is required for a multi-partition ledger",
+                    )
+                partition = next(iter(partitions.values()))
+            else:
+                partition = partitions.get(partition_sha256)
+                if partition is None:
+                    raise EventLedgerNotFoundError(
+                        "TBM_EVENT_LEDGER_PARTITION_NOT_FOUND",
+                        "requested SQLite event ledger partition is not retained",
+                    )
+            access = LedgerAccessContext(
+                partition=partition,
+                principal_id="principal_tbmd_projection_operator",
+                agent_client_id="agent_client_tbmd_projection_operator",
+                actor_type="service",
+                actor_id="service_tbmd_projection_operator",
+                authorization_decision_id="authorization_tbmd_projection_operator",
+                classification_filter=LedgerClassificationFilter(
+                    ("public", "internal", "confidential", "restricted")
+                ),
+            )
+            repository = cls(
+                connection,
+                access,
+                owns_connection=True,
+                require_wal=True,
+                database_path=database_path,
+                file_lock=lock_context,
+            )
+            connection = None
+            lock_context = None
+            return repository
+        except (EventLedgerPortError, SQLiteEventLedgerV1Error):
+            raise
+        except (OSError, sqlite3.Error, TypeError, ValueError) as error:
+            raise _persistence_error(
+                "failed to open SQLite event ledger operator view"
             ) from error
         finally:
             if connection is not None:
@@ -1370,6 +1521,599 @@ class SQLiteEventLedgerV1:
                 raise _integrity_error(
                     "stored projection checkpoint descriptor is noncanonical"
                 )
+            try:
+                checkpoint = parse_projection_checkpoint(parsed_descriptor)
+            except ProjectionCheckpointError as error:
+                raise _integrity_error(
+                    "stored projection checkpoint descriptor is invalid"
+                ) from error
+            if (
+                checkpoint.projection_name != projection_name
+                or checkpoint.reducer_version != projection_version
+                or checkpoint.partition_sha256 != partition_sha256
+                or checkpoint.global_position != global_position
+                or checkpoint.state_sha256 != state_sha256
+            ):
+                raise _integrity_error(
+                    "stored projection checkpoint columns do not match its descriptor"
+                )
+
+        cursor.execute(
+            "SELECT projection_name, partition_sha256, head_version, "
+            "target_build_id, previous_build_id, activation_sha256, descriptor "
+            "FROM v3_event_ledger_projection_activations "
+            "ORDER BY projection_name, partition_sha256, head_version"
+        )
+        activation_heads: dict[tuple[str, str], ProjectionActivation] = {}
+        for row in cursor.fetchall():
+            activation = self._projection_activation_from_row(tuple(row))
+            key = (activation.projection_name, activation.partition_sha256)
+            previous = activation_heads.get(key)
+            expected_version = 1 if previous is None else previous.head_version + 1
+            expected_build = None if previous is None else previous.target_build_id
+            if (
+                activation.head_version != expected_version
+                or activation.previous_build_id != expected_build
+            ):
+                raise _integrity_error(
+                    "stored projection activation chain is not contiguous"
+                )
+            cursor.execute(
+                "SELECT descriptor FROM v3_event_ledger_checkpoints "
+                "WHERE projection_name = ? AND partition_sha256 = ? "
+                "AND json_extract(descriptor, '$.build_id') = ?",
+                (
+                    activation.projection_name,
+                    activation.partition_sha256,
+                    activation.target_build_id,
+                ),
+            )
+            target_rows = cursor.fetchall()
+            if len(target_rows) != 1:
+                raise _integrity_error(
+                    "stored projection activation target is not retained exactly once"
+                )
+            activation_heads[key] = activation
+
+    def _projection_checkpoint_from_row(
+        self,
+        row: tuple[object, ...],
+    ) -> ProjectionCheckpoint:
+        if len(row) != 6 or type(row[5]) is not str:
+            raise _integrity_error(
+                "stored projection checkpoint has an invalid shape"
+            )
+        try:
+            parsed = json.loads(row[5])
+            if _canonical_json(parsed) != row[5]:
+                raise ValueError("checkpoint descriptor is noncanonical")
+            checkpoint = parse_projection_checkpoint(parsed)
+        except (ProjectionCheckpointError, TypeError, ValueError, json.JSONDecodeError) as error:
+            raise _integrity_error(
+                "stored projection checkpoint descriptor is invalid"
+            ) from error
+        if (
+            checkpoint.projection_name != row[0]
+            or checkpoint.reducer_version != row[1]
+            or checkpoint.partition_sha256 != row[2]
+            or checkpoint.global_position != row[3]
+            or checkpoint.state_sha256 != row[4]
+        ):
+            raise _integrity_error(
+                "stored projection checkpoint columns do not match its descriptor"
+            )
+        return checkpoint
+
+    def _projection_activation_from_row(
+        self,
+        row: tuple[object, ...],
+    ) -> ProjectionActivation:
+        if len(row) != 7 or type(row[6]) is not str:
+            raise _integrity_error(
+                "stored projection activation has an invalid shape"
+            )
+        try:
+            parsed = json.loads(row[6])
+            if _canonical_json(parsed) != row[6]:
+                raise ValueError("activation descriptor is noncanonical")
+            activation = parse_projection_activation(parsed)
+        except (ProjectionCheckpointError, TypeError, ValueError, json.JSONDecodeError) as error:
+            raise _integrity_error(
+                "stored projection activation descriptor is invalid"
+            ) from error
+        if (
+            activation.projection_name != row[0]
+            or activation.partition_sha256 != row[1]
+            or activation.head_version != row[2]
+            or activation.target_build_id != row[3]
+            or activation.previous_build_id != row[4]
+            or activation.activation_sha256 != row[5]
+        ):
+            raise _integrity_error(
+                "stored projection activation columns do not match its descriptor"
+            )
+        return activation
+
+    @_synchronized
+    def save_checkpoint(
+        self,
+        checkpoint: ProjectionCheckpoint,
+    ) -> ProjectionCheckpoint:
+        self._require_open()
+        if type(checkpoint) is not ProjectionCheckpoint:
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_CHECKPOINT_INVALID",
+                "checkpoint must be exactly ProjectionCheckpoint",
+            )
+        if checkpoint.partition_sha256 != self._access_context.partition.partition_sha256:
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_PARTITION_MISMATCH",
+                "checkpoint partition does not match ledger access",
+            )
+        row_key = (
+            checkpoint.projection_name,
+            checkpoint.reducer_version,
+            checkpoint.partition_sha256,
+            checkpoint.global_position,
+        )
+        try:
+            with self._transaction(write=True), closing(
+                self._connection.cursor()
+            ) as cursor:
+                self._require_schema(cursor)
+                cursor.execute(
+                    "SELECT projection_name, projection_version, partition_sha256, "
+                    "global_position, state_sha256, descriptor "
+                    "FROM v3_event_ledger_checkpoints "
+                    "WHERE projection_name = ? AND projection_version = ? "
+                    "AND partition_sha256 = ? AND global_position = ?",
+                    row_key,
+                )
+                row = cursor.fetchone()
+                if row is not None:
+                    retained = self._projection_checkpoint_from_row(tuple(row))
+                    if retained.build_id != checkpoint.build_id:
+                        raise ProjectionCheckpointConflictError(
+                            "TBM_PROJECTION_CHECKPOINT_CONFLICT",
+                            "checkpoint position retained a different projection digest",
+                        )
+                    return retained
+                cursor.execute(
+                    "INSERT INTO v3_event_ledger_checkpoints "
+                    "(projection_name, projection_version, partition_sha256, "
+                    "global_position, state_sha256, descriptor) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        *row_key,
+                        checkpoint.state_sha256,
+                        _canonical_json(checkpoint.to_dict()),
+                    ),
+                )
+                cursor.execute(
+                    "SELECT projection_name, projection_version, partition_sha256, "
+                    "global_position, state_sha256, descriptor "
+                    "FROM v3_event_ledger_checkpoints "
+                    "WHERE projection_name = ? AND projection_version = ? "
+                    "AND partition_sha256 = ? AND global_position = ?",
+                    row_key,
+                )
+                retained_row = cursor.fetchone()
+                if retained_row is None:
+                    raise _integrity_error(
+                        "projection checkpoint read-back is missing"
+                    )
+                retained = self._projection_checkpoint_from_row(tuple(retained_row))
+                if retained.checkpoint_sha256 != checkpoint.checkpoint_sha256:
+                    raise _integrity_error(
+                        "projection checkpoint read-back does not match"
+                    )
+                return retained
+        except ProjectionCheckpointError:
+            raise
+        except EventLedgerPortError:
+            raise
+        except sqlite3.DatabaseError as error:
+            if _is_schema_error(error):
+                raise _schema_error(_MISSING_SCHEMA_MESSAGE) from error
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_SQLITE_PERSISTENCE",
+                "SQLite projection checkpoint write failed",
+            ) from error
+
+    @_synchronized
+    def load_checkpoint(self, build_id: str) -> ProjectionCheckpoint:
+        self._require_open()
+        if not _valid_digest(build_id):
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_CHECKPOINT_INVALID",
+                "build_id is invalid",
+            )
+        try:
+            with self._transaction(write=False), closing(
+                self._connection.cursor()
+            ) as cursor:
+                self._require_schema(cursor)
+                cursor.execute(
+                    "SELECT projection_name, projection_version, partition_sha256, "
+                    "global_position, state_sha256, descriptor "
+                    "FROM v3_event_ledger_checkpoints "
+                    "WHERE partition_sha256 = ? "
+                    "AND json_extract(descriptor, '$.build_id') = ?",
+                    (
+                        self._access_context.partition.partition_sha256,
+                        build_id,
+                    ),
+                )
+                rows = cursor.fetchall()
+                if not rows:
+                    raise ProjectionCheckpointNotFoundError(
+                        "TBM_PROJECTION_NOT_FOUND",
+                        "projection checkpoint is not retained",
+                    )
+                if len(rows) != 1:
+                    raise _integrity_error(
+                        "projection build ID is retained more than once"
+                    )
+                return self._projection_checkpoint_from_row(tuple(rows[0]))
+        except (ProjectionCheckpointError, EventLedgerPortError):
+            raise
+        except sqlite3.DatabaseError as error:
+            if _is_schema_error(error):
+                raise _schema_error(_MISSING_SCHEMA_MESSAGE) from error
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_SQLITE_PERSISTENCE",
+                "SQLite projection checkpoint read failed",
+            ) from error
+
+    @_synchronized
+    def load_latest_checkpoint(
+        self,
+        projection_name: str,
+        reducer_version: int,
+        partition_sha256: str,
+    ) -> ProjectionCheckpoint | None:
+        self._require_open()
+        if partition_sha256 != self._access_context.partition.partition_sha256:
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_PARTITION_MISMATCH",
+                "checkpoint partition does not match ledger access",
+            )
+        try:
+            with self._transaction(write=False), closing(
+                self._connection.cursor()
+            ) as cursor:
+                self._require_schema(cursor)
+                cursor.execute(
+                    "SELECT projection_name, projection_version, partition_sha256, "
+                    "global_position, state_sha256, descriptor "
+                    "FROM v3_event_ledger_checkpoints "
+                    "WHERE projection_name = ? AND projection_version = ? "
+                    "AND partition_sha256 = ? ORDER BY global_position DESC LIMIT 1",
+                    (projection_name, reducer_version, partition_sha256),
+                )
+                row = cursor.fetchone()
+                return (
+                    None
+                    if row is None
+                    else self._projection_checkpoint_from_row(tuple(row))
+                )
+        except (ProjectionCheckpointError, EventLedgerPortError):
+            raise
+        except sqlite3.DatabaseError as error:
+            if _is_schema_error(error):
+                raise _schema_error(_MISSING_SCHEMA_MESSAGE) from error
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_SQLITE_PERSISTENCE",
+                "SQLite projection checkpoint read failed",
+            ) from error
+
+    @_synchronized
+    def list_checkpoints(
+        self,
+        projection_name: str | None = None,
+        partition_sha256: str | None = None,
+    ) -> tuple[ProjectionCheckpoint, ...]:
+        self._require_open()
+        selected_partition = (
+            self._access_context.partition.partition_sha256
+            if partition_sha256 is None
+            else partition_sha256
+        )
+        if selected_partition != self._access_context.partition.partition_sha256:
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_PARTITION_MISMATCH",
+                "checkpoint partition does not match ledger access",
+            )
+        clauses = ["partition_sha256 = ?"]
+        parameters: list[object] = [selected_partition]
+        if projection_name is not None:
+            clauses.append("projection_name = ?")
+            parameters.append(projection_name)
+        try:
+            with self._transaction(write=False), closing(
+                self._connection.cursor()
+            ) as cursor:
+                self._require_schema(cursor)
+                cursor.execute(
+                    "SELECT projection_name, projection_version, partition_sha256, "
+                    "global_position, state_sha256, descriptor "
+                    "FROM v3_event_ledger_checkpoints WHERE "
+                    + " AND ".join(clauses)
+                    + " ORDER BY projection_name, projection_version, global_position "
+                    "LIMIT ?",
+                    (*parameters, PROJECTION_MAX_CHECKPOINTS_PER_LIST + 1),
+                )
+                rows = cursor.fetchall()
+                if len(rows) > PROJECTION_MAX_CHECKPOINTS_PER_LIST:
+                    raise ProjectionCheckpointError(
+                        "TBM_PROJECTION_LIST_LIMIT_EXCEEDED",
+                        "projection checkpoint list exceeds the bounded limit",
+                    )
+                return tuple(
+                    self._projection_checkpoint_from_row(tuple(row))
+                    for row in rows
+                )
+        except (ProjectionCheckpointError, EventLedgerPortError):
+            raise
+        except sqlite3.DatabaseError as error:
+            if _is_schema_error(error):
+                raise _schema_error(_MISSING_SCHEMA_MESSAGE) from error
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_SQLITE_PERSISTENCE",
+                "SQLite projection checkpoint list failed",
+            ) from error
+
+    @_synchronized
+    def append_activation(
+        self,
+        activation: ProjectionActivation,
+        *,
+        expected_head_version: int,
+        expected_current_build_id: str | None,
+    ) -> ProjectionActivation:
+        self._require_open()
+        if type(activation) is not ProjectionActivation:
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_ACTIVATION_INVALID",
+                "activation must be exactly ProjectionActivation",
+            )
+        if activation.partition_sha256 != self._access_context.partition.partition_sha256:
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_PARTITION_MISMATCH",
+                "activation partition does not match ledger access",
+            )
+        try:
+            with self._transaction(write=True), closing(
+                self._connection.cursor()
+            ) as cursor:
+                self._require_schema(cursor)
+                cursor.execute(
+                    "SELECT projection_name, projection_version, partition_sha256, "
+                    "global_position, state_sha256, descriptor "
+                    "FROM v3_event_ledger_checkpoints "
+                    "WHERE partition_sha256 = ? "
+                    "AND json_extract(descriptor, '$.build_id') = ?",
+                    (activation.partition_sha256, activation.target_build_id),
+                )
+                target_rows = cursor.fetchall()
+                if len(target_rows) != 1:
+                    raise ProjectionCheckpointNotFoundError(
+                        "TBM_PROJECTION_NOT_FOUND",
+                        "activation target checkpoint is not retained",
+                    )
+                target = self._projection_checkpoint_from_row(
+                    tuple(target_rows[0])
+                )
+                if target.projection_name != activation.projection_name:
+                    raise ProjectionCheckpointError(
+                        "TBM_PROJECTION_ACTIVATION_INVALID",
+                        "activation target belongs to another projection",
+                    )
+                cursor.execute(
+                    "SELECT projection_name, partition_sha256, head_version, "
+                    "target_build_id, previous_build_id, activation_sha256, descriptor "
+                    "FROM v3_event_ledger_projection_activations "
+                    "WHERE projection_name = ? AND partition_sha256 = ? "
+                    "ORDER BY head_version DESC LIMIT 1",
+                    (activation.projection_name, activation.partition_sha256),
+                )
+                current_row = cursor.fetchone()
+                current = (
+                    None
+                    if current_row is None
+                    else self._projection_activation_from_row(tuple(current_row))
+                )
+                current_version = 0 if current is None else current.head_version
+                current_build = None if current is None else current.target_build_id
+                if (
+                    current_version != expected_head_version
+                    or current_build != expected_current_build_id
+                    or activation.head_version != current_version + 1
+                    or activation.previous_build_id != current_build
+                ):
+                    raise ProjectionCheckpointConflictError(
+                        "TBM_PROJECTION_HEAD_CONFLICT",
+                        "projection head changed before activation",
+                    )
+                cursor.execute(
+                    "INSERT INTO v3_event_ledger_projection_activations "
+                    "(projection_name, partition_sha256, head_version, "
+                    "target_build_id, previous_build_id, operation, "
+                    "activation_sha256, descriptor) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        activation.projection_name,
+                        activation.partition_sha256,
+                        activation.head_version,
+                        activation.target_build_id,
+                        activation.previous_build_id,
+                        activation.operation,
+                        activation.activation_sha256,
+                        _canonical_json(activation.to_dict()),
+                    ),
+                )
+                cursor.execute(
+                    "SELECT projection_name, partition_sha256, head_version, "
+                    "target_build_id, previous_build_id, activation_sha256, descriptor "
+                    "FROM v3_event_ledger_projection_activations "
+                    "WHERE projection_name = ? AND partition_sha256 = ? "
+                    "AND head_version = ?",
+                    (
+                        activation.projection_name,
+                        activation.partition_sha256,
+                        activation.head_version,
+                    ),
+                )
+                retained_row = cursor.fetchone()
+                if retained_row is None:
+                    raise _integrity_error(
+                        "projection activation read-back is missing"
+                    )
+                retained = self._projection_activation_from_row(tuple(retained_row))
+                if retained != activation:
+                    raise _integrity_error(
+                        "projection activation read-back does not match"
+                    )
+                return retained
+        except ProjectionCheckpointError:
+            raise
+        except EventLedgerPortError:
+            raise
+        except sqlite3.IntegrityError as error:
+            raise ProjectionCheckpointConflictError(
+                "TBM_PROJECTION_HEAD_CONFLICT",
+                "projection activation conflicts with the retained head",
+            ) from error
+        except sqlite3.DatabaseError as error:
+            if _is_schema_error(error):
+                raise _schema_error(_MISSING_SCHEMA_MESSAGE) from error
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_SQLITE_PERSISTENCE",
+                "SQLite projection activation failed",
+            ) from error
+
+    @_synchronized
+    def current_activation(
+        self,
+        projection_name: str,
+        partition_sha256: str,
+    ) -> ProjectionActivation | None:
+        history = self.activation_history(projection_name, partition_sha256)
+        return history[-1] if history else None
+
+    @_synchronized
+    def activation_history(
+        self,
+        projection_name: str,
+        partition_sha256: str,
+    ) -> tuple[ProjectionActivation, ...]:
+        self._require_open()
+        if partition_sha256 != self._access_context.partition.partition_sha256:
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_PARTITION_MISMATCH",
+                "activation partition does not match ledger access",
+            )
+        try:
+            with self._transaction(write=False), closing(
+                self._connection.cursor()
+            ) as cursor:
+                self._require_schema(cursor)
+                cursor.execute(
+                    "SELECT projection_name, partition_sha256, head_version, "
+                    "target_build_id, previous_build_id, activation_sha256, descriptor "
+                    "FROM v3_event_ledger_projection_activations "
+                    "WHERE projection_name = ? AND partition_sha256 = ? "
+                    "ORDER BY head_version LIMIT ?",
+                    (
+                        projection_name,
+                        partition_sha256,
+                        PROJECTION_MAX_ACTIVATIONS_PER_LIST + 1,
+                    ),
+                )
+                rows = cursor.fetchall()
+                if len(rows) > PROJECTION_MAX_ACTIVATIONS_PER_LIST:
+                    raise ProjectionCheckpointError(
+                        "TBM_PROJECTION_LIST_LIMIT_EXCEEDED",
+                        "projection activation list exceeds the bounded limit",
+                    )
+                return tuple(
+                    self._projection_activation_from_row(tuple(row))
+                    for row in rows
+                )
+        except (ProjectionCheckpointError, EventLedgerPortError):
+            raise
+        except sqlite3.DatabaseError as error:
+            if _is_schema_error(error):
+                raise _schema_error(_MISSING_SCHEMA_MESSAGE) from error
+            raise ProjectionCheckpointError(
+                "TBM_PROJECTION_SQLITE_PERSISTENCE",
+                "SQLite projection activation read failed",
+            ) from error
+
+    @_synchronized
+    def operator_statistics(self) -> dict[str, object]:
+        """Return bounded metadata-only ledger and projection counts."""
+
+        self._require_open()
+        partition_sha256 = self._access_context.partition.partition_sha256
+        try:
+            with self._transaction(write=False), closing(
+                self._connection.cursor()
+            ) as cursor:
+                self._require_schema(cursor)
+                counts: dict[str, int] = {}
+                for label, table in (
+                    ("events", "v3_event_ledger_events"),
+                    ("streams", "v3_event_ledger_stream_heads"),
+                    ("artifact_refs", "v3_event_ledger_artifacts"),
+                    ("idempotency_records", "v3_event_ledger_idempotency"),
+                    ("projection_checkpoints", "v3_event_ledger_checkpoints"),
+                    (
+                        "projection_activations",
+                        "v3_event_ledger_projection_activations",
+                    ),
+                ):
+                    cursor.execute(f"SELECT count(*) FROM {table}")
+                    row = cursor.fetchone()
+                    if row is None or type(row[0]) is not int:
+                        raise _integrity_error(
+                            "SQLite event ledger statistics are malformed"
+                        )
+                    counts[label] = row[0]
+                cursor.execute(
+                    "SELECT current_global_position FROM "
+                    "v3_event_ledger_global_head WHERE singleton = 1"
+                )
+                global_head = cursor.fetchone()
+                cursor.execute(
+                    "SELECT count(*) FROM v3_event_ledger_events "
+                    "WHERE partition_sha256 = ?",
+                    (partition_sha256,),
+                )
+                partition_events = cursor.fetchone()
+                if (
+                    global_head is None
+                    or type(global_head[0]) is not int
+                    or partition_events is None
+                    or type(partition_events[0]) is not int
+                ):
+                    raise _integrity_error(
+                        "SQLite event ledger statistics are malformed"
+                    )
+                return {
+                    "ledger_protocol": "tbm.event-ledger-port.v1",
+                    "partition_sha256": partition_sha256,
+                    "global_high_watermark": global_head[0],
+                    "partition_events": partition_events[0],
+                    **counts,
+                }
+        except EventLedgerPortError:
+            raise
+        except sqlite3.DatabaseError as error:
+            if _is_schema_error(error):
+                raise _schema_error(_MISSING_SCHEMA_MESSAGE) from error
+            raise _persistence_error(
+                "SQLite event ledger statistics failed"
+            ) from error
 
     @_synchronized
     def verify_stream(self, stream_id: str) -> LedgerStreamVerification:

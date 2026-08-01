@@ -1,0 +1,17 @@
+{
+  "descriptor_sha256": "sha256:0efc06401c0f99f34c1482ba3ecb7da7c44ce151d7c58865795a0bcfb9389bcb",
+  "fixture_version": "tbm.reducer-determinism-fixture.v1",
+  "initial_state_sha256": "sha256:e3278e2cad0ec13669a16a6e61f8f67f62ce0448259c44bb7fc82e7423df192f",
+  "input_event_sha256": "sha256:e117d4c5089f423f17281a164c56985c8eb022656ad9959bf86627489404c07e",
+  "projection": {
+    "event_count": 1,
+    "event_type_counts": {
+      "tbm.memory.proposed": 1
+    },
+    "last_event_sha256": "sha256:e117d4c5089f423f17281a164c56985c8eb022656ad9959bf86627489404c07e",
+    "last_global_position": 1
+  },
+  "projection_sha256": "sha256:9a257f398b55db473403a66d17cafc01983baa50aeb68ca70d69783c0444e9d4",
+  "reducer_id": "canonical-event-inventory",
+  "reducer_version": 1
+}

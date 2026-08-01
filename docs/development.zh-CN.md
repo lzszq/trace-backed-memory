@@ -55,9 +55,14 @@ python -m pytest tests/test_agent.py -q
 python -m pytest tests/test_mcp_server.py -q
 python -m pytest tests/test_sqlite_repository.py -q
 python -m pytest tests/test_postgres_repository.py -q
+python tools/verify_projection_determinism.py
 python -m ruff check src tools examples
 python -m mypy src/trace_backed_memory
 ```
+
+projection 确定性 verifier 会重放已提交的 canonical event fixture，并将精确的
+projection digest 与已提交 golden 值比较。CI 会在 Ubuntu 和 Windows 上分别使用
+Python 3.11、3.12 与 3.13 重复该检查；任何 digest 漂移都会使 matrix 失败。
 
 普通本地环境缺少 server tools 时，PostgreSQL 测试可以跳过；release 与 CI
 qualification 必须强制执行。

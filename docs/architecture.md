@@ -2057,8 +2057,13 @@ schema, serializes global positions before row-locking a tenant-partitioned
 stream head, preserves caller transactions through psycopg savepoints, and
 verifies its exact catalog digest on every operation. Its explicit rollback
 locks the schema and refuses relation, function, trigger-state, policy, or rule
-drift. These backends have cross-adapter receipt/page conformance tests, but no
-active lifecycle command writes them yet.
+drift. Both schemas now also retain immutable content-addressed reducer
+checkpoints and an append-only, contiguous projection activation chain. CAS
+activation/rollback selects a retained build and never edits canonical events.
+These backends have cross-adapter receipt/page conformance tests. Explicit
+metadata-only `tbmd ledger` and `tbmd projection` operator commands may inspect
+and rebuild a selected SQLite ledger, but no active Gate or Memory lifecycle
+command writes the ledger yet.
 
 ## Full Persistence target architecture
 
@@ -2081,8 +2086,14 @@ reads, stream verification, and bounded subscriptions. See
 [Event Type Registry v1](protocols/event-registry-v1.md), and
 [Event Ledger Port v1](protocols/event-ledger-port-v1.md). The F1 SQLite and
 PostgreSQL backends now implement the append transaction and Artifact-reference
-boundary. Reducers, rebuildable projections, lifecycle integration, migration,
-and cutover remain later milestones.
+boundary. F1 also delivers the storage-neutral `tbm.reducer.v1` registry and
+runtime, bounded deterministic state, checkpoint/resume, poison evidence,
+shadow comparison, CAS activation/rollback, SQLite/PostgreSQL checkpoint
+persistence, the explicit projection operator CLI, and a Windows/Linux ×
+Python 3.11-3.13 golden-digest matrix. See
+[Reducer and Projection Runtime v1](protocols/reducer-v1.md). Domain reducers
+for GateSession, Memory, index, outbox, audit, and metrics; active lifecycle
+integration; migration; and cutover remain later milestones.
 
 The machine-readable
 [`authority-registry.json`](status/authority-registry.json) classifies every

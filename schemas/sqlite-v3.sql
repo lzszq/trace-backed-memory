@@ -15,7 +15,7 @@
 -- component: outcome-attribution schemas/sqlite-v3-outcome-attribution.sql sha256:9fcbf2367ad7481a4a9a53406d93ceaf87a2ec50a7058cd214e1b6ab89e6b343
 -- component: completion-outbox schemas/sqlite-v3-completion-outbox.sql sha256:c07d7fd50641c15d7eec6f4347a8281fb4cce657f5be4be97a35a3e649eac9b8
 -- component: audit schemas/sqlite-v3-audit.sql sha256:cf632bd58c16c2f4e58272e0315ad398375f6039878d36af233043c739be5b34
--- component: event-ledger schemas/sqlite-v3-event-ledger.sql sha256:527504ede85714c2de0114d4a3be59f945b49fafbcfa95fd9b90b84616df1261
+-- component: event-ledger schemas/sqlite-v3-event-ledger.sql sha256:f914412afb9f0fc31bb158682defffa9a69e02db807efab4c1e8e2629e38eb3b
 
 PRAGMA foreign_keys = ON;
 PRAGMA recursive_triggers = ON;
@@ -51,8 +51,8 @@ INSERT INTO trace_backed_memory_v3_bundle_schema (
     catalog_sha256
 ) VALUES (
     1, 1, 'tbm.sqlite-bundle.v3',
-    'sha256:9a79912078e413e4ce244c5c8cd65a33cee178f19cde152c3ae2c69f762d2a59',
-    'sha256:55e86d27bf1b08fd8c35d6e1ddb9c9f73c392dd17ccaf1ea87f246151e1336ec'
+    'sha256:3b845f08d52c83705b55cb369758db23a344d9324a006d6541cae554bf921381',
+    'sha256:0a86379bdf0ddc8db146e410297d5b2d05e418b2983f02a4c9845a8e3c61273b'
 );
 
 CREATE TRIGGER trace_backed_memory_v3_bundle_schema_immutable_update
@@ -3548,6 +3548,41 @@ CREATE TABLE IF NOT EXISTS v3_event_ledger_checkpoints (
     )
 );
 
+CREATE TABLE IF NOT EXISTS v3_event_ledger_projection_activations (
+    projection_name TEXT NOT NULL CHECK (
+        length(CAST(projection_name AS BLOB)) BETWEEN 1 AND 128
+    ),
+    partition_sha256 TEXT NOT NULL CHECK (
+        length(partition_sha256) = 71
+        AND substr(partition_sha256, 1, 7) = 'sha256:'
+        AND substr(partition_sha256, 8) NOT GLOB '*[^0-9a-f]*'
+    ),
+    head_version INTEGER NOT NULL CHECK (head_version >= 1),
+    target_build_id TEXT NOT NULL CHECK (
+        length(target_build_id) = 71
+        AND substr(target_build_id, 1, 7) = 'sha256:'
+        AND substr(target_build_id, 8) NOT GLOB '*[^0-9a-f]*'
+    ),
+    previous_build_id TEXT CHECK (
+        previous_build_id IS NULL OR (
+            length(previous_build_id) = 71
+            AND substr(previous_build_id, 1, 7) = 'sha256:'
+            AND substr(previous_build_id, 8) NOT GLOB '*[^0-9a-f]*'
+        )
+    ),
+    operation TEXT NOT NULL CHECK (operation IN ('activate', 'rollback')),
+    activation_sha256 TEXT NOT NULL UNIQUE CHECK (
+        length(activation_sha256) = 71
+        AND substr(activation_sha256, 1, 7) = 'sha256:'
+        AND substr(activation_sha256, 8) NOT GLOB '*[^0-9a-f]*'
+    ),
+    descriptor TEXT NOT NULL COLLATE BINARY CHECK (
+        length(CAST(descriptor AS BLOB)) BETWEEN 2 AND 1048576
+        AND json_valid(descriptor)
+    ),
+    PRIMARY KEY (projection_name, partition_sha256, head_version)
+);
+
 CREATE TRIGGER IF NOT EXISTS v3_event_ledger_schema_immutable_update
 BEFORE UPDATE ON trace_backed_memory_v3_event_ledger_schema
 BEGIN
@@ -3558,6 +3593,44 @@ CREATE TRIGGER IF NOT EXISTS v3_event_ledger_schema_immutable_delete
 BEFORE DELETE ON trace_backed_memory_v3_event_ledger_schema
 BEGIN
     SELECT RAISE(ABORT, 'event ledger schema metadata cannot be deleted');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_event_ledger_projection_activations_validate_insert
+BEFORE INSERT ON v3_event_ledger_projection_activations
+WHEN (
+    NEW.head_version = 1
+    AND (
+        NEW.previous_build_id IS NOT NULL
+        OR EXISTS (
+            SELECT 1 FROM v3_event_ledger_projection_activations
+            WHERE projection_name = NEW.projection_name
+              AND partition_sha256 = NEW.partition_sha256
+        )
+    )
+) OR (
+    NEW.head_version > 1
+    AND NOT EXISTS (
+        SELECT 1 FROM v3_event_ledger_projection_activations
+        WHERE projection_name = NEW.projection_name
+          AND partition_sha256 = NEW.partition_sha256
+          AND head_version = NEW.head_version - 1
+          AND target_build_id = NEW.previous_build_id
+    )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'projection activation does not advance its head');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_event_ledger_projection_activations_immutable_update
+BEFORE UPDATE ON v3_event_ledger_projection_activations
+BEGIN
+    SELECT RAISE(ABORT, 'projection activation rows are immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_event_ledger_projection_activations_immutable_delete
+BEFORE DELETE ON v3_event_ledger_projection_activations
+BEGIN
+    SELECT RAISE(ABORT, 'projection activation rows cannot be deleted');
 END;
 
 CREATE TRIGGER IF NOT EXISTS v3_event_ledger_global_head_validate_insert

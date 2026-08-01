@@ -7,7 +7,9 @@ future canonical `tbm.event.v1` ledger. It defines trusted access, atomic batch
 append, exact replay, bounded reads, stream verification, and bounded
 subscriptions. F0 delivered the contract; F1 now adds explicit opt-in SQLite
 and isolated PostgreSQL implementations of that frozen port. Neither is
-selected by the active Agent, daemon, HTTP, MCP, CLI, or SDK composition.
+selected by the active Agent, `tbmd local`, HTTP, MCP, or SDK composition.
+Metadata-only `tbmd ledger` / `tbmd projection` operator commands can select an
+explicit SQLite event-ledger file for verification and inventory rebuild.
 
 ## Trusted access boundary
 
@@ -101,7 +103,9 @@ must preserve these meanings and may not reproduce authorization or Gate
 policy independently.
 
 These opt-in backends do not make the existing durable-v3 authorities event
-projections, do not run reducers, and do not change the current compatibility
-Store or default Agent/MCP behavior. Until an event-first composition root and
-verified cutover select them, the machine-readable persistence model remains
-`authority_graph` and `full_persistence=false`.
+projections and do not change the current compatibility Store or default
+Agent/MCP behavior. The generic F1 reducer runtime and operator CLI can retain
+checkpoints and projection-head history in these schemas, but only the
+envelope-only inventory reducer is built in. Until an event-first composition
+root and verified cutover select the domain lifecycle, the machine-readable
+persistence model remains `authority_graph` and `full_persistence=false`.

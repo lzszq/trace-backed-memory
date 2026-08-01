@@ -3,9 +3,9 @@
   "bundle_contract_version": "tbm.sqlite-bundle.v3",
   "bundle_resource": "schemas/sqlite-v3.sql",
   "schema_version": 1,
-  "component_set_sha256": "sha256:9a79912078e413e4ce244c5c8cd65a33cee178f19cde152c3ae2c69f762d2a59",
-  "catalog_sha256": "sha256:55e86d27bf1b08fd8c35d6e1ddb9c9f73c392dd17ccaf1ea87f246151e1336ec",
-  "bundle_sha256": "sha256:3b9029a1d4756047f2d4aa0a169d3599116d941dc36e678c1fef5859eed624ee",
+  "component_set_sha256": "sha256:3b845f08d52c83705b55cb369758db23a344d9324a006d6541cae554bf921381",
+  "catalog_sha256": "sha256:0a86379bdf0ddc8db146e410297d5b2d05e418b2983f02a4c9845a8e3c61273b",
+  "bundle_sha256": "sha256:c9a5fd98d9bb8d5cf79ed846e67dcb237202bdd63a761bc2c5761096c44c7c3e",
   "components": [
     {
       "component_id": "entity-registry",
@@ -133,7 +133,7 @@
       "metadata_table": "trace_backed_memory_v3_event_ledger_schema",
       "schema_version": 1,
       "contract_version": "tbm.event-ledger-port.v1",
-      "sha256": "sha256:527504ede85714c2de0114d4a3be59f945b49fafbcfa95fd9b90b84616df1261"
+      "sha256": "sha256:f914412afb9f0fc31bb158682defffa9a69e02db807efab4c1e8e2629e38eb3b"
     }
   ]
 }

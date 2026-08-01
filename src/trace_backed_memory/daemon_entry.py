@@ -47,7 +47,19 @@ from .local_daemon_v3 import (
     prepare_local_state_directory,
     verify_local_database_target,
 )
+from .ledger_port_v1 import EventLedgerPortError
 from .mcp_server import run_stdio_server
+from .projection import ProjectionRuntime, ProjectionRuntimeError
+from .projection_checkpoint import (
+    ProjectionCheckpoint,
+    ProjectionCheckpointError,
+)
+from .reducer import ReducerV1Error
+from .reducer_registry import (
+    ReducerRegistryError,
+    build_default_reducer_registry,
+)
+from .sqlite_event_ledger_v1 import SQLiteEventLedgerV1
 
 
 DURABLE_LOCAL_APPLICATION_FACTORY_ENV = (
@@ -112,6 +124,19 @@ def _add_token_argument(parser: argparse.ArgumentParser) -> None:
         "--token-env",
         default=DURABLE_LOCAL_TOKEN_ENV,
         help="Environment variable containing the durable bearer secret.",
+    )
+
+
+def _add_ledger_target_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--database",
+        type=Path,
+        default=Path(".tbm") / "event-ledger.sqlite3",
+        help="Existing owner-controlled SQLite canonical event ledger.",
+    )
+    parser.add_argument(
+        "--partition-sha256",
+        help="Required only when the ledger retains multiple tenant partitions.",
     )
 
 
@@ -211,6 +236,91 @@ def _build_parser() -> argparse.ArgumentParser:
         default=5.0,
     )
     _add_token_argument(health)
+
+    ledger = commands.add_parser(
+        "ledger",
+        help="Verify or inspect an explicit canonical event ledger.",
+    )
+    ledger_commands = ledger.add_subparsers(
+        dest="ledger_command",
+        required=True,
+    )
+    ledger_verify = ledger_commands.add_parser(
+        "verify",
+        help="Verify schema, event chains, checkpoints, and projection heads.",
+    )
+    _add_ledger_target_arguments(ledger_verify)
+    ledger_stats = ledger_commands.add_parser(
+        "stats",
+        help="Return metadata-only ledger and projection counts.",
+    )
+    _add_ledger_target_arguments(ledger_stats)
+
+    projection = commands.add_parser(
+        "projection",
+        help="Rebuild and govern replaceable event-ledger projections.",
+    )
+    projection_commands = projection.add_subparsers(
+        dest="projection_command",
+        required=True,
+    )
+    projection_list = projection_commands.add_parser(
+        "list",
+        help="List retained projection checkpoints and active heads.",
+    )
+    _add_ledger_target_arguments(projection_list)
+    projection_list.add_argument("--projection-name")
+
+    projection_rebuild = projection_commands.add_parser(
+        "rebuild",
+        help="Build or resume one deterministic shadow projection.",
+    )
+    _add_ledger_target_arguments(projection_rebuild)
+    projection_rebuild.add_argument(
+        "reducer_id",
+        nargs="?",
+        default="canonical-event-inventory",
+    )
+    projection_rebuild.add_argument("--version", type=int, default=1)
+    projection_rebuild.add_argument("--owner", default="tbmd_projection_operator")
+    projection_rebuild.add_argument("--generation", type=int, required=True)
+    projection_rebuild.add_argument("--page-size", type=int, default=100)
+    projection_rebuild.add_argument(
+        "--checkpoint-interval",
+        type=int,
+        default=100,
+    )
+    projection_rebuild.add_argument("--resume", action="store_true")
+
+    projection_compare = projection_commands.add_parser(
+        "compare",
+        help="Compare active and shadow projection digests with bounded diffs.",
+    )
+    _add_ledger_target_arguments(projection_compare)
+    projection_compare.add_argument("active_build_id")
+    projection_compare.add_argument("shadow_build_id")
+
+    projection_activate = projection_commands.add_parser(
+        "activate",
+        help="Atomically switch a projection head after explicit approval.",
+    )
+    _add_ledger_target_arguments(projection_activate)
+    projection_activate.add_argument("shadow_build_id")
+    projection_activate.add_argument("--owner", default="tbmd_projection_operator")
+    projection_activate.add_argument("--approve", action="store_true")
+    projection_activate.add_argument("--expected-head-version", type=int)
+    projection_activate.add_argument("--expected-current-build-id")
+
+    projection_rollback = projection_commands.add_parser(
+        "rollback",
+        help="Atomically select a previously active projection build.",
+    )
+    _add_ledger_target_arguments(projection_rollback)
+    projection_rollback.add_argument("projection_name")
+    projection_rollback.add_argument("--owner", default="tbmd_projection_operator")
+    projection_rollback.add_argument("--expected-head-version", type=int)
+    projection_rollback.add_argument("--expected-current-build-id")
+    projection_rollback.add_argument("--target-build-id")
     return parser
 
 
@@ -628,6 +738,268 @@ def _run_health(args: argparse.Namespace) -> int:
     return 0
 
 
+def _open_operator_ledger(args: argparse.Namespace) -> SQLiteEventLedgerV1:
+    return SQLiteEventLedgerV1.connect_operator(
+        args.database,
+        partition_sha256=args.partition_sha256,
+    )
+
+
+def _run_ledger(args: argparse.Namespace) -> int:
+    with _open_operator_ledger(args) as ledger:
+        if args.ledger_command == "stats":
+            statistics = ledger.operator_statistics()
+            _write_stdout(
+                {
+                    "contract_version": LOCAL_DAEMON_CONTRACT_VERSION,
+                    "operation": "ledger.stats",
+                    "status": "ok",
+                    "statistics": statistics,
+                }
+            )
+            return 0
+        if args.ledger_command == "verify":
+            verifications = ledger.verify_integrity()
+            _write_stdout(
+                {
+                    "contract_version": LOCAL_DAEMON_CONTRACT_VERSION,
+                    "operation": "ledger.verify",
+                    "status": "ok",
+                    "valid": all(item.valid for item in verifications),
+                    "statistics": ledger.operator_statistics(),
+                    "streams": [
+                        {
+                            "stream_id": item.stream_id,
+                            "partition_sha256": item.partition_sha256,
+                            "verified_stream_version": (
+                                item.verified_stream_version
+                            ),
+                            "verified_event_count": item.verified_event_count,
+                            "head_event_sha256": item.head_event_sha256,
+                            "valid": item.valid,
+                            "issue_codes": list(item.issue_codes),
+                        }
+                        for item in verifications
+                    ],
+                }
+            )
+            return 0
+    raise AssertionError("unreachable ledger command")
+
+
+def _checkpoint_summary(
+    checkpoint: ProjectionCheckpoint,
+    *,
+    active_build_id: str | None,
+) -> dict[str, object]:
+    return {
+        "build_id": checkpoint.build_id,
+        "checkpoint_sha256": checkpoint.checkpoint_sha256,
+        "projection_name": checkpoint.projection_name,
+        "reducer_id": checkpoint.reducer_id,
+        "reducer_version": checkpoint.reducer_version,
+        "output_schema_version": (
+            checkpoint.reducer_descriptor.output_schema_version
+        ),
+        "partition_sha256": checkpoint.partition_sha256,
+        "global_position": checkpoint.global_position,
+        "event_high_watermark": checkpoint.event_high_watermark,
+        "state_sha256": checkpoint.state_sha256,
+        "code_sha256": checkpoint.reducer_descriptor.code_sha256,
+        "configuration_sha256": (
+            checkpoint.reducer_descriptor.configuration_sha256
+        ),
+        "rebuild_generation": checkpoint.rebuild_generation,
+        "active": checkpoint.build_id == active_build_id,
+    }
+
+
+def _projection_runtime(ledger: SQLiteEventLedgerV1) -> ProjectionRuntime:
+    return ProjectionRuntime(
+        ledger,
+        build_default_reducer_registry(),
+        ledger,
+    )
+
+
+def _observed_head(
+    ledger: SQLiteEventLedgerV1,
+    projection_name: str,
+    partition_sha256: str,
+) -> tuple[int, str | None]:
+    current = ledger.current_activation(projection_name, partition_sha256)
+    return (
+        0 if current is None else current.head_version,
+        None if current is None else current.target_build_id,
+    )
+
+
+def _require_expected_head(
+    args: argparse.Namespace,
+    observed_version: int,
+    observed_build_id: str | None,
+) -> None:
+    if (
+        args.expected_head_version is not None
+        and args.expected_head_version != observed_version
+    ) or (
+        args.expected_current_build_id is not None
+        and args.expected_current_build_id != observed_build_id
+    ):
+        raise ProjectionRuntimeError(
+            "TBM_PROJECTION_HEAD_CONFLICT",
+            "projection head does not match the operator precondition",
+        )
+
+
+def _run_projection(args: argparse.Namespace) -> int:
+    with _open_operator_ledger(args) as ledger:
+        runtime = _projection_runtime(ledger)
+        partition_sha256 = ledger.access_context.partition.partition_sha256
+        if args.projection_command == "list":
+            checkpoints = ledger.list_checkpoints(
+                args.projection_name,
+                partition_sha256,
+            )
+            active_by_projection: dict[str, str] = {}
+            for projection_name in sorted(
+                {checkpoint.projection_name for checkpoint in checkpoints}
+            ):
+                current = ledger.current_activation(
+                    projection_name,
+                    partition_sha256,
+                )
+                if current is not None:
+                    active_by_projection[projection_name] = current.target_build_id
+            _write_stdout(
+                {
+                    "contract_version": LOCAL_DAEMON_CONTRACT_VERSION,
+                    "operation": "projection.list",
+                    "status": "ok",
+                    "partition_sha256": partition_sha256,
+                    "checkpoints": [
+                        _checkpoint_summary(
+                            checkpoint,
+                            active_build_id=active_by_projection.get(
+                                checkpoint.projection_name
+                            ),
+                        )
+                        for checkpoint in checkpoints
+                    ],
+                }
+            )
+            return 0
+        if args.projection_command == "rebuild":
+            result = runtime.rebuild(
+                args.reducer_id,
+                args.version,
+                partition_sha256=partition_sha256,
+                owner=args.owner,
+                rebuild_generation=args.generation,
+                page_size=args.page_size,
+                checkpoint_interval=args.checkpoint_interval,
+                resume=args.resume,
+            )
+            _write_stdout(
+                {
+                    "contract_version": LOCAL_DAEMON_CONTRACT_VERSION,
+                    "operation": "projection.rebuild",
+                    "status": result.status,
+                    "checkpoint": _checkpoint_summary(
+                        result.checkpoint,
+                        active_build_id=None,
+                    ),
+                    "blocked": (
+                        None
+                        if result.blocked is None
+                        else result.blocked.to_dict()
+                    ),
+                    "resumed_from_build_id": result.resumed_from_build_id,
+                    "processed_events": result.processed_events,
+                }
+            )
+            return 0 if result.status == "completed" else 2
+        if args.projection_command == "compare":
+            comparison = runtime.compare(
+                args.active_build_id,
+                args.shadow_build_id,
+            )
+            _write_stdout(
+                {
+                    "contract_version": LOCAL_DAEMON_CONTRACT_VERSION,
+                    "operation": "projection.compare",
+                    "status": "ok",
+                    "comparison": comparison.to_dict(),
+                }
+            )
+            return 0
+        if args.projection_command == "activate":
+            shadow = ledger.load_checkpoint(args.shadow_build_id)
+            observed_version, observed_build = _observed_head(
+                ledger,
+                shadow.projection_name,
+                partition_sha256,
+            )
+            _require_expected_head(args, observed_version, observed_build)
+            comparison = (
+                None
+                if observed_build is None
+                else runtime.compare(observed_build, shadow.build_id)
+            )
+            activation = runtime.activate(
+                shadow.build_id,
+                owner=args.owner,
+                approved=args.approve,
+                expected_head_version=observed_version,
+                expected_current_build_id=observed_build,
+                comparison=comparison,
+            )
+            _write_stdout(
+                {
+                    "contract_version": LOCAL_DAEMON_CONTRACT_VERSION,
+                    "operation": "projection.activate",
+                    "status": "ok",
+                    "comparison_sha256": (
+                        None
+                        if comparison is None
+                        else comparison.comparison_sha256
+                    ),
+                    "activation": activation.to_dict(),
+                }
+            )
+            return 0
+        if args.projection_command == "rollback":
+            observed_version, observed_build = _observed_head(
+                ledger,
+                args.projection_name,
+                partition_sha256,
+            )
+            _require_expected_head(args, observed_version, observed_build)
+            if observed_build is None:
+                raise ProjectionRuntimeError(
+                    "TBM_PROJECTION_ROLLBACK_UNAVAILABLE",
+                    "projection does not have an active head",
+                )
+            activation = runtime.rollback(
+                args.projection_name,
+                partition_sha256,
+                owner=args.owner,
+                expected_head_version=observed_version,
+                expected_current_build_id=observed_build,
+                target_build_id=args.target_build_id,
+            )
+            _write_stdout(
+                {
+                    "contract_version": LOCAL_DAEMON_CONTRACT_VERSION,
+                    "operation": "projection.rollback",
+                    "status": "ok",
+                    "activation": activation.to_dict(),
+                }
+            )
+            return 0
+    raise AssertionError("unreachable projection command")
+
+
 def _write_stdout(value: dict[str, object]) -> None:
     sys.stdout.write(
         json.dumps(
@@ -669,6 +1041,39 @@ def _public_error(
         category = "persistence"
         message = str(error)
         retryable = True
+    elif isinstance(error, EventLedgerPortError):
+        code = error.code
+        category = (
+            "persistence"
+            if "SQLITE" in code or "POSTGRES" in code
+            else "state"
+            if "CONFLICT" in code or "NOT_FOUND" in code
+            else "input"
+        )
+        message = str(error)
+        retryable = "CONFLICT" in code or "PERSISTENCE" in code
+    elif isinstance(
+        error,
+        (
+            ProjectionCheckpointError,
+            ProjectionRuntimeError,
+            ReducerRegistryError,
+            ReducerV1Error,
+        ),
+    ):
+        code = error.code
+        category = (
+            "persistence"
+            if "SQLITE" in code or "POSTGRES" in code
+            else "state"
+            if any(
+                marker in code
+                for marker in ("CONFLICT", "NOT_FOUND", "BLOCKED")
+            )
+            else "input"
+        )
+        message = str(error)
+        retryable = "CONFLICT" in code or "PERSISTENCE" in code
     else:
         code = "TBM_LOCAL_DAEMON_INTERNAL_ERROR"
         category = "internal"
@@ -691,6 +1096,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = _build_parser().parse_args(argv)
         operation = args.command
+        if args.command == "ledger":
+            operation = f"ledger.{args.ledger_command}"
+        elif args.command == "projection":
+            operation = f"projection.{args.projection_command}"
         if args.command == "init":
             return _run_init(args)
         if args.command == "local":
@@ -699,6 +1108,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_doctor(args)
         if args.command == "health":
             return _run_health(args)
+        if args.command == "ledger":
+            return _run_ledger(args)
+        if args.command == "projection":
+            return _run_projection(args)
         raise AssertionError("unreachable local daemon command")
     except Exception as error:
         sys.stderr.write(

@@ -185,6 +185,41 @@ CREATE TABLE IF NOT EXISTS v3_event_ledger_checkpoints (
     )
 );
 
+CREATE TABLE IF NOT EXISTS v3_event_ledger_projection_activations (
+    projection_name TEXT NOT NULL CHECK (
+        length(CAST(projection_name AS BLOB)) BETWEEN 1 AND 128
+    ),
+    partition_sha256 TEXT NOT NULL CHECK (
+        length(partition_sha256) = 71
+        AND substr(partition_sha256, 1, 7) = 'sha256:'
+        AND substr(partition_sha256, 8) NOT GLOB '*[^0-9a-f]*'
+    ),
+    head_version INTEGER NOT NULL CHECK (head_version >= 1),
+    target_build_id TEXT NOT NULL CHECK (
+        length(target_build_id) = 71
+        AND substr(target_build_id, 1, 7) = 'sha256:'
+        AND substr(target_build_id, 8) NOT GLOB '*[^0-9a-f]*'
+    ),
+    previous_build_id TEXT CHECK (
+        previous_build_id IS NULL OR (
+            length(previous_build_id) = 71
+            AND substr(previous_build_id, 1, 7) = 'sha256:'
+            AND substr(previous_build_id, 8) NOT GLOB '*[^0-9a-f]*'
+        )
+    ),
+    operation TEXT NOT NULL CHECK (operation IN ('activate', 'rollback')),
+    activation_sha256 TEXT NOT NULL UNIQUE CHECK (
+        length(activation_sha256) = 71
+        AND substr(activation_sha256, 1, 7) = 'sha256:'
+        AND substr(activation_sha256, 8) NOT GLOB '*[^0-9a-f]*'
+    ),
+    descriptor TEXT NOT NULL COLLATE BINARY CHECK (
+        length(CAST(descriptor AS BLOB)) BETWEEN 2 AND 1048576
+        AND json_valid(descriptor)
+    ),
+    PRIMARY KEY (projection_name, partition_sha256, head_version)
+);
+
 CREATE TRIGGER IF NOT EXISTS v3_event_ledger_schema_immutable_update
 BEFORE UPDATE ON trace_backed_memory_v3_event_ledger_schema
 BEGIN
@@ -195,6 +230,44 @@ CREATE TRIGGER IF NOT EXISTS v3_event_ledger_schema_immutable_delete
 BEFORE DELETE ON trace_backed_memory_v3_event_ledger_schema
 BEGIN
     SELECT RAISE(ABORT, 'event ledger schema metadata cannot be deleted');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_event_ledger_projection_activations_validate_insert
+BEFORE INSERT ON v3_event_ledger_projection_activations
+WHEN (
+    NEW.head_version = 1
+    AND (
+        NEW.previous_build_id IS NOT NULL
+        OR EXISTS (
+            SELECT 1 FROM v3_event_ledger_projection_activations
+            WHERE projection_name = NEW.projection_name
+              AND partition_sha256 = NEW.partition_sha256
+        )
+    )
+) OR (
+    NEW.head_version > 1
+    AND NOT EXISTS (
+        SELECT 1 FROM v3_event_ledger_projection_activations
+        WHERE projection_name = NEW.projection_name
+          AND partition_sha256 = NEW.partition_sha256
+          AND head_version = NEW.head_version - 1
+          AND target_build_id = NEW.previous_build_id
+    )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'projection activation does not advance its head');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_event_ledger_projection_activations_immutable_update
+BEFORE UPDATE ON v3_event_ledger_projection_activations
+BEGIN
+    SELECT RAISE(ABORT, 'projection activation rows are immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_event_ledger_projection_activations_immutable_delete
+BEFORE DELETE ON v3_event_ledger_projection_activations
+BEGIN
+    SELECT RAISE(ABORT, 'projection activation rows cannot be deleted');
 END;
 
 CREATE TRIGGER IF NOT EXISTS v3_event_ledger_global_head_validate_insert

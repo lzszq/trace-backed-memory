@@ -226,8 +226,10 @@ The current release implements roadmap Phases 0 through 73, the local agent/MCP 
 [ADR-0006](adr/0006-full-persistence-reducer-native-memory.md) freezes the
 next product architecture around a canonical event ledger, content-addressed
 artifacts, and versioned deterministic reducers. This is a delivery target, not
-an active capability: the current persistence model remains the durable
-authority graph and `full_persistence` remains `false`. Existing durable-v3
+an active source-of-truth capability: the reducer/projection kernel is now
+available only through an explicit event-ledger operator path, while the
+current persistence model remains the durable authority graph and
+`full_persistence` remains `false`. Existing durable-v3
 authorities are migration assets until event-first import, shadow comparison,
 projection rebuild, and cutover evidence are complete.
 
@@ -241,11 +243,20 @@ a ledger, replaceable projection, compatibility migration, or bundle
 coordinator and rejects unregistered authorities. F1 now adds opt-in SQLite and
 isolated PostgreSQL event-ledger backends with exact Artifact descriptors,
 atomic append/replay, integrity/catalog verification, backup/rollback, and
-cross-backend conformance. No reducer runtime, rebuilt projection, lifecycle
-composition, cutover, or active transport path selects them yet. See
+cross-backend conformance. No lifecycle composition, cutover, or active
+transport path selects them yet. F1 now also
+delivers the opt-in `tbm.reducer.v1` runtime: versioned descriptors and sealed
+registries, bounded canonical state, double-execution determinism checks,
+typed-event/upcaster consumption, checkpoint/resume, poison evidence, shadow
+comparison, CAS activation, append-only rollback, SQLite/PostgreSQL checkpoint
+parity, and explicit metadata-only `tbmd ledger` / `tbmd projection` operator
+commands. A single golden projection digest is checked on Python 3.11-3.13 on
+Windows and Linux. These commands operate on an explicitly selected event
+ledger; they do not select it for the current Gate or Memory lifecycle. See
 [Canonical Event v1](protocols/event-v1.md),
 [Event Type Registry v1](protocols/event-registry-v1.md), and
-[Event Ledger Port v1](protocols/event-ledger-port-v1.md).
+[Event Ledger Port v1](protocols/event-ledger-port-v1.md), and
+[Reducer and Projection Runtime v1](protocols/reducer-v1.md).
 
 The implemented hardening includes:
 

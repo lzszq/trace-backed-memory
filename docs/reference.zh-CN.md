@@ -214,6 +214,26 @@ reclaim 并再次投递，因此已配置 consumer 必须按 immutable event ID 
 application factory、permission boundary、客户端配置、worker 上限与关闭顺序见
 [本地 daemon 指南](protocols/local-daemon-v1.zh-CN.md)。
 
+### Canonical ledger 与 projection operator 命令
+
+F1 为一份显式 SQLite event-ledger 文件增加 metadata-only operator 命令。该数据库与
+现有本地 durable authority graph 分离，绝不会从 `.tbm/durable.sqlite3` 隐式推断：
+
+```text
+tbmd ledger verify --database .tbm/event-ledger.sqlite3
+tbmd ledger stats --database .tbm/event-ledger.sqlite3
+tbmd projection list --database .tbm/event-ledger.sqlite3
+tbmd projection rebuild --database .tbm/event-ledger.sqlite3 --generation 1
+tbmd projection compare --database .tbm/event-ledger.sqlite3 ACTIVE SHADOW
+tbmd projection activate --database .tbm/event-ledger.sqlite3 SHADOW --approve
+tbmd projection rollback --database .tbm/event-ledger.sqlite3 PROJECTION
+```
+
+每条命令都会持有 ledger owner lock，并输出单个 deterministic JSON 值。多 partition
+ledger 必须传入 `--partition-sha256`。内置 reducer 生成 event-type inventory，用于
+conformance 与 operator health；它不会投影 active Gate 或 Memory lifecycle。详见
+[reducer 与 projection runtime 指南](protocols/reducer-v1.zh-CN.md)。
+
 ## 打包资源
 
 wheel、源码分发包和可编辑安装都会提供 `schemas/` 与 `examples/` 下规范运行时文件的字节一致副本，以及规范的失败分类体系和 active lesson YAML 示例。`AGENTS.md` 等贡献者指引不属于运行时资源。资源名来自严格的 POSIX 规范路径白名单，不能借此读取任意文件系统路径。

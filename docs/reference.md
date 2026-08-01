@@ -237,6 +237,28 @@ ID. See the [local daemon guide](protocols/local-daemon-v1.md) for the
 application factory, permission boundary, client configuration, worker limits,
 and shutdown order.
 
+### Canonical ledger and projection operator commands
+
+F1 adds metadata-only operator commands for an explicit SQLite event-ledger
+file. This database is separate from the existing local durable authority graph
+and is never inferred from `.tbm/durable.sqlite3`:
+
+```text
+tbmd ledger verify --database .tbm/event-ledger.sqlite3
+tbmd ledger stats --database .tbm/event-ledger.sqlite3
+tbmd projection list --database .tbm/event-ledger.sqlite3
+tbmd projection rebuild --database .tbm/event-ledger.sqlite3 --generation 1
+tbmd projection compare --database .tbm/event-ledger.sqlite3 ACTIVE SHADOW
+tbmd projection activate --database .tbm/event-ledger.sqlite3 SHADOW --approve
+tbmd projection rollback --database .tbm/event-ledger.sqlite3 PROJECTION
+```
+
+Every command holds the ledger owner lock and emits one deterministic JSON
+value. Multi-partition ledgers require `--partition-sha256`. The built-in
+reducer creates an event-type inventory for conformance and operator health; it
+does not project the active Gate or Memory lifecycle. See the
+[reducer and projection runtime guide](protocols/reducer-v1.md).
+
 ## Packaged Resources
 
 Wheel, source-distribution, and editable installs contain byte-identical copies

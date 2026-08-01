@@ -33,6 +33,13 @@ from trace_backed_memory.postgres_event_ledger_v1 import (
     PostgresEventLedgerV1PersistenceError,
     PostgresEventLedgerV1SchemaError,
 )
+from trace_backed_memory.projection import ProjectionRuntime
+from trace_backed_memory.projection_checkpoint import (
+    ProjectionCheckpoint,
+    ProjectionCheckpointConflictError,
+    ProjectionCheckpointError,
+)
+from trace_backed_memory.reducer_registry import build_default_reducer_registry
 from trace_backed_memory.resources import read_packaged_resource
 from trace_backed_memory.sqlite_event_ledger_v1 import SQLiteEventLedgerV1
 from tests.postgres_support import PostgresCluster, assert_sql_succeeds
@@ -387,6 +394,7 @@ def test_postgres_event_ledger_canonical_functions_are_complete() -> None:
         "validate_event_insert",
         "validate_global_head_insert",
         "validate_global_head_update",
+        "validate_projection_activation_insert",
         "validate_stream_head_insert",
         "validate_stream_head_update",
     }
@@ -928,6 +936,20 @@ def test_postgres_event_ledger_verifies_projection_checkpoint_descriptors(
     request = _request()
     with _repository(postgres_cluster) as ledger:
         _append(ledger, request)
+        registry = build_default_reducer_registry()
+        reducer = registry.resolve("canonical-event-inventory", 1)
+        checkpoint = ProjectionCheckpoint(
+            reducer_descriptor=reducer.descriptor,
+            partition_sha256=_access().partition.partition_sha256,
+            global_position=2,
+            event_high_watermark=2,
+            state={"ok": True},
+            reducer_registry_sha256=registry.registry_sha256,
+            event_registry_sha256=None,
+            created_at="2026-08-01T00:03:00.000000Z",
+            owner="projection_operator",
+            rebuild_generation=1,
+        )
         with ledger._connection.transaction():
             with ledger._cursor() as cursor:
                 cursor.execute(
@@ -937,12 +959,12 @@ def test_postgres_event_ledger_verifies_projection_checkpoint_descriptors(
                     "global_position, state_sha256, descriptor"
                     ") VALUES (%s, %s, %s, %s, %s, %s)",
                     (
-                        "projection_valid",
-                        1,
-                        _access().partition.partition_sha256,
-                        2,
-                        _digest("d"),
-                        '{"ok":true}',
+                        checkpoint.projection_name,
+                        checkpoint.reducer_version,
+                        checkpoint.partition_sha256,
+                        checkpoint.global_position,
+                        checkpoint.state_sha256,
+                        postgres_ledger._canonical_json(checkpoint.to_dict()),
                     ),
                 )
         assert ledger.verify_integrity()[0].valid is True
@@ -1000,6 +1022,130 @@ def test_postgres_event_ledger_rejects_invalid_checkpoint_identity(
             match="invalid shape",
         ):
             ledger.verify_integrity()
+
+
+def test_postgres_projection_checkpoint_rebuild_activate_and_resume(
+    postgres_cluster: PostgresCluster,
+) -> None:
+    _install(postgres_cluster)
+    request = _request()
+    with _repository(postgres_cluster) as ledger:
+        _append(ledger, request)
+        runtime = ProjectionRuntime(
+            ledger,
+            build_default_reducer_registry(),
+            ledger,
+        )
+        rebuilt = runtime.rebuild(
+            "canonical-event-inventory",
+            1,
+            partition_sha256=_access().partition.partition_sha256,
+            owner="projection_operator",
+            rebuild_generation=1,
+            checkpoint_interval=1,
+            created_at="2026-08-01T00:04:00.000000Z",
+        )
+        activation = runtime.activate(
+            rebuilt.checkpoint.build_id,
+            owner="projection_operator",
+            approved=True,
+            expected_head_version=0,
+            expected_current_build_id=None,
+            created_at="2026-08-01T00:04:01.000000Z",
+        )
+        resumed = runtime.rebuild(
+            "canonical-event-inventory",
+            1,
+            partition_sha256=_access().partition.partition_sha256,
+            owner="projection_operator",
+            rebuild_generation=2,
+            resume=True,
+            created_at="2026-08-01T00:04:02.000000Z",
+        )
+
+        assert rebuilt.status == "completed"
+        assert resumed.processed_events == 0
+        assert resumed.checkpoint.build_id == rebuilt.checkpoint.build_id
+        assert ledger.load_checkpoint(rebuilt.checkpoint.build_id) == rebuilt.checkpoint
+        assert ledger.current_activation(
+            rebuilt.checkpoint.projection_name,
+            _access().partition.partition_sha256,
+        ) == activation
+        checkpoints = ledger.list_checkpoints()
+        assert rebuilt.checkpoint in checkpoints
+        assert ledger.list_checkpoints(
+            rebuilt.checkpoint.projection_name,
+            rebuilt.checkpoint.partition_sha256,
+        ) == checkpoints
+        assert ledger.list_checkpoints("missing-projection") == ()
+        assert ledger.load_latest_checkpoint(
+            "missing-projection",
+            1,
+            rebuilt.checkpoint.partition_sha256,
+        ) is None
+        assert ledger.activation_history(
+            rebuilt.checkpoint.projection_name,
+            rebuilt.checkpoint.partition_sha256,
+        ) == (activation,)
+        wrong_partition = _digest("f")
+        with pytest.raises(ProjectionCheckpointError) as latest_partition:
+            ledger.load_latest_checkpoint(
+                rebuilt.checkpoint.projection_name,
+                1,
+                wrong_partition,
+            )
+        with pytest.raises(ProjectionCheckpointError) as list_partition:
+            ledger.list_checkpoints(partition_sha256=wrong_partition)
+        with pytest.raises(ProjectionCheckpointError) as history_partition:
+            ledger.activation_history(
+                rebuilt.checkpoint.projection_name,
+                wrong_partition,
+            )
+        assert latest_partition.value.code == "TBM_PROJECTION_PARTITION_MISMATCH"
+        assert list_partition.value.code == "TBM_PROJECTION_PARTITION_MISMATCH"
+        assert history_partition.value.code == "TBM_PROJECTION_PARTITION_MISMATCH"
+        assert ledger.verify_integrity()[0].valid is True
+
+
+def test_postgres_projection_activation_uses_expected_head_cas(
+    postgres_cluster: PostgresCluster,
+) -> None:
+    _install(postgres_cluster)
+    with _repository(postgres_cluster) as ledger:
+        _append(ledger, _request())
+        runtime = ProjectionRuntime(
+            ledger,
+            build_default_reducer_registry(),
+            ledger,
+        )
+        rebuilt = runtime.rebuild(
+            "canonical-event-inventory",
+            1,
+            partition_sha256=_access().partition.partition_sha256,
+            owner="projection_operator",
+            rebuild_generation=1,
+            created_at="2026-08-01T00:05:00.000000Z",
+        )
+        runtime.activate(
+            rebuilt.checkpoint.build_id,
+            owner="projection_operator",
+            approved=True,
+            expected_head_version=0,
+            expected_current_build_id=None,
+            created_at="2026-08-01T00:05:01.000000Z",
+        )
+
+        with pytest.raises(ProjectionCheckpointConflictError) as raised:
+            runtime.activate(
+                rebuilt.checkpoint.build_id,
+                owner="projection_operator",
+                approved=True,
+                expected_head_version=0,
+                expected_current_build_id=None,
+                created_at="2026-08-01T00:05:02.000000Z",
+            )
+
+        assert raised.value.code == "TBM_PROJECTION_HEAD_CONFLICT"
 
 
 def test_postgres_event_ledger_rollback_removes_exact_empty_schema(

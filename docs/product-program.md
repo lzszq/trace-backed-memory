@@ -1830,22 +1830,32 @@ classify every current registered SQLite/PostgreSQL persistence module and
 reject new unregistered sources of truth. These are contract/governance
 foundations; the active composition and source-of-truth model remain unchanged.
 
-F1-01 through F1-03 are now delivered as opt-in persistence foundations.
+F1-01 through F1-06 are now delivered as opt-in persistence/reducer
+foundations.
 `SQLiteEventLedgerV1` supplies WAL, single-owner locking, atomic batch/head/
 idempotency commits, integrity verification, and backup/restore inside the
 sixteen-component unified v3 bundle. `PostgresEventLedgerV1` supplies the same
 port through an isolated schema, fixed row-lock order, exact catalog digest,
 caller savepoints, concurrency, and fail-closed rollback. Both retain exact
 Artifact descriptors without reading protected bytes, and cross-backend tests
-require identical receipts and pages. Reducer execution, projection rebuild,
-migration, lifecycle integration, and cutover remain outstanding.
+require identical receipts and pages. The storage-neutral `tbm.reducer.v1`
+framework now adds sealed reducer versioning, code/configuration hashes,
+double-execution determinism checks, bounded canonical projection state,
+typed-event/upcaster integration, checkpoint/resume, poison-event evidence,
+shadow comparison, approved CAS activation, and append-only rollback.
+SQLite/PostgreSQL retain exact checkpoints and projection-head history in their
+event-ledger schemas. Explicit `tbmd ledger` and `tbmd projection` commands
+verify, inspect, rebuild, compare, activate, and roll back an operator-selected
+SQLite ledger. One committed golden digest is checked on Python 3.11-3.13 on
+Windows and Linux. GateSession/Memory/index/outbox reducers, migration,
+lifecycle integration, and event-first cutover remain outstanding.
 
 - **F0 — Architecture freeze (delivered):** ADR-0006, canonical event contract
   and registry, ledger ports, and a guard against new independent authorities.
-- **F1 — Ledger and reducer kernel (ledger foundation delivered):** opt-in
-  SQLite/PostgreSQL event ledgers and Artifact references are delivered;
-  versioned reducer runtime, projection rebuild CLI, and cross-version
-  determinism remain.
+- **F1 — Ledger and reducer kernel (opt-in foundation delivered):** opt-in
+  SQLite/PostgreSQL event ledgers, Artifact references, versioned reducer
+  runtime, projection operator CLI, and six-cell cross-platform determinism
+  verification are delivered; no active product lifecycle selects them.
 - **F2 — Durable lifecycle event-first cutover:** GateSession, retrieval/Gates,
   replay, outcome/effect projections, `tbmd`, HTTP, MCP, and SDKs use the same
   event-first composition and crash matrix.

@@ -43,18 +43,18 @@
 | `replay.durable-v3` | Replay | Durable replay authority | `opt-in` | 启动 policy 允许 content 时，显式 durable HTTP/MCP 会导出 session-bound replay；默认 adapter 不会。 |
 | `completion.outbox-v3` | 完成 | Outcome 与 outbox authority/worker | `opt-in` | 显式 `tbmd local` 会运行有界 SQLite delivery page 并 reclaim 过期 lease；shared-service dispatch 仍待完成。 |
 | `operations.audit-recovery-v3` | 运维 | Audit/recovery authority/worker | `opt-in` | 显式 `tbmd local` 会 expire 到期的 PREPARED/AWAITING_DECISION session；它不会执行任意 audit remediation action。 |
-| `protocol.canonical-event-v1` | Full Persistence 协议 | `tbm.event.v1` 规范信封 | `opt-in` | 已交付严格、存储中立的信封、Schema、示例和双语参考；隔离 SQLite/PostgreSQL event-ledger 后端会精确保留它，但 reducer 与 active composition root 尚未选择它。 |
-| `protocol.event-type-registry-v1` | Full Persistence 协议 | sealed typed event registry、payload schema 与 upcaster | `contract-only` | 未知 type/version 可以保留，但不能被静默消费；reducer runtime 尚未选择该 registry。 |
+| `protocol.canonical-event-v1` | Full Persistence 协议 | `tbm.event.v1` 规范信封 | `opt-in` | 已交付严格、存储中立的信封、Schema、示例和双语参考；隔离 SQLite/PostgreSQL event ledger 会精确保留它，opt-in inventory reducer 可重放 envelope metadata，但 active composition root 尚未选择它。 |
+| `protocol.event-type-registry-v1` | Full Persistence 协议 | sealed typed event registry、payload schema 与 upcaster | `contract-only` | 未知 type/version 可以保留，但不能被静默消费；generic reducer runtime 可绑定 sealed registry，但 end-user operator 路径只暴露 envelope-only inventory reducer，没有 typed domain lifecycle。 |
 | `protocol.event-ledger-port-v1` | Full Persistence 协议 | 原子 append/read/verify/subscribe 应用端口 | `opt-in` | 存储中立契约已有 WAL/单 owner SQLite 与 row-lock PostgreSQL 后端，覆盖精确 replay、integrity/catalog 校验和跨后端一致性。 |
 | `migration.snapshot-v3` | 迁移 | Snapshot v3 plan/bundle/verify/staging | `contract-only` | 没有 apply、cutover、rollback 编排。 |
 | `persistence.unified-sqlite-v3` | 持久化切换 | 统一 SQLite v3 schema | `opt-in` | 一个生成 bundle 安装并指纹校验全部 16 个 durable authority schema（含 event ledger）；active 兼容边界仍为 SQLite 1。 |
 | `persistence.unified-postgresql-v3` | 持久化切换 | 统一 PostgreSQL v3 schema | `planned` | 当前兼容边界为 PostgreSQL 2。 |
 | `persistence.canonical-event-ledger` | Full Persistence | Canonical append-only event ledger | `opt-in` | 已交付隔离 SQLite/PostgreSQL 后端和仅描述符 Artifact 引用；active composition root 尚未选择它们，因此当前 source-of-truth model 仍是 authority graph。 |
-| `persistence.reducer-runtime` | Full Persistence | Versioned deterministic reducer 与可重建 projection | `planned` | generic reducer runtime 与完整 projection rebuild 尚不存在。 |
+| `persistence.reducer-runtime` | Full Persistence | Versioned deterministic reducer 与可重建 projection | `opt-in` | `tbm.reducer.v1` 提供 sealed version/code/config registry、有界双执行 state、typed upcasting、checkpoint/resume、poison evidence、shadow compare、显式批准的 CAS activation 与 append-only rollback。SQLite/PostgreSQL 保留 checkpoint/head history；显式 `tbmd` operator 命令可重建 inventory projection。active Gate/Memory lifecycle 尚未选择该 runtime。 |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | 显式 `tbm-http --profile durable-v3`；可信 application factory、bearer 边界、统一 SQLite/PostgreSQL v3 runtime，默认隐藏内容。 |
 | `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | 显式 `tbm-mcp --profile durable-v3`；可信本地 application factory、有界 STDIO、统一 SQLite/PostgreSQL v3 runtime、跨重启续接，且默认隐藏内容。它不是带 peer authentication 的 shared-service MCP。 |
 | `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript client | `active` | 显式 durable HTTP profile 已提供同步/异步 Python client 与无运行时依赖的 Node.js TypeScript client；同一份共享 fixture 会通过 Python 与 TypeScript lifecycle 测试。 |
-| `service.local-daemon` | 本地服务 | 可重启的 `tbmd local` daemon | `active` | 一个带锁、由 owner 控制的 SQLite 进程会让有界 STDIO MCP、loopback HTTP、GateSession recovery 与 outbox delivery 共用同一 runtime/dispatcher；`init`、`doctor` 与 `health` 输出确定。 |
+| `service.local-daemon` | 本地服务 | 可重启的 `tbmd local` daemon | `active` | 一个带锁、由 owner 控制的 SQLite 进程会让有界 STDIO MCP、loopback HTTP、GateSession recovery 与 outbox delivery 共用同一 runtime/dispatcher；`init`、`doctor` 与 `health` 输出确定。独立 `tbmd ledger/projection` operator 命令要求显式 event-ledger database，不改变 `tbmd local` 的事实来源选择。 |
 | `service.shared-multitenant` | 共享服务 | Remote transport、OIDC、RBAC/RLS、workload identity | `planned` | 当前 Alpha 不能作为不可信多租户服务。 |
 | `integration.review-console` | 工程集成 | Review Console | `planned` | 尚无 control-plane 实现。 |
 | `integration.codex-hooks` | 工程集成 | Codex hooks/App Server adapter | `planned` | 当前集成为文档、skills 与本地 MCP。 |
@@ -72,9 +72,9 @@
 - [ADR-0006：Full Persistence 与 reducer-native memory](../adr/0006-full-persistence-reducer-native-memory.zh-CN.md)
 
 当前机器可读边界是 `persistence_model="authority_graph"`、
-`ledger_protocol="tbm.event.v1"` 与 `full_persistence=false`。事件信封与 ledger port
-已有 opt-in SQLite/PostgreSQL 后端，但 active lifecycle composition、reducer 与 cutover
-尚未把它们选为当前事实来源。
+`ledger_protocol="tbm.event.v1"`、`reducer_protocol="tbm.reducer.v1"` 与
+`full_persistence=false`。事件信封、ledger backend 与 generic reducer/projection operator
+路径均为 opt-in；active lifecycle composition 与 cutover 尚未把它们选为当前事实来源。
 
 ## 状态提升规则
 

@@ -950,19 +950,26 @@ registry 与仓库 gate 会分类每个当前已登记 SQLite/PostgreSQL 持久�
 未登记事实来源。这些是 contract/governance 基础；active composition 与
 source-of-truth model 仍保持不变。
 
-F1-01 至 F1-03 现已作为 opt-in 持久化基础交付。`SQLiteEventLedgerV1` 在 16-component
+F1-01 至 F1-06 现已作为 opt-in 持久化/reducer 基础交付。`SQLiteEventLedgerV1` 在 16-component
 统一 v3 bundle 内提供 WAL、单 owner lock、原子 batch/head/idempotency commit、integrity
 校验和 backup/restore。`PostgresEventLedgerV1` 通过隔离 schema、固定 row-lock 顺序、
 精确 catalog digest、caller savepoint、并发和 fail-closed rollback 实现同一端口。两个
 后端都只保留精确 Artifact descriptor，不读取受保护字节；跨后端测试要求 receipt 与
-page 完全一致。reducer 执行、projection rebuild、migration、lifecycle integration 与
-cutover 仍未完成。
+page 完全一致。存储中立 `tbm.reducer.v1` framework 现已提供 sealed reducer version、
+code/configuration hash、双执行 determinism 检查、有界 canonical projection state、
+typed-event/upcaster integration、checkpoint/resume、poison-event evidence、shadow
+comparison、显式批准的 CAS activation 与 append-only rollback。SQLite/PostgreSQL 会在
+各自 event-ledger schema 中保留精确 checkpoint 与 projection-head history。显式
+`tbmd ledger` / `tbmd projection` 命令可以针对 operator 选择的 SQLite ledger 执行
+verify、inspect、rebuild、compare、activate 与 rollback。同一 committed golden digest
+会在 Windows/Linux 的 Python 3.11-3.13 上核验。GateSession/Memory/index/outbox reducer、
+migration、lifecycle integration 与 event-first cutover 仍未完成。
 
 - **F0 — 架构冻结（已交付）：** ADR-0006、canonical event contract/registry、
   ledger port，以及禁止新增独立 authority 的 guard。
-- **F1 — Ledger 与 reducer kernel（ledger 基础已交付）：** opt-in SQLite/PostgreSQL
-  event ledger 与 Artifact reference 已交付；versioned reducer runtime、projection
-  rebuild CLI 与跨版本 determinism 仍待完成。
+- **F1 — Ledger 与 reducer kernel（opt-in 基础已交付）：** opt-in SQLite/PostgreSQL
+  event ledger、Artifact reference、versioned reducer runtime、projection operator CLI
+  与六格跨平台 determinism verification 已交付；active 产品 lifecycle 尚未选择它们。
 - **F2 — Durable lifecycle event-first cutover：** GateSession、retrieval/Gate、
   replay、outcome/effect projection、`tbmd`、HTTP、MCP 与 SDK 使用同一 event-first
   composition 与 crash matrix。

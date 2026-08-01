@@ -31,6 +31,11 @@ from tests.test_durable_runtime_v3 import _Clock, _dependencies
 from tests.test_durable_semantic_gate_v3 import (
     _context as _provider_context,
 )
+from tests.test_sqlite_event_ledger_v1 import (
+    _access as _ledger_access,
+    _append as _ledger_append,
+    _batch as _ledger_batch,
+)
 from trace_backed_memory import daemon_entry
 from trace_backed_memory._timestamps import utc_timestamp
 from trace_backed_memory.daemon_entry import DurableLocalApplication
@@ -61,6 +66,7 @@ from trace_backed_memory.local_daemon_v3 import (
     prepare_local_database,
     prepare_local_state_directory,
 )
+from trace_backed_memory.sqlite_event_ledger_v1 import SQLiteEventLedgerV1
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -258,6 +264,13 @@ def test_daemon_parser_application_and_factory_validation(
     assert local.worker_interval == 1.0
     health = parser.parse_args(["health"])
     assert health.base_url == "http://127.0.0.1:8766"
+    ledger = parser.parse_args(["ledger", "verify"])
+    assert ledger.database == Path(".tbm") / "event-ledger.sqlite3"
+    projection = parser.parse_args(
+        ["projection", "rebuild", "--generation", "1"]
+    )
+    assert projection.reducer_id == "canonical-event-inventory"
+    assert projection.version == 1
 
     application = create_test_application()
     dependencies, _context = _dependencies(_Clock())
@@ -456,6 +469,62 @@ def test_daemon_public_errors_are_stable_and_sanitized() -> None:
     assert persistence["error"]["category"] == "persistence"
     assert persistence["error"]["retryable"] is True
 
+    ledger_conflict = daemon_entry._public_error(
+        daemon_entry.EventLedgerPortError(
+            "TBM_EVENT_LEDGER_CONFLICT",
+            "event ledger head changed",
+        ),
+        "ledger verify",
+    )
+    ledger_input = daemon_entry._public_error(
+        daemon_entry.EventLedgerPortError(
+            "TBM_EVENT_LEDGER_INVALID_REQUEST",
+            "event ledger request is invalid",
+        ),
+        "ledger verify",
+    )
+    assert ledger_conflict["error"]["category"] == "state"
+    assert ledger_conflict["error"]["retryable"] is True
+    assert ledger_input["error"]["category"] == "input"
+    assert ledger_input["error"]["retryable"] is False
+
+    projection_not_found = daemon_entry._public_error(
+        daemon_entry.ProjectionCheckpointError(
+            "TBM_PROJECTION_NOT_FOUND",
+            "projection is not retained",
+        ),
+        "projection list",
+    )
+    projection_conflict = daemon_entry._public_error(
+        daemon_entry.ProjectionRuntimeError(
+            "TBM_PROJECTION_HEAD_CONFLICT",
+            "projection head changed",
+        ),
+        "projection activate",
+    )
+    reducer_input = daemon_entry._public_error(
+        daemon_entry.ReducerRegistryError(
+            "TBM_REDUCER_NOT_FOUND",
+            "reducer is not registered",
+        ),
+        "projection rebuild",
+    )
+    reducer_persistence = daemon_entry._public_error(
+        daemon_entry.ReducerV1Error(
+            "TBM_REDUCER_PERSISTENCE",
+            "reducer persistence failed",
+        ),
+        "projection rebuild",
+    )
+    assert projection_not_found["error"]["category"] == "state"
+    assert projection_not_found["error"]["retryable"] is False
+    assert projection_conflict["error"]["category"] == "state"
+    assert projection_conflict["error"]["retryable"] is True
+    assert reducer_input["error"]["category"] == "state"
+    assert reducer_input["error"]["retryable"] is False
+    assert reducer_persistence["error"]["category"] == "input"
+    assert reducer_persistence["error"]["retryable"] is True
+
     internal = daemon_entry._public_error(
         RuntimeError("private secret"),
         "local",
@@ -571,6 +640,139 @@ def test_daemon_rejects_malformed_cli_as_deterministic_json(
             "retryable": False,
         },
     }
+
+
+def test_daemon_ledger_and_projection_commands_are_deterministic_json(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    database = tmp_path / "event-ledger.sqlite3"
+    access = _ledger_access()
+    with SQLiteEventLedgerV1.connect(
+        database,
+        access,
+        initialize=True,
+    ) as writer:
+        _ledger_append(writer, _ledger_batch(access, count=1))
+    target = ["--database", str(database)]
+
+    assert daemon_entry.main(["ledger", "stats", *target]) == 0
+    statistics = json.loads(capsys.readouterr().out)
+    assert statistics["operation"] == "ledger.stats"
+    assert statistics["statistics"]["events"] == 1
+
+    assert daemon_entry.main(["ledger", "verify", *target]) == 0
+    verified = json.loads(capsys.readouterr().out)
+    assert verified["operation"] == "ledger.verify"
+    assert verified["valid"] is True
+
+    assert (
+        daemon_entry.main(
+            [
+                "projection",
+                "rebuild",
+                *target,
+                "--generation",
+                "1",
+            ]
+        )
+        == 0
+    )
+    rebuilt = json.loads(capsys.readouterr().out)
+    build_id = rebuilt["checkpoint"]["build_id"]
+    projection_name = rebuilt["checkpoint"]["projection_name"]
+    assert rebuilt["operation"] == "projection.rebuild"
+    assert rebuilt["processed_events"] == 1
+
+    assert (
+        daemon_entry.main(
+            [
+                "projection",
+                "activate",
+                *target,
+                build_id,
+                "--approve",
+            ]
+        )
+        == 0
+    )
+    first_activation = json.loads(capsys.readouterr().out)
+    assert first_activation["activation"]["head_version"] == 1
+
+    assert (
+        daemon_entry.main(
+            [
+                "projection",
+                "activate",
+                *target,
+                build_id,
+                "--approve",
+                "--expected-head-version",
+                "1",
+                "--expected-current-build-id",
+                build_id,
+            ]
+        )
+        == 0
+    )
+    second_activation = json.loads(capsys.readouterr().out)
+    assert second_activation["activation"]["head_version"] == 2
+    assert second_activation["comparison_sha256"].startswith("sha256:")
+
+    assert (
+        daemon_entry.main(
+            [
+                "projection",
+                "rollback",
+                *target,
+                projection_name,
+                "--expected-head-version",
+                "2",
+                "--expected-current-build-id",
+                build_id,
+            ]
+        )
+        == 0
+    )
+    rollback = json.loads(capsys.readouterr().out)
+    assert rollback["activation"]["head_version"] == 3
+    assert rollback["activation"]["operation"] == "rollback"
+
+    assert daemon_entry.main(["projection", "list", *target]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert listed["checkpoints"][0]["active"] is True
+
+    assert (
+        daemon_entry.main(
+            ["projection", "compare", *target, build_id, build_id]
+        )
+        == 0
+    )
+    compared = json.loads(capsys.readouterr().out)
+    assert compared["comparison"]["equivalent"] is True
+
+
+def test_daemon_ledger_missing_database_uses_public_error_contract(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert (
+        daemon_entry.main(
+            [
+                "ledger",
+                "verify",
+                "--database",
+                str(tmp_path / "missing.sqlite3"),
+            ]
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    error = json.loads(captured.err)["error"]
+    assert error["code"] == "TBM_EVENT_LEDGER_NOT_FOUND"
+    assert error["operation"] == "ledger.verify"
+    assert error["category"] == "state"
 
 
 def test_daemon_doctor_is_deterministic_and_respects_the_lock(

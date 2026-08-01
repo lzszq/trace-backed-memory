@@ -20,12 +20,18 @@ from trace_backed_memory.ledger_port_v1 import (
     EventLedgerConflictError,
     EventLedgerIdempotencyConflictError,
     EventLedgerInvalidRequestError,
+    EventLedgerNotFoundError,
     LedgerAccessContext,
     LedgerAppendRequest,
     LedgerClassificationFilter,
     LedgerIdempotency,
     LedgerTenantPartition,
 )
+from trace_backed_memory.projection import ProjectionRuntime
+from trace_backed_memory.projection_checkpoint import (
+    ProjectionCheckpointConflictError,
+)
+from trace_backed_memory.reducer_registry import build_default_reducer_registry
 from trace_backed_memory.resources import read_packaged_resource
 from trace_backed_memory.sqlite_event_ledger_v1 import (
     SQLITE_EVENT_LEDGER_V1_SCHEMA_RESOURCE,
@@ -1290,3 +1296,236 @@ def test_sqlite_event_ledger_rejects_malformed_or_oversized_direct_rows() -> Non
             )
     finally:
         connection.close()
+
+
+def test_sqlite_projection_checkpoint_rebuild_activate_and_resume() -> None:
+    connection = _connection()
+    access = _access()
+    ledger = SQLiteEventLedgerV1(connection, access)
+    try:
+        _append(ledger, _batch(access, count=1))
+        runtime = ProjectionRuntime(
+            ledger,
+            build_default_reducer_registry(),
+            ledger,
+        )
+        rebuilt = runtime.rebuild(
+            "canonical-event-inventory",
+            1,
+            partition_sha256=access.partition.partition_sha256,
+            owner="projection_operator",
+            rebuild_generation=1,
+            checkpoint_interval=1,
+            created_at="2026-08-01T00:01:00.000000Z",
+        )
+        activation = runtime.activate(
+            rebuilt.checkpoint.build_id,
+            owner="projection_operator",
+            approved=True,
+            expected_head_version=0,
+            expected_current_build_id=None,
+            created_at="2026-08-01T00:01:01.000000Z",
+        )
+        resumed = runtime.rebuild(
+            "canonical-event-inventory",
+            1,
+            partition_sha256=access.partition.partition_sha256,
+            owner="projection_operator",
+            rebuild_generation=2,
+            resume=True,
+            created_at="2026-08-01T00:01:02.000000Z",
+        )
+
+        assert rebuilt.status == "completed"
+        assert resumed.processed_events == 0
+        assert resumed.checkpoint.build_id == rebuilt.checkpoint.build_id
+        assert ledger.load_checkpoint(rebuilt.checkpoint.build_id) == rebuilt.checkpoint
+        assert ledger.current_activation(
+            rebuilt.checkpoint.projection_name,
+            access.partition.partition_sha256,
+        ) == activation
+        assert ledger.verify_integrity()[0].valid is True
+    finally:
+        ledger.close()
+        connection.close()
+
+
+def test_sqlite_projection_activation_uses_expected_head_cas() -> None:
+    connection = _connection()
+    access = _access()
+    ledger = SQLiteEventLedgerV1(connection, access)
+    try:
+        _append(ledger, _batch(access, count=1))
+        runtime = ProjectionRuntime(
+            ledger,
+            build_default_reducer_registry(),
+            ledger,
+        )
+        rebuilt = runtime.rebuild(
+            "canonical-event-inventory",
+            1,
+            partition_sha256=access.partition.partition_sha256,
+            owner="projection_operator",
+            rebuild_generation=1,
+            created_at="2026-08-01T00:02:00.000000Z",
+        )
+        runtime.activate(
+            rebuilt.checkpoint.build_id,
+            owner="projection_operator",
+            approved=True,
+            expected_head_version=0,
+            expected_current_build_id=None,
+            created_at="2026-08-01T00:02:01.000000Z",
+        )
+
+        with pytest.raises(ProjectionCheckpointConflictError) as raised:
+            runtime.activate(
+                rebuilt.checkpoint.build_id,
+                owner="projection_operator",
+                approved=True,
+                expected_head_version=0,
+                expected_current_build_id=None,
+                created_at="2026-08-01T00:02:02.000000Z",
+            )
+
+        assert raised.value.code == "TBM_PROJECTION_HEAD_CONFLICT"
+    finally:
+        ledger.close()
+        connection.close()
+
+
+def test_sqlite_integrity_rejects_tampered_projection_descriptor() -> None:
+    connection = _connection()
+    access = _access()
+    ledger = SQLiteEventLedgerV1(connection, access)
+    try:
+        _append(ledger, _batch(access, count=1))
+        runtime = ProjectionRuntime(
+            ledger,
+            build_default_reducer_registry(),
+            ledger,
+        )
+        rebuilt = runtime.rebuild(
+            "canonical-event-inventory",
+            1,
+            partition_sha256=access.partition.partition_sha256,
+            owner="projection_operator",
+            rebuild_generation=1,
+            created_at="2026-08-01T00:03:00.000000Z",
+        )
+        runtime.activate(
+            rebuilt.checkpoint.build_id,
+            owner="projection_operator",
+            approved=True,
+            expected_head_version=0,
+            expected_current_build_id=None,
+            created_at="2026-08-01T00:03:01.000000Z",
+        )
+        connection.execute(
+            "DROP TRIGGER v3_event_ledger_projection_activations_immutable_update"
+        )
+        connection.execute(
+            "UPDATE v3_event_ledger_projection_activations "
+            "SET descriptor = json_set(descriptor, '$.owner', 'tampered')"
+        )
+        connection.executescript(
+            "CREATE TRIGGER "
+            "v3_event_ledger_projection_activations_immutable_update "
+            "BEFORE UPDATE ON v3_event_ledger_projection_activations BEGIN "
+            "SELECT RAISE(ABORT, 'projection activation rows are immutable'); "
+            "END;"
+        )
+
+        with pytest.raises(SQLiteEventLedgerV1IntegrityError):
+            ledger.verify_integrity()
+    finally:
+        ledger.close()
+        connection.close()
+
+
+def test_sqlite_operator_view_discovers_partition_and_reports_stats(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "event-ledger.sqlite3"
+    access = _access()
+    with SQLiteEventLedgerV1.connect(
+        database,
+        access,
+        initialize=True,
+    ) as writer:
+        _append(writer, _batch(access, count=1))
+
+    with SQLiteEventLedgerV1.connect_operator(database) as operator:
+        statistics = operator.operator_statistics()
+
+    assert statistics == {
+        "ledger_protocol": "tbm.event-ledger-port.v1",
+        "partition_sha256": access.partition.partition_sha256,
+        "global_high_watermark": 1,
+        "partition_events": 1,
+        "events": 1,
+        "streams": 1,
+        "artifact_refs": 0,
+        "idempotency_records": 1,
+        "projection_checkpoints": 0,
+        "projection_activations": 0,
+    }
+
+
+def test_sqlite_operator_view_requires_an_exact_retained_partition(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "event-ledger.sqlite3"
+    first = _access()
+    second = _access(tenant_id="tenant_002")
+    with SQLiteEventLedgerV1.connect(database, first, initialize=True) as writer:
+        _append(writer, _batch(first, count=1))
+    with SQLiteEventLedgerV1.connect(database, second) as writer:
+        _append(
+            writer,
+            _batch(
+                second,
+                stream_id="stream_002",
+                first_global_position=2,
+                count=1,
+                key_character="c",
+                command_character="d",
+                event_prefix="evt_sqlite_second",
+            ),
+        )
+
+    with pytest.raises(EventLedgerInvalidRequestError) as required:
+        SQLiteEventLedgerV1.connect_operator(database)
+    with pytest.raises(EventLedgerNotFoundError) as missing:
+        SQLiteEventLedgerV1.connect_operator(
+            database,
+            partition_sha256=_digest("e"),
+        )
+    assert required.value.code == "TBM_EVENT_LEDGER_PARTITION_REQUIRED"
+    assert missing.value.code == "TBM_EVENT_LEDGER_PARTITION_NOT_FOUND"
+
+    with SQLiteEventLedgerV1.connect_operator(
+        database,
+        partition_sha256=second.partition.partition_sha256,
+    ) as operator:
+        assert operator.operator_statistics()["partition_events"] == 1
+
+
+def test_sqlite_operator_view_rejects_empty_or_invalid_sources(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "empty-event-ledger.sqlite3"
+    with SQLiteEventLedgerV1.connect(database, _access(), initialize=True):
+        pass
+
+    with pytest.raises(EventLedgerNotFoundError) as empty:
+        SQLiteEventLedgerV1.connect_operator(database)
+    with pytest.raises(EventLedgerNotFoundError) as absent:
+        SQLiteEventLedgerV1.connect_operator(tmp_path / "absent.sqlite3")
+    with pytest.raises(ValueError, match="database"):
+        SQLiteEventLedgerV1.connect_operator(object())  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="partition_sha256"):
+        SQLiteEventLedgerV1.connect_operator(database, partition_sha256="bad")
+
+    assert empty.value.code == "TBM_EVENT_LEDGER_PARTITION_NOT_FOUND"
+    assert absent.value.code == "TBM_EVENT_LEDGER_NOT_FOUND"

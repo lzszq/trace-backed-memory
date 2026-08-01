@@ -29,6 +29,9 @@ def test_package_metadata_exposes_dependency_free_cli_entry_points():
     assert metadata["project"]["optional-dependencies"]["service"] == [
         "pydantic>=2.12,<3"
     ]
+    assert set(metadata["build-system"]["requires"]) <= set(
+        metadata["project"]["optional-dependencies"]["dev"]
+    )
     assert "Typing :: Typed" in metadata["project"]["classifiers"]
 
 

@@ -221,6 +221,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if postgres_required:
         env["TBM_REQUIRE_POSTGRES"] = "1"
     if all_mode:
+        # Node integration tests must use the same controlled Python
+        # environment that is running the repository verification gate.
+        env["TBM_PYTHON"] = sys.executable
         for command in _all_only_commands(npm="<npm>")[:3]:
             _run(command, env=env)
     for command in _base_commands(fast=fast):

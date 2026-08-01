@@ -52,6 +52,46 @@ async function withServer(handler, callback) {
   }
 }
 
+function readPythonServerConfiguration(child, lines, readStderr) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      lines.removeListener("line", onLine);
+      child.removeListener("error", onError);
+      child.removeListener("exit", onExit);
+    };
+    const failure = (message, cause) => {
+      cleanup();
+      const detail = readStderr().trim().slice(-4096);
+      reject(
+        new Error(detail.length === 0 ? message : `${message}: ${detail}`, {
+          cause,
+        }),
+      );
+    };
+    const onLine = (line) => {
+      cleanup();
+      try {
+        resolve(JSON.parse(line));
+      } catch (error) {
+        reject(new Error("Python server returned invalid JSON", {
+          cause: error,
+        }));
+      }
+    };
+    const onError = (error) => {
+      failure("Python server could not be started", error);
+    };
+    const onExit = (code, signal) => {
+      failure(
+        `Python server exited before startup (code=${code}, signal=${signal})`,
+      );
+    };
+    lines.once("line", onLine);
+    child.once("error", onError);
+    child.once("exit", onExit);
+  });
+}
+
 test("typed client covers all six canonical routes", async () => {
   const fixtures = {
     "/v1/capabilities": await example("agent_capabilities"),
@@ -330,9 +370,13 @@ test("Node SDK completes a real Python HTTP lifecycle", async () => {
     stderr += chunk;
   });
   const lines = createInterface({ input: child.stdout });
+  let operationFailed = false;
   try {
-    const [line] = await once(lines, "line");
-    const configuration = JSON.parse(line);
+    const configuration = await readPythonServerConfiguration(
+      child,
+      lines,
+      () => stderr,
+    );
     const client = new AgentHTTPClient({
       baseUrl: configuration.base_url,
       token: configuration.token,
@@ -367,10 +411,18 @@ test("Node SDK completes a real Python HTTP lifecycle", async () => {
     assert.equal(canceled.canceled, true);
     const health = await client.health();
     assert.equal(health.pending_request_count, 0);
+  } catch (error) {
+    operationFailed = true;
+    throw error;
   } finally {
     lines.close();
-    child.stdin.end("x");
-    const [code] = await once(child, "exit");
-    assert.equal(code, 0, stderr);
+    if (child.stdin.writable && !child.stdin.destroyed) {
+      child.stdin.end("x");
+    }
+    const code =
+      child.exitCode === null ? (await once(child, "exit"))[0] : child.exitCode;
+    if (!operationFailed) {
+      assert.equal(code, 0, stderr);
+    }
   }
 });

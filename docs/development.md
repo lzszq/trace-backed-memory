@@ -30,9 +30,10 @@ Fast mode compiles sources, runs Ruff, runs mypy, and runs pytest. Full mode
 uses branch coverage, then builds wheel and sdist in a fresh temporary
 directory and verifies their contents byte-for-byte. `--postgres` sets
 `TBM_REQUIRE_POSTGRES=1`, so missing server prerequisites become failures.
-`--all` is the offline full-repository gate: it also checks the canonical
-resource manifest, requires PostgreSQL, runs `pip check`, and runs the already
-installed TypeScript toolchain. It never runs `npm ci` or downloads tools.
+`--all` is the offline full-repository gate: it also checks the persistence
+authority registry and canonical resource manifest, requires PostgreSQL, runs
+`pip check`, and runs the already installed TypeScript toolchain. It never runs
+`npm ci` or downloads tools.
 
 ## Change checklist
 
@@ -42,6 +43,9 @@ installed TypeScript toolchain. It never runs `npm ci` or downloads tools.
 - Update domain, schema, persistence, examples, resources, and documentation
   together for stored-contract changes.
 - Keep canonical and installed resource bytes identical.
+- Run `python tools/verify_authority_registry.py`; every new
+  `sqlite_*_v3.py` or `postgres_*_v3.py` module must declare its ledger,
+  projection, migration, or coordinator role and event/projection impact.
 - Run `python tools/generate_sqlite_v3_bundle.py --check`; after deliberately
   editing a listed SQLite v3 component, run its `--refresh` mode before the
   resource generator.

@@ -33,6 +33,7 @@ advance a status.
 | `sdk.python-v1` | SDK | Python sync/async clients | `active` | Targets the local `tbm.agent.v1` HTTP profile. |
 | `sdk.typescript-v1` | SDK | TypeScript client | `active` | Targets the local `tbm.agent.v1` HTTP profile. |
 | `distribution.strict-resources` | Distribution | Strict packaged-resource allowlist | `active` | Canonical and installed bytes are verified exactly. |
+| `governance.authority-registry-v1` | Governance | Persistence authority role registry and repository guard | `active` | Every SQLite/PostgreSQL v3 persistence module is registered as a ledger, projection, compatibility migration, or bundle coordinator; unregistered authorities fail repository verification. |
 | `identity.authorization-v3` | Identity | Entity registry and authorization authorities v3 | `opt-in` | Trusted direct-Python contexts only; no default transport identity. |
 | `session.gate-session-v3` | Durable session | SQLite/PostgreSQL GateSession and recovery | `opt-in` | Side-by-side authorities; not the active Store lifecycle. |
 | `agent.durable-lifecycle-v3` | Durable lifecycle | Prepare through completion and replay facade | `opt-in` | Adapter-neutral composition with no default transport selection. |
@@ -46,6 +47,8 @@ advance a status.
 | `completion.outbox-v3` | Completion | Outcome and outbox authority/worker | `opt-in` | Explicit `tbmd local` runs bounded SQLite delivery pages and reclaims expired leases; shared-service dispatch remains outstanding. |
 | `operations.audit-recovery-v3` | Operations | Audit and recovery authority/worker | `opt-in` | Explicit `tbmd local` expires due PREPARED/AWAITING_DECISION sessions; it does not execute arbitrary audit remediation actions. |
 | `protocol.canonical-event-v1` | Full Persistence protocol | `tbm.event.v1` canonical envelope | `contract-only` | Strict storage-neutral envelope, schema, example, and bilingual reference are delivered; no canonical ledger or reducer selects it yet. |
+| `protocol.event-type-registry-v1` | Full Persistence protocol | Sealed typed event registry, payload schemas, and upcasters | `contract-only` | Unknown types/versions remain preservable but cannot be silently consumed; no reducer runtime selects the registry yet. |
+| `protocol.event-ledger-port-v1` | Full Persistence protocol | Atomic append/read/verify/subscribe application port | `contract-only` | Storage-neutral bounded contracts and failure semantics are frozen; no SQLite/PostgreSQL canonical ledger backend implements the port yet. |
 | `migration.snapshot-v3` | Migration | Snapshot v3 plan/bundle/verify/staging | `contract-only` | No apply, cutover, or rollback orchestration. |
 | `persistence.unified-sqlite-v3` | Persistence cutover | Unified SQLite v3 schema | `opt-in` | One generated bundle installs and fingerprints all 15 durable authority schemas; active compatibility remains SQLite 1. |
 | `persistence.unified-postgresql-v3` | Persistence cutover | Unified PostgreSQL v3 schema | `planned` | Current compatibility boundary is PostgreSQL 2. |
@@ -73,8 +76,9 @@ advance a status.
 
 The current machine-readable boundary is
 `persistence_model="authority_graph"`, `ledger_protocol="tbm.event.v1"`, and
-`full_persistence=false`. The envelope contract is available for the next
-ledger milestones; it does not promote either planned Full Persistence row.
+`full_persistence=false`. The envelope, typed registry, and ledger-port
+contracts are available for the next ledger milestones; they do not promote
+either planned Full Persistence row.
 
 ## Promotion rule
 

@@ -44,9 +44,7 @@ def test_packaged_resources_match_every_canonical_file_byte_for_byte():
         else:
             assert item.kind == "example"
 
-    assert "schemas/AGENTS.md" not in {
-        item.name for item in descriptions
-    }
+    assert "schemas/AGENTS.md" not in {item.name for item in descriptions}
 
     with pytest.raises(FrozenInstanceError):
         descriptions[0].name = "changed"  # type: ignore[misc]
@@ -56,32 +54,21 @@ def test_resource_media_types_are_deterministic():
     by_name = {item.name: item for item in tbm.packaged_resources()}
 
     assert by_name["schemas/postgres.sql"].media_type == "application/sql"
-    assert (
-        by_name["schemas/postgres-v1-to-v2.sql"].media_type
-        == "application/sql"
-    )
+    assert by_name["schemas/postgres-v1-to-v2.sql"].media_type == "application/sql"
     assert (
         by_name["schemas/postgres-v2-lock-order-hotfix.sql"].media_type
         == "application/sql"
     )
+    assert by_name["schemas/postgres-v3-audit.sql"].media_type == "application/sql"
     assert (
-        by_name["schemas/postgres-v3-audit.sql"].media_type
+        by_name["schemas/postgres-v3-audit-rollback.sql"].media_type
         == "application/sql"
     )
     assert (
-        by_name[
-            "schemas/postgres-v3-audit-rollback.sql"
-        ].media_type
-        == "application/sql"
+        by_name["schemas/postgres-v3-authorization.sql"].media_type == "application/sql"
     )
     assert (
-        by_name["schemas/postgres-v3-authorization.sql"].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name[
-            "schemas/postgres-v3-authorization-rollback.sql"
-        ].media_type
+        by_name["schemas/postgres-v3-authorization-rollback.sql"].media_type
         == "application/sql"
     )
     assert (
@@ -89,104 +76,59 @@ def test_resource_media_types_are_deterministic():
         == "application/sql"
     )
     assert (
-        by_name[
-            "schemas/postgres-v3-entity-registry-rollback.sql"
-        ].media_type
+        by_name["schemas/postgres-v3-entity-registry-rollback.sql"].media_type
         == "application/sql"
     )
     assert (
-        by_name["schemas/postgres-v3-gate-evidence.sql"].media_type
+        by_name["schemas/postgres-v3-gate-evidence.sql"].media_type == "application/sql"
+    )
+    assert (
+        by_name["schemas/postgres-v3-gate-evidence-rollback.sql"].media_type
         == "application/sql"
     )
     assert (
-        by_name[
-            "schemas/postgres-v3-gate-evidence-rollback.sql"
-        ].media_type
+        by_name["schemas/postgres-v3-gate-session.sql"].media_type == "application/sql"
+    )
+    assert (
+        by_name["schemas/postgres-v3-gate-session-rollback.sql"].media_type
+        == "application/sql"
+    )
+    assert by_name["schemas/postgres-v3-outcome.sql"].media_type == "application/sql"
+    assert (
+        by_name["schemas/postgres-v3-outcome-rollback.sql"].media_type
         == "application/sql"
     )
     assert (
-        by_name["schemas/postgres-v3-gate-session.sql"].media_type
+        by_name["schemas/postgres-v3-completion-outbox.sql"].media_type
         == "application/sql"
     )
     assert (
-        by_name[
-            "schemas/postgres-v3-gate-session-rollback.sql"
-        ].media_type
+        by_name["schemas/postgres-v3-completion-outbox-rollback.sql"].media_type
         == "application/sql"
     )
+    assert by_name["schemas/postgres-v3-replay.sql"].media_type == "application/sql"
     assert (
-        by_name["schemas/postgres-v3-outcome.sql"].media_type
+        by_name["schemas/postgres-v3-replay-rollback.sql"].media_type
         == "application/sql"
     )
-    assert (
-        by_name[
-            "schemas/postgres-v3-outcome-rollback.sql"
-        ].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name[
-            "schemas/postgres-v3-completion-outbox.sql"
-        ].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name[
-            "schemas/postgres-v3-completion-outbox-rollback.sql"
-        ].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name["schemas/postgres-v3-replay.sql"].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name[
-            "schemas/postgres-v3-replay-rollback.sql"
-        ].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name["schemas/postgres-v3-staging.sql"].media_type
-        == "application/sql"
-    )
+    assert by_name["schemas/postgres-v3-staging.sql"].media_type == "application/sql"
     assert (
         by_name["schemas/postgres-v3-staging-rollback.sql"].media_type
         == "application/sql"
     )
     assert by_name["schemas/sqlite.sql"].media_type == "application/sql"
+    assert by_name["schemas/sqlite-v3-audit.sql"].media_type == "application/sql"
     assert (
-        by_name["schemas/sqlite-v3-audit.sql"].media_type
-        == "application/sql"
+        by_name["schemas/sqlite-v3-authorization.sql"].media_type == "application/sql"
     )
     assert (
-        by_name["schemas/sqlite-v3-authorization.sql"].media_type
-        == "application/sql"
+        by_name["schemas/sqlite-v3-entity-registry.sql"].media_type == "application/sql"
     )
-    assert (
-        by_name["schemas/sqlite-v3-entity-registry.sql"].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name["schemas/sqlite-v3-gate-session.sql"].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name["schemas/sqlite-v3-outcome.sql"].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name["schemas/sqlite-v3-migration.sql"].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name["schemas/sqlite-v3-replay.sql"].media_type
-        == "application/sql"
-    )
-    assert (
-        by_name["schemas/trace.schema.json"].media_type
-        == "application/schema+json"
-    )
+    assert by_name["schemas/sqlite-v3-gate-session.sql"].media_type == "application/sql"
+    assert by_name["schemas/sqlite-v3-outcome.sql"].media_type == "application/sql"
+    assert by_name["schemas/sqlite-v3-migration.sql"].media_type == "application/sql"
+    assert by_name["schemas/sqlite-v3-replay.sql"].media_type == "application/sql"
+    assert by_name["schemas/trace.schema.json"].media_type == "application/schema+json"
     assert (
         by_name["schemas/gate_session_v3.schema.json"].media_type
         == "application/schema+json"
@@ -211,10 +153,7 @@ def test_resource_media_types_are_deterministic():
         by_name["schemas/snapshot_v3_migration_bundle.schema.json"].media_type
         == "application/schema+json"
     )
-    assert (
-        by_name["examples/trace.example.json"].media_type
-        == "application/json"
-    )
+    assert by_name["examples/trace.example.json"].media_type == "application/json"
     assert (
         by_name["examples/gate_session_v3.example.json"].media_type
         == "application/json"
@@ -232,10 +171,7 @@ def test_resource_media_types_are_deterministic():
         == "application/json"
     )
     assert by_name["examples/quickstart.py"].media_type == "text/x-python"
-    assert (
-        by_name["memory/failure_taxonomy.yaml"].media_type
-        == "application/yaml"
-    )
+    assert by_name["memory/failure_taxonomy.yaml"].media_type == "application/yaml"
 
 
 @pytest.mark.parametrize(
@@ -348,9 +284,7 @@ def test_export_does_not_report_false_failure_after_atomic_publication(
         )
 
     assert returned == destination
-    assert destination.read_bytes() == (
-        ROOT / "schemas" / "postgres.sql"
-    ).read_bytes()
+    assert destination.read_bytes() == (ROOT / "schemas" / "postgres.sql").read_bytes()
     for temporary_path in tmp_path.glob(".postgres.sql.*.tmp"):
         temporary_path.unlink()
 
@@ -419,6 +353,67 @@ def test_missing_installed_resource_has_structured_read_error(monkeypatch):
     assert raised.value.operation == "read"
     assert raised.value.name == "schemas/postgres.sql"
     assert isinstance(raised.value.__cause__, FileNotFoundError)
+
+
+def test_export_rejects_non_path_destination_before_creating_temporary_file():
+    with pytest.raises(tbm.PackagedResourceError) as raised:
+        tbm.export_packaged_resource(
+            "schemas/postgres.sql",
+            object(),  # type: ignore[arg-type]
+        )
+
+    assert raised.value.operation == "export"
+    assert isinstance(raised.value.__cause__, TypeError)
+
+
+def test_directory_sync_preserves_fsync_and_close_failures(
+    monkeypatch,
+    tmp_path,
+):
+    descriptor = 987655
+
+    monkeypatch.setattr(
+        resource_module,
+        "_POSIX_DIRECTORY_SYNC_SUPPORTED",
+        True,
+    )
+    monkeypatch.setattr(resource_module.os, "open", lambda *_args: descriptor)
+
+    def reject_fsync(_descriptor):
+        raise OSError("injected directory sync failure")
+
+    def reject_close(_descriptor):
+        raise OSError("injected directory close failure")
+
+    monkeypatch.setattr(resource_module.os, "fsync", reject_fsync)
+    monkeypatch.setattr(resource_module.os, "close", reject_close)
+
+    with pytest.raises(OSError, match="directory sync") as raised:
+        resource_module._sync_parent_directory(tmp_path)
+    assert any("directory close" in note for note in raised.value.__notes__)
+
+
+def test_packaged_resource_read_preserves_structured_resource_errors(monkeypatch):
+    class StructuredFailure:
+        def joinpath(self, *_parts):
+            return self
+
+        def read_bytes(self):
+            raise tbm.PackagedResourceError(
+                "read",
+                name="schemas/postgres.sql",
+            )
+
+    monkeypatch.setattr(
+        resource_module,
+        "files",
+        lambda _package: StructuredFailure(),
+    )
+
+    with pytest.raises(tbm.PackagedResourceError) as raised:
+        tbm.read_packaged_resource("schemas/postgres.sql")
+    assert raised.value.operation == "read"
+    assert raised.value.__cause__ is None
 
 
 def test_packaged_resource_interface_and_typing_marker_are_public():

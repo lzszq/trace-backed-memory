@@ -2056,14 +2056,26 @@ protected bytes, referenced by events rather than embedded in them. Versioned
 deterministic reducers build replaceable projections that must be reproducible
 from the retained ledger and artifact set.
 
-The storage-neutral `tbm.event.v1` envelope is now delivered as a contract-only
-foundation. It binds trusted scope/actor/authorization identity, request and
-causal provenance, canonical payload and envelope hashes, classification,
-retention, descriptor-only Artifact references, nullable evidence-aware
-occurrence time, and trusted record time. Its strict parser is byte/node/depth
-bounded and duplicate-key rejecting. See
-[Canonical Event v1](protocols/event-v1.md). The typed registry, ledger ports,
-append transaction, reducers, and projections remain later milestones.
+The storage-neutral F0 protocol foundation is now delivered as contract-only
+layers: the strict `tbm.event.v1` envelope; a sealed typed registry with
+strict payload schemas, unknown-event preservation, a compatibility matrix,
+and explicit adjacent upcasters; and an event-ledger application port covering
+atomic bounded append, exact idempotent replay, bounded tenant/classification
+reads, stream verification, and bounded subscriptions. See
+[Canonical Event v1](protocols/event-v1.md),
+[Event Type Registry v1](protocols/event-registry-v1.md), and
+[Event Ledger Port v1](protocols/event-ledger-port-v1.md). The concrete append
+transaction, canonical ledger backends, reducers, and rebuildable projections
+remain later milestones.
+
+The machine-readable
+[`authority-registry.json`](status/authority-registry.json) classifies every
+current SQLite/PostgreSQL v3 persistence module as a ledger, replaceable
+projection, compatibility migration, or bundle coordinator. Repository
+verification rejects unregistered modules, roles, or sources of truth. The
+registry documents the current authority graph; it is not itself a runtime
+authority and does not promote any existing ledger to the canonical event
+ledger.
 
 The current compatibility Store and durable-v3 authorities remain operational
 migration assets until each event-first cutover is verified. Existing

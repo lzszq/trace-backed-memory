@@ -70,7 +70,8 @@ def test_verify_tool_lists_the_complete_offline_repository_gate() -> None:
         "tools/generate_sqlite_v3_bundle.py",
         "--check",
     ]
-    assert commands[1][-2:] == [
+    assert commands[1][-1] == "tools/verify_authority_registry.py"
+    assert commands[2][-2:] == [
         "tools/generate_resources.py",
         "--check",
     ]

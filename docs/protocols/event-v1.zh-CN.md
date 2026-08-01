@@ -53,8 +53,12 @@ reducer、重放、投影和适配器共同使用的字节与来源。本里程�
 事件和可信上下文。
 
 格式正确但未知的事件类型会被本信封有意保留。类型化注册表、各类型载荷验证器、兼容
-声明、upcaster 以及 reducer 对未知类型的行为属于 F0-03。这个边界让基础信封保持
-可扩展，同时不会虚假声称每个事件都已经能被 reducer 理解。
+声明、upcaster 以及 reducer 对未知类型的行为由
+[事件类型注册表 v1](event-registry-v1.zh-CN.md) 定义。这个边界让基础信封保持可扩展，
+同时不会虚假声称每个事件都已经能被 reducer 理解。
+
+原子 append/read/verification/subscription 边界由
+[Event Ledger Port v1](event-ledger-port-v1.zh-CN.md) 单独冻结；目前尚无后端实现该端口。
 
 规范资源：
 

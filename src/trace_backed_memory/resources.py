@@ -142,6 +142,11 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     (
+        "examples/event_type_registry_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/event_v1.example.json",
         "example",
         "application/json",
@@ -393,6 +398,16 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/entity_registry_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/event_payload_registry_v1.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/event_type_registry_v1.schema.json",
         "schema",
         "application/schema+json",
     ),

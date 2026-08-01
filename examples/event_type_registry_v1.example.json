@@ -1,0 +1,50 @@
+{
+  "registry_version": "tbm.event-registry.v1",
+  "registry_sha256": "sha256:930ebcf1960f9f9863165d42a85097e632dd960ad422228ac341fb4e09057b42",
+  "event_types": [
+    {
+      "event_type": "tbm.memory.proposed",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.memory.proposed.v1",
+      "payload_schema_sha256": "sha256:9ebcd917168e635550a3a9be22be4d398e71308a3da6f30afbc7ec23b1b02503",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "memory_revision_id",
+          "proposal_kind",
+          "scope_id"
+        ],
+        "properties": {
+          "memory_revision_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "proposal_kind": {
+            "enum": [
+              "failure_case",
+              "lesson",
+              "policy"
+            ]
+          },
+          "scope_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      }
+    }
+  ],
+  "upcasters": [],
+  "compatibility": [
+    {
+      "event_type": "tbm.memory.proposed",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    }
+  ]
+}

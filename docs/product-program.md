@@ -1820,14 +1820,19 @@ rewriting the historical phases above. The repository remains on the authority
 graph until the event-first cutover is verified; `full_persistence` stays
 `false` throughout the train until the complete exit gate passes.
 
-F0-01 and F0-02 are now delivered: the bilingual architecture decision is
-accepted and the strict storage-neutral `tbm.event.v1` envelope, schema,
-example, public Python contract, and bilingual protocol reference are
-contract-only foundations. F0-03 typed registration/upcasting and all ledger,
-reducer, projection, migration, and cutover work remain outstanding.
+F0-01 through F0-05 are now delivered. The accepted bilingual architecture
+decision is backed by the strict storage-neutral `tbm.event.v1` envelope; a
+sealed typed registry with strict payload schemas, unknown-event behavior,
+compatibility reporting, and explicit upcasters; and the storage-neutral event
+ledger port for atomic append, exact replay, bounded reads, verification, and
+subscriptions. A machine-readable authority registry and repository gate
+classify every current SQLite/PostgreSQL v3 persistence module and reject new
+unregistered sources of truth. These are contract/governance foundations:
+canonical ledger backends, reducer execution, projection rebuild, migration,
+and cutover remain outstanding in F1 and later stages.
 
-- **F0 — Architecture freeze:** ADR-0006, canonical event contract and registry,
-  ledger ports, and a guard against new independent authorities.
+- **F0 — Architecture freeze (delivered):** ADR-0006, canonical event contract
+  and registry, ledger ports, and a guard against new independent authorities.
 - **F1 — Ledger and reducer kernel:** canonical SQLite/PostgreSQL event ledgers,
   Artifact references, versioned reducer runtime, projection rebuild CLI, and
   cross-version determinism.

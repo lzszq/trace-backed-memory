@@ -55,6 +55,16 @@
       "evidence": ["src/trace_backed_memory/resources.py", "tests/verify_distribution.py"]
     },
     {
+      "id": "governance.authority-registry-v1",
+      "status": "active",
+      "evidence": [
+        "docs/status/authority-registry.json",
+        "tools/verify_authority_registry.py",
+        "tests/test_authority_registry.py",
+        ".github/PULL_REQUEST_TEMPLATE.md"
+      ]
+    },
+    {
       "id": "identity.authorization-v3",
       "status": "opt-in",
       "evidence": ["src/trace_backed_memory/authorization_v3.py", "src/trace_backed_memory/sqlite_authorization_v3.py"]
@@ -121,6 +131,25 @@
         "src/trace_backed_memory/event_v1.py",
         "schemas/event_v1.schema.json",
         "docs/protocols/event-v1.md"
+      ]
+    },
+    {
+      "id": "protocol.event-type-registry-v1",
+      "status": "contract-only",
+      "evidence": [
+        "src/trace_backed_memory/event_registry_v1.py",
+        "schemas/event_type_registry_v1.schema.json",
+        "schemas/event_payload_registry_v1.schema.json",
+        "docs/protocols/event-registry-v1.md"
+      ]
+    },
+    {
+      "id": "protocol.event-ledger-port-v1",
+      "status": "contract-only",
+      "evidence": [
+        "src/trace_backed_memory/ledger_port_v1.py",
+        "tests/test_ledger_port_v1.py",
+        "docs/protocols/event-ledger-port-v1.md"
       ]
     },
     {

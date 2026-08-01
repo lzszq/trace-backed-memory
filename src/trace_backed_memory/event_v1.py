@@ -438,6 +438,12 @@ def event_payload_sha256(payload: Mapping[str, object]) -> str:
     return _sha256(_canonical_json_bytes(canonical))
 
 
+def validate_event_payload(payload: Mapping[str, object]) -> None:
+    """Apply the canonical event payload bounds and secret-key policy."""
+
+    _bounded_payload_copy(payload)
+
+
 def canonical_event_sha256(unsigned_event: Mapping[str, object]) -> str:
     obj = dict(unsigned_event)
     if "event_sha256" in obj:
@@ -1068,6 +1074,7 @@ __all__ = [
     "event_payload_sha256",
     "loads_canonical_event",
     "parse_canonical_event",
+    "validate_event_payload",
     "verify_event_parent",
     "verify_event_trusted_context",
 ]

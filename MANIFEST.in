@@ -1,3 +1,5 @@
 include resources/manifest.json
+include docs/status/authority-registry.json
 include tools/generate_resources.py
 include tools/generate_sqlite_v3_bundle.py
+include tools/verify_authority_registry.py

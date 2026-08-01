@@ -1,0 +1,57 @@
+{
+  "$comment": "Generated from the sealed tbm.event-registry.v1 catalog. The canonical event runtime remains the authoritative validator.",
+  "$id": "https://trace-backed-memory.dev/schemas/event_payload_registry_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.proposed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "proposal_kind": {
+              "enum": [
+                "failure_case",
+                "lesson",
+                "policy"
+              ]
+            },
+            "scope_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_revision_id",
+            "proposal_kind",
+            "scope_id"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.proposed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "Trace-backed Memory registered event payloads v1"
+}

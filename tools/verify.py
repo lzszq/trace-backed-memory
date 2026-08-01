@@ -49,6 +49,7 @@ def _all_only_commands(*, npm: str) -> list[list[str]]:
             "tools/generate_sqlite_v3_bundle.py",
             "--check",
         ],
+        [sys.executable, "tools/verify_authority_registry.py"],
         [sys.executable, "tools/generate_resources.py", "--check"],
         [sys.executable, "-m", "pip", "check"],
         [
@@ -82,11 +83,11 @@ def _display_commands(
     commands = []
     if all_mode:
         commands.extend(
-            _all_only_commands(npm="<npm>")[:2]
+            _all_only_commands(npm="<npm>")[:3]
         )
     commands.extend(_base_commands(fast=fast))
     if all_mode:
-        commands.extend(_all_only_commands(npm="<npm>")[2:])
+        commands.extend(_all_only_commands(npm="<npm>")[3:])
     if not fast:
         commands.extend(
             [
@@ -168,7 +169,7 @@ def _parser() -> argparse.ArgumentParser:
         dest="all_mode",
         help=(
             "require PostgreSQL and run Python, resources, TypeScript, "
-            "dependency-integrity, and distribution verification"
+            "authority, dependency-integrity, and distribution verification"
         ),
     )
     parser.add_argument(
@@ -219,7 +220,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if postgres_required:
         env["TBM_REQUIRE_POSTGRES"] = "1"
     if all_mode:
-        for command in _all_only_commands(npm="<npm>")[:2]:
+        for command in _all_only_commands(npm="<npm>")[:3]:
             _run(command, env=env)
     for command in _base_commands(fast=fast):
         _run(command, env=env)
@@ -231,7 +232,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
-        for command in _all_only_commands(npm=npm)[2:]:
+        for command in _all_only_commands(npm=npm)[3:]:
             _run(command, env=env)
     if not fast:
         _verify_distribution(env=env)

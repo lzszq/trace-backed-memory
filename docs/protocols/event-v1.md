@@ -71,9 +71,14 @@ context.
 
 Well-formed unknown event types are intentionally preserved by this envelope.
 The typed registry, per-type payload validators, compatibility declarations,
-upcasters, and unknown-type reducer behavior belong to F0-03. This separation
-keeps the base envelope extensible without claiming that every event is already
-understood by a reducer.
+upcasters, and unknown-type reducer behavior are defined by
+[Event Type Registry v1](event-registry-v1.md). This separation keeps the base
+envelope extensible without claiming that every event is already understood by
+a reducer.
+
+The atomic append/read/verification/subscription boundary is frozen separately
+by [Event Ledger Port v1](event-ledger-port-v1.md); no backend implements that
+port yet.
 
 Canonical resources:
 

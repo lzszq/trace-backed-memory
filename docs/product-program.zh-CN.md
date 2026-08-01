@@ -942,13 +942,16 @@ durable-v3 cutover 计划的后续交付优先级，但不会回写上面的历�
 event-first cutover 完成核验前仍使用 authority graph；整个 release train 中
 `full_persistence` 都保持 `false`，直到完整 exit gate 通过。
 
-F0-01 与 F0-02 现已交付：双语架构决策已经接受，严格且存储中立的
-`tbm.event.v1` 信封、Schema、示例、公开 Python 契约和双语协议参考作为
-`contract-only` 基础落地。F0-03 类型化注册/upcast，以及全部 ledger、reducer、
-projection、migration 和 cutover 工作仍未完成。
+F0-01 至 F0-05 现已交付。已接受的双语架构决策现在由以下内容支撑：严格且存储中立的
+`tbm.event.v1` 信封；包含严格 payload schema、未知 event 行为、compatibility report
+与显式 upcaster 的 sealed typed registry；以及覆盖原子 append、精确 replay、有界
+read、verification 与 subscription 的存储中立 event ledger port。机器可读 authority
+registry 与仓库 gate 会分类每个当前 SQLite/PostgreSQL v3 持久化模块，并拒绝新增未登记
+事实来源。这些仍是 contract/governance 基础；canonical ledger 后端、reducer 执行、
+projection rebuild、migration 与 cutover 仍属于 F1 及后续阶段。
 
-- **F0 — 架构冻结：** ADR-0006、canonical event contract/registry、ledger port，
-  以及禁止新增独立 authority 的 guard。
+- **F0 — 架构冻结（已交付）：** ADR-0006、canonical event contract/registry、
+  ledger port，以及禁止新增独立 authority 的 guard。
 - **F1 — Ledger 与 reducer kernel：** canonical SQLite/PostgreSQL event ledger、
   Artifact reference、versioned reducer runtime、projection rebuild CLI 与跨版本
   determinism。

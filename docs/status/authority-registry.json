@@ -1,0 +1,285 @@
+{
+  "registry_version": "tbm.authority-registry.v1",
+  "entries": [
+    {
+      "authority_id": "postgres.artifact-v3",
+      "event_projection_impact": "artifact-authority",
+      "module": "src/trace_backed_memory/postgres_artifact_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-artifact-authority.sql"],
+      "source_of_truth": "artifact-authority"
+    },
+    {
+      "authority_id": "postgres.audit-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_audit_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-audit.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.authorization-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_authorization_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-authorization.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.completion-outbox-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_completion_outbox_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-completion-outbox.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.entity-registry-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_entity_registry_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-entity-registry.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.gate-evidence-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_gate_evidence_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-gate-evidence.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.gate-session-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_gate_session_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-gate-session.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.managed-index-v3",
+      "event_projection_impact": "replaceable-projection",
+      "module": "src/trace_backed_memory/postgres_managed_index_v3.py",
+      "role": "projection",
+      "schemas": ["schemas/postgres-v3-managed-index.sql"],
+      "source_of_truth": "none"
+    },
+    {
+      "authority_id": "postgres.memory-publication-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_memory_publication_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-memory-publication.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.memory-revision-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_memory_revision_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-memory-revision.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.outcome-attribution-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_outcome_attribution_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-outcome-attribution.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.outcome-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_outcome_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-outcome.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.replay-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_replay_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-replay.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.semantic-gate-artifact-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_semantic_gate_artifact_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-semantic-gate-artifacts.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "postgres.semantic-gate-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_semantic_gate_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/postgres-v3-semantic-gate.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.artifact-v3",
+      "event_projection_impact": "artifact-authority",
+      "module": "src/trace_backed_memory/sqlite_artifact_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/sqlite-v3-artifact-authority.sql"],
+      "source_of_truth": "artifact-authority"
+    },
+    {
+      "authority_id": "sqlite.audit-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_audit_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/sqlite-v3-audit.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.authorization-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_authorization_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/sqlite-v3-authorization.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.bundle-v3",
+      "event_projection_impact": "bundle-coordination",
+      "module": "src/trace_backed_memory/sqlite_bundle_v3.py",
+      "role": "bundle-coordinator",
+      "schemas": [
+        "schemas/sqlite-v3.components.json",
+        "schemas/sqlite-v3.sql"
+      ],
+      "source_of_truth": "none"
+    },
+    {
+      "authority_id": "sqlite.completion-outbox-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_completion_outbox_v3.py",
+      "role": "ledger",
+      "schemas": [
+        "schemas/sqlite-v3-completion-outbox.sql",
+        "schemas/sqlite-v3-gate-session.sql",
+        "schemas/sqlite-v3-outcome.sql"
+      ],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.entity-registry-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_entity_registry_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/sqlite-v3-entity-registry.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.gate-evidence-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_gate_evidence_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/sqlite-v3-gate-evidence.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.gate-session-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_gate_session_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/sqlite-v3-gate-session.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.managed-index-v3",
+      "event_projection_impact": "replaceable-projection",
+      "module": "src/trace_backed_memory/sqlite_managed_index_v3.py",
+      "role": "projection",
+      "schemas": ["schemas/sqlite-v3-managed-index.sql"],
+      "source_of_truth": "none"
+    },
+    {
+      "authority_id": "sqlite.memory-publication-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_memory_publication_v3.py",
+      "role": "ledger",
+      "schemas": [
+        "schemas/sqlite-v3-memory-publication.sql",
+        "schemas/sqlite-v3-memory-revision.sql"
+      ],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.memory-revision-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_memory_revision_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/sqlite-v3-memory-revision.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.outcome-attribution-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_outcome_attribution_v3.py",
+      "role": "ledger",
+      "schemas": [
+        "schemas/sqlite-v3-gate-session.sql",
+        "schemas/sqlite-v3-outcome-attribution.sql",
+        "schemas/sqlite-v3-outcome.sql"
+      ],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.outcome-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_outcome_v3.py",
+      "role": "ledger",
+      "schemas": [
+        "schemas/sqlite-v3-gate-session.sql",
+        "schemas/sqlite-v3-outcome.sql"
+      ],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.replay-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_replay_v3.py",
+      "role": "ledger",
+      "schemas": ["schemas/sqlite-v3-replay.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.semantic-gate-artifact-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_semantic_gate_artifact_v3.py",
+      "role": "ledger",
+      "schemas": [
+        "schemas/sqlite-v3-gate-evidence.sql",
+        "schemas/sqlite-v3-semantic-gate-artifacts.sql",
+        "schemas/sqlite-v3-semantic-gate.sql"
+      ],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.semantic-gate-v3",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_semantic_gate_v3.py",
+      "role": "ledger",
+      "schemas": [
+        "schemas/sqlite-v3-gate-evidence.sql",
+        "schemas/sqlite-v3-semantic-gate.sql"
+      ],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.v3-migration",
+      "event_projection_impact": "compatibility-migration",
+      "module": "src/trace_backed_memory/sqlite_v3.py",
+      "role": "compatibility-migration",
+      "schemas": ["schemas/sqlite-v3-migration.sql"],
+      "source_of_truth": "migration-asset"
+    }
+  ]
+}

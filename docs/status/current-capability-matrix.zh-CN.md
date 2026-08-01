@@ -30,6 +30,7 @@
 | `sdk.python-v1` | SDK | Python 同步/异步 client | `active` | 面向本地 `tbm.agent.v1` HTTP profile。 |
 | `sdk.typescript-v1` | SDK | TypeScript client | `active` | 面向本地 `tbm.agent.v1` HTTP profile。 |
 | `distribution.strict-resources` | 分发 | 严格 packaged-resource allowlist | `active` | 规范资源与安装资源执行逐字节核验。 |
+| `governance.authority-registry-v1` | 治理 | 持久化 authority 角色登记与仓库守卫 | `active` | 每个 SQLite/PostgreSQL v3 持久化模块都登记为 ledger、projection、compatibility migration 或 bundle coordinator；未登记 authority 会使仓库验证失败。 |
 | `identity.authorization-v3` | 身份 | Entity registry 与 authorization authority v3 | `opt-in` | 仅可信直接 Python context；默认 transport 尚无身份。 |
 | `session.gate-session-v3` | Durable session | SQLite/PostgreSQL GateSession 与恢复 | `opt-in` | side-by-side authority；不是 active Store 生命周期。 |
 | `agent.durable-lifecycle-v3` | Durable lifecycle | 从 prepare 到 completion/replay 的 facade | `opt-in` | adapter-neutral 组合，默认 transport 尚未选择。 |
@@ -43,6 +44,8 @@
 | `completion.outbox-v3` | 完成 | Outcome 与 outbox authority/worker | `opt-in` | 显式 `tbmd local` 会运行有界 SQLite delivery page 并 reclaim 过期 lease；shared-service dispatch 仍待完成。 |
 | `operations.audit-recovery-v3` | 运维 | Audit/recovery authority/worker | `opt-in` | 显式 `tbmd local` 会 expire 到期的 PREPARED/AWAITING_DECISION session；它不会执行任意 audit remediation action。 |
 | `protocol.canonical-event-v1` | Full Persistence 协议 | `tbm.event.v1` 规范信封 | `contract-only` | 已交付严格、存储中立的信封、Schema、示例和双语参考；canonical ledger 与 reducer 尚未选择它。 |
+| `protocol.event-type-registry-v1` | Full Persistence 协议 | sealed typed event registry、payload schema 与 upcaster | `contract-only` | 未知 type/version 可以保留，但不能被静默消费；reducer runtime 尚未选择该 registry。 |
+| `protocol.event-ledger-port-v1` | Full Persistence 协议 | 原子 append/read/verify/subscribe 应用端口 | `contract-only` | 已冻结存储中立的有界契约和失败语义；尚无 SQLite/PostgreSQL canonical ledger 后端实现该端口。 |
 | `migration.snapshot-v3` | 迁移 | Snapshot v3 plan/bundle/verify/staging | `contract-only` | 没有 apply、cutover、rollback 编排。 |
 | `persistence.unified-sqlite-v3` | 持久化切换 | 统一 SQLite v3 schema | `opt-in` | 一个生成 bundle 安装并指纹校验全部 15 个 durable authority schema；active 兼容边界仍为 SQLite 1。 |
 | `persistence.unified-postgresql-v3` | 持久化切换 | 统一 PostgreSQL v3 schema | `planned` | 当前兼容边界为 PostgreSQL 2。 |
@@ -69,8 +72,9 @@
 - [ADR-0006：Full Persistence 与 reducer-native memory](../adr/0006-full-persistence-reducer-native-memory.zh-CN.md)
 
 当前机器可读边界是 `persistence_model="authority_graph"`、
-`ledger_protocol="tbm.event.v1"` 与 `full_persistence=false`。事件信封契约已经可供后续
-ledger 里程碑使用，但不会提升上述两个 planned Full Persistence 条目的状态。
+`ledger_protocol="tbm.event.v1"` 与 `full_persistence=false`。事件信封、typed registry 和
+ledger-port 契约已经可供后续 ledger 里程碑使用，但不会提升上述两个 planned Full
+Persistence 条目的状态。
 
 ## 状态提升规则
 

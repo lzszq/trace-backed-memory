@@ -38,6 +38,8 @@
 - [SQLite 与 PostgreSQL Gate evidence v3](protocols/sqlite-gate-evidence-v3.zh-CN.md)
 - [Append-only 审计与恢复 v3](protocols/audit-recovery-v3.zh-CN.md)
 - [规范事件信封 `tbm.event.v1`](protocols/event-v1.zh-CN.md)
+- [Event type registry 与 upcaster v1](protocols/event-registry-v1.zh-CN.md)
+- [Event ledger 应用端口 v1](protocols/event-ledger-port-v1.zh-CN.md)
 - [结构化 regression evidence v3](protocols/evidence-v3.zh-CN.md)
 - [FixEvidence v3](protocols/fix-evidence-v3.zh-CN.md)
 - [MemoryRevision proposal 与 publication event v3](protocols/memory-revision-v3.zh-CN.md)
@@ -95,7 +97,11 @@
 当前格式为 snapshot version 2、SQLite schema version 1、PostgreSQL schema
 version 2 和 Agent 协议 `tbm.agent.v1`。可选的默认 `tbm-mcp` 命令是该协议的长驻
 本地 STDIO transport，不是新的持久化版本；其 pending gate request 仍为进程内
-状态。与持久化实现无关的 `tbm.gate-session.v3` 生命周期契约及 opt-in、
+状态。Canonical event 信封、sealed typed registry/upcaster catalog 与存储中立的
+event-ledger port 都只是 F0 的 contract-only 边界。尚无 SQLite/PostgreSQL
+canonical ledger 后端或通用 reducer 选择它们；active source-of-truth model
+仍是已登记的 authority graph。与持久化实现无关的 `tbm.gate-session.v3`
+生命周期契约及 opt-in、
 side-by-side SQLite 和隔离 PostgreSQL revision repository 已经发布。opt-in
 preparation、Semantic Gate、completion 与 recovery service/worker 已经使用它们，
 但默认兼容 Store/MCP lifecycle 尚未使用；显式 durable HTTP 与可信本地 MCP

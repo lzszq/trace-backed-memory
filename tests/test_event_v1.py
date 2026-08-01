@@ -22,6 +22,7 @@ from trace_backed_memory.event_v1 import (
     event_payload_sha256,
     loads_canonical_event,
     parse_canonical_event,
+    validate_event_payload,
     verify_event_parent,
     verify_event_trusted_context,
 )
@@ -50,9 +51,7 @@ def _trusted(**overrides: object) -> EventTrustedContext:
     return EventTrustedContext(**values)  # type: ignore[arg-type]
 
 
-def _artifact(
-    character: str = "a", **overrides: object
-) -> EventArtifactRef:
+def _artifact(character: str = "a", **overrides: object) -> EventArtifactRef:
     values: dict[str, object] = {
         "artifact_id": "artifact_sha256_" + character * 64,
         "content_sha256": _digest(character),
@@ -106,8 +105,7 @@ def _event(**overrides: object) -> CanonicalEvent:
 def _direct_event(**overrides: object) -> CanonicalEvent:
     event = _event()
     values = {
-        name: getattr(event, name)
-        for name in CanonicalEvent.__dataclass_fields__
+        name: getattr(event, name) for name in CanonicalEvent.__dataclass_fields__
     }
     values.update(overrides)
     return CanonicalEvent(**values)  # type: ignore[arg-type]
@@ -115,14 +113,10 @@ def _direct_event(**overrides: object) -> CanonicalEvent:
 
 def test_example_round_trips_and_schema_matches_envelope() -> None:
     example = json.loads(
-        (ROOT / "examples" / "event_v1.example.json").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "examples" / "event_v1.example.json").read_text(encoding="utf-8")
     )
     schema = json.loads(
-        (ROOT / "schemas" / "event_v1.schema.json").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "event_v1.schema.json").read_text(encoding="utf-8")
     )
 
     event = loads_canonical_event(json.dumps(example))
@@ -139,14 +133,16 @@ def test_public_package_exports_the_event_contract() -> None:
     assert tbm.CanonicalEvent is CanonicalEvent
     assert tbm.EVENT_PROTOCOL_VERSION == "tbm.event.v1"
     assert "build_canonical_event" in tbm.__all__
+    assert "validate_event_payload" in tbm.__all__
     assert "verify_event_trusted_context" in tbm.__all__
+    validate_event_payload({"safe": "value"})
+    with pytest.raises(EventV1ContractError, match="forbidden secret"):
+        validate_event_payload({"password": "redacted"})
 
 
 def test_builder_copies_payload_sorts_artifacts_and_domain_separates_hash() -> None:
     payload: dict[str, object] = {"nested": {"state": "draft"}}
-    event = _event(
-        artifact_refs=(_artifact("b"), _artifact("a")), payload=payload
-    )
+    event = _event(artifact_refs=(_artifact("b"), _artifact("a")), payload=payload)
     payload["nested"] = {"state": "mutated"}
 
     assert event.payload["nested"] != payload["nested"]
@@ -163,15 +159,18 @@ def test_builder_copies_payload_sorts_artifacts_and_domain_separates_hash() -> N
         separators=(",", ":"),
     )
     unsigned = event.to_dict(include_event_sha256=False)
-    raw_hash = "sha256:" + hashlib.sha256(
-        json.dumps(
-            unsigned,
-            ensure_ascii=False,
-            allow_nan=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()
+    raw_hash = (
+        "sha256:"
+        + hashlib.sha256(
+            json.dumps(
+                unsigned,
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+    )
     assert event.event_sha256 != raw_hash
 
 
@@ -266,7 +265,7 @@ def test_strict_parser_rejects_ambiguous_or_unbounded_json() -> None:
     with pytest.raises(EventV1ContractError, match="fields"):
         parse_canonical_event(unknown)
     with pytest.raises(EventV1ContractError) as utf8_error:
-        loads_canonical_event(b'\xff')
+        loads_canonical_event(b"\xff")
     assert utf8_error.value.code == "TBM_EVENT_INVALID_JSON"
     with pytest.raises(EventV1ContractError):
         loads_canonical_event(" " * (EVENT_JSON_MAX_BYTES + 1))
@@ -535,9 +534,7 @@ def test_json_loader_rejects_wrong_top_level_and_input_type() -> None:
 
 
 def test_payload_accepts_all_json_scalars_and_rejects_invalid_values() -> None:
-    event = _event(
-        payload={"items": [None, True, 1, 1.5, "value", ["nested"]]}
-    )
+    event = _event(payload={"items": [None, True, 1, 1.5, "value", ["nested"]]})
     assert loads_canonical_event(dumps_canonical_event(event)) == event
 
     list_cycle: list[object] = []
@@ -571,3 +568,37 @@ def test_direct_artifact_tuple_validation_is_defensive() -> None:
         _direct_event(artifact_refs=("artifact",))
     with pytest.raises(EventV1ContractError, match="sorted and unique"):
         _direct_event(artifact_refs=(_artifact("b"), _artifact("a")))
+
+
+def test_builder_rejects_wrong_context_and_duplicate_artifact_refs() -> None:
+    with pytest.raises(EventV1ContractError, match="trusted_context"):
+        _event(trusted_context=object())
+    artifact = _artifact()
+    with pytest.raises(EventV1ContractError, match="unique"):
+        _event(artifact_refs=(artifact, artifact))
+
+
+def test_payload_node_guards_reject_distributed_and_wide_overflow() -> None:
+    distributed = [{"value": index} for index in range(4096)]
+    with pytest.raises(EventV1ContractError, match="node count"):
+        validate_event_payload({"items": distributed})
+
+    wide = {f"key_{index}": None for index in range(8192)}
+    with pytest.raises(EventV1ContractError, match="node count"):
+        validate_event_payload(wide)
+
+
+def test_direct_event_timestamp_guards_reject_wrong_type_and_invalid_text() -> None:
+    with pytest.raises(EventV1ContractError, match="canonical RFC3339"):
+        _direct_event(occurred_at=1)
+    with pytest.raises(EventV1ContractError, match="canonical RFC3339"):
+        _direct_event(occurred_at="not-a-timestamp")
+    with pytest.raises(EventV1ContractError, match="RFC3339"):
+        _event(recorded_at=1)
+
+
+def test_parser_rejects_non_string_top_level_keys() -> None:
+    raw: dict[object, object] = dict(_event().to_dict())
+    raw[1] = "invalid-key"
+    with pytest.raises(EventV1ContractError, match="keys must be strings"):
+        parse_canonical_event(raw)  # type: ignore[arg-type]

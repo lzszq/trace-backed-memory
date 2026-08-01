@@ -39,6 +39,8 @@ orientation; these documents define the engineering contracts.
 - [SQLite and PostgreSQL Gate evidence v3](protocols/sqlite-gate-evidence-v3.md)
 - [Append-only audit and recovery v3](protocols/audit-recovery-v3.md)
 - [Canonical event envelope `tbm.event.v1`](protocols/event-v1.md)
+- [Event type registry and upcasters v1](protocols/event-registry-v1.md)
+- [Event ledger application port v1](protocols/event-ledger-port-v1.md)
 - [Structured regression evidence v3](protocols/evidence-v3.md)
 - [FixEvidence v3](protocols/fix-evidence-v3.md)
 - [MemoryRevision proposal and publication events v3](protocols/memory-revision-v3.md)
@@ -99,6 +101,10 @@ PostgreSQL schema version 2, and agent protocol `tbm.agent.v1`. The optional
 default `tbm-mcp` command is a long-running local STDIO transport for that
 protocol, not another persistence version. Its pending gate requests remain
 process-local.
+The canonical event envelope, sealed typed registry/upcaster catalog, and
+storage-neutral event-ledger port are contract-only F0 boundaries. No
+SQLite/PostgreSQL canonical ledger backend or generic reducer selects them;
+the active source-of-truth model remains the registered authority graph.
 The persistence-neutral `tbm.gate-session.v3` lifecycle contract and opt-in
 side-by-side SQLite and isolated PostgreSQL revision repositories are
 published. Opt-in preparation, Semantic Gate, completion, and recovery

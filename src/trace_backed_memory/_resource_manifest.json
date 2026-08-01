@@ -1249,8 +1249,8 @@
       "media_type": "application/sql",
       "source": "schemas/sqlite-v3-migration.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/sqlite-v3-migration.sql",
-      "size_bytes": 2365,
-      "sha256": "05f55a12f9bbca70c2e7af453f1c91b550048b4ed3e74e0fe2e10072fbe0e6fb"
+      "size_bytes": 8154,
+      "sha256": "263bf6f63bb4b7824b880c3f103e212837bf2d50b8694af61bce0b500c245695"
     },
     {
       "name": "schemas/sqlite-v3-outcome-attribution.sql",
@@ -1303,8 +1303,8 @@
       "media_type": "application/json",
       "source": "schemas/sqlite-v3.components.json",
       "installed": "src/trace_backed_memory/_resources/schemas/sqlite-v3.components.json",
-      "size_bytes": 5680,
-      "sha256": "e93a482031345e02682f5def7902db3656c1099174b5129b4e9aa0e641e285bc"
+      "size_bytes": 5997,
+      "sha256": "f18f77c847dc59f1c4a94099ce3e0825ec0e253c82c55f172976486f5d807124"
     },
     {
       "name": "schemas/sqlite-v3.sql",
@@ -1312,8 +1312,8 @@
       "media_type": "application/sql",
       "source": "schemas/sqlite-v3.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/sqlite-v3.sql",
-      "size_bytes": 121284,
-      "sha256": "bca42cce868856bc506292a1e4fedeba9db908072a388a5a81b9b7819e2dd6ff"
+      "size_bytes": 129570,
+      "sha256": "1ad822d0f5522a6e4f385cc48e98145738675b8e89b2b78730257827781e47cd"
     },
     {
       "name": "schemas/sqlite.sql",

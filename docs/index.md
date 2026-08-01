@@ -86,6 +86,7 @@ orientation; these documents define the engineering contracts.
 - [Canonical resource manifest](../resources/manifest.json)
 - [Snapshot v3 migration preflight](migrations/snapshot-v3-preflight.md)
 - [Version-3 migration bundles and isolated staging](migrations/v3-staging-bundles.md)
+- [Apply and roll back a local SQLite v3 migration](migrations/sqlite-v3-apply.md)
 - `schemas/sqlite.sql` for the supported local SQL profile
 - `schemas/postgres.sql` and `schemas/postgres-v1-to-v2.sql` for PostgreSQL
 - `tests/verify_distribution.py` for exact installed-resource verification
@@ -173,6 +174,8 @@ storage-neutral `tbm.replay.v3` artifact and replay-manifest contract is
 published with opt-in isolated SQLite and PostgreSQL immutable byte/descriptor
 ledgers, but no active adapter uses them and they provide no authorization,
 retention, encryption, or GateSession authority. The
-read-only v3 migration preflight and inert
-staging bundles are implemented, but they cannot activate memory or be loaded
-as version-3 runtime state.
+v3 migration preflight and staging bundles remain inert. A ready bundle may
+now be applied explicitly to a side-by-side local SQLite v3 target through the
+[apply, verify, and rollback workflow](migrations/sqlite-v3-apply.md), but the
+target is not activated or loaded by the default runtime and cannot activate
+memory by itself.

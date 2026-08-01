@@ -302,10 +302,9 @@ and non-goals.
 The opt-in unified local durable schema is published as
 `schemas/sqlite-v3.sql`, with
 `schemas/sqlite-v3.components.json` as its ordered component manifest.
-`DurableRuntimeFactory.open_sqlite(..., initialize=True)` installs all 15
-non-migration authority schemas on one connection and verifies the exact
-controlled catalog before exposing the durable dispatcher. This does not make
-durable-v3 an active transport profile. See
+`DurableRuntimeFactory.open_sqlite(..., initialize=True)` installs all 16
+durable authority and migration-ledger schemas on one connection and verifies
+the exact controlled catalog before exposing the durable dispatcher. See
 [unified SQLite v3 bundle](protocols/sqlite-bundle-v3.md).
 
 ## Evidence Ingestion Integrity
@@ -463,6 +462,9 @@ tbm snapshot stats SNAPSHOT
 tbm migration plan-v3 SNAPSHOT_V2 MAPPING_JSON [--repository-root REPOSITORY_ID=PATH]...
 tbm migration bundle-v3 SNAPSHOT_V2 MAPPING_JSON [--repository-root REPOSITORY_ID=PATH]...
 tbm migration verify-v3-bundle BUNDLE_JSON [--repository-root REPOSITORY_ID=PATH]...
+tbm migration apply-v3 BUNDLE_JSON SOURCE --source-kind {snapshot,sqlite} --target sqlite --database TARGET_SQLITE --backup BACKUP [--repository-root REPOSITORY_ID=PATH]...
+tbm migration verify-v3 TARGET_SQLITE [--repository-root REPOSITORY_ID=PATH]...
+tbm migration rollback-v3 TARGET_SQLITE --compat-database COMPAT_SQLITE [--repository-root REPOSITORY_ID=PATH]...
 tbm lessons export SNAPSHOT DESTINATION [--overwrite]
 tbm lessons import SNAPSHOT SOURCE_YAML [--write]
 tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]
@@ -495,8 +497,14 @@ mapping, and plan into an inert content-addressed bundle.
 `migration verify-v3-bundle` revalidates every embedded hash and exactly
 replays the plan. Bundles may be persisted through
 `SQLiteV3MigrationRepository`; they are not runtime snapshots and cannot
-activate memory. See
-[the staging contract](migrations/v3-staging-bundles.md).
+activate memory. `migration apply-v3` accepts only a ready bundle, backs up and
+strictly matches a snapshot-v2 or SQLite-v1 source, publishes a separate
+16-component SQLite v3 target, and records immutable legacy-evidence
+dispositions. `verify-v3` rechecks the complete target and backup.
+`rollback-v3` materializes an exact compat-v2 SQLite database and marks the
+durable target rolled back without deleting it. See the
+[staging contract](migrations/v3-staging-bundles.md) and
+[operator workflow](migrations/sqlite-v3-apply.md).
 
 The storage-neutral `tbm.replay.v3` contract can describe exact artifact
 bytes, the finalized injection, and a fixed eight-component decision replay
@@ -2621,6 +2629,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- mcp_entry.py
 |   |-- mcp_server.py
 |   |-- migration_v3.py
+|   |-- sqlite_apply_migration_v3.py
 |   |-- models.py
 |   |-- memory_revision_v3.py
 |   |-- outcome_v3.py
@@ -2662,6 +2671,7 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_gate_evaluation_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py
+    |-- test_sqlite_apply_migration_v3.py
     |-- test_memory_revision_v3.py
     |-- test_outcome_v3.py
     |-- test_sqlite_outcome_attribution_v3.py

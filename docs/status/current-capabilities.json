@@ -113,8 +113,13 @@
     },
     {
       "id": "migration.snapshot-v3",
-      "status": "contract-only",
-      "evidence": ["src/trace_backed_memory/migration_v3.py", "src/trace_backed_memory/sqlite_v3.py"]
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/migration_v3.py",
+        "src/trace_backed_memory/sqlite_apply_migration_v3.py",
+        "tests/test_sqlite_apply_migration_v3.py",
+        "docs/migrations/sqlite-v3-apply.md"
+      ]
     },
     {
       "id": "persistence.unified-sqlite-v3",

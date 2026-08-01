@@ -1703,6 +1703,16 @@ isolated by that field. Canonical repository identity, explicit scope kind,
 durable Gate requests, replay metadata, structured regression evidence, and
 required ancestry remain schema v3 / PostgreSQL schema v3 work.
 
+For local SQLite v3 migration, apply only a ready bundle whose normalized
+source digest matches the exact snapshot-v2 or SQLite-v1 source. Keep source,
+target, backup, and rollback output on distinct paths. Stop writers before
+apply, verify, or rollback. Never treat a legacy `active`, `reviewed_by`,
+`regression_passed`, repository/tenant string, or usage decision as a v3
+approval, activation, canonical identity, independent attestation, or complete
+replay. After rollback, use the reported compat-v2 database; the durable
+runtime must reject the rolled-back target. See the
+[SQLite migration guide](migrations/sqlite-v3-apply.md).
+
 Repair verified-but-unreviewed cases before loading an existing version-2
 snapshot. Existing PostgreSQL schema-version-1 installations must apply the
 packaged `schemas/postgres-v1-to-v2.sql` migration before synchronization.

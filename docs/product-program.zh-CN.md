@@ -908,6 +908,26 @@ increment 不会自动成为 active 用户路径。
   permission/alias 拒绝、doctor/health、打包与确定性 public error。默认兼容
   profile、SQLite v1 数据、shared-service worker 与 migration cutover 保持不变。
 
+## Phase 75：可从中断恢复的本地 SQLite v3 迁移（已实现）
+
+- 增加 `tbm migration apply-v3`、`verify-v3` 与 `rollback-v3`，显式处理
+  snapshot version 2 或 SQLite schema version 1 源。必须提供 ready 且精确重放的
+  bundle、显式 source kind、彼此不同的 source/target/backup，并发布独立 SQLite
+  v3 target。
+- 把 migration ledger 纳入生成式 SQLite v3 bundle，成为第 16 个 component。
+  持久化精确 bundle、一条 immutable application、确定性的逐记录 legacy-evidence
+  disposition 与 append-only profile chain。v2 Lesson/ProjectPolicy 保持
+  unpublished，dirty Trace 保持显式，usage replay 保持 `legacy_partial`，
+  obsolete history 保持不变。
+- 发布目标前创建或复验原始源备份；在临时名称下构造并验证 target，并以不替换
+  既有路径的方式发布。中断后可复用有效备份。验证完整 schema catalog、bundle
+  replay、v1 compatibility payload、backup digest/state、disposition digest、
+  profile chain、rollback output 与 SQLite integrity。
+- Rollback 生成独立、精确的 SQLite v1 compatibility database，并追加 immutable
+  `compat-v2` event。保留 durable target 与全部 v3 evidence；rollback 后 durable
+  runtime 构造会被拒绝。PostgreSQL cutover、v3 publication/activation 与新项目
+  默认值仍待完成。
+
 - 用结构化 Trace/run/evaluator 证据替代 regression boolean，并验证 source/fix/regression commit 关系。
 - 增加 storage-neutral 加密 Artifact Authority 契约、调用方持有的 authenticated-
   encryption provider 边界、`AuthenticatedArtifactService`、隔离不可变 SQLite

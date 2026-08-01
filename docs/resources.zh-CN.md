@@ -146,14 +146,14 @@
 | `schemas/sqlite-v3-managed-index.sql` | `schema` | `application/sql` | 4597 | `cb9a8670265cb4dfab36408807a34f75a3a617c82506dda0479b9dfbda06f147` |
 | `schemas/sqlite-v3-memory-publication.sql` | `schema` | `application/sql` | 8803 | `26660f544f420bfb3e8be197193023a024f3bf199e03eb43e924cf1401205249` |
 | `schemas/sqlite-v3-memory-revision.sql` | `schema` | `application/sql` | 4447 | `dd547af778f4510c8660f3283bb41f1932c94bd774062d9cc3c2d118bc5f1155` |
-| `schemas/sqlite-v3-migration.sql` | `schema` | `application/sql` | 2365 | `05f55a12f9bbca70c2e7af453f1c91b550048b4ed3e74e0fe2e10072fbe0e6fb` |
+| `schemas/sqlite-v3-migration.sql` | `schema` | `application/sql` | 8154 | `263bf6f63bb4b7824b880c3f103e212837bf2d50b8694af61bce0b500c245695` |
 | `schemas/sqlite-v3-outcome-attribution.sql` | `schema` | `application/sql` | 10668 | `9fcbf2367ad7481a4a9a53406d93ceaf87a2ec50a7058cd214e1b6ab89e6b343` |
 | `schemas/sqlite-v3-outcome.sql` | `schema` | `application/sql` | 6460 | `018c5d7da27c26ea4c896604faa5cfb9a9b4d0c58909cf8670ddddd346105af3` |
 | `schemas/sqlite-v3-replay.sql` | `schema` | `application/sql` | 5041 | `7e62b7a3f8e11eaa5a025eacb30e83f86ed3d76980620295eaed01d9c3095ce6` |
 | `schemas/sqlite-v3-semantic-gate-artifacts.sql` | `schema` | `application/sql` | 9100 | `074223a8e8dd6df6c0bb158f12638afff038b1f6e83a63831efe7e0743e3f28f` |
 | `schemas/sqlite-v3-semantic-gate.sql` | `schema` | `application/sql` | 7945 | `d036177c6c0d96af676460b80074068049871a6dd0a333a17c6d2328bb203896` |
-| `schemas/sqlite-v3.components.json` | `schema` | `application/json` | 5680 | `e93a482031345e02682f5def7902db3656c1099174b5129b4e9aa0e641e285bc` |
-| `schemas/sqlite-v3.sql` | `schema` | `application/sql` | 121284 | `bca42cce868856bc506292a1e4fedeba9db908072a388a5a81b9b7819e2dd6ff` |
+| `schemas/sqlite-v3.components.json` | `schema` | `application/json` | 5997 | `f18f77c847dc59f1c4a94099ce3e0825ec0e253c82c55f172976486f5d807124` |
+| `schemas/sqlite-v3.sql` | `schema` | `application/sql` | 129570 | `1ad822d0f5522a6e4f385cc48e98145738675b8e89b2b78730257827781e47cd` |
 | `schemas/sqlite.sql` | `schema` | `application/sql` | 1806 | `06f86b7a09530e703af32bee99b699fe79638fbd4c955927add3c668acffb9eb` |
 | `schemas/structured_regression_evidence_v3.schema.json` | `schema` | `application/schema+json` | 3803 | `85adadb8bf315257b687b7d1efdeaee0bdfc7f9a1a01638a4fd69cce8b301dfe` |
 | `schemas/system_gate_evaluation_v3.schema.json` | `schema` | `application/schema+json` | 2582 | `6461e5e01c23361cd41ef0afc763eae4a8de982e02063b67763de347bdec521b` |

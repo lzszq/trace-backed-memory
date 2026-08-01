@@ -1798,6 +1798,29 @@ Track:
   compatibility profile, SQLite v1 data, shared-service workers, and migration
   cutover unchanged.
 
+## Phase 75: Restart-safe local SQLite v3 migration (implemented)
+
+- Add `tbm migration apply-v3`, `verify-v3`, and `rollback-v3` for explicit
+  snapshot-version-2 or SQLite-schema-version-1 sources. Require a ready,
+  exactly replayed bundle; explicit source kind; distinct source, target, and
+  backup files; and a separately published SQLite v3 target.
+- Include the migration ledger as the sixteenth generated SQLite v3 component.
+  Persist the exact bundle, one immutable application, deterministic
+  per-record legacy-evidence dispositions, and an append-only profile chain.
+  Keep v2 Lesson/ProjectPolicy records unpublished, dirty Trace state
+  explicit, usage replay `legacy_partial`, and obsolete history unchanged.
+- Create or revalidate the original source backup before target publication.
+  Build and verify the target under a temporary name, publish without replacing
+  an existing path, and reuse a valid backup after an interrupted attempt.
+  Verify the complete schema catalog, bundle replay, v1 compatibility payload,
+  backup digest/state, disposition digest, profile chain, rollback output, and
+  SQLite integrity.
+- Roll back by materializing a separate exact SQLite v1 compatibility database
+  and appending an immutable `compat-v2` event. Preserve the durable target and
+  all v3 evidence; reject durable runtime construction after rollback. Keep
+  PostgreSQL cutover, v3 publication/activation, and new-project defaults
+  outstanding.
+
 - Replace the regression boolean with structured Trace/run/evaluator evidence
   and verifiable source/fix/regression commit relationships.
 - Wire transport-authenticated service-owned identities and the published

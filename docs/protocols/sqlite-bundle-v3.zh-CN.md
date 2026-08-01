@@ -4,14 +4,14 @@
 
 ## 状态与边界
 
-统一 SQLite v3 bundle 是 opt-in 的本地 durable storage 契约。它不会改变
-active snapshot version 2、SQLite schema version 1、PostgreSQL schema
-version 2 或 `tbm.agent.v1` 兼容边界。active MCP、HTTP、CLI 和 SDK profile
-目前仍未选择 durable runtime。
+统一 SQLite v3 bundle 是显式 durable HTTP/MCP/SDK profile 与 `tbmd local`
+选择的 storage graph。它不会改变 snapshot version 2、兼容 SQLite schema
+version 1、PostgreSQL schema version 2 或 `tbm.agent.v1` 兼容边界。
 
 `schemas/sqlite-v3.components.json` 是有序 component manifest。
-`schemas/sqlite-v3.sql` 由其中 15 个非迁移 authority component 生成。
-`schemas/sqlite-v3-migration.sql` 继续作为隔离 staging，不进入 runtime bundle。
+`schemas/sqlite-v3.sql` 由其中 16 个 durable authority 与 migration-ledger
+component 生成。`schemas/sqlite-v3-migration.sql` 仍可独立安装用于 staging，
+同时也是 runtime bundle 的一个 component。
 
 ## 安装与校验
 

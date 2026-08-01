@@ -3,9 +3,9 @@
   "bundle_contract_version": "tbm.sqlite-bundle.v3",
   "bundle_resource": "schemas/sqlite-v3.sql",
   "schema_version": 1,
-  "component_set_sha256": "sha256:975dcbe445e2bf162a744b39cf57e5211acc9f53fe2f3b9029fde2e956e76d19",
-  "catalog_sha256": "sha256:631dd75ed550167802127ad1a4eaa9386b2832542c1d65709e9667ca877e702a",
-  "bundle_sha256": "sha256:bca42cce868856bc506292a1e4fedeba9db908072a388a5a81b9b7819e2dd6ff",
+  "component_set_sha256": "sha256:c63c7a50add36c3b76c825bc9cb4a9aa76e50231c47fb9ad834741cac754b71b",
+  "catalog_sha256": "sha256:144741ccb9efda46515bba6916b3f281a039339f1650148729d722d2fb22f584",
+  "bundle_sha256": "sha256:1ad822d0f5522a6e4f385cc48e98145738675b8e89b2b78730257827781e47cd",
   "components": [
     {
       "component_id": "entity-registry",
@@ -46,6 +46,14 @@
       "schema_version": 1,
       "contract_version": null,
       "sha256": "sha256:26660f544f420bfb3e8be197193023a024f3bf199e03eb43e924cf1401205249"
+    },
+    {
+      "component_id": "migration",
+      "resource": "schemas/sqlite-v3-migration.sql",
+      "metadata_table": "trace_backed_memory_v3_migration_schema",
+      "schema_version": 1,
+      "contract_version": null,
+      "sha256": "sha256:263bf6f63bb4b7824b880c3f103e212837bf2d50b8694af61bce0b500c245695"
     },
     {
       "component_id": "managed-index",

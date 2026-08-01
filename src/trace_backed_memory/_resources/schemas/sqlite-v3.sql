@@ -5,6 +5,7 @@
 -- component: artifact-authority schemas/sqlite-v3-artifact-authority.sql sha256:7405518541a2eb803b268fa27b03ff1c5afec660e753658ee8d58e32f7501931
 -- component: memory-revision schemas/sqlite-v3-memory-revision.sql sha256:dd547af778f4510c8660f3283bb41f1932c94bd774062d9cc3c2d118bc5f1155
 -- component: memory-publication schemas/sqlite-v3-memory-publication.sql sha256:26660f544f420bfb3e8be197193023a024f3bf199e03eb43e924cf1401205249
+-- component: migration schemas/sqlite-v3-migration.sql sha256:263bf6f63bb4b7824b880c3f103e212837bf2d50b8694af61bce0b500c245695
 -- component: managed-index schemas/sqlite-v3-managed-index.sql sha256:cb9a8670265cb4dfab36408807a34f75a3a617c82506dda0479b9dfbda06f147
 -- component: gate-session schemas/sqlite-v3-gate-session.sql sha256:61ed2a0284f548d63e88b69d4eb86c46113d7f592579c88a9b6868e9bc4e4c4d
 -- component: gate-evidence schemas/sqlite-v3-gate-evidence.sql sha256:d882427fa6397e7f651077cbcb1b86fc7c91b3a74eb13f6878ade498defe0ee2
@@ -50,8 +51,8 @@ INSERT INTO trace_backed_memory_v3_bundle_schema (
     catalog_sha256
 ) VALUES (
     1, 1, 'tbm.sqlite-bundle.v3',
-    'sha256:975dcbe445e2bf162a744b39cf57e5211acc9f53fe2f3b9029fde2e956e76d19',
-    'sha256:631dd75ed550167802127ad1a4eaa9386b2832542c1d65709e9667ca877e702a'
+    'sha256:c63c7a50add36c3b76c825bc9cb4a9aa76e50231c47fb9ad834741cac754b71b',
+    'sha256:144741ccb9efda46515bba6916b3f281a039339f1650148729d722d2fb22f584'
 );
 
 CREATE TRIGGER trace_backed_memory_v3_bundle_schema_immutable_update
@@ -1084,6 +1085,245 @@ BEGIN
     SELECT RAISE(ABORT, 'memory revision activation head cannot be deleted');
 END;
 -- END COMPONENT memory-publication
+
+-- BEGIN COMPONENT migration
+CREATE TABLE IF NOT EXISTS trace_backed_memory_v3_migration_schema (
+    singleton INTEGER PRIMARY KEY DEFAULT 1 CHECK (singleton = 1),
+    schema_version INTEGER NOT NULL CHECK (schema_version = 1)
+) WITHOUT ROWID;
+
+INSERT OR IGNORE INTO trace_backed_memory_v3_migration_schema (
+    singleton,
+    schema_version
+) VALUES (1, 1);
+
+CREATE TABLE IF NOT EXISTS v3_migration_bundles (
+    bundle_id TEXT PRIMARY KEY
+        CHECK (
+            length(bundle_id) = 71
+            AND substr(bundle_id, 1, 7) = 'sha256:'
+            AND substr(bundle_id, 8) NOT GLOB '*[^0-9a-f]*'
+        ),
+    bundle_version TEXT NOT NULL
+        CHECK (bundle_version = 'tbm.snapshot.v2-to-v3.bundle.v1'),
+    state TEXT NOT NULL CHECK (state IN ('blocked', 'ready')),
+    source_snapshot_sha256 TEXT NOT NULL
+        CHECK (
+            length(source_snapshot_sha256) = 71
+            AND substr(source_snapshot_sha256, 1, 7) = 'sha256:'
+            AND substr(source_snapshot_sha256, 8) NOT GLOB '*[^0-9a-f]*'
+        ),
+    normalized_source_snapshot_sha256 TEXT NOT NULL
+        CHECK (
+            length(normalized_source_snapshot_sha256) = 71
+            AND substr(normalized_source_snapshot_sha256, 1, 7) = 'sha256:'
+            AND substr(normalized_source_snapshot_sha256, 8)
+                NOT GLOB '*[^0-9a-f]*'
+        ),
+    mapping_sha256 TEXT NOT NULL
+        CHECK (
+            length(mapping_sha256) = 71
+            AND substr(mapping_sha256, 1, 7) = 'sha256:'
+            AND substr(mapping_sha256, 8) NOT GLOB '*[^0-9a-f]*'
+        ),
+    plan_sha256 TEXT NOT NULL
+        CHECK (
+            length(plan_sha256) = 71
+            AND substr(plan_sha256, 1, 7) = 'sha256:'
+            AND substr(plan_sha256, 8) NOT GLOB '*[^0-9a-f]*'
+        ),
+    payload TEXT NOT NULL
+        CHECK (
+            length(CAST(payload AS BLOB)) > 0
+            AND length(CAST(payload AS BLOB)) <= 134217728
+        )
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS v3_migration_applications (
+    application_id TEXT PRIMARY KEY
+        CHECK (
+            length(application_id) = 71
+            AND substr(application_id, 1, 7) = 'sha256:'
+            AND substr(application_id, 8) NOT GLOB '*[^0-9a-f]*'
+        ),
+    bundle_id TEXT NOT NULL UNIQUE
+        REFERENCES v3_migration_bundles(bundle_id),
+    source_kind TEXT NOT NULL
+        CHECK (source_kind IN ('snapshot', 'sqlite')),
+    backup_path TEXT NOT NULL COLLATE BINARY
+        CHECK (
+            length(CAST(backup_path AS BLOB)) BETWEEN 1 AND 16384
+        ),
+    backup_sha256 TEXT NOT NULL
+        CHECK (
+            length(backup_sha256) = 71
+            AND substr(backup_sha256, 1, 7) = 'sha256:'
+            AND substr(backup_sha256, 8) NOT GLOB '*[^0-9a-f]*'
+        ),
+    normalized_source_snapshot_sha256 TEXT NOT NULL
+        CHECK (
+            length(normalized_source_snapshot_sha256) = 71
+            AND substr(normalized_source_snapshot_sha256, 1, 7) = 'sha256:'
+            AND substr(normalized_source_snapshot_sha256, 8)
+                NOT GLOB '*[^0-9a-f]*'
+        ),
+    disposition_sha256 TEXT NOT NULL
+        CHECK (
+            length(disposition_sha256) = 71
+            AND substr(disposition_sha256, 1, 7) = 'sha256:'
+            AND substr(disposition_sha256, 8) NOT GLOB '*[^0-9a-f]*'
+        ),
+    record_count INTEGER NOT NULL
+        CHECK (record_count BETWEEN 0 AND 1000000),
+    applied_at TEXT NOT NULL COLLATE BINARY
+        CHECK (length(CAST(applied_at AS BLOB)) BETWEEN 20 AND 64)
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS v3_migration_record_dispositions (
+    application_id TEXT NOT NULL
+        REFERENCES v3_migration_applications(application_id),
+    record_kind TEXT NOT NULL
+        CHECK (
+            record_kind IN (
+                'trace',
+                'failure_case',
+                'lesson',
+                'project_policy',
+                'usage_log'
+            )
+        ),
+    record_id TEXT NOT NULL COLLATE BINARY
+        CHECK (length(CAST(record_id AS BLOB)) BETWEEN 1 AND 1024),
+    source_status TEXT COLLATE BINARY
+        CHECK (
+            source_status IS NULL
+            OR length(CAST(source_status AS BLOB)) BETWEEN 1 AND 128
+        ),
+    evidence_status TEXT NOT NULL
+        CHECK (
+            evidence_status IN (
+                'legacy_trace',
+                'legacy_dirty_trace',
+                'legacy_unverified',
+                'mapped_regression_preflight',
+                'legacy_partial_replay'
+            )
+        ),
+    target_status TEXT NOT NULL
+        CHECK (
+            target_status IN (
+                'retained_legacy',
+                'unpublished_v3',
+                'legacy_partial'
+            )
+        ),
+    reason_code TEXT NOT NULL COLLATE BINARY
+        CHECK (length(CAST(reason_code AS BLOB)) BETWEEN 1 AND 128),
+    PRIMARY KEY (application_id, record_kind, record_id)
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS v3_migration_profile_events (
+    application_id TEXT NOT NULL
+        REFERENCES v3_migration_applications(application_id),
+    sequence INTEGER NOT NULL CHECK (sequence IN (1, 2)),
+    profile TEXT NOT NULL
+        CHECK (profile IN ('durable-v3', 'compat-v2')),
+    compatibility_path TEXT COLLATE BINARY
+        CHECK (
+            compatibility_path IS NULL
+            OR length(CAST(compatibility_path AS BLOB))
+                BETWEEN 1 AND 16384
+        ),
+    compatibility_sha256 TEXT
+        CHECK (
+            compatibility_sha256 IS NULL
+            OR (
+                length(compatibility_sha256) = 71
+                AND substr(compatibility_sha256, 1, 7) = 'sha256:'
+                AND substr(compatibility_sha256, 8)
+                    NOT GLOB '*[^0-9a-f]*'
+            )
+        ),
+    occurred_at TEXT NOT NULL COLLATE BINARY
+        CHECK (length(CAST(occurred_at AS BLOB)) BETWEEN 20 AND 64),
+    reason_code TEXT NOT NULL COLLATE BINARY
+        CHECK (length(CAST(reason_code AS BLOB)) BETWEEN 1 AND 128),
+    PRIMARY KEY (application_id, sequence),
+    UNIQUE (application_id, profile),
+    CHECK (
+        (
+            sequence = 1
+            AND profile = 'durable-v3'
+            AND compatibility_path IS NULL
+            AND compatibility_sha256 IS NULL
+        )
+        OR (
+            sequence = 2
+            AND profile = 'compat-v2'
+            AND compatibility_path IS NOT NULL
+            AND compatibility_sha256 IS NOT NULL
+        )
+    )
+) WITHOUT ROWID;
+
+CREATE TRIGGER IF NOT EXISTS v3_migration_bundles_immutable_update
+BEFORE UPDATE ON v3_migration_bundles
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'v3 migration bundles are immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_migration_bundles_immutable_delete
+BEFORE DELETE ON v3_migration_bundles
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'v3 migration bundles are immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_migration_applications_immutable_update
+BEFORE UPDATE ON v3_migration_applications
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'v3 migration applications are immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_migration_applications_immutable_delete
+BEFORE DELETE ON v3_migration_applications
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'v3 migration applications are immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS
+v3_migration_record_dispositions_immutable_update
+BEFORE UPDATE ON v3_migration_record_dispositions
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'v3 migration record dispositions are immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS
+v3_migration_record_dispositions_immutable_delete
+BEFORE DELETE ON v3_migration_record_dispositions
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'v3 migration record dispositions are immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_migration_profile_events_immutable_update
+BEFORE UPDATE ON v3_migration_profile_events
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'v3 migration profile events are immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS v3_migration_profile_events_immutable_delete
+BEFORE DELETE ON v3_migration_profile_events
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'v3 migration profile events are immutable');
+END;
+-- END COMPONENT migration
 
 -- BEGIN COMPONENT managed-index
 CREATE TABLE IF NOT EXISTS trace_backed_memory_v3_managed_index_schema (

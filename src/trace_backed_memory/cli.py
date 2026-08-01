@@ -39,6 +39,12 @@ from .migration_v3 import (
     load_snapshot_v3_migration_bundle,
     verify_snapshot_v3_migration_bundle,
 )
+from .sqlite_apply_migration_v3 import (
+    SQLiteV3ApplyMigrationError,
+    apply_sqlite_v3_migration,
+    rollback_sqlite_v3_migration,
+    verify_sqlite_v3_migration,
+)
 from .models import (
     Lesson,
     MemoryContext,
@@ -206,6 +212,84 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="BUNDLE_JSON",
     )
     _add_repository_root_arguments(migration_verify_v3)
+    migration_apply_v3 = migration_commands.add_parser(
+        "apply-v3",
+        help=(
+            "Back up and migrate a snapshot-v2 or SQLite-v1 source into "
+            "a separate durable SQLite v3 database."
+        ),
+    )
+    migration_apply_v3.add_argument(
+        "bundle_json",
+        type=Path,
+        metavar="BUNDLE_JSON",
+    )
+    migration_apply_v3.add_argument("source", type=Path, metavar="SOURCE")
+    migration_apply_v3.add_argument(
+        "--source-kind",
+        required=True,
+        choices=("snapshot", "sqlite"),
+    )
+    migration_apply_v3.add_argument(
+        "--target",
+        required=True,
+        choices=("sqlite",),
+    )
+    migration_apply_v3.add_argument(
+        "--database",
+        required=True,
+        type=Path,
+        metavar="TARGET_SQLITE",
+    )
+    migration_apply_v3.add_argument(
+        "--backup",
+        required=True,
+        type=Path,
+        metavar="BACKUP",
+    )
+    _add_repository_root_arguments(migration_apply_v3)
+    migration_verify_applied_v3 = migration_commands.add_parser(
+        "verify-v3",
+        help=(
+            "Verify an applied SQLite v3 migration, its source backup, "
+            "legacy dispositions, and active profile."
+        ),
+    )
+    migration_verify_applied_v3.add_argument(
+        "database",
+        type=Path,
+        metavar="TARGET_SQLITE",
+    )
+    migration_verify_applied_v3.add_argument(
+        "--target",
+        choices=("sqlite",),
+        default="sqlite",
+    )
+    _add_repository_root_arguments(migration_verify_applied_v3)
+    migration_rollback_v3 = migration_commands.add_parser(
+        "rollback-v3",
+        help=(
+            "Materialize a compat-v2 SQLite database while retaining "
+            "the durable migration target."
+        ),
+    )
+    migration_rollback_v3.add_argument(
+        "database",
+        type=Path,
+        metavar="TARGET_SQLITE",
+    )
+    migration_rollback_v3.add_argument(
+        "--target",
+        choices=("sqlite",),
+        default="sqlite",
+    )
+    migration_rollback_v3.add_argument(
+        "--compat-database",
+        required=True,
+        type=Path,
+        metavar="COMPAT_SQLITE",
+    )
+    _add_repository_root_arguments(migration_rollback_v3)
 
     for command, help_text in (
         ("audit", "Audit memory-run completion state."),
@@ -1303,6 +1387,92 @@ def _execute(
     )
 
 
+def _migration_apply_error_result(
+    error: SQLiteV3ApplyMigrationError,
+) -> int:
+    code = error.code
+    if code in {
+        "TBM_SQLITE_V3_MIGRATION_PATH_INVALID",
+        "TBM_SQLITE_V3_MIGRATION_PATH_CONFLICT",
+        "TBM_SQLITE_V3_MIGRATION_SOURCE_INVALID",
+        "TBM_SQLITE_V3_MIGRATION_SOURCE_MISMATCH",
+        "TBM_SQLITE_V3_MIGRATION_SOURCE_ALREADY_V3",
+    }:
+        return _emit_error("input", error, 2)
+    if any(
+        marker in code
+        for marker in (
+            "_BACKUP_FAILED",
+            "_COMPAT_WRITE_FAILED",
+            "_PUBLISH_FAILED",
+            "_STATE_WRITE_FAILED",
+            "_SYNC_FAILED",
+            "_TEMP_CLEANUP_FAILED",
+        )
+    ):
+        return _emit_error("write", error, 4)
+    return _emit_error("state", error, 3)
+
+
+def _run_applied_v3_migration_command(args: argparse.Namespace) -> int:
+    try:
+        repository_roots = _parse_repository_roots(args.repository_root)
+        verifier = _commit_relation_verifier(repository_roots)
+        if args.migration_command == "apply-v3":
+            bundle = load_snapshot_v3_migration_bundle(args.bundle_json)
+            inspection = apply_sqlite_v3_migration(
+                bundle,
+                source=args.source,
+                source_kind=args.source_kind,
+                target_database=args.database,
+                backup=args.backup,
+                commit_relation_verifier=verifier,
+            )
+            payload = {
+                **inspection.to_dict(),
+                "status": "applied",
+                "target_database": str(
+                    Path(args.database).expanduser().resolve(strict=True)
+                ),
+                "verified": True,
+            }
+        elif args.migration_command == "verify-v3":
+            inspection = verify_sqlite_v3_migration(
+                args.database,
+                commit_relation_verifier=verifier,
+            )
+            payload = {
+                **inspection.to_dict(),
+                "status": "verified",
+                "target_database": str(
+                    Path(args.database).expanduser().resolve(strict=True)
+                ),
+                "verified": True,
+            }
+        else:
+            inspection = rollback_sqlite_v3_migration(
+                args.database,
+                compatibility_database=args.compat_database,
+                commit_relation_verifier=verifier,
+            )
+            payload = {
+                **inspection.to_dict(),
+                "status": "rolled_back",
+                "target_database": str(
+                    Path(args.database).expanduser().resolve(strict=True)
+                ),
+                "verified": True,
+            }
+        _write_json(sys.stdout, payload)
+    except (CLIInputError, V3MigrationBundleError) as error:
+        return _emit_error("input", error, 2)
+    except SQLiteV3ApplyMigrationError as error:
+        return _migration_apply_error_result(error)
+    except Exception as error:
+        return _emit_error("internal", error, 1)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     try:
@@ -1317,6 +1487,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "resource":
         return _run_resource_command(args)
+    if (
+        args.command == "migration"
+        and args.migration_command
+        in {"apply-v3", "verify-v3", "rollback-v3"}
+    ):
+        return _run_applied_v3_migration_command(args)
     if (
         args.command == "migration"
         and args.migration_command == "verify-v3-bundle"

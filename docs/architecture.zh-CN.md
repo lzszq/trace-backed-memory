@@ -94,12 +94,12 @@ SQL/迁移、memory support 与 example 提供安装后访问接口：
 ### 统一 SQLite v3 bundle
 
 opt-in durable SQLite factory 不再临时安装一小部分 authority script。
-`schemas/sqlite-v3.components.json` 对 15 个非迁移 component 排序，
-`schemas/sqlite-v3.sql` 从这些精确字节生成一个外层事务。bundle metadata row
-绑定 component set 与 catalog 指纹。构造 durable service graph 前，启动过程会
-校验每个 component version，以及 main/temp catalog 中全部受控 table、index、
-automatic index 与 trigger。隔离 migration staging schema 不包含在 bundle 中。
-这提供完整的本地 v3 install/verifier，但不改变 active SQLite v1 transport 边界。
+`schemas/sqlite-v3.components.json` 对包括 migration ledger 在内的 16 个
+component 排序，`schemas/sqlite-v3.sql` 从这些精确字节生成一个外层事务。bundle
+metadata row 绑定 component set 与 catalog 指纹。构造 durable service graph
+前，启动过程会校验每个 component version，以及 main/temp catalog 中全部受控
+table、index、automatic index 与 trigger。这提供完整的本地 v3
+install/verifier；兼容 SQLite schema 仍为 version 1。
 详见[统一 SQLite v3 bundle](protocols/sqlite-bundle-v3.zh-CN.md)。
 
 ### 有界本地文档摄取
@@ -379,15 +379,26 @@ mapping 与 plan 进行内容寻址。Bundle 解析有界并拒绝 duplicate key
 完整 preflight 并要求 plan 精确重放。内容寻址可以发现篡改，但不是 identity
 signature 或 evidence attestation。
 
-`SQLiteV3MigrationRepository` 使用独立表保存这些不可激活的 bundle。PostgreSQL
-operator resource 只创建或删除 `trace_backed_memory_v3_staging`；其 metadata 与
+`SQLiteV3MigrationRepository` 使用独立 immutable 表保存这些 bundle。
+`apply_sqlite_v3_migration()` 会核验 ready bundle 与源，创建或复验备份，构造
+独立 side-by-side SQLite target，保存逐记录 legacy-evidence disposition，并在
+精确读回后才发布目标。`verify_sqlite_v3_migration()` 会重新核验 v3 catalog、
+bundle replay、兼容 payload、备份、disposition、profile chain 与数据库完整性。
+Rollback 会生成独立 SQLite v1 database，并追加 immutable `compat-v2` profile
+event，不删除 v3 evidence；durable runtime 会拒绝构造这个已经 rollback 的目标。
+
+既有 v2 `active` status 只作为 legacy input 保留，绝不会成为 v3 approval 或
+activation。Lesson/policy 保持 `unpublished_v3`，dirty Trace 保持显式，
+usage log 保持 `legacy_partial`。PostgreSQL operator resource 只创建或删除
+`trace_backed_memory_v3_staging`；其 metadata 与
 bundle row 的 canonical trigger 会拒绝普通 update、delete 和 truncate；schema
 owner 与 superuser 能修改 trigger，因此仍属于可信 operator。Rollback 枚举已知
 object 并使用 `RESTRICT`，所以意外 object 或外部 dependency 会 fail closed。
-两条 staging 路径都对 active adapter 不可见，且不提供 publication/activation 操作。因此 runtime
-兼容边界仍是 snapshot version 2、SQLite schema version 1 与 PostgreSQL schema
-version 2。完整契约见
-[Version-3 迁移 bundle 与隔离 staging](migrations/v3-staging-bundles.zh-CN.md)。
+本地迁移路径不提供 PostgreSQL cutover 或 ActivatedRevision publication。
+Snapshot version 2、兼容 SQLite schema version 1 与 PostgreSQL schema version 2
+仍为受支持边界。参见
+[Version-3 迁移 bundle 与隔离 staging](migrations/v3-staging-bundles.zh-CN.md)
+和[本地 apply/verify/rollback 工作流](migrations/sqlite-v3-apply.zh-CN.md)。
 
 ## Durable GateSession version-3 契约
 

@@ -2,9 +2,9 @@
 
 [English](snapshot-v3-preflight.md) | **简体中文**
 
-本文说明已经交付的只读 schema version 3 协同迁移预检。它不改变当前兼容边界：
-runtime snapshot 仍为 version 2，SQLite 仍为 schema version 1，PostgreSQL
-仍为 schema version 2，Agent 协议仍为 `tbm.agent.v1`。
+本文说明 schema version 3 协同迁移的只读预检。预检本身不会改变任何持久化状态。
+Runtime snapshot 与兼容 SQLite schema 分别保持 version 2 和 version 1，
+PostgreSQL 保持 schema version 2，`tbm.agent.v1` 仍为兼容协议。
 
 ## 命令
 
@@ -101,7 +101,8 @@ response 或 snippet evidence。
 
 ## 刻意保留的边界
 
-预检不会生成或加载 version-3 snapshot，不会修改 SQLite/PostgreSQL，不会持久化
-Gate session，也不会宣称 complete decision replay。上述能力必须等待剩余的
-version-3 domain、persistence、transaction、rollback 与 recovery 实现协同完成。
-保持预检只读，可以防止不完整 schema 意外成为 production format。
+预检不会生成 version-3 snapshot，不会修改 SQLite/PostgreSQL，不会持久化 Gate
+session，也不会宣称 complete decision replay。Ready bundle 可以随后交给显式
+[本地 SQLite apply/verify/rollback 工作流](sqlite-v3-apply.zh-CN.md)；该工作流
+保持 legacy memory 未发布，并保留兼容源与备份。PostgreSQL cutover 和 active
+ActivatedRevision migration 仍待完成。

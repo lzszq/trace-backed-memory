@@ -781,6 +781,15 @@ metadata 与关键词检索使用 Unicode-aware tokenization；非 ASCII 词还�
 
 生产部署必须把 declared-scope matching 视为适用性判断，而不是授权。省略 `repo` 或 `tenant` 的 memory 不会自动获得该字段的隔离。canonical repository identity、显式 scope kind、durable Gate request、可重放审计、结构化 regression evidence 与 required ancestry 仍属于 schema v3 / PostgreSQL schema v3。
 
+本地 SQLite v3 迁移只能应用 normalized source digest 与精确 snapshot-v2 /
+SQLite-v1 源匹配的 ready bundle。Source、target、backup 与 rollback output 必须
+使用不同路径；apply、verify 或 rollback 前应停止 writer。不得把 legacy
+`active`、`reviewed_by`、`regression_passed`、repository/tenant 字符串或 usage
+decision 当成 v3 approval、activation、canonical identity、独立 attestation 或
+complete replay。Rollback 后必须使用命令报告的 compat-v2 database；durable
+runtime 必须拒绝已经 rollback 的 target。详见
+[SQLite 迁移指南](migrations/sqlite-v3-apply.zh-CN.md)。
+
 加载既有 version-2 snapshot 前必须补齐 verified-but-unreviewed case 的 review 证据；同步前必须对既有 PostgreSQL schema-version-1 安装应用包内 `schemas/postgres-v1-to-v2.sql`。在 Lesson/source-case 锁序修复前创建的 schema-version-2 数据库必须应用可重复运行且带版本门禁的 `schemas/postgres-v2-lock-order-hotfix.sql`；全新安装与当前 v1→v2 迁移已包含该修复。
 
 推荐格式：

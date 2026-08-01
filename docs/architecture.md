@@ -293,14 +293,14 @@ PostgreSQL schema version 2 remain unchanged.
 ### Unified SQLite v3 bundle
 
 The opt-in durable SQLite factory no longer installs an ad hoc subset of
-authority scripts. `schemas/sqlite-v3.components.json` orders 15 non-migration
-components, and `schemas/sqlite-v3.sql` generates one outer transaction from
-those exact bytes. A bundle metadata row binds the component-set and catalog
-fingerprints. Startup verifies every component version plus every controlled
-main/temp table, index, automatic index, and trigger before constructing the
-durable service graph. The isolated migration staging schema is not included.
-This adds a complete local v3 install/verifier without changing the active
-SQLite v1 transport boundary. See
+authority scripts. `schemas/sqlite-v3.components.json` orders 16 components,
+including the migration ledger, and `schemas/sqlite-v3.sql` generates one
+outer transaction from those exact bytes. A bundle metadata row binds the
+component-set and catalog fingerprints. Startup verifies every component
+version plus every controlled main/temp table, index, automatic index, and
+trigger before constructing the durable service graph. This adds a complete
+local v3 install/verifier while the compatibility SQLite schema remains
+version 1. See
 [Unified SQLite v3 bundle](protocols/sqlite-bundle-v3.md).
 
 ### Bounded Local Document Ingestion
@@ -1506,18 +1506,29 @@ duplicate-key rejecting; verification reruns the full preflight and requires
 an exact plan replay. Content addressing detects modification but is not an
 identity signature or evidence attestation.
 
-`SQLiteV3MigrationRepository` stores these inert bundles in separate tables.
-The PostgreSQL operator resources create and remove only
+`SQLiteV3MigrationRepository` stores these bundles in separate immutable
+tables. `apply_sqlite_v3_migration()` verifies a ready bundle and source,
+creates or revalidates a backup, builds a separate side-by-side SQLite target,
+stores per-record legacy-evidence dispositions, and publishes the target only
+after exact read-back. `verify_sqlite_v3_migration()` rechecks the v3 catalog,
+bundle replay, compatibility payloads, backup, dispositions, profile chain,
+and database integrity. Rollback materializes a separate SQLite v1 database
+and appends an immutable `compat-v2` profile event without deleting v3
+evidence; durable runtime construction rejects that rolled-back target.
+
+Existing v2 `active` status is retained only as legacy input and never becomes
+a v3 approval or activation. Lessons and policies remain `unpublished_v3`,
+dirty traces remain explicit, and usage logs remain `legacy_partial`. The
+PostgreSQL operator resources create and remove only
 `trace_backed_memory_v3_staging`; canonical triggers reject ordinary update,
 delete, and truncate statements, while the schema owner and superusers remain
 trusted because they can alter those triggers. Rollback enumerates known
 objects and uses `RESTRICT`, so unexpected objects or external dependencies
-fail closed. Both staging paths remain invisible to the active adapters and
-provide no publication or activation operation.
-Snapshot version 2, SQLite schema version 1, and PostgreSQL schema version 2
-therefore remain the runtime compatibility boundary. The complete contract is
-documented in
-[Version-3 migration bundles and isolated staging](migrations/v3-staging-bundles.md).
+fail closed. PostgreSQL cutover and ActivatedRevision publication are not
+provided by the local migration path. Snapshot version 2, compatibility SQLite
+schema version 1, and PostgreSQL schema version 2 remain supported boundaries.
+See [migration bundles](migrations/v3-staging-bundles.md) and the
+[local apply/verify/rollback workflow](migrations/sqlite-v3-apply.md).
 
 ## Durable GateSession version-3 contract
 

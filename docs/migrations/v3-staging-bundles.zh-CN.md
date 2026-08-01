@@ -2,9 +2,11 @@
 
 [English](v3-staging-bundles.md) | **简体中文**
 
-本次交付增加可持久化的迁移准备能力，但不改变任何 active runtime 格式：
-runtime snapshot 仍为 version 2，SQLite 仍为 schema version 1，PostgreSQL
-仍为 schema version 2，Agent 协议仍为 `tbm.agent.v1`。
+本文定义可持久化的迁移准备层。Runtime snapshot 仍为 version 2，兼容 SQLite
+schema 仍为 version 1，PostgreSQL 仍为 schema version 2，兼容 Agent 协议仍为
+`tbm.agent.v1`。Ready bundle 现在可以通过
+[apply/verify/rollback 工作流](sqlite-v3-apply.zh-CN.md)应用到独立本地 SQLite v3
+目标。
 
 ## 不可激活的 bundle 契约
 
@@ -55,11 +57,11 @@ verify_snapshot_v3_migration_bundle(
 
 ## SQLite staging repository
 
-`SQLiteV3MigrationRepository` 使用独立的
-`schemas/sqlite-v3-migration.sql` 持久化 immutable bundle。它可以使用单独
-数据库，也可以与 runtime SQLite tables 共存，因为 metadata 和 table name
-完全分离。它不会修改 `trace_backed_memory_schema`，不会把 bundle 加载成
-runtime Store，也不提供 activation 或 deletion API。
+`SQLiteV3MigrationRepository` 使用
+`schemas/sqlite-v3-migration.sql` 持久化 immutable bundle。该 schema 既能独立
+安装用于 staging，也是统一 SQLite v3 bundle 的一个 component。它以独立名称与
+兼容表共存。Staging 不会修改 `trace_backed_memory_schema`，不会把 bundle
+加载成 runtime memory，也不提供 activation 或 deletion API。
 
 ```python
 with SQLiteV3MigrationRepository.connect(
@@ -81,7 +83,8 @@ SQLite transaction，stage 使用 savepoint，因此会随 outer transaction 一
 或 rollback；内部 savepoint 重试后仍无法 release 时，会 rollback outer transaction，
 而不会留下可被提交的残余状态。
 
-此 SQLite profile 是本地 staging ledger，不提供 PostgreSQL 式 row lock、
+Apply 工作流会在这个本地 ledger 中增加 immutable application、逐记录
+disposition 与 profile event。它仍不提供 PostgreSQL 式 row lock、
 database-side tenant authorization 或 multi-client isolation。
 
 ## PostgreSQL staging 与 rollback
@@ -124,5 +127,6 @@ global-policy approval ID 仍只是 declaration；未来 writer 必须把它们�
 - version-3 runtime database 已存在；
 - retriever/model/renderer decision replay 已完整。
 
-Blocked bundle 可以为诊断而 staging。禁用 ancestry 的 bundle 会继续保留明确
-warning。本次交付没有任何 API 可以把二者发布为 runtime memory。
+Blocked bundle 可以为诊断而 staging，但不能 apply。禁用 ancestry 的 bundle
+会继续保留明确 warning。应用 ready bundle 会创建 durable database 并保留
+legacy records，但不会把这些记录发布为 ActivatedRevision runtime memory。

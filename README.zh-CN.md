@@ -43,6 +43,8 @@ python -m pip install -e .
 第一个完整 Python 生命周期见
 [`tbm.agent.v1` 指南](docs/protocols/agent-v1.zh-CN.md)；storage、review、
 migration 与运维示例集中在[详细参考](docs/reference.zh-CN.md)。
+既有 snapshot-v2/SQLite-v1 项目使用专门的
+[SQLite v3 迁移指南](docs/migrations/sqlite-v3-apply.zh-CN.md)。
 
 ## 两分钟连接 MCP + Codex（也支持 Claude Code 与 Pi）
 
@@ -94,7 +96,7 @@ graph 上统一持有 MCP、HTTP、recovery 与 outbox delivery。
 ## 接口
 
 - Python：`TraceBackedMemoryStore` 与 `LocalAgentMemory`
-- CLI：`tbm capabilities`、snapshot 操作、migration preflight 与资源发现
+- CLI：capabilities、snapshot 操作、migration plan/apply/verify/rollback 与资源发现
 - 本地 MCP：安装可选 `mcp` 依赖后使用 `tbm-mcp`
 - 本地 HTTP SDK：兼容 profile 提供同步/异步 Python 与 Node.js TypeScript，
   显式 durable-v3 profile 也提供 Python/TypeScript client；详见

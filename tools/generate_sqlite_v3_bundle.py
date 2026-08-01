@@ -50,6 +50,12 @@ BOOTSTRAP_COMPONENTS = (
         None,
     ),
     (
+        "migration",
+        "schemas/sqlite-v3-migration.sql",
+        "trace_backed_memory_v3_migration_schema",
+        None,
+    ),
+    (
         "managed-index",
         "schemas/sqlite-v3-managed-index.sql",
         "trace_backed_memory_v3_managed_index_schema",

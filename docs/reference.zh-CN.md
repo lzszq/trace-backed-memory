@@ -266,8 +266,8 @@ PostgreSQL install/rollback SQL。package-root API 导出 builder、
 opt-in 统一本地 durable schema 发布为 `schemas/sqlite-v3.sql`，
 `schemas/sqlite-v3.components.json` 是其有序 component manifest。
 `DurableRuntimeFactory.open_sqlite(..., initialize=True)` 在一条 connection 上
-安装全部 15 个非迁移 authority schema，并在暴露 durable dispatcher 前验证精确
-受控 catalog。这不会使 durable-v3 成为 active transport profile。详见
+安装全部 16 个 durable authority 与 migration-ledger schema，并在暴露 durable
+dispatcher 前验证精确受控 catalog。详见
 [统一 SQLite v3 bundle](protocols/sqlite-bundle-v3.zh-CN.md)。
 
 ## 证据摄取完整性
@@ -319,6 +319,9 @@ tbm snapshot stats SNAPSHOT
 tbm migration plan-v3 SNAPSHOT_V2 MAPPING_JSON [--repository-root REPOSITORY_ID=PATH]...
 tbm migration bundle-v3 SNAPSHOT_V2 MAPPING_JSON [--repository-root REPOSITORY_ID=PATH]...
 tbm migration verify-v3-bundle BUNDLE_JSON [--repository-root REPOSITORY_ID=PATH]...
+tbm migration apply-v3 BUNDLE_JSON SOURCE --source-kind {snapshot,sqlite} --target sqlite --database TARGET_SQLITE --backup BACKUP [--repository-root REPOSITORY_ID=PATH]...
+tbm migration verify-v3 TARGET_SQLITE [--repository-root REPOSITORY_ID=PATH]...
+tbm migration rollback-v3 TARGET_SQLITE --compat-database COMPAT_SQLITE [--repository-root REPOSITORY_ID=PATH]...
 tbm lessons export SNAPSHOT DESTINATION [--overwrite]
 tbm lessons import SNAPSHOT SOURCE_YAML [--write]
 tbm obsolete SNAPSHOT {failure-case,lesson,project-policy} MEMORY_ID [--write]
@@ -341,7 +344,13 @@ tbm recover-batch SNAPSHOT DECISION_ID... [--attribution DECISION_ID=true|false]
 plan 冻结为不可激活的 content-addressed bundle；`migration
 verify-v3-bundle` 会复验所有内嵌 hash 并精确重放 plan。Bundle 可通过
 `SQLiteV3MigrationRepository` 持久化，但它不是 runtime snapshot，也不能激活
-memory。详见 [staging 契约](migrations/v3-staging-bundles.zh-CN.md)。
+memory。`migration apply-v3` 只接受 ready bundle，备份并严格匹配
+snapshot-v2 / SQLite-v1 源，发布独立 16-component SQLite v3 目标，并记录
+immutable legacy-evidence disposition。`verify-v3` 会复验完整目标与备份。
+`rollback-v3` 生成精确 compat-v2 SQLite database，并在不删除 durable 目标的
+情况下标记 rollback。详见
+[staging 契约](migrations/v3-staging-bundles.zh-CN.md)和
+[operator 工作流](migrations/sqlite-v3-apply.zh-CN.md)。
 
 与存储实现无关的 `tbm.replay.v3` 契约可以描述精确 artifact 字节、finalized
 injection，以及固定八项 component 的 decision replay manifest。complete manifest
@@ -1446,6 +1455,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- mcp_entry.py
 |   |-- mcp_server.py
 |   |-- migration_v3.py
+|   |-- sqlite_apply_migration_v3.py
 |   |-- models.py
 |   |-- memory_revision_v3.py
 |   |-- outcome_v3.py
@@ -1487,6 +1497,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_gate_evaluation_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py
+    |-- test_sqlite_apply_migration_v3.py
     |-- test_memory_revision_v3.py
     |-- test_outcome_v3.py
     |-- test_sqlite_outcome_attribution_v3.py

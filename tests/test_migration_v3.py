@@ -284,6 +284,11 @@ def test_v3_plan_parser_rejects_unknown_counts_and_unbounded_values():
     with pytest.raises(tbm.V3ContractError, match="250000"):
         tbm.parse_v3_migration_plan(plan_payload)
 
+    plan_payload = _empty_bundle().plan.to_dict()
+    plan_payload["counts"]["traces"] = tbm.V3_MAX_MIGRATION_COUNT
+    parsed = tbm.parse_v3_migration_plan(plan_payload)
+    assert dict(parsed.counts)["traces"] == tbm.V3_MAX_MIGRATION_COUNT
+
 
 def test_v3_bundle_file_loader_is_bounded_and_strict(tmp_path):
     path = tmp_path / "bundle.json"

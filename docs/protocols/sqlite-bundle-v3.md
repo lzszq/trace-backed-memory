@@ -4,15 +4,15 @@
 
 ## Status and boundary
 
-The unified SQLite v3 bundle is an opt-in local durable-storage contract. It
-does not change the active snapshot version 2, SQLite schema version 1,
-PostgreSQL schema version 2, or `tbm.agent.v1` compatibility boundary. Active
-MCP, HTTP, CLI, and SDK profiles do not select the durable runtime yet.
+The unified SQLite v3 bundle is the storage graph selected by the explicit
+durable HTTP/MCP/SDK profiles and `tbmd local`. It does not change snapshot
+version 2, the compatibility SQLite schema version 1, PostgreSQL schema
+version 2, or the `tbm.agent.v1` compatibility boundary.
 
 `schemas/sqlite-v3.components.json` is the ordered component manifest.
-`schemas/sqlite-v3.sql` is generated from its 15 non-migration authority
-components. `schemas/sqlite-v3-migration.sql` remains isolated staging and is
-not part of the runtime bundle.
+`schemas/sqlite-v3.sql` is generated from its 16 durable authority and
+migration-ledger components. `schemas/sqlite-v3-migration.sql` remains
+independently installable for staging and is also part of the runtime bundle.
 
 ## Install and verification
 

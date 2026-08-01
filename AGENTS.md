@@ -167,9 +167,14 @@ Start with:
   exact-byte/descriptor revalidation, descriptor-only session lookup, nested
   transactions, and schema drift checks; not wired to active runtime.
 - `migration_v3.py`: inert content-addressed migration bundles and replay.
+- `sqlite_apply_migration_v3.py`: explicit snapshot-v2/SQLite-v1 backup,
+  side-by-side SQLite v3 apply/verify, immutable legacy dispositions, and
+  compat-v2 rollback without fabricated evidence.
 - `execution.py`: callback orchestration and recovery context.
 - `sqlite.py` / `postgres.py`: persistence adapters.
-- `sqlite_v3.py`: isolated local staging for immutable migration bundles.
+- `sqlite_v3.py`: immutable migration bundle/application staging and schema
+  verification, independently installable and included in the unified v3
+  bundle.
 - `sqlite_authorization_v3.py` / `postgres_authorization_v3.py`: opt-in
   immutable policy/decision authorities.
 - `resources.py`: strict installed-resource allowlist.

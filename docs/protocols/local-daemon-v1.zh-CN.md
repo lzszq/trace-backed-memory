@@ -83,7 +83,7 @@ tbmd init --state-dir .tbm
 tbmd doctor --state-dir .tbm
 ```
 
-`init` 会在 `.tbm/durable.sqlite3` 原子安装生成的 15-component SQLite v3
+`init` 会在 `.tbm/durable.sqlite3` 原子安装生成的 16-component SQLite v3
 bundle。`doctor` 会取得单实例锁，并检查 state directory、固定 database target、
 完整 schema fingerprint、可信 application factory、bearer 格式和已配置 outbox
 consumer。另一 daemon 持有 state directory 时，它会有意 fail closed。

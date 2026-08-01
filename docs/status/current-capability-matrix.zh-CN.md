@@ -42,8 +42,8 @@
 | `replay.durable-v3` | Replay | Durable replay authority | `opt-in` | 启动 policy 允许 content 时，显式 durable HTTP/MCP 会导出 session-bound replay；默认 adapter 不会。 |
 | `completion.outbox-v3` | 完成 | Outcome 与 outbox authority/worker | `opt-in` | 显式 `tbmd local` 会运行有界 SQLite delivery page 并 reclaim 过期 lease；shared-service dispatch 仍待完成。 |
 | `operations.audit-recovery-v3` | 运维 | Audit/recovery authority/worker | `opt-in` | 显式 `tbmd local` 会 expire 到期的 PREPARED/AWAITING_DECISION session；它不会执行任意 audit remediation action。 |
-| `migration.snapshot-v3` | 迁移 | Snapshot v3 plan/bundle/verify/staging | `contract-only` | 没有 apply、cutover、rollback 编排。 |
-| `persistence.unified-sqlite-v3` | 持久化切换 | 统一 SQLite v3 schema | `opt-in` | 一个生成 bundle 安装并指纹校验全部 15 个 durable authority schema；active 兼容边界仍为 SQLite 1。 |
+| `migration.snapshot-v3` | 迁移 | Snapshot v2/SQLite v1→v3 plan、bundle、apply、verify、rollback | `opt-in` | 本地 SQLite 迁移可执行且可从中断恢复；legacy records 保持 unpublished/partial evidence。PostgreSQL cutover 与 ActivatedRevision publication 仍待完成。 |
+| `persistence.unified-sqlite-v3` | 持久化切换 | 统一 SQLite v3 schema | `opt-in` | 一个生成 bundle 安装并指纹校验全部 16 个组件：durable authority schema 加 migration ledger；兼容 schema 仍为 SQLite 1。 |
 | `persistence.unified-postgresql-v3` | 持久化切换 | 统一 PostgreSQL v3 schema | `planned` | 当前兼容边界为 PostgreSQL 2。 |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | 显式 `tbm-http --profile durable-v3`；可信 application factory、bearer 边界、统一 SQLite/PostgreSQL v3 runtime，默认隐藏内容。 |
 | `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | 显式 `tbm-mcp --profile durable-v3`；可信本地 application factory、有界 STDIO、统一 SQLite/PostgreSQL v3 runtime、跨重启续接，且默认隐藏内容。它不是带 peer authentication 的 shared-service MCP。 |

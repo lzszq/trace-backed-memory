@@ -2,8 +2,9 @@
 
 [English](gate-session-v3.md) | **简体中文**
 
-`tbm.gate-session.v3` 定义未来 SQLite v2、PostgreSQL v3、`tbmd`、HTTP、MCP
-与 SDK adapter 共用的 durable runtime 生命周期；domain 记录仍与持久化实现无关。
+`tbm.gate-session.v3` 定义 opt-in side-by-side SQLite v3、PostgreSQL v3
+repository 以及 `tbmd`、HTTP、MCP 与 SDK adapter 共用的 durable runtime 生命周期；
+domain 记录仍与持久化实现无关。
 现在已有 opt-in、side-by-side SQLite 与隔离 PostgreSQL repository 持久化
 immutable revision，但这
 不表示当前本地 MCP server 已经持久化 pending request。active runtime 仍是
@@ -111,8 +112,8 @@ trigger function 保护 immutable identity、history、lifecycle 连续性与 tr
 边界。deferred consistency trigger 会拒绝提交后 head 未精确指向最大 revision 的
 transaction，包括 direct SQL 追加的 orphan revision；读取仍交叉校验每个 payload。
 
-这些 repository 是 opt-in persistence seam，不是 active SQLite schema v2 或
-active PostgreSQL schema v3。它们不会重建 `MemoryGateRequest._store_token`、
+这些 repository 是 opt-in persistence seam，不是默认兼容 SQLite v1/PostgreSQL v2
+状态，也不是默认 Agent/MCP 状态。它们不会重建 `MemoryGateRequest._store_token`、
 修改当前 Store，也不会让 STDIO MCP 在重启后可恢复。expiry/recovery worker、
 opt-in authorization、preparation、Semantic Gate、durable finalization 与 completion
 service 现在已使用这些 repository。finalization 组合已具备 SQLite/PostgreSQL 对等性和

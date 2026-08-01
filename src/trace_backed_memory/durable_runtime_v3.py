@@ -79,6 +79,10 @@ from .sqlite_bundle_v3 import (
     install_sqlite_v3_bundle,
     verify_sqlite_v3_bundle,
 )
+from .sqlite_apply_migration_v3 import (
+    SQLiteV3ApplyMigrationError,
+    require_durable_sqlite_migration_profile,
+)
 
 
 DURABLE_RUNTIME_CONTRACT_VERSION = "tbm.durable-runtime.v3"
@@ -267,6 +271,7 @@ class DurableSQLiteRuntime:
                     "durable SQLite runtime requires recursive triggers",
                 )
             verify_sqlite_v3_bundle(connection)
+            require_durable_sqlite_migration_profile(connection)
             self.authorization_repository = SQLiteAuthorizationV3Repository(
                 connection
             )
@@ -394,6 +399,9 @@ class DurableSQLiteRuntime:
                 "TBM_DURABLE_RUNTIME_SQLITE_SCHEMA_INVALID",
                 "durable SQLite schema bundle is invalid",
             ) from error
+        except SQLiteV3ApplyMigrationError as error:
+            self._close_partial()
+            raise DurableRuntimeV3Error(error.code, str(error)) from error
         except Exception as error:
             self._close_partial()
             raise DurableRuntimeV3Error(

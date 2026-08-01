@@ -84,6 +84,7 @@
 - [规范 resource manifest](../resources/manifest.json)
 - [Snapshot v3 迁移预检](migrations/snapshot-v3-preflight.zh-CN.md)
 - [Version-3 迁移 bundle 与隔离 staging](migrations/v3-staging-bundles.zh-CN.md)
+- [应用与回滚本地 SQLite v3 迁移](migrations/sqlite-v3-apply.zh-CN.md)
 - `schemas/sqlite.sql`：受支持的本地 SQL 形态
 - `schemas/postgres.sql` 与 `schemas/postgres-v1-to-v2.sql`：PostgreSQL
 - `tests/verify_distribution.py`：安装资源逐字节验证
@@ -153,6 +154,8 @@ service integration 仍属于统一推进的 schema version 3 计划。
 与存储实现无关的
 `tbm.replay.v3` artifact 与 replay manifest 契约及 opt-in 隔离 SQLite/PostgreSQL
 immutable 字节/descriptor 账本已经发布，但 active adapter 尚不使用它们，且它们不提供
-授权、retention、encryption 或 GateSession authority。只读 v3 迁移预检和不可激活的 staging
-bundle 已经实现，但它们不能激活 memory，也不能作为 version-3 runtime state
-加载。
+授权、retention、encryption 或 GateSession authority。v3 迁移预检和 staging bundle
+本身仍不可激活；ready bundle 现在可以通过
+[apply、verify 与 rollback 流程](migrations/sqlite-v3-apply.zh-CN.md)显式写入
+side-by-side 本地 SQLite v3 目标，但默认 runtime 不会激活或加载该目标，目标本身也不能
+激活 memory。

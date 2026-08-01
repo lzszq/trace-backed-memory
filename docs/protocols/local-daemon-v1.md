@@ -86,7 +86,7 @@ tbmd init --state-dir .tbm
 tbmd doctor --state-dir .tbm
 ```
 
-`init` atomically installs the generated 15-component SQLite v3 bundle in
+`init` atomically installs the generated 16-component SQLite v3 bundle in
 `.tbm/durable.sqlite3`. `doctor` acquires the single-instance lock and verifies
 the state directory, fixed database target, complete schema fingerprint,
 trusted application factory, bearer format, and configured outbox consumer.

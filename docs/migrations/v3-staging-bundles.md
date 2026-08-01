@@ -2,10 +2,12 @@
 
 **English** | [简体中文](v3-staging-bundles.zh-CN.md)
 
-This delivery adds durable migration preparation without changing an active
-runtime format. Runtime snapshots remain version 2, SQLite remains schema
-version 1, PostgreSQL remains schema version 2, and the agent protocol remains
-`tbm.agent.v1`.
+This document defines the durable migration-preparation layer. Runtime
+snapshots remain version 2, the compatibility SQLite schema remains version 1,
+PostgreSQL remains schema version 2, and the compatibility agent protocol
+remains `tbm.agent.v1`. A ready bundle can now be applied to a separate local
+SQLite v3 target through the
+[apply/verify/rollback workflow](sqlite-v3-apply.md).
 
 ## Inert bundle contract
 
@@ -58,11 +60,12 @@ ancestry cannot be reverified without an equivalent trusted verifier.
 
 ## SQLite staging repository
 
-`SQLiteV3MigrationRepository` persists immutable bundles through the separate
-`schemas/sqlite-v3-migration.sql` schema. It can use its own database or coexist
-with the runtime SQLite tables because it has separate metadata and table
-names. It never changes `trace_backed_memory_schema`, never loads a bundle as a
-runtime Store, and exposes no activation or deletion API.
+`SQLiteV3MigrationRepository` persists immutable bundles through
+`schemas/sqlite-v3-migration.sql`. The schema is both independently installable
+for staging and a component of the unified SQLite v3 bundle. It coexists with
+the compatibility tables under separate names. Staging never changes
+`trace_backed_memory_schema`, never loads a bundle as runtime memory, and
+exposes no activation or deletion API.
 
 ```python
 with SQLiteV3MigrationRepository.connect(
@@ -86,7 +89,8 @@ commits or rolls back with that outer transaction. If an internal savepoint
 cannot be released after retry, the outer transaction is rolled back rather
 than left committable.
 
-This SQLite profile is a local staging ledger. It does not provide
+The apply workflow extends this local ledger with immutable application,
+record-disposition, and profile events. It still does not provide
 PostgreSQL-style row locks, database-side tenant authorization, or
 multi-client isolation.
 
@@ -134,6 +138,7 @@ migration inputs passed the current preflight; it does not mean:
 - a version-3 runtime database exists; or
 - a complete retriever/model/renderer decision replay is available.
 
-Blocked bundles may be staged for diagnosis. Bundles with disabled ancestry
-remain explicitly warning-bearing. No API in this delivery can publish either
-kind as runtime memory.
+Blocked bundles may be staged for diagnosis but cannot be applied. Bundles
+with disabled ancestry remain explicitly warning-bearing. Applying a ready
+bundle creates a durable database and retains legacy records, but it does not
+publish those records as ActivatedRevision runtime memory.

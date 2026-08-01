@@ -27,9 +27,18 @@ _MISSING_SCHEMA_MESSAGE = "SQLite v3 migration schema is missing or incomplete"
 _SHA256_RE = re.compile(r"sha256:[0-9a-f]{64}")
 _SCHEMA_OBJECT_NAMES = (
     "trace_backed_memory_v3_migration_schema",
+    "v3_migration_applications",
+    "v3_migration_applications_immutable_delete",
+    "v3_migration_applications_immutable_update",
     "v3_migration_bundles",
     "v3_migration_bundles_immutable_delete",
     "v3_migration_bundles_immutable_update",
+    "v3_migration_profile_events",
+    "v3_migration_profile_events_immutable_delete",
+    "v3_migration_profile_events_immutable_update",
+    "v3_migration_record_dispositions",
+    "v3_migration_record_dispositions_immutable_delete",
+    "v3_migration_record_dispositions_immutable_update",
 )
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -93,9 +102,10 @@ def _normalized_schema_sql(value: object) -> str:
 def _read_schema_definitions(
     cursor: sqlite3.Cursor,
 ) -> tuple[tuple[str, str, str, str], ...]:
+    placeholders = ", ".join("?" for _name in _SCHEMA_OBJECT_NAMES)
     cursor.execute(
         "SELECT type, name, tbl_name, sql FROM sqlite_master "
-        "WHERE name IN (?, ?, ?, ?) ORDER BY name",
+        f"WHERE name IN ({placeholders}) ORDER BY name",
         _SCHEMA_OBJECT_NAMES,
     )
     rows = cursor.fetchall()

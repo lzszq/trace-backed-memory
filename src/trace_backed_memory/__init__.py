@@ -646,6 +646,18 @@ from .migration_v3 import (
     parse_snapshot_v3_migration_bundle,
     verify_snapshot_v3_migration_bundle,
 )
+from .sqlite_apply_migration_v3 import (
+    SQLITE_V3_APPLY_MIGRATION_CONTRACT_VERSION,
+    LegacyRecordDisposition,
+    SQLiteV3ApplyMigrationError,
+    SQLiteV3MigrationInspection,
+    SQLiteV3MigrationProfile,
+    SQLiteV3MigrationSourceKind,
+    apply_sqlite_v3_migration,
+    require_durable_sqlite_migration_profile,
+    rollback_sqlite_v3_migration,
+    verify_sqlite_v3_migration,
+)
 from .models import (
     FailureCase,
     CommitAncestryEvidence,
@@ -2007,4 +2019,14 @@ __all__ = [
     "verify_system_gate_evaluation",
     "verify_authorization_decision",
     "verify_snapshot_v3_migration_bundle",
+    "SQLITE_V3_APPLY_MIGRATION_CONTRACT_VERSION",
+    "LegacyRecordDisposition",
+    "SQLiteV3ApplyMigrationError",
+    "SQLiteV3MigrationInspection",
+    "SQLiteV3MigrationProfile",
+    "SQLiteV3MigrationSourceKind",
+    "apply_sqlite_v3_migration",
+    "require_durable_sqlite_migration_profile",
+    "rollback_sqlite_v3_migration",
+    "verify_sqlite_v3_migration",
 ]

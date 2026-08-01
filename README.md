@@ -44,6 +44,8 @@ python -m pip install -e .
 The first complete Python lifecycle is in the
 [`tbm.agent.v1` guide](docs/protocols/agent-v1.md); storage, review, migration,
 and operations examples live in the [detailed reference](docs/reference.md).
+Existing snapshot-v2/SQLite-v1 projects use the focused
+[SQLite v3 migration guide](docs/migrations/sqlite-v3-apply.md).
 
 ## MCP + Codex in 2 minutes (Claude Code and Pi too)
 
@@ -100,8 +102,8 @@ recovery, and outbox delivery over the same SQLite v3 graph.
 ## Interfaces
 
 - Python: `TraceBackedMemoryStore` and `LocalAgentMemory`
-- CLI: `tbm capabilities`, snapshot operations, migration preflight, and
-  resource discovery
+- CLI: capabilities, snapshot operations, migration
+  plan/apply/verify/rollback, and resource discovery
 - Local MCP: `tbm-mcp` with the optional `mcp` dependency
 - Local HTTP SDKs: synchronous/asynchronous Python and Node.js TypeScript for
   the compatibility profile, plus explicit durable-v3 Python/TypeScript

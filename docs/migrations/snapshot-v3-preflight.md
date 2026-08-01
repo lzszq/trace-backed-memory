@@ -2,11 +2,11 @@
 
 **English** | [简体中文](snapshot-v3-preflight.zh-CN.md)
 
-This document describes the delivered, read-only preflight for the coordinated
-schema-version-3 program. It does not change the active compatibility boundary:
-runtime snapshots remain version 2, SQLite remains schema version 1,
-PostgreSQL remains schema version 2, and `tbm.agent.v1` remains the agent
-protocol.
+This document describes the read-only preflight for the coordinated
+schema-version-3 program. The preflight itself changes no persistence state.
+Runtime snapshots and the compatibility SQLite schema remain version 2 and
+version 1 respectively; PostgreSQL remains schema version 2, and
+`tbm.agent.v1` remains the compatibility protocol.
 
 ## Command
 
@@ -113,9 +113,9 @@ the repository, wheel, and source distribution.
 
 ## Deliberate boundary
 
-The preflight does not emit or load a version-3 snapshot, alter SQLite or
-PostgreSQL, persist Gate sessions, or claim complete decision replay. Those
-operations require the remaining coordinated version-3 domain, persistence,
-transaction, rollback, and recovery implementation. Keeping the preflight
-read-only prevents an incomplete schema from becoming an accidental production
-format.
+The preflight does not emit a version-3 snapshot, alter SQLite or PostgreSQL,
+persist Gate sessions, or claim complete decision replay. A ready bundle may
+subsequently be used by the explicit
+[local SQLite apply/verify/rollback workflow](sqlite-v3-apply.md), which keeps
+legacy memory unpublished and preserves the compatibility source plus backup.
+PostgreSQL cutover and active ActivatedRevision migration remain outstanding.

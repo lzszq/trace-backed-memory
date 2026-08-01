@@ -43,13 +43,13 @@
 | `replay.durable-v3` | Replay | Durable replay authority | `opt-in` | 启动 policy 允许 content 时，显式 durable HTTP/MCP 会导出 session-bound replay；默认 adapter 不会。 |
 | `completion.outbox-v3` | 完成 | Outcome 与 outbox authority/worker | `opt-in` | 显式 `tbmd local` 会运行有界 SQLite delivery page 并 reclaim 过期 lease；shared-service dispatch 仍待完成。 |
 | `operations.audit-recovery-v3` | 运维 | Audit/recovery authority/worker | `opt-in` | 显式 `tbmd local` 会 expire 到期的 PREPARED/AWAITING_DECISION session；它不会执行任意 audit remediation action。 |
-| `protocol.canonical-event-v1` | Full Persistence 协议 | `tbm.event.v1` 规范信封 | `contract-only` | 已交付严格、存储中立的信封、Schema、示例和双语参考；canonical ledger 与 reducer 尚未选择它。 |
+| `protocol.canonical-event-v1` | Full Persistence 协议 | `tbm.event.v1` 规范信封 | `opt-in` | 已交付严格、存储中立的信封、Schema、示例和双语参考；隔离 SQLite/PostgreSQL event-ledger 后端会精确保留它，但 reducer 与 active composition root 尚未选择它。 |
 | `protocol.event-type-registry-v1` | Full Persistence 协议 | sealed typed event registry、payload schema 与 upcaster | `contract-only` | 未知 type/version 可以保留，但不能被静默消费；reducer runtime 尚未选择该 registry。 |
-| `protocol.event-ledger-port-v1` | Full Persistence 协议 | 原子 append/read/verify/subscribe 应用端口 | `contract-only` | 已冻结存储中立的有界契约和失败语义；尚无 SQLite/PostgreSQL canonical ledger 后端实现该端口。 |
+| `protocol.event-ledger-port-v1` | Full Persistence 协议 | 原子 append/read/verify/subscribe 应用端口 | `opt-in` | 存储中立契约已有 WAL/单 owner SQLite 与 row-lock PostgreSQL 后端，覆盖精确 replay、integrity/catalog 校验和跨后端一致性。 |
 | `migration.snapshot-v3` | 迁移 | Snapshot v3 plan/bundle/verify/staging | `contract-only` | 没有 apply、cutover、rollback 编排。 |
-| `persistence.unified-sqlite-v3` | 持久化切换 | 统一 SQLite v3 schema | `opt-in` | 一个生成 bundle 安装并指纹校验全部 15 个 durable authority schema；active 兼容边界仍为 SQLite 1。 |
+| `persistence.unified-sqlite-v3` | 持久化切换 | 统一 SQLite v3 schema | `opt-in` | 一个生成 bundle 安装并指纹校验全部 16 个 durable authority schema（含 event ledger）；active 兼容边界仍为 SQLite 1。 |
 | `persistence.unified-postgresql-v3` | 持久化切换 | 统一 PostgreSQL v3 schema | `planned` | 当前兼容边界为 PostgreSQL 2。 |
-| `persistence.canonical-event-ledger` | Full Persistence | Canonical append-only event ledger | `planned` | ADR-0006 已接受；当前 source-of-truth model 仍是 authority graph。 |
+| `persistence.canonical-event-ledger` | Full Persistence | Canonical append-only event ledger | `opt-in` | 已交付隔离 SQLite/PostgreSQL 后端和仅描述符 Artifact 引用；active composition root 尚未选择它们，因此当前 source-of-truth model 仍是 authority graph。 |
 | `persistence.reducer-runtime` | Full Persistence | Versioned deterministic reducer 与可重建 projection | `planned` | generic reducer runtime 与完整 projection rebuild 尚不存在。 |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | 显式 `tbm-http --profile durable-v3`；可信 application factory、bearer 边界、统一 SQLite/PostgreSQL v3 runtime，默认隐藏内容。 |
 | `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | 显式 `tbm-mcp --profile durable-v3`；可信本地 application factory、有界 STDIO、统一 SQLite/PostgreSQL v3 runtime、跨重启续接，且默认隐藏内容。它不是带 peer authentication 的 shared-service MCP。 |
@@ -72,9 +72,9 @@
 - [ADR-0006：Full Persistence 与 reducer-native memory](../adr/0006-full-persistence-reducer-native-memory.zh-CN.md)
 
 当前机器可读边界是 `persistence_model="authority_graph"`、
-`ledger_protocol="tbm.event.v1"` 与 `full_persistence=false`。事件信封、typed registry 和
-ledger-port 契约已经可供后续 ledger 里程碑使用，但不会提升上述两个 planned Full
-Persistence 条目的状态。
+`ledger_protocol="tbm.event.v1"` 与 `full_persistence=false`。事件信封与 ledger port
+已有 opt-in SQLite/PostgreSQL 后端，但 active lifecycle composition、reducer 与 cutover
+尚未把它们选为当前事实来源。
 
 ## 状态提升规则
 

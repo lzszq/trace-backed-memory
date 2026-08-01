@@ -10,9 +10,10 @@ PostgreSQL schema version 2, or `tbm.agent.v1` compatibility boundary. Active
 MCP, HTTP, CLI, and SDK profiles do not select the durable runtime yet.
 
 `schemas/sqlite-v3.components.json` is the ordered component manifest.
-`schemas/sqlite-v3.sql` is generated from its 15 non-migration authority
+`schemas/sqlite-v3.sql` is generated from its 16 non-migration authority
 components. `schemas/sqlite-v3-migration.sql` remains isolated staging and is
-not part of the runtime bundle.
+not part of the runtime bundle. The event-ledger component is installed and
+fingerprinted but is not selected by the durable runtime composition yet.
 
 ## Install and verification
 

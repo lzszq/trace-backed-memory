@@ -2,7 +2,7 @@
 
 [English](event-ledger-port-v1.md) | **简体中文**
 
-`tbm.event-ledger-port.v1` 冻结未来 canonical `tbm.event.v1` ledger 的存储中立应用端口。它定义可信访问、原子批量追加、精确重放、有界读取、stream 校验和有界订阅。F0 交付的仅是契约：目前还没有 SQLite 或 PostgreSQL event ledger 后端选择这条路径。
+`tbm.event-ledger-port.v1` 冻结未来 canonical `tbm.event.v1` ledger 的存储中立应用端口。它定义可信访问、原子批量追加、精确重放、有界读取、stream 校验和有界订阅。F0 交付该契约；F1 现已增加显式 opt-in SQLite 与隔离 PostgreSQL 实现，但 active Agent、daemon、HTTP、MCP、CLI 与 SDK composition 尚未选择它们。
 
 ## 可信访问边界
 
@@ -26,7 +26,11 @@
 必须匹配 expected stream version，第一个 event 必须扩展其精确 hash，且该批次必须消费
 下一组全局连续 position。head 或 global sequence 漂移属于 conflict，不能产生部分 append。
 
-此端口表达这些不变量，但不实现数据库事务。后端工作从 F1 开始。
+此端口表达这些不变量。`SQLiteEventLedgerV1` 使用 `BEGIN IMMEDIATE`、进程生命周期 single-link owner lock、WAL、per-stream/global-head CAS、immutable trigger、精确 catalog 校验和已验证备份来实现它们。`PostgresEventLedgerV1` 使用 active-metadata/table lock、固定 global-head→stream-head 顺序的数据库 row lock、精确 CAS、caller savepoint、完整 catalog digest、immutable trigger 与 fail-closed rollback 脚本。跨后端测试要求同一批 event 产生逐字一致的 receipt 与 page。
+
+## Artifact 引用边界
+
+两个后端都会把每个 `EventArtifactRef` 精确保留为 descriptor，其中包含 content digest、classification、retention policy、encryption-key identity 与 availability。它们不会存储、读取、解密、授权或擦除所引用的内容字节；这些字节仍由已认证 Artifact Authority 管理，event ledger 只证明 canonical event 提交了哪份 descriptor。
 
 ## 有界读取与校验
 
@@ -42,4 +46,4 @@
 
 契约区分 invalid request、过期 stream head、idempotency conflict、scope denial、classification denial、隐藏或不存在的记录，以及 unsupported operation。消息保持有界并经过清理。实现必须保留这些含义，不得独立复制 authorization 或 Gate policy。
 
-此端口不会把现有 durable-v3 authority 变成 canonical event ledger，不运行 reducer，也不改变当前 compatibility Store 或默认 Agent/MCP 行为。
+这些 opt-in 后端不会把现有 durable-v3 authority 变成 event projection，不运行 reducer，也不改变当前 compatibility Store 或默认 Agent/MCP 行为。在 event-first composition root 与已验证 cutover 选择它们之前，机器可读持久化模型仍是 `authority_graph`，且 `full_persistence=false`。

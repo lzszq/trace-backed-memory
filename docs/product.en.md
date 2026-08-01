@@ -231,16 +231,19 @@ authority graph and `full_persistence` remains `false`. Existing durable-v3
 authorities are migration assets until event-first import, shadow comparison,
 projection rebuild, and cutover evidence are complete.
 
-The executable F0 foundation is now available as three contract-only layers:
+The executable F0 foundation is now available as three strict contracts:
 the strict `tbm.event.v1` canonical envelope; the sealed typed event registry,
 strict payload schemas, compatibility matrix, and explicit adjacent upcasters;
 and the storage-neutral ledger application port for atomic batch append, exact
 idempotent replay, bounded reads, verification, and subscriptions. A repository
-guard also registers every current SQLite/PostgreSQL v3 persistence module as
+guard also registers every current SQLite/PostgreSQL persistence module as
 a ledger, replaceable projection, compatibility migration, or bundle
-coordinator and rejects unregistered authorities. None of these layers is yet
-a canonical ledger backend, reducer runtime, rebuilt projection, or active
-transport path. See [Canonical Event v1](protocols/event-v1.md),
+coordinator and rejects unregistered authorities. F1 now adds opt-in SQLite and
+isolated PostgreSQL event-ledger backends with exact Artifact descriptors,
+atomic append/replay, integrity/catalog verification, backup/rollback, and
+cross-backend conformance. No reducer runtime, rebuilt projection, lifecycle
+composition, cutover, or active transport path selects them yet. See
+[Canonical Event v1](protocols/event-v1.md),
 [Event Type Registry v1](protocols/event-registry-v1.md), and
 [Event Ledger Port v1](protocols/event-ledger-port-v1.md).
 

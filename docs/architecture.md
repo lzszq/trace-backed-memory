@@ -293,7 +293,7 @@ PostgreSQL schema version 2 remain unchanged.
 ### Unified SQLite v3 bundle
 
 The opt-in durable SQLite factory no longer installs an ad hoc subset of
-authority scripts. `schemas/sqlite-v3.components.json` orders 15 non-migration
+authority scripts. `schemas/sqlite-v3.components.json` orders 16 non-migration
 components, and `schemas/sqlite-v3.sql` generates one outer transaction from
 those exact bytes. A bundle metadata row binds the component-set and catalog
 fingerprints. Startup verifies every component version plus every controlled
@@ -2045,6 +2045,21 @@ Psycopg nested transactions preserve caller ownership through savepoints.
 Like the SQLite ledger, this remains evidence storage rather than an
 authorization or Store/GateSession transition boundary.
 
+The opt-in `SQLiteEventLedgerV1` and isolated `PostgresEventLedgerV1` now
+implement the storage-neutral `tbm.event-ledger-port.v1`. SQLite adds the event
+ledger as the sixteenth unified-v3 bundle component and combines WAL,
+`BEGIN IMMEDIATE`, a process-lifetime single-link owner lock, immutable event,
+head, idempotency, checkpoint, and Artifact-reference rows, full-store
+integrity verification, and verified backup plus reopen/read-back recovery
+validation. PostgreSQL retains the
+same canonical events and descriptor-only Artifact references in an isolated
+schema, serializes global positions before row-locking a tenant-partitioned
+stream head, preserves caller transactions through psycopg savepoints, and
+verifies its exact catalog digest on every operation. Its explicit rollback
+locks the schema and refuses relation, function, trigger-state, policy, or rule
+drift. These backends have cross-adapter receipt/page conformance tests, but no
+active lifecycle command writes them yet.
+
 ## Full Persistence target architecture
 
 [ADR-0006](adr/0006-full-persistence-reducer-native-memory.md) freezes the
@@ -2056,21 +2071,22 @@ protected bytes, referenced by events rather than embedded in them. Versioned
 deterministic reducers build replaceable projections that must be reproducible
 from the retained ledger and artifact set.
 
-The storage-neutral F0 protocol foundation is now delivered as contract-only
-layers: the strict `tbm.event.v1` envelope; a sealed typed registry with
+The storage-neutral F0 protocol foundation is now delivered as strict
+contracts: the `tbm.event.v1` envelope; a sealed typed registry with
 strict payload schemas, unknown-event preservation, a compatibility matrix,
 and explicit adjacent upcasters; and an event-ledger application port covering
 atomic bounded append, exact idempotent replay, bounded tenant/classification
 reads, stream verification, and bounded subscriptions. See
 [Canonical Event v1](protocols/event-v1.md),
 [Event Type Registry v1](protocols/event-registry-v1.md), and
-[Event Ledger Port v1](protocols/event-ledger-port-v1.md). The concrete append
-transaction, canonical ledger backends, reducers, and rebuildable projections
-remain later milestones.
+[Event Ledger Port v1](protocols/event-ledger-port-v1.md). The F1 SQLite and
+PostgreSQL backends now implement the append transaction and Artifact-reference
+boundary. Reducers, rebuildable projections, lifecycle integration, migration,
+and cutover remain later milestones.
 
 The machine-readable
 [`authority-registry.json`](status/authority-registry.json) classifies every
-current SQLite/PostgreSQL v3 persistence module as a ledger, replaceable
+current registered SQLite/PostgreSQL persistence module as a ledger, replaceable
 projection, compatibility migration, or bundle coordinator. Repository
 verification rejects unregistered modules, roles, or sources of truth. The
 registry documents the current authority graph; it is not itself a runtime

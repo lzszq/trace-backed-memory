@@ -109,6 +109,12 @@ BOOTSTRAP_COMPONENTS = (
         "trace_backed_memory_v3_audit_schema",
         "tbm.audit-event.v3",
     ),
+    (
+        "event-ledger",
+        "schemas/sqlite-v3-event-ledger.sql",
+        "trace_backed_memory_v3_event_ledger_schema",
+        "tbm.event-ledger-port.v1",
+    ),
 )
 _EXACT_MANIFEST_FIELDS = {
     "manifest_version",

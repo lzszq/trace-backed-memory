@@ -48,9 +48,11 @@ _IMPACTS = frozenset(
     }
 )
 _IDENTIFIER_RE = re.compile(r"^[a-z0-9][a-z0-9.-]{0,127}$")
-_PERSISTENCE_CANDIDATE_RE = re.compile(r"^(?:sqlite|postgres).*_v3\.py$")
+_PERSISTENCE_CANDIDATE_RE = re.compile(
+    r"^(?:sqlite|postgres).*(?:_v3|_event_ledger_v1)\.py$"
+)
 _PERSISTENCE_MODULE_RE = re.compile(
-    r"^(?:sqlite|postgres)(?:_[a-z0-9]+)*_v3\.py$"
+    r"^(?:sqlite|postgres)(?:(?:_[a-z0-9]+)*_v3|_event_ledger_v1)\.py$"
 )
 
 

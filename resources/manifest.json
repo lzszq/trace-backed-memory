@@ -893,6 +893,24 @@
       "sha256": "576e93b4db04c50097bb682ff751d4bbf6f0b9c52e5dd7b5f5ecba8bd37125cf"
     },
     {
+      "name": "schemas/postgres-v3-event-ledger-rollback.sql",
+      "kind": "schema",
+      "media_type": "application/sql",
+      "source": "schemas/postgres-v3-event-ledger-rollback.sql",
+      "installed": "src/trace_backed_memory/_resources/schemas/postgres-v3-event-ledger-rollback.sql",
+      "size_bytes": 6764,
+      "sha256": "3bdb1dcbac9038a1a1166510211999cc8bc3b2b471508fd9b2dfdcee9b90ca3c"
+    },
+    {
+      "name": "schemas/postgres-v3-event-ledger.sql",
+      "kind": "schema",
+      "media_type": "application/sql",
+      "source": "schemas/postgres-v3-event-ledger.sql",
+      "installed": "src/trace_backed_memory/_resources/schemas/postgres-v3-event-ledger.sql",
+      "size_bytes": 17868,
+      "sha256": "7021762c21f68e9ad431308fb6a73b9243b81a0886f011e45c70975dd1ec4400"
+    },
+    {
       "name": "schemas/postgres-v3-gate-evidence-rollback.sql",
       "kind": "schema",
       "media_type": "application/sql",
@@ -1244,6 +1262,15 @@
       "sha256": "ec06c93485fc93a67e583981ce6a88b069c2f15520acff16521d7f26472f7b66"
     },
     {
+      "name": "schemas/sqlite-v3-event-ledger.sql",
+      "kind": "schema",
+      "media_type": "application/sql",
+      "source": "schemas/sqlite-v3-event-ledger.sql",
+      "installed": "src/trace_backed_memory/_resources/schemas/sqlite-v3-event-ledger.sql",
+      "size_bytes": 12617,
+      "sha256": "527504ede85714c2de0114d4a3be59f945b49fafbcfa95fd9b90b84616df1261"
+    },
+    {
       "name": "schemas/sqlite-v3-gate-evidence.sql",
       "kind": "schema",
       "media_type": "application/sql",
@@ -1348,8 +1375,8 @@
       "media_type": "application/json",
       "source": "schemas/sqlite-v3.components.json",
       "installed": "src/trace_backed_memory/_resources/schemas/sqlite-v3.components.json",
-      "size_bytes": 5680,
-      "sha256": "e93a482031345e02682f5def7902db3656c1099174b5129b4e9aa0e641e285bc"
+      "size_bytes": 6028,
+      "sha256": "9a3d83078e303d70427e9a0f70b08b12bb547c65a639ae6930d8aee21087315e"
     },
     {
       "name": "schemas/sqlite-v3.sql",
@@ -1357,8 +1384,8 @@
       "media_type": "application/sql",
       "source": "schemas/sqlite-v3.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/sqlite-v3.sql",
-      "size_bytes": 121284,
-      "sha256": "bca42cce868856bc506292a1e4fedeba9db908072a388a5a81b9b7819e2dd6ff"
+      "size_bytes": 134012,
+      "sha256": "3b9029a1d4756047f2d4aa0a169d3599116d941dc36e678c1fef5859eed624ee"
     },
     {
       "name": "schemas/sqlite.sql",

@@ -126,9 +126,11 @@
     },
     {
       "id": "protocol.canonical-event-v1",
-      "status": "contract-only",
+      "status": "opt-in",
       "evidence": [
         "src/trace_backed_memory/event_v1.py",
+        "src/trace_backed_memory/sqlite_event_ledger_v1.py",
+        "src/trace_backed_memory/postgres_event_ledger_v1.py",
         "schemas/event_v1.schema.json",
         "docs/protocols/event-v1.md"
       ]
@@ -145,10 +147,14 @@
     },
     {
       "id": "protocol.event-ledger-port-v1",
-      "status": "contract-only",
+      "status": "opt-in",
       "evidence": [
         "src/trace_backed_memory/ledger_port_v1.py",
+        "src/trace_backed_memory/sqlite_event_ledger_v1.py",
+        "src/trace_backed_memory/postgres_event_ledger_v1.py",
         "tests/test_ledger_port_v1.py",
+        "tests/test_sqlite_event_ledger_v1.py",
+        "tests/test_postgres_event_ledger_v1.py",
         "docs/protocols/event-ledger-port-v1.md"
       ]
     },
@@ -169,8 +175,14 @@
     },
     {
       "id": "persistence.canonical-event-ledger",
-      "status": "planned",
-      "evidence": ["docs/adr/0006-full-persistence-reducer-native-memory.md"]
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/sqlite_event_ledger_v1.py",
+        "src/trace_backed_memory/postgres_event_ledger_v1.py",
+        "schemas/sqlite-v3-event-ledger.sql",
+        "schemas/postgres-v3-event-ledger.sql",
+        "docs/adr/0006-full-persistence-reducer-native-memory.md"
+      ]
     },
     {
       "id": "persistence.reducer-runtime",

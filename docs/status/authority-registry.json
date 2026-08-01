@@ -42,6 +42,17 @@
       "source_of_truth": "migration-asset"
     },
     {
+      "authority_id": "postgres.event-ledger-v1",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/postgres_event_ledger_v1.py",
+      "role": "ledger",
+      "schemas": [
+        "schemas/postgres-v3-event-ledger-rollback.sql",
+        "schemas/postgres-v3-event-ledger.sql"
+      ],
+      "source_of_truth": "migration-asset"
+    },
+    {
       "authority_id": "postgres.gate-evidence-v3",
       "event_projection_impact": "migration-asset-only",
       "module": "src/trace_backed_memory/postgres_gate_evidence_v3.py",
@@ -174,6 +185,14 @@
       "module": "src/trace_backed_memory/sqlite_entity_registry_v3.py",
       "role": "ledger",
       "schemas": ["schemas/sqlite-v3-entity-registry.sql"],
+      "source_of_truth": "migration-asset"
+    },
+    {
+      "authority_id": "sqlite.event-ledger-v1",
+      "event_projection_impact": "migration-asset-only",
+      "module": "src/trace_backed_memory/sqlite_event_ledger_v1.py",
+      "role": "ledger",
+      "schemas": ["schemas/sqlite-v3-event-ledger.sql"],
       "source_of_truth": "migration-asset"
     },
     {

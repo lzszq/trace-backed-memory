@@ -266,7 +266,7 @@ PostgreSQL install/rollback SQL。package-root API 导出 builder、
 opt-in 统一本地 durable schema 发布为 `schemas/sqlite-v3.sql`，
 `schemas/sqlite-v3.components.json` 是其有序 component manifest。
 `DurableRuntimeFactory.open_sqlite(..., initialize=True)` 在一条 connection 上
-安装全部 15 个非迁移 authority schema，并在暴露 durable dispatcher 前验证精确
+安装全部 16 个非迁移 authority schema，并在暴露 durable dispatcher 前验证精确
 受控 catalog。这不会使 durable-v3 成为 active transport profile。详见
 [统一 SQLite v3 bundle](protocols/sqlite-bundle-v3.zh-CN.md)。
 

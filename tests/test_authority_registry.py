@@ -49,16 +49,16 @@ def _write_registry(root: Path, document: dict[str, object]) -> None:
 def test_current_authority_registry_is_exact_and_preserves_f0_boundary() -> None:
     entries = verify_authority_registry(ROOT)
 
-    assert len(entries) == 32
-    assert len(discover_persistence_modules(ROOT)) == 32
+    assert len(entries) == 34
+    assert len(discover_persistence_modules(ROOT)) == 34
     assert Counter(entry.role for entry in entries) == {
-        "ledger": 28,
+        "ledger": 30,
         "projection": 2,
         "bundle-coordinator": 1,
         "compatibility-migration": 1,
     }
     assert Counter(entry.source_of_truth for entry in entries) == {
-        "migration-asset": 27,
+        "migration-asset": 29,
         "artifact-authority": 2,
         "none": 3,
     }
@@ -86,8 +86,8 @@ def test_authority_registry_cli_reports_stable_inventory() -> None:
     )
 
     assert json.loads(result.stdout) == {
-        "entries": 32,
-        "modules": 32,
+        "entries": 34,
+        "modules": 34,
         "registry_version": AUTHORITY_REGISTRY_VERSION,
     }
     assert result.stderr == ""

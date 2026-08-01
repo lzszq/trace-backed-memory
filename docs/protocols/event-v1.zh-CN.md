@@ -58,7 +58,8 @@ reducer、重放、投影和适配器共同使用的字节与来源。本里程�
 同时不会虚假声称每个事件都已经能被 reducer 理解。
 
 原子 append/read/verification/subscription 边界由
-[Event Ledger Port v1](event-ledger-port-v1.zh-CN.md) 单独冻结；目前尚无后端实现该端口。
+[Event Ledger Port v1](event-ledger-port-v1.zh-CN.md) 单独冻结。opt-in SQLite 与隔离
+PostgreSQL 后端现已实现该端口，但不会改变 active authority-graph composition。
 
 规范资源：
 

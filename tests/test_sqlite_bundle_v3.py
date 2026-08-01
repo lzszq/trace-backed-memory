@@ -37,7 +37,7 @@ def test_sqlite_v3_component_manifest_and_bundle_are_generated() -> None:
     assert manifest.bundle_contract_version == (
         SQLITE_V3_BUNDLE_CONTRACT_VERSION
     )
-    assert len(manifest.components) == 15
+    assert len(manifest.components) == 16
     assert [item.component_id for item in manifest.components] == [
         "entity-registry",
         "authorization",
@@ -54,6 +54,7 @@ def test_sqlite_v3_component_manifest_and_bundle_are_generated() -> None:
         "outcome-attribution",
         "completion-outbox",
         "audit",
+        "event-ledger",
     ]
     assert "schemas/sqlite-v3-migration.sql" not in {
         item.resource for item in manifest.components
@@ -72,7 +73,7 @@ def test_sqlite_v3_component_manifest_and_bundle_are_generated() -> None:
         timeout=30,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert "15 components" in completed.stdout
+    assert "16 components" in completed.stdout
 
 
 def test_sqlite_v3_bundle_installs_the_exact_complete_catalog() -> None:

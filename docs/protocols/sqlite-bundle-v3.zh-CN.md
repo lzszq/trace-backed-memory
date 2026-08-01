@@ -10,8 +10,9 @@ version 2 或 `tbm.agent.v1` 兼容边界。active MCP、HTTP、CLI 和 SDK prof
 目前仍未选择 durable runtime。
 
 `schemas/sqlite-v3.components.json` 是有序 component manifest。
-`schemas/sqlite-v3.sql` 由其中 15 个非迁移 authority component 生成。
+`schemas/sqlite-v3.sql` 由其中 16 个非迁移 authority component 生成。
 `schemas/sqlite-v3-migration.sql` 继续作为隔离 staging，不进入 runtime bundle。
+event-ledger component 会被安装并纳入指纹，但 durable runtime composition 尚未选择它。
 
 ## 安装与校验
 

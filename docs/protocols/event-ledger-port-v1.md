@@ -5,8 +5,9 @@
 `tbm.event-ledger-port.v1` freezes the storage-neutral application port for a
 future canonical `tbm.event.v1` ledger. It defines trusted access, atomic batch
 append, exact replay, bounded reads, stream verification, and bounded
-subscriptions. F0 delivers this contract only: no SQLite or PostgreSQL event
-ledger backend selects it yet.
+subscriptions. F0 delivered the contract; F1 now adds explicit opt-in SQLite
+and isolated PostgreSQL implementations of that frozen port. Neither is
+selected by the active Agent, daemon, HTTP, MCP, CLI, or SDK composition.
 
 ## Trusted access boundary
 
@@ -47,8 +48,23 @@ expected stream version, the first event must extend its exact hash, and the
 batch must consume the next globally consecutive positions. Head or global
 sequence drift is a conflict, never a partial append.
 
-The port expresses these invariants but does not implement the database
-transaction. That backend work begins in F1.
+The port expresses these invariants. `SQLiteEventLedgerV1` implements them with
+`BEGIN IMMEDIATE`, a process-lifetime single-link owner lock, WAL, per-stream
+and global-head CAS, immutable triggers, exact catalog verification, and a
+verified backup. `PostgresEventLedgerV1` uses active-metadata/table locks,
+database row locks in a fixed global-head-before-stream-head order, exact CAS,
+caller savepoints, a complete catalog digest, immutable triggers, and a
+fail-closed rollback script. Cross-backend tests require the same events to
+produce byte-identical receipts and pages.
+
+## Artifact reference boundary
+
+Both backends retain each `EventArtifactRef` as an exact descriptor containing
+the content digest, classification, retention policy, encryption-key identity,
+and availability state. They never store, fetch, decrypt, authorize, or erase
+the referenced content bytes. Those bytes remain owned by the authenticated
+Artifact Authority; the event ledger only proves which descriptor a canonical
+event committed.
 
 ## Bounded reads and verification
 
@@ -84,6 +100,8 @@ unsupported operations. Messages are bounded and sanitized. Implementations
 must preserve these meanings and may not reproduce authorization or Gate
 policy independently.
 
-This port does not make the existing durable-v3 authorities a canonical event
-ledger, does not run reducers, and does not change the current compatibility
-Store or default Agent/MCP behavior.
+These opt-in backends do not make the existing durable-v3 authorities event
+projections, do not run reducers, and do not change the current compatibility
+Store or default Agent/MCP behavior. Until an event-first composition root and
+verified cutover select them, the machine-readable persistence model remains
+`authority_graph` and `full_persistence=false`.

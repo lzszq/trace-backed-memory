@@ -232,13 +232,15 @@ reducer。这是交付目标，不是 active 能力；当前持久化模型仍�
 graph，`full_persistence` 仍为 `false`。在 event-first import、shadow comparison、
 projection rebuild 与 cutover 证据全部完成前，既有 durable-v3 authority 都是迁移资产。
 
-可执行 F0 基础现已交付为三个 `contract-only` 层：严格的 `tbm.event.v1` canonical
+可执行 F0 基础现已交付为三个严格契约：`tbm.event.v1` canonical
 信封；sealed typed event registry、严格 payload schema、compatibility matrix 与显式相邻
 upcaster；以及用于原子批量 append、精确幂等 replay、有界 read、verification 和
 subscription 的存储中立 ledger 应用端口。仓库守卫还会把每个当前
-SQLite/PostgreSQL v3 持久化模块登记为 ledger、replaceable projection、compatibility
-migration 或 bundle coordinator，并拒绝未登记 authority。这些层都还不是 canonical
-ledger 后端、reducer runtime、重建 projection 或 active transport 路径。详见
+SQLite/PostgreSQL 持久化模块登记为 ledger、replaceable projection、compatibility
+migration 或 bundle coordinator，并拒绝未登记 authority。F1 现已增加 opt-in SQLite
+与隔离 PostgreSQL event-ledger 后端，覆盖精确 Artifact descriptor、原子 append/replay、
+integrity/catalog 校验、backup/rollback 和跨后端一致性。reducer runtime、重建
+projection、lifecycle composition、cutover 与 active transport path 尚未选择它们。详见
 [规范事件 v1](protocols/event-v1.zh-CN.md)、
 [Event Type Registry v1](protocols/event-registry-v1.zh-CN.md) 与
 [Event Ledger Port v1](protocols/event-ledger-port-v1.zh-CN.md)。

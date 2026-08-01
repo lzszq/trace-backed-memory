@@ -4,7 +4,7 @@
 
 This file is generated deterministically from `resources/manifest.json`; do not edit it by hand.
 
-The strict allowlist currently contains **156** resources.
+The strict allowlist currently contains **159** resources.
 
 | Name | Kind | Media type | Bytes | SHA-256 |
 |---|---|---|---:|---|
@@ -107,6 +107,8 @@ The strict allowlist currently contains **156** resources.
 | `schemas/postgres-v3-completion-outbox.sql` | `schema` | `application/sql` | 29566 | `8719591674cbe7dd99c939722a737d12874c87e892ccfe99ef1c1fd3f38f02ca` |
 | `schemas/postgres-v3-entity-registry-rollback.sql` | `schema` | `application/sql` | 18337 | `af6b547c5065d053ad93672013cae9af5f2a158d8220ddd2d0f03da8f1115402` |
 | `schemas/postgres-v3-entity-registry.sql` | `schema` | `application/sql` | 18722 | `576e93b4db04c50097bb682ff751d4bbf6f0b9c52e5dd7b5f5ecba8bd37125cf` |
+| `schemas/postgres-v3-event-ledger-rollback.sql` | `schema` | `application/sql` | 6764 | `3bdb1dcbac9038a1a1166510211999cc8bc3b2b471508fd9b2dfdcee9b90ca3c` |
+| `schemas/postgres-v3-event-ledger.sql` | `schema` | `application/sql` | 17868 | `7021762c21f68e9ad431308fb6a73b9243b81a0886f011e45c70975dd1ec4400` |
 | `schemas/postgres-v3-gate-evidence-rollback.sql` | `schema` | `application/sql` | 19759 | `f3e1f7ea72f1cecbab9b6e1e67d3b44094c637eb4152afcedf5392bb8c2c0087` |
 | `schemas/postgres-v3-gate-evidence.sql` | `schema` | `application/sql` | 6085 | `74b9948a12884b8edbab942d2b6a00b9dc74552097a2ba2e008f5e70b645b236` |
 | `schemas/postgres-v3-gate-session-rollback.sql` | `schema` | `application/sql` | 7279 | `8d5793e8294f79f4dbe22567d61399a920245f8adb20b14960c6b56592486a52` |
@@ -146,6 +148,7 @@ The strict allowlist currently contains **156** resources.
 | `schemas/sqlite-v3-authorization.sql` | `schema` | `application/sql` | 4990 | `c3bf559f64eed14db1334d66b3280b18622df83d3ba4d04b45d8ebcb507251aa` |
 | `schemas/sqlite-v3-completion-outbox.sql` | `schema` | `application/sql` | 10884 | `c07d7fd50641c15d7eec6f4347a8281fb4cce657f5be4be97a35a3e649eac9b8` |
 | `schemas/sqlite-v3-entity-registry.sql` | `schema` | `application/sql` | 20999 | `ec06c93485fc93a67e583981ce6a88b069c2f15520acff16521d7f26472f7b66` |
+| `schemas/sqlite-v3-event-ledger.sql` | `schema` | `application/sql` | 12617 | `527504ede85714c2de0114d4a3be59f945b49fafbcfa95fd9b90b84616df1261` |
 | `schemas/sqlite-v3-gate-evidence.sql` | `schema` | `application/sql` | 3759 | `d882427fa6397e7f651077cbcb1b86fc7c91b3a74eb13f6878ade498defe0ee2` |
 | `schemas/sqlite-v3-gate-session.sql` | `schema` | `application/sql` | 7564 | `61ed2a0284f548d63e88b69d4eb86c46113d7f592579c88a9b6868e9bc4e4c4d` |
 | `schemas/sqlite-v3-managed-index.sql` | `schema` | `application/sql` | 4597 | `cb9a8670265cb4dfab36408807a34f75a3a617c82506dda0479b9dfbda06f147` |
@@ -157,8 +160,8 @@ The strict allowlist currently contains **156** resources.
 | `schemas/sqlite-v3-replay.sql` | `schema` | `application/sql` | 5041 | `7e62b7a3f8e11eaa5a025eacb30e83f86ed3d76980620295eaed01d9c3095ce6` |
 | `schemas/sqlite-v3-semantic-gate-artifacts.sql` | `schema` | `application/sql` | 9100 | `074223a8e8dd6df6c0bb158f12638afff038b1f6e83a63831efe7e0743e3f28f` |
 | `schemas/sqlite-v3-semantic-gate.sql` | `schema` | `application/sql` | 7945 | `d036177c6c0d96af676460b80074068049871a6dd0a333a17c6d2328bb203896` |
-| `schemas/sqlite-v3.components.json` | `schema` | `application/json` | 5680 | `e93a482031345e02682f5def7902db3656c1099174b5129b4e9aa0e641e285bc` |
-| `schemas/sqlite-v3.sql` | `schema` | `application/sql` | 121284 | `bca42cce868856bc506292a1e4fedeba9db908072a388a5a81b9b7819e2dd6ff` |
+| `schemas/sqlite-v3.components.json` | `schema` | `application/json` | 6028 | `9a3d83078e303d70427e9a0f70b08b12bb547c65a639ae6930d8aee21087315e` |
+| `schemas/sqlite-v3.sql` | `schema` | `application/sql` | 134012 | `3b9029a1d4756047f2d4aa0a169d3599116d941dc36e678c1fef5859eed624ee` |
 | `schemas/sqlite.sql` | `schema` | `application/sql` | 1806 | `06f86b7a09530e703af32bee99b699fe79638fbd4c955927add3c668acffb9eb` |
 | `schemas/structured_regression_evidence_v3.schema.json` | `schema` | `application/schema+json` | 3803 | `85adadb8bf315257b687b7d1efdeaee0bdfc7f9a1a01638a4fd69cce8b301dfe` |
 | `schemas/system_gate_evaluation_v3.schema.json` | `schema` | `application/schema+json` | 2582 | `6461e5e01c23361cd41ef0afc763eae4a8de982e02063b67763de347bdec521b` |

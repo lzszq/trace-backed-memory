@@ -77,8 +77,9 @@ envelope extensible without claiming that every event is already understood by
 a reducer.
 
 The atomic append/read/verification/subscription boundary is frozen separately
-by [Event Ledger Port v1](event-ledger-port-v1.md); no backend implements that
-port yet.
+by [Event Ledger Port v1](event-ledger-port-v1.md). Opt-in SQLite and isolated
+PostgreSQL backends now implement that port without changing the active
+authority-graph composition.
 
 Canonical resources:
 

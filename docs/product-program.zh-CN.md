@@ -946,15 +946,23 @@ F0-01 至 F0-05 现已交付。已接受的双语架构决策现在由以下内�
 `tbm.event.v1` 信封；包含严格 payload schema、未知 event 行为、compatibility report
 与显式 upcaster 的 sealed typed registry；以及覆盖原子 append、精确 replay、有界
 read、verification 与 subscription 的存储中立 event ledger port。机器可读 authority
-registry 与仓库 gate 会分类每个当前 SQLite/PostgreSQL v3 持久化模块，并拒绝新增未登记
-事实来源。这些仍是 contract/governance 基础；canonical ledger 后端、reducer 执行、
-projection rebuild、migration 与 cutover 仍属于 F1 及后续阶段。
+registry 与仓库 gate 会分类每个当前已登记 SQLite/PostgreSQL 持久化模块，并拒绝新增
+未登记事实来源。这些是 contract/governance 基础；active composition 与
+source-of-truth model 仍保持不变。
+
+F1-01 至 F1-03 现已作为 opt-in 持久化基础交付。`SQLiteEventLedgerV1` 在 16-component
+统一 v3 bundle 内提供 WAL、单 owner lock、原子 batch/head/idempotency commit、integrity
+校验和 backup/restore。`PostgresEventLedgerV1` 通过隔离 schema、固定 row-lock 顺序、
+精确 catalog digest、caller savepoint、并发和 fail-closed rollback 实现同一端口。两个
+后端都只保留精确 Artifact descriptor，不读取受保护字节；跨后端测试要求 receipt 与
+page 完全一致。reducer 执行、projection rebuild、migration、lifecycle integration 与
+cutover 仍未完成。
 
 - **F0 — 架构冻结（已交付）：** ADR-0006、canonical event contract/registry、
   ledger port，以及禁止新增独立 authority 的 guard。
-- **F1 — Ledger 与 reducer kernel：** canonical SQLite/PostgreSQL event ledger、
-  Artifact reference、versioned reducer runtime、projection rebuild CLI 与跨版本
-  determinism。
+- **F1 — Ledger 与 reducer kernel（ledger 基础已交付）：** opt-in SQLite/PostgreSQL
+  event ledger 与 Artifact reference 已交付；versioned reducer runtime、projection
+  rebuild CLI 与跨版本 determinism 仍待完成。
 - **F2 — Durable lifecycle event-first cutover：** GateSession、retrieval/Gate、
   replay、outcome/effect projection、`tbmd`、HTTP、MCP 与 SDK 使用同一 event-first
   composition 与 crash matrix。

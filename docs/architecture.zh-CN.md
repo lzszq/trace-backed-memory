@@ -94,7 +94,7 @@ SQL/迁移、memory support 与 example 提供安装后访问接口：
 ### 统一 SQLite v3 bundle
 
 opt-in durable SQLite factory 不再临时安装一小部分 authority script。
-`schemas/sqlite-v3.components.json` 对 15 个非迁移 component 排序，
+`schemas/sqlite-v3.components.json` 对 16 个非迁移 component 排序，
 `schemas/sqlite-v3.sql` 从这些精确字节生成一个外层事务。bundle metadata row
 绑定 component set 与 catalog 指纹。构造 durable service graph 前，启动过程会
 校验每个 component version，以及 main/temp catalog 中全部受控 table、index、
@@ -819,6 +819,17 @@ psycopg nested transaction 通过 savepoint 保留调用方 ownership。与 SQLi
 ledger 相同，它仍只是 evidence storage，不是 authorization 或
 Store/GateSession transition boundary。
 
+opt-in `SQLiteEventLedgerV1` 与隔离 `PostgresEventLedgerV1` 现已实现存储中立的
+`tbm.event-ledger-port.v1`。SQLite 把 event ledger 作为统一 v3 bundle 的第 16 个
+component，并组合 WAL、`BEGIN IMMEDIATE`、进程生命周期 single-link owner lock、
+immutable event/head/idempotency/checkpoint/Artifact-reference row、全库 integrity
+校验、已验证备份，以及通过重新打开备份并读回完成的恢复验证。PostgreSQL 在隔离 schema 中保留同一 canonical event
+与仅 descriptor 的 Artifact reference，先串行化 global position，再 row-lock tenant
+partition stream head；psycopg savepoint 保留 caller transaction，并在每次操作时核验
+精确 catalog digest。其显式 rollback 会锁定 schema，并拒绝 relation、function、trigger
+状态、policy 或 rule drift。两个后端具有跨 adapter receipt/page 一致性测试，但 active
+lifecycle command 还不会写入它们。
+
 ## Full Persistence 目标架构
 
 [ADR-0006](adr/0006-full-persistence-reducer-native-memory.zh-CN.md) 冻结下一阶段
@@ -828,17 +839,18 @@ Authority 继续作为大对象或受保护字节的事实源，由 event 引用
 versioned deterministic reducer 构建可替换 projection；这些 projection 必须能够从
 保留的 ledger 与 artifact 集合重建。
 
-存储中立的 F0 协议基础现已作为多个 `contract-only` 层交付：严格的
+存储中立的 F0 协议基础现已作为严格契约交付：
 `tbm.event.v1` 信封；包含严格 payload schema、未知 event 保留、compatibility matrix
 与显式相邻 upcaster 的 sealed typed registry；以及覆盖原子有界 append、精确幂等
 replay、有界 tenant/classification read、stream verification 和有界 subscription 的
 event-ledger 应用端口。详见[规范事件 v1](protocols/event-v1.zh-CN.md)、
 [Event Type Registry v1](protocols/event-registry-v1.zh-CN.md) 与
-[Event Ledger Port v1](protocols/event-ledger-port-v1.zh-CN.md)。具体 append transaction、
-canonical ledger 后端、reducer 与可重建 projection 仍属于后续里程碑。
+[Event Ledger Port v1](protocols/event-ledger-port-v1.zh-CN.md)。F1 SQLite 与 PostgreSQL
+后端现已实现 append transaction 和 Artifact-reference 边界；reducer、可重建
+projection、lifecycle integration、migration 与 cutover 仍属于后续里程碑。
 
 机器可读的 [`authority-registry.json`](status/authority-registry.json) 会把每个当前
-SQLite/PostgreSQL v3 持久化模块分类为 ledger、replaceable projection、compatibility
+已登记 SQLite/PostgreSQL 持久化模块分类为 ledger、replaceable projection、compatibility
 migration 或 bundle coordinator。仓库验证会拒绝未登记 module、role 或事实来源。
 该 registry 记录当前 authority graph；它本身不是运行时 authority，也不会把任何现有
 ledger 提升为 canonical event ledger。

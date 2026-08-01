@@ -547,6 +547,16 @@ _RESOURCE_SPECS: tuple[
         "application/sql",
     ),
     (
+        "schemas/postgres-v3-event-ledger-rollback.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/postgres-v3-event-ledger.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
         "schemas/postgres-v3-gate-evidence-rollback.sql",
         "schema",
         "application/sql",
@@ -738,6 +748,11 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/sqlite-v3-entity-registry.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
+        "schemas/sqlite-v3-event-ledger.sql",
         "schema",
         "application/sql",
     ),

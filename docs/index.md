@@ -102,9 +102,10 @@ default `tbm-mcp` command is a long-running local STDIO transport for that
 protocol, not another persistence version. Its pending gate requests remain
 process-local.
 The canonical event envelope, sealed typed registry/upcaster catalog, and
-storage-neutral event-ledger port are contract-only F0 boundaries. No
-SQLite/PostgreSQL canonical ledger backend or generic reducer selects them;
-the active source-of-truth model remains the registered authority graph.
+storage-neutral event-ledger port are strict F0 boundaries. F1 adds opt-in
+SQLite/PostgreSQL ledger backends and descriptor-only Artifact linkage; no
+generic reducer or active composition root selects them, so the active
+source-of-truth model remains the registered authority graph.
 The persistence-neutral `tbm.gate-session.v3` lifecycle contract and opt-in
 side-by-side SQLite and isolated PostgreSQL revision repositories are
 published. Opt-in preparation, Semantic Gate, completion, and recovery

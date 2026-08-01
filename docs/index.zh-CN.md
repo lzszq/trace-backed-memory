@@ -98,9 +98,9 @@
 version 2 和 Agent 协议 `tbm.agent.v1`。可选的默认 `tbm-mcp` 命令是该协议的长驻
 本地 STDIO transport，不是新的持久化版本；其 pending gate request 仍为进程内
 状态。Canonical event 信封、sealed typed registry/upcaster catalog 与存储中立的
-event-ledger port 都只是 F0 的 contract-only 边界。尚无 SQLite/PostgreSQL
-canonical ledger 后端或通用 reducer 选择它们；active source-of-truth model
-仍是已登记的 authority graph。与持久化实现无关的 `tbm.gate-session.v3`
+event-ledger port 是严格 F0 边界。F1 已增加 opt-in SQLite/PostgreSQL ledger 后端和
+仅 descriptor 的 Artifact linkage；通用 reducer 与 active composition root 尚未选择
+它们，因此 active source-of-truth model 仍是已登记的 authority graph。与持久化实现无关的 `tbm.gate-session.v3`
 生命周期契约及 opt-in、
 side-by-side SQLite 和隔离 PostgreSQL revision repository 已经发布。opt-in
 preparation、Semantic Gate、completion 与 recovery service/worker 已经使用它们，

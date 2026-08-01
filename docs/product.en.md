@@ -231,6 +231,13 @@ authority graph and `full_persistence` remains `false`. Existing durable-v3
 authorities are migration assets until event-first import, shadow comparison,
 projection rebuild, and cutover evidence are complete.
 
+The first executable foundation is now available as the contract-only
+`tbm.event.v1` canonical envelope: strict bounded parsing, canonical
+serialization and hashes, trusted identity/provenance slots, evidence-aware
+timestamps, classification/retention, and descriptor-only Artifact references.
+It is not yet a canonical ledger, reducer runtime, projection, or active
+transport path. See [Canonical Event v1](protocols/event-v1.md).
+
 The implemented hardening includes:
 
 - conservative explicit failure-text classification and duplicate-key rejection;

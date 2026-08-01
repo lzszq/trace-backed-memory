@@ -164,6 +164,15 @@
       "sha256": "70eca55470c5e9f3c96d42d011407f01381172d88d6ce46053a7b60ca025d15b"
     },
     {
+      "name": "examples/event_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/event_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/event_v1.example.json",
+      "size_bytes": 2108,
+      "sha256": "64064de1fabb9224b8f4fd1be270520d4f123074884d06d94e9fe2367ec5388c"
+    },
+    {
       "name": "examples/failure_case.example.json",
       "kind": "example",
       "media_type": "application/json",
@@ -612,6 +621,15 @@
       "installed": "src/trace_backed_memory/_resources/schemas/entity_registry_v3.schema.json",
       "size_bytes": 3674,
       "sha256": "8b7d51d945c19731d12d0db53d679edfdd2e78e2834dd6a7c6d75a820b3eea2c"
+    },
+    {
+      "name": "schemas/event_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/event_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/event_v1.schema.json",
+      "size_bytes": 7227,
+      "sha256": "85a39c0a8712eca2a74fb5cbb26ce6029f1615aface324ce7e6e1266c3400765"
     },
     {
       "name": "schemas/failure_case.schema.json",

@@ -4,7 +4,7 @@
 
 This file is generated deterministically from `resources/manifest.json`; do not edit it by hand.
 
-The strict allowlist currently contains **151** resources.
+The strict allowlist currently contains **153** resources.
 
 | Name | Kind | Media type | Bytes | SHA-256 |
 |---|---|---|---:|---|
@@ -26,6 +26,7 @@ The strict allowlist currently contains **151** resources.
 | `examples/completion_outbox_event_v3.example.json` | `example` | `application/json` | 662 | `50fd5af2841c2109d8316e79ab042102125036c0fad1e94f6e58ba2647fe5692` |
 | `examples/decision_replay_manifest_v3.example.json` | `example` | `application/json` | 1318 | `2aa1159ce58751b6776b918acff00b40926f1ecb8c2bdf24b77bad1977ad753a` |
 | `examples/entity_registry_v3.example.json` | `example` | `application/json` | 2683 | `70eca55470c5e9f3c96d42d011407f01381172d88d6ce46053a7b60ca025d15b` |
+| `examples/event_v1.example.json` | `example` | `application/json` | 2108 | `64064de1fabb9224b8f4fd1be270520d4f123074884d06d94e9fe2367ec5388c` |
 | `examples/failure_case.example.json` | `example` | `application/json` | 611 | `c2140e20e53b39bb3156637f33bf2f3fc64c5e965ddb15f017518f25307264bb` |
 | `examples/fix_evidence_v3.example.json` | `example` | `application/json` | 832 | `16f830196cba86a72b933e130e11b3e6188b20ef5363032622129b076715bdb2` |
 | `examples/gate_session_v3.example.json` | `example` | `application/json` | 938 | `6c1615f0083341c08a1c2d78922004d3ce31ce4103adcb7a7b3052200c6f713d` |
@@ -76,6 +77,7 @@ The strict allowlist currently contains **151** resources.
 | `schemas/completion_outbox_event_v3.schema.json` | `schema` | `application/schema+json` | 2126 | `23441c27f43ae571fb69baf5a39e85ab75371ba7981c03872afe5c1f817172f1` |
 | `schemas/decision_replay_manifest_v3.schema.json` | `schema` | `application/schema+json` | 10496 | `b0f54849c5383910a2df705671ba7ee4a89532a91d457277e8c331dd17a8983d` |
 | `schemas/entity_registry_v3.schema.json` | `schema` | `application/schema+json` | 3674 | `8b7d51d945c19731d12d0db53d679edfdd2e78e2834dd6a7c6d75a820b3eea2c` |
+| `schemas/event_v1.schema.json` | `schema` | `application/schema+json` | 7227 | `85a39c0a8712eca2a74fb5cbb26ce6029f1615aface324ce7e6e1266c3400765` |
 | `schemas/failure_case.schema.json` | `schema` | `application/schema+json` | 2667 | `6aa481172d9ccc534c4bede6fe7b02c4705d72c9f5967fadfdd0cac48b9d5709` |
 | `schemas/fix_evidence_v3.schema.json` | `schema` | `application/schema+json` | 2530 | `845ae6add90bc9852059179738ef8bfec0969c690165270ca555769c0014b11d` |
 | `schemas/gate_session_v3.schema.json` | `schema` | `application/schema+json` | 12097 | `300e64015764e3141f9cc7afc11709c8329e844aa3e225da520266e58e2e183c` |

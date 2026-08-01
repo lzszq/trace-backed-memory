@@ -2056,6 +2056,15 @@ protected bytes, referenced by events rather than embedded in them. Versioned
 deterministic reducers build replaceable projections that must be reproducible
 from the retained ledger and artifact set.
 
+The storage-neutral `tbm.event.v1` envelope is now delivered as a contract-only
+foundation. It binds trusted scope/actor/authorization identity, request and
+causal provenance, canonical payload and envelope hashes, classification,
+retention, descriptor-only Artifact references, nullable evidence-aware
+occurrence time, and trusted record time. Its strict parser is byte/node/depth
+bounded and duplicate-key rejecting. See
+[Canonical Event v1](protocols/event-v1.md). The typed registry, ledger ports,
+append transaction, reducers, and projections remain later milestones.
+
 The current compatibility Store and durable-v3 authorities remain operational
 migration assets until each event-first cutover is verified. Existing
 append-only authorities, including `tbm.audit-event.v3`, must not be described

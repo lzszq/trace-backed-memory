@@ -42,6 +42,7 @@
 | `replay.durable-v3` | Replay | Durable replay authority | `opt-in` | 启动 policy 允许 content 时，显式 durable HTTP/MCP 会导出 session-bound replay；默认 adapter 不会。 |
 | `completion.outbox-v3` | 完成 | Outcome 与 outbox authority/worker | `opt-in` | 显式 `tbmd local` 会运行有界 SQLite delivery page 并 reclaim 过期 lease；shared-service dispatch 仍待完成。 |
 | `operations.audit-recovery-v3` | 运维 | Audit/recovery authority/worker | `opt-in` | 显式 `tbmd local` 会 expire 到期的 PREPARED/AWAITING_DECISION session；它不会执行任意 audit remediation action。 |
+| `protocol.canonical-event-v1` | Full Persistence 协议 | `tbm.event.v1` 规范信封 | `contract-only` | 已交付严格、存储中立的信封、Schema、示例和双语参考；canonical ledger 与 reducer 尚未选择它。 |
 | `migration.snapshot-v3` | 迁移 | Snapshot v3 plan/bundle/verify/staging | `contract-only` | 没有 apply、cutover、rollback 编排。 |
 | `persistence.unified-sqlite-v3` | 持久化切换 | 统一 SQLite v3 schema | `opt-in` | 一个生成 bundle 安装并指纹校验全部 15 个 durable authority schema；active 兼容边界仍为 SQLite 1。 |
 | `persistence.unified-postgresql-v3` | 持久化切换 | 统一 PostgreSQL v3 schema | `planned` | 当前兼容边界为 PostgreSQL 2。 |
@@ -67,9 +68,9 @@
 - [ADR-0005：公开与内部 package 边界](../adr/0005-public-internal-package-boundaries.zh-CN.md)
 - [ADR-0006：Full Persistence 与 reducer-native memory](../adr/0006-full-persistence-reducer-native-memory.zh-CN.md)
 
-当前机器可读边界是 `persistence_model="authority_graph"` 与
-`full_persistence=false`。接受 ADR-0006 只会冻结目标架构，不会提升上述两个 planned
-Full Persistence 条目的状态。
+当前机器可读边界是 `persistence_model="authority_graph"`、
+`ledger_protocol="tbm.event.v1"` 与 `full_persistence=false`。事件信封契约已经可供后续
+ledger 里程碑使用，但不会提升上述两个 planned Full Persistence 条目的状态。
 
 ## 状态提升规则
 

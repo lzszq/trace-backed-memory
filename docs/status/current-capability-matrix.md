@@ -45,6 +45,7 @@ advance a status.
 | `replay.durable-v3` | Replay | Durable replay authorities | `opt-in` | Explicit durable HTTP/MCP export session-bound replay when startup policy enables content; default adapters do not. |
 | `completion.outbox-v3` | Completion | Outcome and outbox authority/worker | `opt-in` | Explicit `tbmd local` runs bounded SQLite delivery pages and reclaims expired leases; shared-service dispatch remains outstanding. |
 | `operations.audit-recovery-v3` | Operations | Audit and recovery authority/worker | `opt-in` | Explicit `tbmd local` expires due PREPARED/AWAITING_DECISION sessions; it does not execute arbitrary audit remediation actions. |
+| `protocol.canonical-event-v1` | Full Persistence protocol | `tbm.event.v1` canonical envelope | `contract-only` | Strict storage-neutral envelope, schema, example, and bilingual reference are delivered; no canonical ledger or reducer selects it yet. |
 | `migration.snapshot-v3` | Migration | Snapshot v3 plan/bundle/verify/staging | `contract-only` | No apply, cutover, or rollback orchestration. |
 | `persistence.unified-sqlite-v3` | Persistence cutover | Unified SQLite v3 schema | `opt-in` | One generated bundle installs and fingerprints all 15 durable authority schemas; active compatibility remains SQLite 1. |
 | `persistence.unified-postgresql-v3` | Persistence cutover | Unified PostgreSQL v3 schema | `planned` | Current compatibility boundary is PostgreSQL 2. |
@@ -71,9 +72,9 @@ advance a status.
 - [ADR-0006: Full Persistence and reducer-native memory](../adr/0006-full-persistence-reducer-native-memory.md)
 
 The current machine-readable boundary is
-`persistence_model="authority_graph"` and `full_persistence=false`. Accepting
-ADR-0006 freezes the destination architecture; it does not promote either
-planned Full Persistence row.
+`persistence_model="authority_graph"`, `ledger_protocol="tbm.event.v1"`, and
+`full_persistence=false`. The envelope contract is available for the next
+ledger milestones; it does not promote either planned Full Persistence row.
 
 ## Promotion rule
 

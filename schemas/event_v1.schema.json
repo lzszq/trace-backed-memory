@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trace-backed-memory.dev/schemas/event_v1.schema.json",
+  "title": "Trace-backed Memory Canonical Event v1",
+  "$comment": "Structural preflight only. Runtime validation must reject duplicate keys and non-finite values, enforce canonical timestamps and sorted unique artifact references, recompute payload_sha256 and event_sha256, verify trusted identity, and verify the exact stream parent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol_version",
+    "event_id",
+    "event_sha256",
+    "event_type",
+    "event_version",
+    "event_kind",
+    "origin",
+    "source",
+    "stream_id",
+    "stream_type",
+    "stream_version",
+    "global_position",
+    "organization_id",
+    "tenant_id",
+    "repository_id",
+    "environment_id",
+    "principal_id",
+    "agent_client_id",
+    "actor_type",
+    "actor_id",
+    "authorization_decision_id",
+    "request_id",
+    "idempotency_key_sha256",
+    "request_sha256",
+    "correlation_id",
+    "causation_id",
+    "occurred_at",
+    "recorded_at",
+    "producer",
+    "producer_version",
+    "payload_schema",
+    "payload_sha256",
+    "previous_stream_event_sha256",
+    "classification",
+    "retention_policy_id",
+    "artifact_refs",
+    "payload"
+  ],
+  "properties": {
+    "protocol_version": {"const": "tbm.event.v1"},
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$"
+    },
+    "event_sha256": {"$ref": "#/$defs/digest"},
+    "event_type": {
+      "type": "string",
+      "pattern": "^tbm\\.[a-z0-9][a-z0-9_]*(?:\\.[a-z0-9][a-z0-9_]*)+$"
+    },
+    "event_version": {"$ref": "#/$defs/positiveVersion"},
+    "event_kind": {"enum": ["domain", "observation"]},
+    "origin": {"enum": ["native", "imported"]},
+    "source": {
+      "oneOf": [
+        {"$ref": "#/$defs/source"},
+        {"type": "null"}
+      ]
+    },
+    "stream_id": {"$ref": "#/$defs/identifier"},
+    "stream_type": {"$ref": "#/$defs/identifier"},
+    "stream_version": {"$ref": "#/$defs/positiveVersion"},
+    "global_position": {"$ref": "#/$defs/positiveVersion"},
+    "organization_id": {"$ref": "#/$defs/identifier"},
+    "tenant_id": {"$ref": "#/$defs/identifier"},
+    "repository_id": {"$ref": "#/$defs/identifier"},
+    "environment_id": {"$ref": "#/$defs/identifier"},
+    "principal_id": {"$ref": "#/$defs/identifier"},
+    "agent_client_id": {"$ref": "#/$defs/identifier"},
+    "actor_type": {
+      "enum": ["principal", "agent_client", "service", "worker"]
+    },
+    "actor_id": {"$ref": "#/$defs/identifier"},
+    "authorization_decision_id": {"$ref": "#/$defs/identifier"},
+    "request_id": {"$ref": "#/$defs/identifier"},
+    "idempotency_key_sha256": {"$ref": "#/$defs/digest"},
+    "request_sha256": {"$ref": "#/$defs/digest"},
+    "correlation_id": {"$ref": "#/$defs/identifier"},
+    "causation_id": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$"
+        },
+        {"type": "null"}
+      ]
+    },
+    "occurred_at": {
+      "oneOf": [
+        {"$ref": "#/$defs/timestamp"},
+        {"type": "null"}
+      ]
+    },
+    "recorded_at": {"$ref": "#/$defs/timestamp"},
+    "producer": {"$ref": "#/$defs/identifier"},
+    "producer_version": {"$ref": "#/$defs/code"},
+    "payload_schema": {
+      "type": "string",
+      "pattern": "^tbm\\.[a-z0-9][a-z0-9_.-]*\\.v[1-9][0-9]*$"
+    },
+    "payload_sha256": {"$ref": "#/$defs/digest"},
+    "previous_stream_event_sha256": {
+      "oneOf": [
+        {"$ref": "#/$defs/digest"},
+        {"type": "null"}
+      ]
+    },
+    "classification": {"$ref": "#/$defs/classification"},
+    "retention_policy_id": {"$ref": "#/$defs/identifier"},
+    "artifact_refs": {
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/artifactRef"}
+    },
+    "payload": {
+      "type": "object",
+      "maxProperties": 8192
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"stream_version": {"const": 1}},
+        "required": ["stream_version"]
+      },
+      "then": {
+        "properties": {"previous_stream_event_sha256": {"type": "null"}}
+      },
+      "else": {
+        "properties": {"previous_stream_event_sha256": {"type": "string"}}
+      }
+    },
+    {
+      "if": {
+        "properties": {"origin": {"const": "imported"}},
+        "required": ["origin"]
+      },
+      "then": {"properties": {"source": {"$ref": "#/$defs/source"}}}
+    },
+    {
+      "if": {
+        "properties": {"event_kind": {"const": "observation"}},
+        "required": ["event_kind"]
+      },
+      "then": {"properties": {"source": {"$ref": "#/$defs/source"}}}
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]{1,128}$"
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "positiveVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9223372036854775807
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    },
+    "classification": {
+      "enum": ["public", "internal", "confidential", "restricted"]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_system",
+        "source_record_id",
+        "evidence_quality",
+        "observed_at"
+      ],
+      "properties": {
+        "source_system": {"$ref": "#/$defs/identifier"},
+        "source_record_id": {"$ref": "#/$defs/identifier"},
+        "evidence_quality": {
+          "enum": [
+            "exact",
+            "verified",
+            "observed",
+            "legacy_partial",
+            "unknown"
+          ]
+        },
+        "observed_at": {"$ref": "#/$defs/timestamp"}
+      }
+    },
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "content_sha256",
+        "media_type",
+        "size_bytes",
+        "classification",
+        "retention_policy_id",
+        "encryption_key_id",
+        "availability"
+      ],
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "pattern": "^artifact_sha256_[0-9a-f]{64}$"
+        },
+        "content_sha256": {"$ref": "#/$defs/digest"},
+        "media_type": {"$ref": "#/$defs/code"},
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        },
+        "classification": {"$ref": "#/$defs/classification"},
+        "retention_policy_id": {"$ref": "#/$defs/identifier"},
+        "encryption_key_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/identifier"},
+            {"type": "null"}
+          ]
+        },
+        "availability": {
+          "enum": ["available", "pending", "unavailable", "erased"]
+        }
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@
   "status_date": "2026-08-01",
   "product_version": "0.1.0",
   "persistence_model": "authority_graph",
+  "ledger_protocol": "tbm.event.v1",
   "full_persistence": false,
   "status_values": [
     "active",
@@ -112,6 +113,15 @@
       "id": "operations.audit-recovery-v3",
       "status": "opt-in",
       "evidence": ["src/trace_backed_memory/audit_v3.py"]
+    },
+    {
+      "id": "protocol.canonical-event-v1",
+      "status": "contract-only",
+      "evidence": [
+        "src/trace_backed_memory/event_v1.py",
+        "schemas/event_v1.schema.json",
+        "docs/protocols/event-v1.md"
+      ]
     },
     {
       "id": "migration.snapshot-v3",

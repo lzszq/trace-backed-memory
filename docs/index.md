@@ -38,6 +38,7 @@ orientation; these documents define the engineering contracts.
 - [GateSession recovery worker](protocols/gate-recovery-worker-v3.md)
 - [SQLite and PostgreSQL Gate evidence v3](protocols/sqlite-gate-evidence-v3.md)
 - [Append-only audit and recovery v3](protocols/audit-recovery-v3.md)
+- [Canonical event envelope `tbm.event.v1`](protocols/event-v1.md)
 - [Structured regression evidence v3](protocols/evidence-v3.md)
 - [FixEvidence v3](protocols/fix-evidence-v3.md)
 - [MemoryRevision proposal and publication events v3](protocols/memory-revision-v3.md)

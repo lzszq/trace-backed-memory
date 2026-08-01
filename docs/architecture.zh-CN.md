@@ -828,6 +828,13 @@ Authority 继续作为大对象或受保护字节的事实源，由 event 引用
 versioned deterministic reducer 构建可替换 projection；这些 projection 必须能够从
 保留的 ledger 与 artifact 集合重建。
 
+存储中立的 `tbm.event.v1` 信封现在已作为 `contract-only` 基础交付。它绑定可信的
+作用域/行为者/授权身份、请求与因果来源、规范载荷及信封哈希、分类、保留策略、仅含
+描述信息的 Artifact 引用、可为空且保留证据不确定性的发生时间，以及可信记录时间。
+严格解析器限制字节/节点/深度并拒绝重复键。详见
+[规范事件 v1](protocols/event-v1.zh-CN.md)。类型化注册表、ledger port、追加事务、
+reducer 和 projection 仍属于后续里程碑。
+
 当前兼容 Store 与 durable-v3 authority 在每条 event-first cutover 完成核验前继续作为
 运行中的迁移资产。包括 `tbm.audit-event.v3` 在内的既有 append-only authority 都不能
 描述为 canonical ledger。过渡期的 event append 与关键 projection update 必须共享同一

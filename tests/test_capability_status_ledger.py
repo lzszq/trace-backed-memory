@@ -71,6 +71,7 @@ def test_capability_ledger_records_full_persistence_boundary() -> None:
         ).read_text(encoding="utf-8")
     )
     assert payload["persistence_model"] == "authority_graph"
+    assert payload["ledger_protocol"] == "tbm.event.v1"
     assert payload["full_persistence"] is False
 
 

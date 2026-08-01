@@ -294,6 +294,10 @@ def test_product_and_reference_documents_are_localized_in_pairs():
                 "docs/protocols/audit-recovery-v3.zh-CN.md",
             ),
         (
+            "docs/protocols/event-v1.md",
+            "docs/protocols/event-v1.zh-CN.md",
+        ),
+        (
             "docs/protocols/evidence-v3.md",
             "docs/protocols/evidence-v3.zh-CN.md",
         ),

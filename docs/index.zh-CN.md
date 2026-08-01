@@ -37,6 +37,7 @@
 - [GateSession recovery worker](protocols/gate-recovery-worker-v3.zh-CN.md)
 - [SQLite 与 PostgreSQL Gate evidence v3](protocols/sqlite-gate-evidence-v3.zh-CN.md)
 - [Append-only 审计与恢复 v3](protocols/audit-recovery-v3.zh-CN.md)
+- [规范事件信封 `tbm.event.v1`](protocols/event-v1.zh-CN.md)
 - [结构化 regression evidence v3](protocols/evidence-v3.zh-CN.md)
 - [FixEvidence v3](protocols/fix-evidence-v3.zh-CN.md)
 - [MemoryRevision proposal 与 publication event v3](protocols/memory-revision-v3.zh-CN.md)

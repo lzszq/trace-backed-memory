@@ -232,6 +232,11 @@ reducer。这是交付目标，不是 active 能力；当前持久化模型仍�
 graph，`full_persistence` 仍为 `false`。在 event-first import、shadow comparison、
 projection rebuild 与 cutover 证据全部完成前，既有 durable-v3 authority 都是迁移资产。
 
+首个可执行基础现已作为 `contract-only` 的 `tbm.event.v1` 规范信封交付：严格有界
+解析、规范序列化与哈希、可信身份/来源槽位、保留证据不确定性的时间、分类/保留策略，
+以及仅含描述信息的 Artifact 引用。它还不是 canonical ledger、reducer runtime、
+projection 或 active transport 路径。详见[规范事件 v1](protocols/event-v1.zh-CN.md)。
+
 Phase 71 强化可信提升与运行时边界：Failure Case 只能来自 `fail`/`error` Trace，verify 前必须具备 reviewer、root cause 与 review timestamp，dirty source 不能激活 Lesson；LLM response 限制为 64 KiB、1,000 nodes、depth 20，reason 最多 2,000 字符；所有未被 LLM 选中的系统候选都会进入 blocked 审计，超过 50 项时确定性保留前 50 项并记录其余项；`short_summary` 与 `full_case_summary` 使用不同 renderer，关键词检索支持 Unicode。
 
 Phase 72 增加标准库 `SQLiteMemoryRepository`：增量原子同步使用 `BEGIN IMMEDIATE`，caller transaction 使用 savepoint，load 在 Store 重建前执行记录数与 UTF-8 payload 限制。SQLite 使用 schema 版本 1，PostgreSQL 当时仍使用 schema 版本 1；资源总数为 19。

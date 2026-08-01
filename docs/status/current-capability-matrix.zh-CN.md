@@ -45,6 +45,8 @@
 | `migration.snapshot-v3` | 迁移 | Snapshot v3 plan/bundle/verify/staging | `contract-only` | 没有 apply、cutover、rollback 编排。 |
 | `persistence.unified-sqlite-v3` | 持久化切换 | 统一 SQLite v3 schema | `opt-in` | 一个生成 bundle 安装并指纹校验全部 15 个 durable authority schema；active 兼容边界仍为 SQLite 1。 |
 | `persistence.unified-postgresql-v3` | 持久化切换 | 统一 PostgreSQL v3 schema | `planned` | 当前兼容边界为 PostgreSQL 2。 |
+| `persistence.canonical-event-ledger` | Full Persistence | Canonical append-only event ledger | `planned` | ADR-0006 已接受；当前 source-of-truth model 仍是 authority graph。 |
+| `persistence.reducer-runtime` | Full Persistence | Versioned deterministic reducer 与可重建 projection | `planned` | generic reducer runtime 与完整 projection rebuild 尚不存在。 |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | 显式 `tbm-http --profile durable-v3`；可信 application factory、bearer 边界、统一 SQLite/PostgreSQL v3 runtime，默认隐藏内容。 |
 | `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | 显式 `tbm-mcp --profile durable-v3`；可信本地 application factory、有界 STDIO、统一 SQLite/PostgreSQL v3 runtime、跨重启续接，且默认隐藏内容。它不是带 peer authentication 的 shared-service MCP。 |
 | `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript client | `active` | 显式 durable HTTP profile 已提供同步/异步 Python client 与无运行时依赖的 Node.js TypeScript client；同一份共享 fixture 会通过 Python 与 TypeScript lifecycle 测试。 |
@@ -63,6 +65,11 @@
 - [ADR-0003：transport identity 归属](../adr/0003-transport-identity-ownership.zh-CN.md)
 - [ADR-0004：规范 resource manifest](../adr/0004-canonical-resource-manifest.zh-CN.md)
 - [ADR-0005：公开与内部 package 边界](../adr/0005-public-internal-package-boundaries.zh-CN.md)
+- [ADR-0006：Full Persistence 与 reducer-native memory](../adr/0006-full-persistence-reducer-native-memory.zh-CN.md)
+
+当前机器可读边界是 `persistence_model="authority_graph"` 与
+`full_persistence=false`。接受 ADR-0006 只会冻结目标架构，不会提升上述两个 planned
+Full Persistence 条目的状态。
 
 ## 状态提升规则
 

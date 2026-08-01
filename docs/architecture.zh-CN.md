@@ -819,6 +819,32 @@ psycopg nested transaction 通过 savepoint 保留调用方 ownership。与 SQLi
 ledger 相同，它仍只是 evidence storage，不是 authorization 或
 Store/GateSession transition boundary。
 
+## Full Persistence 目标架构
+
+[ADR-0006](adr/0006-full-persistence-reducer-native-memory.zh-CN.md) 冻结下一阶段
+持久化架构，但不改变当前运行边界。canonical append-only event ledger 将成为 domain、
+lifecycle、control 与 effect 状态的最终事实源；已认证、content-addressed Artifact
+Authority 继续作为大对象或受保护字节的事实源，由 event 引用而不是直接嵌入。
+versioned deterministic reducer 构建可替换 projection；这些 projection 必须能够从
+保留的 ledger 与 artifact 集合重建。
+
+当前兼容 Store 与 durable-v3 authority 在每条 event-first cutover 完成核验前继续作为
+运行中的迁移资产。包括 `tbm.audit-event.v3` 在内的既有 append-only authority 都不能
+描述为 canonical ledger。过渡期的 event append 与关键 projection update 必须共享同一
+connection、unit of work 和 transaction；best-effort cross-authority dual write 不是可接受
+的一致性边界。
+
+review、structured verification、authorization、System Gate 单调性、Semantic Gate
+收窄、finalization 与 replay 不变量保持不变。Git 提供 observation evidence，但不是
+ledger。external effect 通过显式 intent、attempt 与幂等 receipt event 表达，因为它们
+不能加入 database transaction。冻结新增独立 authority、protocol family 与 standalone
+SQL component；只有已记录的 security/corruption 修复，或 ledger、reducer、migration
+blocker 可以例外。
+
+这是目标架构，不是当前能力声明。机器可读状态仍为
+`persistence_model="authority_graph"` 与 `full_persistence=false`。rollback 只选择旧
+reducer/projection head，绝不删除 canonical event。
+
 ## 非目标
 
 当前 scope 是“仅匹配 memory 已声明字段”的语义，不是多租户授权模型；省略 `repo` 或 `tenant` 的 memory 不会自动获得对应硬边界。已发布的授权 v3 契约准备了 canonical repository 与 global/repository/tenant role boundary，但生产隔离仍需要认证 service integration 和 durable policy enforcement。snapshot version 2 也不会持久化 Gate request、retriever/gate/renderer 版本与 hash 或结构化 regression run 证据，Git ancestry 仍为 opt-in。这些属于 schema v3 / PostgreSQL schema v3，而不是当前 Alpha 契约。

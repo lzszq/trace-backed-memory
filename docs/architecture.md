@@ -2045,6 +2045,37 @@ Psycopg nested transactions preserve caller ownership through savepoints.
 Like the SQLite ledger, this remains evidence storage rather than an
 authorization or Store/GateSession transition boundary.
 
+## Full Persistence target architecture
+
+[ADR-0006](adr/0006-full-persistence-reducer-native-memory.md) freezes the
+next persistence architecture without changing the current runtime boundary.
+The canonical append-only event ledger becomes the eventual source of truth for
+domain, lifecycle, control, and effect state. The authenticated,
+content-addressed Artifact Authority remains the source of truth for large or
+protected bytes, referenced by events rather than embedded in them. Versioned
+deterministic reducers build replaceable projections that must be reproducible
+from the retained ledger and artifact set.
+
+The current compatibility Store and durable-v3 authorities remain operational
+migration assets until each event-first cutover is verified. Existing
+append-only authorities, including `tbm.audit-event.v3`, must not be described
+as the canonical ledger. Transitional event append and critical projection
+updates must share one connection, unit of work, and transaction; no
+best-effort cross-authority dual write is an accepted consistency boundary.
+
+Review, structured verification, authorization, System Gate monotonicity,
+Semantic Gate narrowing, finalization, and replay invariants remain unchanged.
+Git contributes observation evidence but is not the ledger. External effects
+are represented through explicit intent, attempt, and idempotent receipt events
+because they cannot join a database transaction. New independent authorities,
+protocol families, and standalone SQL components are frozen except for
+documented security/corruption fixes or ledger, reducer, and migration blockers.
+
+This is a target architecture, not a current capability claim. The current
+machine-readable status remains `persistence_model="authority_graph"` and
+`full_persistence=false`. Rollback selects a prior reducer/projection head and
+never deletes canonical events.
+
 ## Non-goals
 
 The current scope matcher is declared-scope matching, not a multi-tenant

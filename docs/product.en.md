@@ -223,6 +223,14 @@ The product fails closed:
 
 The current release implements roadmap Phases 0 through 73, the local agent/MCP integration increment, and the delivered contract/isolated-authority portions of Phase 74, including opt-in SQLite and isolated PostgreSQL completion outboxes plus their bounded at-least-once delivery worker, the bounded five-view managed-index bundle with exact SQLite/PostgreSQL publication authorities, the opt-in durable retrieval-preparation bridge through Gate evidence verification and GateSession `PREPARED`, durable Semantic Gate composition through `AWAITING_DECISION` to `DECIDED`, opt-in durable finalization through exact UsageDecision/replay retention to `FINALIZED`, authenticated durable execution through exact injection replay, `EXECUTING`, evaluator-authenticated `COMPLETED`, and completion outbox emission, and the adapter-neutral authenticated durable Agent composition over those stages. The main product path has executable README examples, JSON Schemas, SQL invariants, and pytest coverage across Python 3.11, 3.12, 3.13, Windows, SQLite, and required PostgreSQL CI.
 
+[ADR-0006](adr/0006-full-persistence-reducer-native-memory.md) freezes the
+next product architecture around a canonical event ledger, content-addressed
+artifacts, and versioned deterministic reducers. This is a delivery target, not
+an active capability: the current persistence model remains the durable
+authority graph and `full_persistence` remains `false`. Existing durable-v3
+authorities are migration assets until event-first import, shadow comparison,
+projection rebuild, and cutover evidence are complete.
+
 The implemented hardening includes:
 
 - conservative explicit failure-text classification and duplicate-key rejection;

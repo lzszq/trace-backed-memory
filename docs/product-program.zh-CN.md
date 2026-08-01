@@ -934,3 +934,34 @@ increment 不会自动成为 active 用户路径。
   在不削弱有界参考契约的前提下增加生产 index
   分片/worker 与外部 FTS/ANN provider profile。
 - 以上 breaking contracts 统一随 snapshot schema version 3 与 PostgreSQL schema version 3 发布，并提供迁移文档。
+
+## Full Persistence Release Train（规划中；当前优先级）
+
+[ADR-0006](adr/0006-full-persistence-reducer-native-memory.zh-CN.md) 已取代此前
+durable-v3 cutover 计划的后续交付优先级，但不会回写上面的历史 phase。仓库在
+event-first cutover 完成核验前仍使用 authority graph；整个 release train 中
+`full_persistence` 都保持 `false`，直到完整 exit gate 通过。
+
+- **F0 — 架构冻结：** ADR-0006、canonical event contract/registry、ledger port，
+  以及禁止新增独立 authority 的 guard。
+- **F1 — Ledger 与 reducer kernel：** canonical SQLite/PostgreSQL event ledger、
+  Artifact reference、versioned reducer runtime、projection rebuild CLI 与跨版本
+  determinism。
+- **F2 — Durable lifecycle event-first cutover：** GateSession、retrieval/Gate、
+  replay、outcome/effect projection、`tbmd`、HTTP、MCP 与 SDK 使用同一 event-first
+  composition 与 crash matrix。
+- **F3 — Trace、Git 与 effect evidence：** 有序 Trace/Git observation、Git-graph
+  projection、external-effect receipt、Codex hook 与受治理 retention/crypto-erasure。
+- **F4 — 受治理 memory projection：** failure extraction、structured evidence、
+  MemoryRevision publication、ActivatedRevision retrieval、policy/index 与 outcome
+  projection 全部 reducer-native。
+- **F5 — 迁移与切换：** 导入 compatibility/durable-v3 source，核验并 shadow compare
+  rebuild state，默认选择 ledger，冻结旧写入，并保留 read-only rollback window。
+- **F6 — Shared service 与稳定发布：** authenticated remote transport、PostgreSQL
+  tenant isolation、Review Console、GitHub PR Check、observability、backup/DR、
+  security governance 与 stable-release qualification。
+
+前十五个 PR 已按依赖固定：F0-01 至 F0-05、F1-01 至 F1-06、GateSession event
+adapter/reducer、replay exporter reducer，以及 outcome/effect reducer。在这些基础落地
+前，冻结新增 standalone authority、protocol family 与 SQL component；只有已记录的
+security/corruption 修复，或 ledger、reducer、migration blocker 可以例外。

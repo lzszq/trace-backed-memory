@@ -1811,3 +1811,38 @@ Track:
   without weakening the bounded reference contract.
 - Deliver these breaking contracts together as snapshot schema version 3 and
   PostgreSQL schema version 3 with documented migrations.
+
+## Full Persistence release train (planned; current priority)
+
+[ADR-0006](adr/0006-full-persistence-reducer-native-memory.md) supersedes the
+next-delivery priorities of the earlier durable-v3 cutover plan without
+rewriting the historical phases above. The repository remains on the authority
+graph until the event-first cutover is verified; `full_persistence` stays
+`false` throughout the train until the complete exit gate passes.
+
+- **F0 — Architecture freeze:** ADR-0006, canonical event contract and registry,
+  ledger ports, and a guard against new independent authorities.
+- **F1 — Ledger and reducer kernel:** canonical SQLite/PostgreSQL event ledgers,
+  Artifact references, versioned reducer runtime, projection rebuild CLI, and
+  cross-version determinism.
+- **F2 — Durable lifecycle event-first cutover:** GateSession, retrieval/Gates,
+  replay, outcome/effect projections, `tbmd`, HTTP, MCP, and SDKs use the same
+  event-first composition and crash matrix.
+- **F3 — Trace, Git, and effect evidence:** ordered Trace/Git observations,
+  Git-graph projection, external-effect receipts, Codex hooks, and governed
+  retention/crypto-erasure.
+- **F4 — Governed memory projections:** failure extraction, structured evidence,
+  MemoryRevision publication, ActivatedRevision retrieval, policy/index, and
+  outcome projections are reducer-native.
+- **F5 — Migration and cutover:** import compatibility and durable-v3 sources,
+  verify and shadow-compare rebuilt state, select the ledger by default, freeze
+  old writes, and retain a read-only rollback window.
+- **F6 — Shared service and stable release:** authenticated remote transports,
+  PostgreSQL tenant isolation, Review Console, GitHub PR Check, observability,
+  backup/DR, security governance, and stable-release qualification.
+
+The first fifteen PRs are fixed in dependency order: F0-01 through F0-05,
+F1-01 through F1-06, GateSession event adapter/reducer, replay exporter reducer,
+and outcome/effect reducers. Until those foundations land, new standalone
+authorities, protocol families, and SQL components are frozen except for
+documented security/corruption fixes or ledger, reducer, and migration blockers.

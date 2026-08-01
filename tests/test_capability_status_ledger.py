@@ -64,6 +64,16 @@ def test_capability_ledger_records_current_compatibility_boundary() -> None:
     }
 
 
+def test_capability_ledger_records_full_persistence_boundary() -> None:
+    payload = json.loads(
+        (
+            ROOT / "docs" / "status" / "current-capabilities.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert payload["persistence_model"] == "authority_graph"
+    assert payload["full_persistence"] is False
+
+
 def test_accepted_adrs_have_bilingual_pairs() -> None:
     adr_dir = ROOT / "docs" / "adr"
     english = sorted(
@@ -75,6 +85,7 @@ def test_accepted_adrs_have_bilingual_pairs() -> None:
         "0003",
         "0004",
         "0005",
+        "0006",
     ]
     for path in english:
         chinese = path.with_name(f"{path.stem}.zh-CN.md")

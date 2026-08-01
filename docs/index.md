@@ -18,8 +18,9 @@ orientation; these documents define the engineering contracts.
   [ADR-0001](adr/0001-v2-compatibility-durable-v3-cutover.md),
   [ADR-0002](adr/0002-unified-v3-database-bundles.md),
   [ADR-0003](adr/0003-transport-identity-ownership.md),
-  [ADR-0004](adr/0004-canonical-resource-manifest.md), and
-  [ADR-0005](adr/0005-public-internal-package-boundaries.md)
+  [ADR-0004](adr/0004-canonical-resource-manifest.md),
+  [ADR-0005](adr/0005-public-internal-package-boundaries.md), and
+  [ADR-0006](adr/0006-full-persistence-reducer-native-memory.md)
 
 ## Agent integration
 

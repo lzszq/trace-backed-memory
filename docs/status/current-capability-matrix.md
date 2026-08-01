@@ -48,6 +48,8 @@ advance a status.
 | `migration.snapshot-v3` | Migration | Snapshot v3 plan/bundle/verify/staging | `contract-only` | No apply, cutover, or rollback orchestration. |
 | `persistence.unified-sqlite-v3` | Persistence cutover | Unified SQLite v3 schema | `opt-in` | One generated bundle installs and fingerprints all 15 durable authority schemas; active compatibility remains SQLite 1. |
 | `persistence.unified-postgresql-v3` | Persistence cutover | Unified PostgreSQL v3 schema | `planned` | Current compatibility boundary is PostgreSQL 2. |
+| `persistence.canonical-event-ledger` | Full Persistence | Canonical append-only event ledger | `planned` | ADR-0006 is accepted; the current source-of-truth model remains the authority graph. |
+| `persistence.reducer-runtime` | Full Persistence | Versioned deterministic reducers and rebuildable projections | `planned` | No generic reducer runtime or complete projection rebuild exists yet. |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | Explicit `tbm-http --profile durable-v3`; trusted application factory, bearer boundary, unified SQLite/PostgreSQL v3 runtime, content hidden by default. |
 | `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | Explicit `tbm-mcp --profile durable-v3`; trusted local application factory, bounded STDIO, unified SQLite/PostgreSQL v3 runtime, restart continuation, and content hidden by default. This is not peer-authenticated shared-service MCP. |
 | `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript clients | `active` | The explicit durable HTTP profile has synchronous/asynchronous Python clients and a dependency-free Node.js TypeScript client; one shared fixture runs through the Python and TypeScript lifecycle suites. |
@@ -66,6 +68,12 @@ advance a status.
 - [ADR-0003: transport identity ownership](../adr/0003-transport-identity-ownership.md)
 - [ADR-0004: canonical resource manifest](../adr/0004-canonical-resource-manifest.md)
 - [ADR-0005: public and internal package boundaries](../adr/0005-public-internal-package-boundaries.md)
+- [ADR-0006: Full Persistence and reducer-native memory](../adr/0006-full-persistence-reducer-native-memory.md)
+
+The current machine-readable boundary is
+`persistence_model="authority_graph"` and `full_persistence=false`. Accepting
+ADR-0006 freezes the destination architecture; it does not promote either
+planned Full Persistence row.
 
 ## Promotion rule
 

@@ -1,7 +1,9 @@
 {
   "ledger_version": "tbm.capability-status.v1",
-  "status_date": "2026-07-30",
+  "status_date": "2026-08-01",
   "product_version": "0.1.0",
+  "persistence_model": "authority_graph",
+  "full_persistence": false,
   "status_values": [
     "active",
     "opt-in",
@@ -125,6 +127,16 @@
       "id": "persistence.unified-postgresql-v3",
       "status": "planned",
       "evidence": ["docs/adr/0002-unified-v3-database-bundles.md"]
+    },
+    {
+      "id": "persistence.canonical-event-ledger",
+      "status": "planned",
+      "evidence": ["docs/adr/0006-full-persistence-reducer-native-memory.md"]
+    },
+    {
+      "id": "persistence.reducer-runtime",
+      "status": "planned",
+      "evidence": ["docs/adr/0006-full-persistence-reducer-native-memory.md"]
     },
     {
       "id": "transport.durable-http",

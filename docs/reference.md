@@ -1116,6 +1116,15 @@ pip install 'trace-backed-memory[postgres]'
 The adapter requires PostgreSQL 12+ because `schemas/postgres.sql` uses
 `jsonb_path_exists` in its hardened JSONB constraints.
 
+Versioned catalog verification remains semantic across supported PostgreSQL
+majors. PostgreSQL 17's owner `MAINTAIN` privilege is normalized into the
+relation ACL descriptor on older servers, while changed `MAINTAIN` grants on
+17+ still fail closed. PostgreSQL 18's named `NOT NULL` catalog rows are
+excluded from constraint-membership comparison because the same nullability is
+verified independently from `pg_attribute.attnotnull`. These normalizations
+keep the PostgreSQL 12+ contract version-neutral for those catalog additions
+without ignoring privilege or column-nullability drift.
+
 Before connecting, install the PostgreSQL resource into a fresh `public`
 schema. From a checkout, use `schemas/postgres.sql` directly. From any package
 installation, export the byte-identical resource first:

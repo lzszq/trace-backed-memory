@@ -135,23 +135,6 @@ _EXPECTED_CONSTRAINTS = frozenset(
         "managed_index_schema_metadata_pkey",
         "managed_index_schema_singleton_check",
         "managed_index_schema_version_check",
-        "schema_metadata_contract_version_not_null",
-        "schema_metadata_schema_version_not_null",
-        "schema_metadata_singleton_not_null",
-        "v3_managed_index_bundles_appended_at_not_null",
-        "v3_managed_index_bundles_bundle_id_not_null",
-        "v3_managed_index_bundles_environment_id_not_null",
-        "v3_managed_index_bundles_payload_utf8_not_null",
-        "v3_managed_index_bundles_repository_id_not_null",
-        "v3_managed_index_bundles_retriever_id_not_null",
-        "v3_managed_index_bundles_retriever_version_not_null",
-        "v3_managed_index_bundles_source_catalog_sha256_not_null",
-        "v3_managed_index_bundles_tenant_id_not_null",
-        "v3_managed_index_heads_bundle_id_not_null",
-        "v3_managed_index_heads_environment_id_not_null",
-        "v3_managed_index_heads_head_version_not_null",
-        "v3_managed_index_heads_repository_id_not_null",
-        "v3_managed_index_heads_tenant_id_not_null",
     }
 )
 _EXPECTED_CONSTRAINT_DEFINITIONS = frozenset(
@@ -659,7 +642,8 @@ class PostgresManagedIndexV3Repository:
             "FROM pg_catalog.pg_constraint AS constraint_record "
             "JOIN pg_catalog.pg_namespace AS namespace "
             "ON namespace.oid = constraint_record.connamespace "
-            "WHERE namespace.nspname = %s",
+            "WHERE namespace.nspname = %s "
+            "AND constraint_record.contype <> 'n'",
             (_SCHEMA,),
         )
         constraint_rows = cursor.fetchall()

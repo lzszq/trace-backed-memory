@@ -54,6 +54,46 @@ async function withServer(handler, callback) {
   }
 }
 
+function readDurableServerConfiguration(child, lines, readStderr) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      lines.removeListener("line", onLine);
+      child.removeListener("error", onError);
+      child.removeListener("exit", onExit);
+    };
+    const failure = (message, cause) => {
+      cleanup();
+      const detail = readStderr().trim().slice(-4096);
+      reject(
+        new Error(detail.length === 0 ? message : `${message}: ${detail}`, {
+          cause,
+        }),
+      );
+    };
+    const onLine = (line) => {
+      cleanup();
+      try {
+        resolve(JSON.parse(line));
+      } catch (error) {
+        reject(new Error("durable Python server returned invalid JSON", {
+          cause: error,
+        }));
+      }
+    };
+    const onError = (error) => {
+      failure("durable Python server could not be started", error);
+    };
+    const onExit = (code, signal) => {
+      failure(
+        `durable Python server exited before startup (code=${code}, signal=${signal})`,
+      );
+    };
+    lines.once("line", onLine);
+    child.once("error", onError);
+    child.once("exit", onExit);
+  });
+}
+
 async function withDurablePythonServer(callback) {
   const python =
     process.env.TBM_PYTHON ?? (platform() === "win32" ? "python" : "python3");
@@ -68,21 +108,32 @@ async function withDurablePythonServer(callback) {
     stderr += chunk;
   });
   const lines = createInterface({ input: child.stdout });
+  let operationFailed = false;
   try {
-    const [line] = await once(lines, "line");
-    const configuration = JSON.parse(line);
+    const configuration = await readDurableServerConfiguration(
+      child,
+      lines,
+      () => stderr,
+    );
     return await callback(
       new DurableAgentHTTPClient({
         baseUrl: configuration.base_url,
         token: configuration.token,
       }),
     );
+  } catch (error) {
+    operationFailed = true;
+    throw error;
   } finally {
     lines.close();
-    child.stdin.end("x");
+    if (child.stdin.writable && !child.stdin.destroyed) {
+      child.stdin.end("x");
+    }
     const code =
       child.exitCode === null ? (await once(child, "exit"))[0] : child.exitCode;
-    assert.equal(code, 0, stderr);
+    if (!operationFailed) {
+      assert.equal(code, 0, stderr);
+    }
   }
 }
 

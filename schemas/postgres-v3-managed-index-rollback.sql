@@ -200,7 +200,8 @@ BEGIN
     FROM pg_catalog.pg_constraint AS constraint_record
     JOIN pg_catalog.pg_namespace AS namespace
       ON namespace.oid = constraint_record.connamespace
-    WHERE namespace.nspname = 'trace_backed_memory_v3_managed_index';
+    WHERE namespace.nspname = 'trace_backed_memory_v3_managed_index'
+      AND constraint_record.contype <> 'n';
 
     IF constraint_names IS DISTINCT FROM ARRAY[
         'managed_index_bundle_catalog_digest_check',
@@ -222,24 +223,7 @@ BEGIN
         'managed_index_schema_contract_check',
         'managed_index_schema_metadata_pkey',
         'managed_index_schema_singleton_check',
-        'managed_index_schema_version_check',
-        'schema_metadata_contract_version_not_null',
-        'schema_metadata_schema_version_not_null',
-        'schema_metadata_singleton_not_null',
-        'v3_managed_index_bundles_appended_at_not_null',
-        'v3_managed_index_bundles_bundle_id_not_null',
-        'v3_managed_index_bundles_environment_id_not_null',
-        'v3_managed_index_bundles_payload_utf8_not_null',
-        'v3_managed_index_bundles_repository_id_not_null',
-        'v3_managed_index_bundles_retriever_id_not_null',
-        'v3_managed_index_bundles_retriever_version_not_null',
-        'v3_managed_index_bundles_source_catalog_sha256_not_null',
-        'v3_managed_index_bundles_tenant_id_not_null',
-        'v3_managed_index_heads_bundle_id_not_null',
-        'v3_managed_index_heads_environment_id_not_null',
-        'v3_managed_index_heads_head_version_not_null',
-        'v3_managed_index_heads_repository_id_not_null',
-        'v3_managed_index_heads_tenant_id_not_null'
+        'managed_index_schema_version_check'
     ]::text[] THEN
         RAISE EXCEPTION
             'PostgreSQL managed index v3 rollback constraint catalog mismatch';

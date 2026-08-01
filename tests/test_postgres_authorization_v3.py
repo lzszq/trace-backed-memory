@@ -542,6 +542,29 @@ def test_postgres_authorization_rejects_function_acl_drift(
         )
 
 
+def test_postgres_authorization_rejects_maintain_acl_drift(
+    postgres_cluster: PostgresCluster,
+):
+    server_version = int(
+        assert_sql_succeeds(postgres_cluster, "SHOW server_version_num")
+    )
+    if server_version < 170000:
+        pytest.skip("PostgreSQL MAINTAIN privilege requires version 17+")
+    _install(postgres_cluster)
+    assert_sql_succeeds(
+        postgres_cluster,
+        "GRANT MAINTAIN ON TABLE "
+        "trace_backed_memory_v3_authorization.authorization_policies "
+        "TO PUBLIC",
+    )
+    with _repository(postgres_cluster) as repository:
+        with pytest.raises(PostgresAuthorizationV3SchemaError):
+            repository.store_policy(_policy())
+    failed = postgres_cluster.run_script(ROLLBACK)
+    assert failed.returncode != 0
+    assert "fingerprint mismatch" in failed.stderr
+
+
 def test_postgres_authorization_rollback_rejects_column_definition_drift(
     postgres_cluster: PostgresCluster,
 ):

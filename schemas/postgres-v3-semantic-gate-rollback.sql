@@ -226,17 +226,31 @@ BEGIN
                            acl.is_grantable::text,
                            ',' ORDER BY acl.grantee, acl.privilege_type
                        )
-                       FROM pg_catalog.aclexplode(
-                           COALESCE(
-                               class.relacl,
-                               pg_catalog.acldefault(
-                                   CASE
-                                       WHEN class.relkind = 'S' THEN 'S'
-                                       ELSE 'r'
-                                   END::"char",
-                                   class.relowner
+                       FROM (
+                           SELECT exploded.grantor,
+                                  exploded.grantee,
+                                  exploded.privilege_type,
+                                  exploded.is_grantable
+                           FROM pg_catalog.aclexplode(
+                               COALESCE(
+                                   class.relacl,
+                                   pg_catalog.acldefault(
+                                       CASE
+                                           WHEN class.relkind = 'S' THEN 'S'
+                                           ELSE 'r'
+                                       END::"char",
+                                       class.relowner
+                                   )
                                )
-                           )
+                           ) AS exploded
+                           UNION ALL
+                           SELECT class.relowner,
+                                  class.relowner,
+                                  'MAINTAIN'::text,
+                                  false
+                           WHERE pg_catalog.current_setting(
+                               'server_version_num'
+                           )::integer < 170000
                        ) AS acl
                    ),
                    '-'

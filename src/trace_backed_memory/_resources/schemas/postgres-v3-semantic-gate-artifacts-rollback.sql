@@ -126,17 +126,32 @@ BEGIN
                         acl.is_grantable::text,
                         ',' ORDER BY acl.grantee, acl.privilege_type
                     )
-                    FROM pg_catalog.aclexplode(
-                        COALESCE(
-                            class.relacl,
-                            pg_catalog.acldefault(
-                                CASE
-                                    WHEN class.relkind = 'S' THEN 'S'::"char"
-                                    ELSE 'r'::"char"
-                                END,
-                                class.relowner
+                    FROM (
+                        SELECT exploded.grantor,
+                               exploded.grantee,
+                               exploded.privilege_type,
+                               exploded.is_grantable
+                        FROM pg_catalog.aclexplode(
+                            COALESCE(
+                                class.relacl,
+                                pg_catalog.acldefault(
+                                    CASE
+                                        WHEN class.relkind = 'S'
+                                            THEN 'S'::"char"
+                                        ELSE 'r'::"char"
+                                    END,
+                                    class.relowner
+                                )
                             )
-                        )
+                        ) AS exploded
+                        UNION ALL
+                        SELECT class.relowner,
+                               class.relowner,
+                               'MAINTAIN'::text,
+                               false
+                        WHERE pg_catalog.current_setting(
+                            'server_version_num'
+                        )::integer < 170000
                     ) AS acl
                 ),
                 '-'
@@ -193,6 +208,7 @@ BEGIN
           ON namespace.oid = class.relnamespace
         WHERE namespace.nspname =
                   'trace_backed_memory_v3_semantic_gate_artifacts'
+          AND constraint_value.contype <> 'n'
         UNION ALL
         SELECT
             'function|' || procedure.proname || '|' ||
@@ -252,7 +268,7 @@ BEGIN
     FROM descriptors;
 
     IF catalog_sha256 IS DISTINCT FROM
-       '2b64285ccb58c7270129881107d5d4d441320507777f3b12e5c1434bce49d000'
+       '8d0e4d3726909c9e4a74d9bab2328396666c0f0c2a8e8ab0588f4d4887040a4e'
     THEN
         RAISE EXCEPTION
             'PostgreSQL Semantic Gate artifact rollback catalog mismatch: %',

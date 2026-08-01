@@ -368,8 +368,16 @@ BEGIN
     )
     INTO catalog_sha256;
 
-    IF catalog_sha256 IS DISTINCT FROM
-       'e8387b20d5a9762e90694e07d4851a251bbbe900904272e12a6ba123454c3cce'
+    IF catalog_sha256 IS DISTINCT FROM (
+       CASE
+           WHEN pg_catalog.current_setting(
+               'server_version_num'
+           )::integer < 170000 THEN
+               '3c48490b1699b302e2d057fbdca632f9edd005cd09f8c36901e2d1df92111e71'
+           ELSE
+               'e8387b20d5a9762e90694e07d4851a251bbbe900904272e12a6ba123454c3cce'
+       END
+    )
     THEN
         RAISE EXCEPTION
             'PostgreSQL gate evidence v3 rollback catalog fingerprint mismatch';

@@ -378,8 +378,16 @@ BEGIN
     )
     INTO catalog_sha256;
 
-    IF catalog_sha256 IS DISTINCT FROM
-       'c3d5a2cd2844a511da55db890935b610b142932c56f2ca32fb8f41cdbe2e8a8c'
+    IF catalog_sha256 IS DISTINCT FROM (
+       CASE
+           WHEN pg_catalog.current_setting(
+               'server_version_num'
+           )::integer < 170000 THEN
+               '6c20f391f7f7d19be985fb0c8899f8840fb91a72c1caf48ac95a2fdda8c88ad4'
+           ELSE
+               'c3d5a2cd2844a511da55db890935b610b142932c56f2ca32fb8f41cdbe2e8a8c'
+       END
+    )
     THEN
         RAISE EXCEPTION
             'PostgreSQL memory revision v3 rollback catalog fingerprint mismatch';

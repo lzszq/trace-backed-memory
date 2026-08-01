@@ -808,8 +808,8 @@
       "media_type": "application/sql",
       "source": "schemas/postgres-v3-artifact-authority-rollback.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/postgres-v3-artifact-authority-rollback.sql",
-      "size_bytes": 16451,
-      "sha256": "ccea5f676ed52a01ad9d349fd71330ae536c416fac8e7955064aec70ffa6a9d0"
+      "size_bytes": 17174,
+      "sha256": "0a0ff671a394caca22aaedfa37672e94cca30c76a6819d7a0d2b543cbe5671bf"
     },
     {
       "name": "schemas/postgres-v3-artifact-authority.sql",
@@ -844,8 +844,8 @@
       "media_type": "application/sql",
       "source": "schemas/postgres-v3-authorization-rollback.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/postgres-v3-authorization-rollback.sql",
-      "size_bytes": 20583,
-      "sha256": "2ca7bd47d5ba387f086690f4d7a67f9c7488fc9ebc2b32652010a9556e92bfcc"
+      "size_bytes": 21306,
+      "sha256": "d6134427c3d05c5d0fb3d3d16ebbc071679f5346531833602d06b5b3e0fe8a8c"
     },
     {
       "name": "schemas/postgres-v3-authorization.sql",
@@ -880,8 +880,8 @@
       "media_type": "application/sql",
       "source": "schemas/postgres-v3-entity-registry-rollback.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/postgres-v3-entity-registry-rollback.sql",
-      "size_bytes": 18337,
-      "sha256": "af6b547c5065d053ad93672013cae9af5f2a158d8220ddd2d0f03da8f1115402"
+      "size_bytes": 19060,
+      "sha256": "e471bfd8a96128613428492ef0ee45df5af19ffc874c025c4530dfc5f9ab2203"
     },
     {
       "name": "schemas/postgres-v3-entity-registry.sql",
@@ -916,8 +916,8 @@
       "media_type": "application/sql",
       "source": "schemas/postgres-v3-gate-evidence-rollback.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/postgres-v3-gate-evidence-rollback.sql",
-      "size_bytes": 19759,
-      "sha256": "f3e1f7ea72f1cecbab9b6e1e67d3b44094c637eb4152afcedf5392bb8c2c0087"
+      "size_bytes": 20012,
+      "sha256": "199cb81c662ed89d6b908abbcf356698b2f98fc4f4957e952bdb648cb08a4574"
     },
     {
       "name": "schemas/postgres-v3-gate-evidence.sql",
@@ -952,8 +952,8 @@
       "media_type": "application/sql",
       "source": "schemas/postgres-v3-managed-index-rollback.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/postgres-v3-managed-index-rollback.sql",
-      "size_bytes": 23679,
-      "sha256": "4426d40ef5518bfcf27edcfe8378cd64f6ee9c560baf9ed4e4841d877827642a"
+      "size_bytes": 22763,
+      "sha256": "4cba399bed7191dceb439d0ebd77a8c6e1445eef8ec93aa3bdba10dfbfbe5071"
     },
     {
       "name": "schemas/postgres-v3-managed-index.sql",
@@ -988,8 +988,8 @@
       "media_type": "application/sql",
       "source": "schemas/postgres-v3-memory-revision-rollback.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/postgres-v3-memory-revision-rollback.sql",
-      "size_bytes": 20493,
-      "sha256": "ccbafd690b1e5d0f7f6bfb294d829e51508c778be361f606942dbb010dcf4680"
+      "size_bytes": 20746,
+      "sha256": "e1290b245743f4e5ffa279285f4306d2861d1e4ecf4e44c05927316673d1e5b3"
     },
     {
       "name": "schemas/postgres-v3-memory-revision.sql",
@@ -1060,8 +1060,8 @@
       "media_type": "application/sql",
       "source": "schemas/postgres-v3-semantic-gate-artifacts-rollback.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/postgres-v3-semantic-gate-artifacts-rollback.sql",
-      "size_bytes": 10980,
-      "sha256": "a0ac85a2b62ddf5a1b51859ea5befc601a7dec83db7364116441d62ea17487b4"
+      "size_bytes": 11751,
+      "sha256": "3245e0f65acc4ce6e7c10f3bcc46f151f5f4ba39fb1e8b14173607451b2b6d7b"
     },
     {
       "name": "schemas/postgres-v3-semantic-gate-artifacts.sql",
@@ -1078,8 +1078,8 @@
       "media_type": "application/sql",
       "source": "schemas/postgres-v3-semantic-gate-rollback.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/postgres-v3-semantic-gate-rollback.sql",
-      "size_bytes": 20024,
-      "sha256": "a37503f28d1723b967ab040ab052a3b5fa35ce4b482ae086261e7b24b2e4b8bb"
+      "size_bytes": 20747,
+      "sha256": "3924cc0edd93f72f8d09802461d38e8fe0a923fdf40a82e1adb8b3b153e777ab"
     },
     {
       "name": "schemas/postgres-v3-semantic-gate.sql",

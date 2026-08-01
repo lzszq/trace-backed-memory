@@ -717,7 +717,11 @@ python -m pip install -e ".[postgres]"
 pip install 'trace-backed-memory[postgres]'
 ```
 
-适配器要求 PostgreSQL 12+，因为 `schemas/postgres.sql` 的强化 JSONB 约束使用了 `jsonb_path_exists`。连接前，应把该资源安装到新的 `public` schema：
+适配器要求 PostgreSQL 12+，因为 `schemas/postgres.sql` 的强化 JSONB 约束使用了 `jsonb_path_exists`。
+
+版本化 catalog 校验在受支持的 PostgreSQL 主版本之间保持语义一致。PostgreSQL 17 新增的 owner `MAINTAIN` 权限会在旧版本服务器上规范化进 relation ACL descriptor；在 17+ 上修改 `MAINTAIN` grant 仍会 fail closed。PostgreSQL 18 新增的具名 `NOT NULL` catalog 记录不会重复参与 constraint membership 比较，因为相同的非空性已经通过 `pg_attribute.attnotnull` 独立校验。这些规范化让 PostgreSQL 12+ 契约不受上述 catalog 新增项影响，同时不会忽略权限或列非空性漂移。
+
+连接前，应把该资源安装到新的 `public` schema：
 
 ```powershell
 tbm resource export schemas/postgres.sql postgres.sql

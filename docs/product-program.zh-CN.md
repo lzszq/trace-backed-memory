@@ -987,18 +987,21 @@ compensation、Memory/index/audit/metrics reducer、migration、完整 lifecycle
 evidence commit 后硬杀，也会在未提交 replay 与 completion/outbox transaction 内硬杀，
 以及在 completion consumer 返回但 acknowledgement 尚未 durable 时硬杀。恢复会保留
 orphan evidence、只发布一个逻辑 lifecycle/effect event、保持 reducer 与 projection
-一致，并把最后一个边界明确为有界 at-least-once delivery。provider-call receipt 与
+一致，并把最后一个边界明确为有界 at-least-once delivery。新增 commit 后 response-loss
+probe 还覆盖 `DECIDED`、event-first `FINALIZED`、`EXECUTING`、组合 completion/outbox
+与 acknowledgement durability。精确重试不会改变完整 event ledger、global/stream head
+或 GateSession history；已提交 acknowledgement 不会再次投递。provider-call receipt 与
 unknown-result reconciliation、compatibility retained-bundle 的 hard-kill 边界、durable
-compensation、acknowledgement 已提交但 response 丢失、PostgreSQL 对等测试及完整
-cross-transport crash matrix 仍未完成。
+compensation、PostgreSQL 对等测试及完整 cross-transport crash matrix 仍未完成。
 
-同一 durable lifecycle 现在会经 Python facade、Python HTTP 同步/异步 SDK、
-trusted-local MCP tool boundary 与 Bun 下的 TypeScript HTTP SDK 产生完全相同的
-GateSession event type/version/SHA sequence 和最终 reducer projection digest。这是
-session-stream parity 证据，不是完整 cross-stream 或 STDIO transport conformance。
-SQLite bundle 在 reopen 时还会原子修复精确 legacy variable-precision GateSession
-timestamp trigger；无关 drift 会 fail closed。在更大的 F2 gate 完成前，这两项增量都
-不提升新 atom。
+同一 durable lifecycle 现在会经 Python facade、Python HTTP 同步/异步 SDK、真实
+JSON-RPC STDIO MCP 子进程与 Bun 下的 TypeScript HTTP SDK 产生完全相同的 17-event
+global sequence、七条 stream head、canonical event ID/SHA 与全部八个已注册 reducer
+projection digest。每个 reducer 都会与保留的 authority row 做 parity，ledger head 还会
+从 canonical event 独立重算。这是完整的本地 happy-path cross-stream/STDIO 证据，
+不是完整 F2 cross-transport 或 crash conformance。SQLite bundle 在 reopen 时还会原子
+修复精确 legacy variable-precision GateSession timestamp trigger；无关 drift 会 fail
+closed。在更大的 F2 gate 完成前，这两项增量都不提升新 atom。
 
 - **F0 — 架构冻结（已交付）：** ADR-0006、canonical event contract/registry、
   ledger port，以及禁止新增独立 authority 的 guard。
@@ -1012,11 +1015,11 @@ timestamp trigger；无关 drift 会 fail closed。在更大的 F2 gate 完成�
   显式 durable runtime 已选择 ledger-backed replay export。outcome/attribution 与本地
   completion-effect projection 已交付到 dead letter。local-daemon hard-restart sweep 已
   覆盖五个 acknowledged lifecycle commit；更细的 SQLite transaction/effect probe 已覆盖
-  authorization 至 evidence、replay/completion rollback 与 receipt-before-ack redelivery。
-  GateSession session-stream parity 已覆盖 Python facade、HTTP sync/async SDK、
-  trusted-local MCP tool boundary 与 TypeScript HTTP SDK。provider
-  receipt/reconciliation、durable compensation、完整 cross-stream/STDIO transport
-  parity、PostgreSQL 对等测试与完整 crash matrix 仍未完成。
+  authorization 至 evidence、replay/completion rollback、receipt-before-ack redelivery，
+  以及从 `DECIDED` 到 acknowledgement 的已提交 response loss。本地 happy-path
+  cross-stream parity 已覆盖 Python facade、HTTP sync/async SDK、真实 STDIO MCP
+  子进程与 TypeScript HTTP SDK。provider receipt/reconciliation、durable compensation、
+  PostgreSQL transport/crash 对等测试与完整 crash matrix 仍未完成。
 - **F3 — Trace、Git 与 effect evidence：** 有序 Trace/Git observation、Git-graph
   projection、external-effect receipt、Codex hook 与受治理 retention/crypto-erasure。
 - **F4 — 受治理 memory projection：** failure extraction、structured evidence、

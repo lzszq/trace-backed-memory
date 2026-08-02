@@ -52,11 +52,15 @@ and Gate-evidence boundaries; rollback inside finalization replay and
 completion/outbox transactions; and consumer-return-before-ack durability with
 lease reclaim and at-least-once redelivery. Exact `CREATED` recovery performs
 fresh authorization without rewriting orphan evidence, and finalization
-rebuilds one deterministic claim-time bundle. Provider receipt/reconciliation,
-the remaining crash cells, PostgreSQL parity, full cross-stream/STDIO transport
-parity, and durable compensation remain incomplete. GateSession session-stream
-event/projection parity now covers the Python facade, Python HTTP sync/async
-SDKs, trusted-local MCP tool boundary, and TypeScript HTTP SDK; the exact legacy
-SQLite timestamp trigger is also repaired atomically on reopen. These are
-additional evidence and a corruption repair only, so formal and candidate
-progress both remain 182/490 (37.14%) with no promoted atom.
+rebuilds one deterministic claim-time bundle. Post-commit response-loss probes
+now cover `DECIDED`, event-first `FINALIZED`, `EXECUTING`, combined
+completion/outbox, and committed acknowledgement without duplicate replay or
+redelivery. The local happy path also has real JSON-RPC STDIO MCP parity across
+17 global events, seven stream heads, and all eight registered reducer
+projections alongside the Python facade, Python HTTP sync/async SDKs, and
+TypeScript HTTP SDK. Provider receipt/reconciliation, PostgreSQL parity, the
+remaining crash matrix, complete F2 cross-transport conformance, and durable
+compensation remain incomplete. The exact legacy SQLite timestamp trigger is
+also repaired atomically on reopen. These are additional evidence and a
+corruption repair only, so formal and candidate progress both remain 182/490
+(37.14%) with no promoted atom.

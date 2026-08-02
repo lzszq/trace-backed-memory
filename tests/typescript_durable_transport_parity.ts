@@ -40,5 +40,6 @@ const resumed = await client.heartbeat({
 const completed = await client.complete({
   ...durableSessionReference(resumed),
   ...fixture.complete,
+  cost_usd: null,
 });
 process.stdout.write(`${completed.result.session.session_id}\n`);

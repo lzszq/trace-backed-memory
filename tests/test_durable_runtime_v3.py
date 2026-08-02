@@ -129,9 +129,7 @@ def _dependencies(
         authorization_request_id_factory=lambda: (
             f"authorization_runtime_{next(request_numbers):04d}"
         ),
-        session_id_factory=lambda: (
-            f"gate_session_runtime_{next(session_numbers):04d}"
-        ),
+        session_id_factory=lambda: f"gate_session_runtime_{next(session_numbers):04d}",
         completion_consumer=completion_consumer,
     )
     return dependencies, context
@@ -170,7 +168,7 @@ def _run_finalization_crash_probe(
     expected_session_version: str,
 ) -> None:
     clock = _Clock()
-    clock.advance(seconds=60)
+    clock.advance(seconds=30)
     dependencies, context = _dependencies(clock)
     dependencies = replace(
         dependencies,
@@ -234,9 +232,7 @@ def _run_completion_crash_probe(
             session_id=completion.session_id,
             expected_session_version=completion.expected_version,
             result=completion.result,
-            evidence_artifact_sha256s=list(
-                completion.evidence_artifact_sha256s
-            ),
+            evidence_artifact_sha256s=list(completion.evidence_artifact_sha256s),
             output_sha256=completion.output_sha256,
             tool_outputs_sha256=completion.tool_outputs_sha256,
             latency_ms=completion.latency_ms,
@@ -261,9 +257,7 @@ def _run_outbox_ack_crash_probe(
         nonlocal consumer_returned
         Path(delivery_file).write_text(event.event_id, encoding="utf-8")
         consumer_returned = True
-        return tbm.CompletionOutboxConsumerReceipt(
-            response_sha256="sha256:" + "a" * 64
-        )
+        return tbm.CompletionOutboxConsumerReceipt(response_sha256="sha256:" + "a" * 64)
 
     dependencies, _context = _dependencies(
         clock,
@@ -279,8 +273,7 @@ def _run_outbox_ack_crash_probe(
         normalized = " ".join(statement.upper().split())
         if (
             consumer_returned
-            and "INSERT INTO V3_COMPLETION_OUTBOX_DELIVERY_REVISIONS"
-            in normalized
+            and "INSERT INTO V3_COMPLETION_OUTBOX_DELIVERY_REVISIONS" in normalized
         ):
             acknowledgement_inserted = True
 
@@ -293,6 +286,141 @@ def _run_outbox_ack_crash_probe(
     raise RuntimeError("outbox acknowledgement crash checkpoint was not reached")
 
 
+def _run_post_commit_response_loss_probe(
+    database: str,
+    checkpoint: str,
+    session_id: str,
+    delivery_file: str,
+) -> None:
+    clock = _Clock()
+    clock.advance(seconds=60)
+
+    def consume(
+        event: tbm.CompletionOutboxEvent,
+    ) -> tbm.CompletionOutboxConsumerReceipt:
+        Path(delivery_file).write_text(event.event_id, encoding="utf-8")
+        return tbm.CompletionOutboxConsumerReceipt(response_sha256="sha256:" + "c" * 64)
+
+    dependencies, context = _dependencies(
+        clock,
+        completion_consumer=(consume if checkpoint == "acknowledged" else None),
+    )
+    dependencies = replace(
+        dependencies,
+        authorization_request_id_factory=lambda: (
+            f"authorization_runtime_post_commit_{checkpoint}"
+        ),
+    )
+    runtime = DurableRuntimeFactory(dependencies).open_sqlite(database)
+
+    if checkpoint in {"decided", "executing"}:
+        original_transition = runtime.sessions.transition
+        target_status = "decided" if checkpoint == "decided" else "executing"
+
+        def transition_then_crash(*args, **kwargs):
+            result = original_transition(*args, **kwargs)
+            retained_target = args[1] if len(args) > 1 else kwargs["target_status"]
+            if retained_target == target_status:
+                os.kill(os.getpid(), signal.SIGKILL)
+            return result
+
+        setattr(runtime.sessions, "transition", transition_then_crash)
+    elif checkpoint == "finalized":
+        original_finalization = runtime.replay_repository.store_complete_finalization
+
+        def finalization_then_crash(*args, **kwargs):
+            result = original_finalization(*args, **kwargs)
+            os.kill(os.getpid(), signal.SIGKILL)
+            return result
+
+        setattr(
+            runtime.replay_repository,
+            "store_complete_finalization",
+            finalization_then_crash,
+        )
+    elif checkpoint == "completed":
+        original_completion = runtime.outbox_repository.complete_session
+
+        def completion_then_crash(*args, **kwargs):
+            result = original_completion(*args, **kwargs)
+            os.kill(os.getpid(), signal.SIGKILL)
+            return result
+
+        setattr(
+            runtime.outbox_repository,
+            "complete_session",
+            completion_then_crash,
+        )
+    elif checkpoint == "acknowledged":
+        original_acknowledgement = runtime.outbox_repository.acknowledge
+
+        def acknowledgement_then_crash(*args, **kwargs):
+            result = original_acknowledgement(*args, **kwargs)
+            os.kill(os.getpid(), signal.SIGKILL)
+            return result
+
+        setattr(
+            runtime.outbox_repository,
+            "acknowledge",
+            acknowledgement_then_crash,
+        )
+    else:
+        raise ValueError("unsupported post-commit crash checkpoint")
+
+    current = runtime.sessions.get(session_id)
+    history = runtime.sessions.history(session_id)
+    if checkpoint == "decided":
+        prepared = next(item for item in history if item.status == "prepared")
+        evaluation = runtime.evidence_repository.load_evaluation(
+            prepared.system_gate_evaluation_id
+        )
+        runtime.dispatcher.decide(
+            context,
+            _provider_context(),
+            _decide_request(prepared, evaluation),
+        )
+    elif checkpoint == "finalized":
+        runtime.dispatcher.finalize(
+            context,
+            DurableFinalizeRequest(
+                session_id=session_id,
+                expected_session_version=current.version,
+            ),
+        )
+    elif checkpoint == "executing":
+        runtime.dispatcher.start(
+            context,
+            DurableStartRequest(
+                session_id=session_id,
+                expected_session_version=current.version,
+            ),
+        )
+    elif checkpoint == "completed":
+        completion = _completion(current)
+        runtime.dispatcher.complete(
+            context,
+            EVALUATOR_CONTEXT,
+            DurableCompleteRequest(
+                session_id=completion.session_id,
+                expected_session_version=completion.expected_version,
+                result=completion.result,
+                evidence_artifact_sha256s=list(completion.evidence_artifact_sha256s),
+                output_sha256=completion.output_sha256,
+                tool_outputs_sha256=completion.tool_outputs_sha256,
+                latency_ms=completion.latency_ms,
+                cost_usd=completion.cost_usd,
+                error_code=completion.error_code,
+            ),
+        )
+    else:
+        runtime.deliver_outbox(
+            worker_id="worker_post_commit_ack",
+            lease_seconds=60,
+            limit=1,
+        )
+    raise RuntimeError("post-commit response-loss checkpoint was not reached")
+
+
 def test_durable_sqlite_runtime_builds_one_restart_safe_authority_graph(
     tmp_path: Path,
 ) -> None:
@@ -302,9 +430,7 @@ def test_durable_sqlite_runtime_builds_one_restart_safe_authority_graph(
         event: tbm.CompletionOutboxEvent,
     ) -> tbm.CompletionOutboxConsumerReceipt:
         delivered.append(event)
-        return tbm.CompletionOutboxConsumerReceipt(
-            response_sha256="sha256:" + "f" * 64
-        )
+        return tbm.CompletionOutboxConsumerReceipt(response_sha256="sha256:" + "f" * 64)
 
     database = tmp_path / "durable-runtime.sqlite3"
     clock = _Clock()
@@ -368,9 +494,7 @@ def test_durable_sqlite_runtime_builds_one_restart_safe_authority_graph(
                 session_id=completion.session_id,
                 expected_session_version=completion.expected_version,
                 result=completion.result,
-                evidence_artifact_sha256s=list(
-                    completion.evidence_artifact_sha256s
-                ),
+                evidence_artifact_sha256s=list(completion.evidence_artifact_sha256s),
                 output_sha256=completion.output_sha256,
                 latency_ms=completion.latency_ms,
                 cost_usd=completion.cost_usd,
@@ -396,21 +520,22 @@ def test_durable_sqlite_runtime_builds_one_restart_safe_authority_graph(
             tbm.EXECUTION_STARTED_EVENT,
             tbm.GATE_SESSION_COMPLETED_EVENT,
         )
-        authorization_ids = tuple(
-            event.authorization_decision_id for event in events
-        )
+        authorization_ids = tuple(event.authorization_decision_id for event in events)
         assert authorization_ids[0] == authorization_ids[1]
         assert authorization_ids[2] == authorization_ids[3] == authorization_ids[4]
         assert authorization_ids[5] == authorization_ids[6]
-        assert len(
-            {
-                authorization_ids[0],
-                authorization_ids[2],
-                authorization_ids[5],
-                authorization_ids[7],
-                authorization_ids[8],
-            }
-        ) == 5
+        assert (
+            len(
+                {
+                    authorization_ids[0],
+                    authorization_ids[2],
+                    authorization_ids[5],
+                    authorization_ids[7],
+                    authorization_ids[8],
+                }
+            )
+            == 5
+        )
         reducer = tbm.build_gate_session_reducer()
         state = reducer.initial_state()
         for event in events:
@@ -432,9 +557,7 @@ def test_durable_sqlite_runtime_builds_one_restart_safe_authority_graph(
                 evaluation.evaluation_id,
             ),
         ).fetchall()
-        evidence_events = tuple(
-            loads_canonical_event(row[0]) for row in evidence_rows
-        )
+        evidence_events = tuple(loads_canonical_event(row[0]) for row in evidence_rows)
         assert tuple(event.event_type for event in evidence_events) == (
             tbm.RETRIEVAL_PREPARED_EVENT,
             tbm.SYSTEM_GATE_EVALUATED_EVENT,
@@ -457,23 +580,15 @@ def test_durable_sqlite_runtime_builds_one_restart_safe_authority_graph(
         )
 
         semantic_bundles = tuple(
-            runtime.semantic_repository.load_attempt_with_artifacts(
-                attempt_id
-            )
+            runtime.semantic_repository.load_attempt_with_artifacts(attempt_id)
             for attempt_id in completed.semantic_gate_attempt_ids
         )
         semantic_rows = runtime._connection.execute(
             "SELECT canonical_event FROM v3_event_ledger_events "
             "WHERE stream_id = ? ORDER BY stream_version",
-            (
-                tbm.semantic_gate_attempt_stream_id(
-                    evaluation.evaluation_id
-                ),
-            ),
+            (tbm.semantic_gate_attempt_stream_id(evaluation.evaluation_id),),
         ).fetchall()
-        semantic_events = tuple(
-            loads_canonical_event(row[0]) for row in semantic_rows
-        )
+        semantic_events = tuple(loads_canonical_event(row[0]) for row in semantic_rows)
         assert tuple(event.event_type for event in semantic_events) == (
             tbm.SEMANTIC_GATE_ATTEMPT_SUCCEEDED_EVENT,
         )
@@ -481,9 +596,7 @@ def test_durable_sqlite_runtime_builds_one_restart_safe_authority_graph(
             tbm.SYSTEM_GATE_EVALUATED_EVENT,
             evaluation.evaluation_id,
         )
-        assert semantic_events[0].authorization_decision_id == (
-            authorization_ids[2]
-        )
+        assert semantic_events[0].authorization_decision_id == (authorization_ids[2])
         semantic_reducer = tbm.build_semantic_gate_attempt_reducer()
         semantic_state = semantic_reducer.initial_state()
         for event in (evidence_events[1], *semantic_events):
@@ -604,13 +717,10 @@ def test_durable_sqlite_prepare_recovers_after_committed_crash_boundaries(
             context,
             _prepare_request(),
         )
-        session = runtime.sessions.get(
-            response["result"]["session"]["session_id"]
-        )
+        session = runtime.sessions.get(response["result"]["session"]["session_id"])
         assert session.status == "prepared"
         assert [
-            revision.status
-            for revision in runtime.sessions.history(session.session_id)
+            revision.status for revision in runtime.sessions.history(session.session_id)
         ] == ["created", "prepared"]
         assert connection.execute(
             "SELECT COUNT(*) FROM gate_session_heads"
@@ -643,9 +753,7 @@ def test_durable_sqlite_prepare_recovers_after_committed_crash_boundaries(
             "WHERE stream_id = ? ORDER BY stream_version",
             (session.session_id,),
         ).fetchall()
-        events = tuple(
-            loads_canonical_event(row[0]) for row in event_rows
-        )
+        events = tuple(loads_canonical_event(row[0]) for row in event_rows)
         assert tuple(event.event_type for event in events) == (
             tbm.GATE_SESSION_CREATED_EVENT,
             tbm.GATE_SESSION_PREPARED_EVENT,
@@ -722,9 +830,7 @@ def test_durable_sqlite_finalization_recovers_after_replay_transaction_crash(
     )
     dependencies = replace(
         dependencies,
-        authorization_request_id_factory=lambda: (
-            next(recovery_request_ids)
-        ),
+        authorization_request_id_factory=lambda: next(recovery_request_ids),
     )
     with DurableRuntimeFactory(dependencies).open_sqlite(
         database,
@@ -755,9 +861,7 @@ def test_durable_sqlite_finalization_recovers_after_replay_transaction_crash(
             finalize_request,
         )
         assert replayed["result"]["replayed"] is True
-        assert replayed["result"]["manifest"] == recovered["result"][
-            "manifest"
-        ]
+        assert replayed["result"]["manifest"] == recovered["result"]["manifest"]
         assert runtime._connection.execute(
             "SELECT COUNT(*) FROM v3_replay_injections"
         ).fetchone() == (1,)
@@ -828,9 +932,7 @@ def test_durable_sqlite_completion_rolls_back_partial_outbox_transaction(
             session_id=completion.session_id,
             expected_session_version=completion.expected_version,
             result=completion.result,
-            evidence_artifact_sha256s=list(
-                completion.evidence_artifact_sha256s
-            ),
+            evidence_artifact_sha256s=list(completion.evidence_artifact_sha256s),
             output_sha256=completion.output_sha256,
             tool_outputs_sha256=completion.tool_outputs_sha256,
             latency_ms=completion.latency_ms,
@@ -871,9 +973,7 @@ def test_durable_sqlite_completion_rolls_back_partial_outbox_transaction(
     )
     dependencies = replace(
         dependencies,
-        authorization_request_id_factory=lambda: (
-            next(recovery_request_ids)
-        ),
+        authorization_request_id_factory=lambda: next(recovery_request_ids),
     )
     with DurableRuntimeFactory(dependencies).open_sqlite(database) as runtime:
         current = runtime.sessions.get(executing.session_id)
@@ -898,12 +998,8 @@ def test_durable_sqlite_completion_rolls_back_partial_outbox_transaction(
             complete_request,
         )
         assert replayed["result"]["replayed"] is True
-        assert replayed["result"]["outcome"] == completed["result"][
-            "outcome"
-        ]
-        assert replayed["result"]["outbox_event"] == completed["result"][
-            "outbox_event"
-        ]
+        assert replayed["result"]["outcome"] == completed["result"]["outcome"]
+        assert replayed["result"]["outbox_event"] == completed["result"]["outbox_event"]
         assert runtime._connection.execute(
             "SELECT COUNT(*) FROM v3_run_outcomes"
         ).fetchone() == (1,)
@@ -954,9 +1050,7 @@ def test_durable_sqlite_completion_rolls_back_partial_outbox_transaction(
         event: tbm.CompletionOutboxEvent,
     ) -> tbm.CompletionOutboxConsumerReceipt:
         redelivered.append(event.event_id)
-        return tbm.CompletionOutboxConsumerReceipt(
-            response_sha256="sha256:" + "b" * 64
-        )
+        return tbm.CompletionOutboxConsumerReceipt(response_sha256="sha256:" + "b" * 64)
 
     clock = _Clock()
     clock.advance(seconds=360)
@@ -995,6 +1089,371 @@ def test_durable_sqlite_completion_rolls_back_partial_outbox_transaction(
         assert event_types.count(tbm.EFFECT_SUCCEEDED_EVENT) == 1
 
 
+@pytest.mark.skipif(
+    not hasattr(signal, "SIGKILL"),
+    reason="hard-crash transaction probes require SIGKILL",
+)
+@pytest.mark.parametrize(
+    ("checkpoint", "expected_status", "unique_event_types"),
+    [
+        (
+            "decided",
+            "decided",
+            (
+                tbm.SEMANTIC_GATE_ATTEMPT_SUCCEEDED_EVENT,
+                tbm.SEMANTIC_GATE_DECIDED_EVENT,
+            ),
+        ),
+        (
+            "finalized",
+            "finalized",
+            (
+                tbm.USAGE_DECISION_FINALIZED_EVENT,
+                tbm.INJECTION_RENDERED_EVENT,
+            ),
+        ),
+        (
+            "executing",
+            "executing",
+            (tbm.EXECUTION_STARTED_EVENT,),
+        ),
+        (
+            "completed",
+            "completed",
+            (
+                tbm.EVALUATION_AUTHENTICATED_EVENT,
+                tbm.RUN_OUTCOME_RECORDED_EVENT,
+                tbm.GATE_SESSION_COMPLETED_EVENT,
+                tbm.EFFECT_REQUESTED_EVENT,
+            ),
+        ),
+    ],
+)
+def test_durable_sqlite_replays_after_committed_response_loss(
+    tmp_path: Path,
+    checkpoint: str,
+    expected_status: str,
+    unique_event_types: tuple[str, ...],
+) -> None:
+    database = tmp_path / f"post-commit-{checkpoint}.sqlite3"
+    dependencies, context = _dependencies(_Clock())
+    with DurableRuntimeFactory(dependencies).open_sqlite(
+        database,
+        initialize=True,
+        expose_injection_content=True,
+        expose_replay_content=True,
+    ) as runtime:
+        prepared_response = runtime.dispatcher.prepare(
+            context,
+            _prepare_request(),
+        )
+        prepared = runtime.sessions.get(
+            prepared_response["result"]["session"]["session_id"]
+        )
+        if checkpoint != "decided":
+            evaluation = runtime.evidence_repository.load_evaluation(
+                prepared.system_gate_evaluation_id
+            )
+            runtime.dispatcher.decide(
+                context,
+                _provider_context(),
+                _decide_request(prepared, evaluation),
+            )
+        current = runtime.sessions.get(prepared.session_id)
+        if checkpoint in {"executing", "completed"}:
+            runtime.dispatcher.finalize(
+                context,
+                DurableFinalizeRequest(
+                    session_id=current.session_id,
+                    expected_session_version=current.version,
+                ),
+            )
+            current = runtime.sessions.get(current.session_id)
+        if checkpoint == "completed":
+            runtime.dispatcher.start(
+                context,
+                DurableStartRequest(
+                    session_id=current.session_id,
+                    expected_session_version=current.version,
+                ),
+            )
+            current = runtime.sessions.get(current.session_id)
+        session_id = current.session_id
+
+    delivery_file = tmp_path / f"post-commit-{checkpoint}.txt"
+    code = (
+        "import sys; "
+        "from tests.test_durable_runtime_v3 import "
+        "_run_post_commit_response_loss_probe; "
+        "_run_post_commit_response_loss_probe("
+        "sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])"
+    )
+    crashed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            code,
+            str(database),
+            checkpoint,
+            session_id,
+            str(delivery_file),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert crashed.returncode == -signal.SIGKILL, crashed.stderr
+
+    clock = _Clock()
+    clock.advance(seconds=120)
+    request_ids = iter(
+        f"authorization_runtime_post_commit_recovery_{checkpoint}_{index:02d}"
+        for index in range(1, 10)
+    )
+    dependencies, context = _dependencies(clock)
+    dependencies = replace(
+        dependencies,
+        authorization_request_id_factory=lambda: next(request_ids),
+    )
+    with DurableRuntimeFactory(dependencies).open_sqlite(
+        database,
+        expose_injection_content=True,
+        expose_replay_content=True,
+    ) as runtime:
+        current = runtime.sessions.get(session_id)
+        assert current.status == expected_status
+        history = runtime.sessions.history(session_id)
+
+        def retained_state():
+            return (
+                tuple(
+                    runtime._connection.execute(
+                        "SELECT canonical_event FROM v3_event_ledger_events "
+                        "ORDER BY global_position"
+                    ).fetchall()
+                ),
+                runtime._connection.execute(
+                    "SELECT current_global_position, current_event_id, "
+                    "current_event_sha256 FROM v3_event_ledger_global_head "
+                    "WHERE singleton = 1"
+                ).fetchone(),
+                tuple(
+                    runtime._connection.execute(
+                        "SELECT stream_id, current_stream_version, "
+                        "current_event_id, current_event_sha256 "
+                        "FROM v3_event_ledger_stream_heads ORDER BY stream_id"
+                    ).fetchall()
+                ),
+                runtime.sessions.history(session_id),
+            )
+
+        def replay_once():
+            if checkpoint == "decided":
+                parent = next(item for item in history if item.status == "prepared")
+                evaluation = runtime.evidence_repository.load_evaluation(
+                    parent.system_gate_evaluation_id
+                )
+                return runtime.dispatcher.decide(
+                    context,
+                    _provider_context(),
+                    _decide_request(parent, evaluation),
+                )
+            if checkpoint == "finalized":
+                parent = next(item for item in history if item.status == "decided")
+                return runtime.dispatcher.finalize(
+                    context,
+                    DurableFinalizeRequest(
+                        session_id=session_id,
+                        expected_session_version=parent.version,
+                    ),
+                )
+            if checkpoint == "executing":
+                parent = next(item for item in history if item.status == "finalized")
+                return runtime.dispatcher.start(
+                    context,
+                    DurableStartRequest(
+                        session_id=session_id,
+                        expected_session_version=parent.version,
+                    ),
+                )
+            parent = next(item for item in history if item.status == "executing")
+            completion = _completion(parent)
+            return runtime.dispatcher.complete(
+                context,
+                EVALUATOR_CONTEXT,
+                DurableCompleteRequest(
+                    session_id=completion.session_id,
+                    expected_session_version=completion.expected_version,
+                    result=completion.result,
+                    evidence_artifact_sha256s=list(
+                        completion.evidence_artifact_sha256s
+                    ),
+                    output_sha256=completion.output_sha256,
+                    tool_outputs_sha256=completion.tool_outputs_sha256,
+                    latency_ms=completion.latency_ms,
+                    cost_usd=completion.cost_usd,
+                    error_code=completion.error_code,
+                ),
+            )
+
+        before = retained_state()
+        first = replay_once()
+        assert first["result"]["replayed"] is True
+        assert retained_state() == before
+        second = replay_once()
+        assert second["result"]["replayed"] is True
+        assert retained_state() == before
+        first_result = dict(first["result"])
+        second_result = dict(second["result"])
+        first_result.pop("transition_authorization_event_id", None)
+        second_result.pop("transition_authorization_event_id", None)
+        assert second_result == first_result
+
+        event_rows = before[0]
+        event_types = tuple(
+            loads_canonical_event(row[0]).event_type for row in event_rows
+        )
+        for event_type in unique_event_types:
+            assert event_types.count(event_type) == 1
+
+
+@pytest.mark.skipif(
+    not hasattr(signal, "SIGKILL"),
+    reason="hard-crash transaction probes require SIGKILL",
+)
+def test_durable_sqlite_does_not_redeliver_after_committed_ack_response_loss(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "post-commit-acknowledgement.sqlite3"
+    dependencies, context = _dependencies(_Clock())
+    with DurableRuntimeFactory(dependencies).open_sqlite(
+        database,
+        initialize=True,
+        expose_injection_content=True,
+        expose_replay_content=True,
+    ) as runtime:
+        prepared_response = runtime.dispatcher.prepare(
+            context,
+            _prepare_request(),
+        )
+        prepared = runtime.sessions.get(
+            prepared_response["result"]["session"]["session_id"]
+        )
+        evaluation = runtime.evidence_repository.load_evaluation(
+            prepared.system_gate_evaluation_id
+        )
+        runtime.dispatcher.decide(
+            context,
+            _provider_context(),
+            _decide_request(prepared, evaluation),
+        )
+        decided = runtime.sessions.get(prepared.session_id)
+        runtime.dispatcher.finalize(
+            context,
+            DurableFinalizeRequest(
+                session_id=decided.session_id,
+                expected_session_version=decided.version,
+            ),
+        )
+        finalized = runtime.sessions.get(decided.session_id)
+        runtime.dispatcher.start(
+            context,
+            DurableStartRequest(
+                session_id=finalized.session_id,
+                expected_session_version=finalized.version,
+            ),
+        )
+        executing = runtime.sessions.get(finalized.session_id)
+        completion = _completion(executing)
+        completed = runtime.dispatcher.complete(
+            context,
+            EVALUATOR_CONTEXT,
+            DurableCompleteRequest(
+                session_id=completion.session_id,
+                expected_session_version=completion.expected_version,
+                result=completion.result,
+                evidence_artifact_sha256s=list(completion.evidence_artifact_sha256s),
+                output_sha256=completion.output_sha256,
+                tool_outputs_sha256=completion.tool_outputs_sha256,
+                latency_ms=completion.latency_ms,
+                cost_usd=completion.cost_usd,
+                error_code=completion.error_code,
+            ),
+        )
+        session_id = executing.session_id
+        event_id = completed["result"]["outbox_event"]["event_id"]
+
+    delivery_file = tmp_path / "post-commit-acknowledgement.txt"
+    code = (
+        "import sys; "
+        "from tests.test_durable_runtime_v3 import "
+        "_run_post_commit_response_loss_probe; "
+        "_run_post_commit_response_loss_probe("
+        "sys.argv[1], 'acknowledged', sys.argv[2], sys.argv[3])"
+    )
+    crashed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            code,
+            str(database),
+            session_id,
+            str(delivery_file),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert crashed.returncode == -signal.SIGKILL, crashed.stderr
+    assert delivery_file.read_text(encoding="utf-8") == event_id
+
+    redelivered: list[str] = []
+
+    def consume_again(
+        event: tbm.CompletionOutboxEvent,
+    ) -> tbm.CompletionOutboxConsumerReceipt:
+        redelivered.append(event.event_id)
+        return tbm.CompletionOutboxConsumerReceipt()
+
+    clock = _Clock()
+    clock.advance(seconds=120)
+    dependencies, _context = _dependencies(
+        clock,
+        completion_consumer=consume_again,
+    )
+    with DurableRuntimeFactory(dependencies).open_sqlite(database) as runtime:
+        assert (
+            runtime.deliver_outbox(
+                worker_id="worker_post_commit_ack_recovery",
+                limit=1,
+            )
+            == ()
+        )
+        assert redelivered == []
+        delivery = runtime.outbox_repository.get_delivery(event_id)
+        assert delivery.status == "delivered"
+        history = runtime.outbox_repository.list_delivery_history(event_id)
+        assert tuple(item.status for item in history) == (
+            "pending",
+            "leased",
+            "delivered",
+        )
+        event_rows = runtime._connection.execute(
+            "SELECT canonical_event FROM v3_event_ledger_events "
+            "ORDER BY global_position"
+        ).fetchall()
+        event_types = tuple(
+            loads_canonical_event(row[0]).event_type for row in event_rows
+        )
+        assert event_types.count(tbm.EFFECT_REQUESTED_EVENT) == 1
+        assert event_types.count(tbm.EFFECT_STARTED_EVENT) == 1
+        assert event_types.count(tbm.EFFECT_SUCCEEDED_EVENT) == 1
+
+
 def test_durable_sqlite_runtime_recovery_worker_expires_due_preparation() -> None:
     clock = _Clock()
     dependencies, context = _dependencies(clock)
@@ -1005,9 +1464,7 @@ def test_durable_sqlite_runtime_recovery_worker_expires_due_preparation() -> Non
         payload["expires_in_seconds"] = 300
         prepared_response = runtime.dispatcher.prepare(
             context,
-            tbm.durable_agent_wire_v1.DurablePrepareRequest.model_validate(
-                payload
-            ),
+            tbm.durable_agent_wire_v1.DurablePrepareRequest.model_validate(payload),
         )
         prepared = runtime.sessions.get(
             prepared_response["result"]["session"]["session_id"]
@@ -1032,9 +1489,7 @@ def test_durable_sqlite_runtime_fails_closed_on_missing_schema(
             tmp_path / "missing-schema.sqlite3",
             initialize=False,
         )
-    assert raised.value.code == (
-        "TBM_DURABLE_RUNTIME_SQLITE_SCHEMA_INVALID"
-    )
+    assert raised.value.code == ("TBM_DURABLE_RUNTIME_SQLITE_SCHEMA_INVALID")
 
 
 def test_durable_sqlite_runtime_requires_explicit_outbox_consumer() -> None:
@@ -1044,9 +1499,7 @@ def test_durable_sqlite_runtime_requires_explicit_outbox_consumer() -> None:
     ) as runtime:
         with pytest.raises(DurableRuntimeV3Error) as raised:
             runtime.deliver_outbox(worker_id="worker_missing_consumer")
-        assert raised.value.code == (
-            "TBM_DURABLE_RUNTIME_OUTBOX_CONSUMER_MISSING"
-        )
+        assert raised.value.code == ("TBM_DURABLE_RUNTIME_OUTBOX_CONSUMER_MISSING")
 
 
 def test_durable_sqlite_runtime_dependency_guards() -> None:
@@ -1095,9 +1548,7 @@ def test_durable_postgres_runtime_parity_and_catalog_verification(
         _Clock(),
         completion_consumer=consume,
     )
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         runtime = DurableRuntimeFactory(dependencies).bind_postgres(
             connection,
             expose_injection_content=True,
@@ -1105,9 +1556,7 @@ def test_durable_postgres_runtime_parity_and_catalog_verification(
         try:
             assert connection.info.transaction_status.name == "IDLE"
             assert runtime.sessions is runtime.outbox_repository.gate_sessions
-            assert runtime.dispatcher.capabilities()["storage_mode"] == (
-                "postgres"
-            )
+            assert runtime.dispatcher.capabilities()["storage_mode"] == ("postgres")
 
             prepared_response = runtime.dispatcher.prepare(
                 context,
@@ -1159,9 +1608,7 @@ def test_durable_postgres_runtime_parity_and_catalog_verification(
             )
             assert completed["result"]["session"]["status"] == "completed"
 
-            results = runtime.deliver_outbox(
-                worker_id="worker_postgres_runtime"
-            )
+            results = runtime.deliver_outbox(worker_id="worker_postgres_runtime")
             assert len(results) == 1
             assert results[0].outcome == "delivered"
             assert [event.event_id for event in delivered] == [
@@ -1171,16 +1618,10 @@ def test_durable_postgres_runtime_parity_and_catalog_verification(
             runtime.close()
 
     dependencies, _context = _dependencies(_Clock())
-    with psycopg.connect(
-        **postgres_cluster.connection_kwargs()
-    ) as connection:
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(
-                "DROP SCHEMA trace_backed_memory_v3_replay CASCADE"
-            )
+            cursor.execute("DROP SCHEMA trace_backed_memory_v3_replay CASCADE")
         connection.commit()
         with pytest.raises(DurableRuntimeV3Error) as raised:
             DurableRuntimeFactory(dependencies).bind_postgres(connection)
-        assert raised.value.code == (
-            "TBM_DURABLE_RUNTIME_POSTGRES_SCHEMA_INVALID"
-        )
+        assert raised.value.code == ("TBM_DURABLE_RUNTIME_POSTGRES_SCHEMA_INVALID")

@@ -1876,21 +1876,28 @@ the durable GateSession row without duplicate logical transitions. Additional
 SQLite subprocess probes now kill after authorization, `CREATED`, or Gate
 evidence commits; inside uncommitted replay and completion/outbox transactions;
 and after a completion consumer returns but before acknowledgement durability.
+Post-commit/response-loss probes now also cover `DECIDED`, event-first
+`FINALIZED`, `EXECUTING`, combined completion/outbox, and acknowledgement
+durability. Exact retries leave the full event ledger, global/stream heads, and
+GateSession history unchanged; a committed acknowledgement is not redelivered.
 Recovery preserves orphan evidence, publishes one logical lifecycle/effect
-event, keeps reducers equal to projections, and treats the last boundary as
-bounded at-least-once delivery. Provider-call receipts and unknown-result
-reconciliation, a hard-kill compatibility retained-bundle boundary, durable
-compensation, acknowledgement-committed response loss, PostgreSQL equivalents,
-and the complete cross-transport crash matrix remain open.
+event, keeps reducers equal to projections, and treats only the pre-ack
+boundary as bounded at-least-once delivery. Provider-call receipts and
+unknown-result reconciliation, a hard-kill compatibility retained-bundle
+boundary, durable compensation, PostgreSQL equivalents, and the complete
+cross-transport crash matrix remain open.
 
-The same durable lifecycle now produces an identical GateSession event
-type/version/SHA sequence and final reducer projection digest through the
-Python facade, synchronous and asynchronous Python HTTP SDKs, trusted-local MCP
-tool boundary, and TypeScript HTTP SDK under Bun. This is session-stream parity
-evidence, not full cross-stream or STDIO transport conformance. The SQLite
-bundle also atomically repairs the exact legacy variable-precision GateSession
-timestamp trigger on reopen; unrelated drift fails closed. Neither increment
-promotes a new atom while the broader F2 gates remain incomplete.
+The same durable lifecycle now produces an identical 17-event global sequence,
+seven stream heads, canonical event IDs/SHAs, and all eight registered reducer
+projection digests through the Python facade, synchronous and asynchronous
+Python HTTP SDKs, a real JSON-RPC STDIO MCP child process, and the TypeScript
+HTTP SDK under Bun. Each reducer is checked against the retained authority rows,
+and ledger heads are independently recomputed from canonical events. This is
+complete local happy-path cross-stream/STDIO evidence, not complete F2
+cross-transport or crash conformance. The SQLite bundle also atomically repairs
+the exact legacy variable-precision GateSession timestamp trigger on reopen;
+unrelated drift fails closed. Neither increment promotes a new atom while the
+broader F2 gates remain incomplete.
 
 - **F0 — Architecture freeze (delivered):** ADR-0006, canonical event contract
   and registry, ledger ports, and a guard against new independent authorities.
@@ -1907,12 +1914,12 @@ promotes a new atom while the broader F2 gates remain incomplete.
   local completion-effect projections through dead letter are delivered.
   A local-daemon hard-restart sweep covers five acknowledged lifecycle commits;
   finer SQLite transaction/effect probes cover authorization through evidence,
-  replay/completion rollback, and receipt-before-ack redelivery. GateSession
-  session-stream parity now covers the Python facade, HTTP sync/async SDKs,
-  trusted-local MCP tool boundary, and TypeScript HTTP SDK. Provider
-  receipt/reconciliation, durable compensation, full cross-stream/STDIO
-  transport parity, PostgreSQL equivalents, and the complete crash matrix
-  remain open.
+  replay/completion rollback, receipt-before-ack redelivery, and committed
+  response loss from `DECIDED` through acknowledgement. Local happy-path
+  cross-stream parity now covers the Python facade, HTTP sync/async SDKs, a real
+  STDIO MCP child process, and the TypeScript HTTP SDK. Provider
+  receipt/reconciliation, durable compensation, PostgreSQL transport/crash
+  equivalents, and the complete crash matrix remain open.
 - **F3 — Trace, Git, and effect evidence:** ordered Trace/Git observations,
   Git-graph projection, external-effect receipts, Codex hooks, and governed
   retention/crypto-erasure.

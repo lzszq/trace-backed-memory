@@ -44,9 +44,12 @@ slice。机器可读契约保留上一批已提升 atom ID 与证据路径。当
 边界、finalization replay 和 completion/outbox transaction 内回滚，以及 consumer
 返回但 ack 尚未 durable 时的 lease reclaim 与 at-least-once redelivery。精确
 `CREATED` 恢复会重新授权且不改写 orphan evidence；finalization 会重建唯一确定的
-claim-time bundle。provider receipt/reconciliation、其余 crash cell、PostgreSQL
-parity、完整 cross-stream/STDIO transport parity 与 durable compensation 仍未完成。
-GateSession session-stream event/projection parity 现已覆盖 Python facade、Python
-HTTP sync/async SDK、trusted-local MCP tool boundary 与 TypeScript HTTP SDK；精确
-legacy SQLite timestamp trigger 也会在 reopen 时原子修复。这些仍只是新增证据与
-corruption repair，没有提升 atom；正式与候选进度均保持 182/490（37.14%）。
+claim-time bundle。commit 后 response-loss probe 现覆盖 `DECIDED`、event-first
+`FINALIZED`、`EXECUTING`、组合 completion/outbox 与已提交 acknowledgement，精确
+重试不会重复 replay 或 redelivery。本地 happy path 还通过真实 JSON-RPC STDIO MCP，
+与 Python facade、Python HTTP sync/async SDK 及 TypeScript HTTP SDK 对齐全部 17 个
+global event、七条 stream head 和八个已注册 reducer projection。provider
+receipt/reconciliation、PostgreSQL parity、其余 crash matrix、完整 F2 cross-transport
+conformance 与 durable compensation 仍未完成。精确 legacy SQLite timestamp trigger
+也会在 reopen 时原子修复。这些仍只是新增证据与 corruption repair，没有提升 atom；
+正式与候选进度均保持 182/490（37.14%）。

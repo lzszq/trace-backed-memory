@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache, wraps
 import re
@@ -25,7 +26,23 @@ from .completion_outbox_v3 import (
     verify_completion_outbox_event,
 )
 from .contracts_v3 import V3ContractError
+from .effect_event_v1 import (
+    EffectEventV1Error,
+    build_completion_effect_requested_event,
+    build_effect_delivery_event_batch,
+    effect_event_stream_id,
+)
+from .event_v1 import CanonicalEvent
 from .gate_completion_v3 import GateCompletionRequest, GateCompletionResult
+from .ledger_port_v1 import (
+    EventLedgerPortError,
+    LedgerAccessContext,
+    LedgerAppendRequest,
+    LedgerClassificationFilter,
+    LedgerIdempotency,
+    LedgerTenantPartition,
+)
+from .outcome_event_v1 import OutcomeEvaluatorEventContext
 from .postgres import _load_psycopg
 from .postgres_gate_session_v3 import (
     PostgresGateSessionPersistenceError,
@@ -47,6 +64,67 @@ POSTGRES_COMPLETION_OUTBOX_V3_MAX_PAGE_SIZE = 1000
 POSTGRES_COMPLETION_OUTBOX_V3_CONTRACT_VERSION = (
     "tbm.completion-outbox.v3"
 )
+
+
+@lru_cache(maxsize=1)
+def _effect_bootstrap_access() -> LedgerAccessContext:
+    return LedgerAccessContext(
+        partition=LedgerTenantPartition(
+            "internal_effect_bootstrap",
+            "internal_effect_bootstrap",
+            "internal_effect_bootstrap",
+            "internal_effect_bootstrap",
+        ),
+        principal_id="internal_effect_bootstrap",
+        agent_client_id="internal_effect_bootstrap",
+        actor_type="service",
+        actor_id="internal_effect_bootstrap",
+        authorization_decision_id="internal_effect_bootstrap",
+        classification_filter=LedgerClassificationFilter(
+            ("public", "internal", "confidential", "restricted")
+        ),
+    )
+
+
+def _effect_delivery_access(
+    parent_event: CanonicalEvent,
+    worker_id: str,
+) -> LedgerAccessContext:
+    return LedgerAccessContext(
+        partition=LedgerTenantPartition(
+            parent_event.organization_id,
+            parent_event.tenant_id,
+            parent_event.repository_id,
+            parent_event.environment_id,
+        ),
+        principal_id=parent_event.principal_id,
+        agent_client_id=parent_event.agent_client_id,
+        actor_type="worker",
+        actor_id=worker_id,
+        authorization_decision_id=parent_event.authorization_decision_id,
+        classification_filter=LedgerClassificationFilter(
+            ("public", "internal", "confidential", "restricted")
+        ),
+    )
+
+
+def _effect_retained_access(event: CanonicalEvent) -> LedgerAccessContext:
+    return LedgerAccessContext(
+        partition=LedgerTenantPartition(
+            event.organization_id,
+            event.tenant_id,
+            event.repository_id,
+            event.environment_id,
+        ),
+        principal_id=event.principal_id,
+        agent_client_id=event.agent_client_id,
+        actor_type=event.actor_type,
+        actor_id=event.actor_id,
+        authorization_decision_id=event.authorization_decision_id,
+        classification_filter=LedgerClassificationFilter(
+            ("public", "internal", "confidential", "restricted")
+        ),
+    )
 _SCHEMA = "trace_backed_memory_v3_completion_outbox"
 _MISSING_SCHEMA_MESSAGE = (
     "PostgreSQL completion outbox v3 schema is missing or incomplete"
@@ -267,6 +345,14 @@ class PostgresCompletionOutboxV3Repository:
         """Return the exact GateSession authority used by atomic completion."""
 
         return self.outcomes.gate_sessions
+
+    @contextmanager
+    def bind_evaluator_event_context(
+        self,
+        evaluator_context: OutcomeEvaluatorEventContext,
+    ) -> Iterator[None]:
+        with self.outcomes.bind_evaluator_event_context(evaluator_context):
+            yield
 
     def _require_open(self) -> None:
         if self._closed or bool(getattr(self._connection, "closed", False)):
@@ -831,6 +917,223 @@ class PostgresCompletionOutboxV3Repository:
                 "completion outbox delivery version is stale",
             )
 
+    def _append_or_verify_effect_requested(
+        self,
+        cursor: object,
+        *,
+        completion: GateCompletionResult,
+        event: CompletionOutboxEvent,
+        initial: CompletionOutboxDelivery,
+    ) -> None:
+        if not self.gate_sessions._event_first:
+            return
+        from .postgres_event_ledger_v1 import PostgresEventLedgerV1
+
+        access = self.gate_sessions._event_access(completion.session)
+        trusted_context = access.event_trusted_context()
+        ledger = PostgresEventLedgerV1(self._connection, access)
+        try:
+            ledger._lock_schema(cursor, write=True)
+            completed_event = ledger._select_head_event(
+                cursor,
+                completion.session.session_id,
+                for_update=False,
+            )
+            if completed_event is None:
+                raise PostgresCompletionOutboxV3PersistenceError(
+                    "TBM_POSTGRES_COMPLETION_OUTBOX_EFFECT_HISTORY_MISSING",
+                    "completed GateSession has no canonical event head",
+                )
+            stream_id = effect_event_stream_id(event.event_id)
+            retained_head = ledger._select_head_event(
+                cursor,
+                stream_id,
+                for_update=False,
+            )
+            if completion.inserted:
+                if retained_head is not None:
+                    raise PostgresCompletionOutboxV3ConflictError(
+                        "TBM_POSTGRES_COMPLETION_OUTBOX_EFFECT_CONFLICT",
+                        "completion effect stream already exists",
+                    )
+                next_global_position = (
+                    ledger._select_global_position(cursor, for_update=True)
+                    + 1
+                )
+                retained_request = None
+            else:
+                retained_events = ledger._events_from_query(
+                    cursor,
+                    """
+                    SELECT event_id, event_sha256, partition_sha256,
+                           organization_id, tenant_id, repository_id,
+                           environment_id, stream_id, stream_version,
+                           global_position, previous_stream_event_sha256,
+                           classification, artifact_ref_count, canonical_event
+                    FROM trace_backed_memory_v3_event_ledger.events
+                    WHERE partition_sha256 = %s AND stream_id = %s
+                      AND stream_version = 1
+                    """,
+                    (access.partition.partition_sha256, stream_id),
+                )
+                if len(retained_events) != 1:
+                    raise PostgresCompletionOutboxV3PersistenceError(
+                        "TBM_POSTGRES_COMPLETION_OUTBOX_EFFECT_HISTORY_MISSING",
+                        "completed outbox event has no EffectRequested event",
+                    )
+                retained_request = retained_events[0]
+                next_global_position = retained_request.global_position
+                trusted_context = _effect_retained_access(
+                    retained_request
+                ).event_trusted_context()
+            expected = build_completion_effect_requested_event(
+                event,
+                initial,
+                completed_event=completed_event,
+                global_position=next_global_position,
+                trusted_context=trusted_context,
+            )
+            if completion.inserted:
+                request = LedgerAppendRequest(
+                    access=access,
+                    stream_id=stream_id,
+                    expected_stream_version=0,
+                    events=(expected,),
+                    idempotency=LedgerIdempotency(
+                        expected.idempotency_key_sha256,
+                        expected.request_sha256,
+                    ),
+                )
+                ledger._append_in_transaction(cursor, request)
+                retained_request = ledger._select_head_event(
+                    cursor,
+                    stream_id,
+                    for_update=False,
+                )
+            if retained_request != expected:
+                raise PostgresCompletionOutboxV3PersistenceError(
+                    "TBM_POSTGRES_COMPLETION_OUTBOX_EFFECT_READBACK",
+                    "EffectRequested event read-back changed",
+                )
+        except (EventLedgerPortError, EffectEventV1Error) as error:
+            raise PostgresCompletionOutboxV3PersistenceError(
+                "TBM_POSTGRES_COMPLETION_OUTBOX_EFFECT_APPEND_FAILED",
+                "EffectRequested could not be appended atomically",
+            ) from error
+        finally:
+            ledger.close()
+
+    def _prepare_delivery_effect_write(self, cursor: object) -> None:
+        if not self.gate_sessions._event_first:
+            return
+        from .postgres_event_ledger_v1 import PostgresEventLedgerV1
+
+        ledger = PostgresEventLedgerV1(
+            self._connection,
+            _effect_bootstrap_access(),
+        )
+        try:
+            ledger._lock_schema(cursor, write=True)
+            ledger._select_global_position(cursor, for_update=True)
+        finally:
+            ledger.close()
+
+    def _append_delivery_effect_events(
+        self,
+        cursor: object,
+        previous: CompletionOutboxDelivery,
+        current: CompletionOutboxDelivery,
+    ) -> None:
+        if not self.gate_sessions._event_first:
+            return
+        worker_id = current.worker_id or previous.worker_id
+        if worker_id is None:
+            raise PostgresCompletionOutboxV3PersistenceError(
+                "TBM_POSTGRES_COMPLETION_OUTBOX_EFFECT_WORKER_MISSING",
+                "effect delivery transition has no authenticated worker",
+            )
+        from .postgres_event_ledger_v1 import PostgresEventLedgerV1
+
+        bootstrap = PostgresEventLedgerV1(
+            self._connection,
+            _effect_bootstrap_access(),
+        )
+        ledger: PostgresEventLedgerV1 | None = None
+        try:
+            stream_id = effect_event_stream_id(current.event_id)
+            requested_events = bootstrap._events_from_query(
+                cursor,
+                """
+                SELECT event_id, event_sha256, partition_sha256,
+                       organization_id, tenant_id, repository_id,
+                       environment_id, stream_id, stream_version,
+                       global_position, previous_stream_event_sha256,
+                       classification, artifact_ref_count, canonical_event
+                FROM trace_backed_memory_v3_event_ledger.events
+                WHERE stream_id = %s AND stream_version = 1
+                """,
+                (stream_id,),
+            )
+            if len(requested_events) != 1:
+                raise PostgresCompletionOutboxV3PersistenceError(
+                    "TBM_POSTGRES_COMPLETION_OUTBOX_EFFECT_HISTORY_MISSING",
+                    "completion delivery has no canonical effect stream",
+                )
+            access = _effect_delivery_access(requested_events[0], worker_id)
+            ledger = PostgresEventLedgerV1(self._connection, access)
+            parent_event = ledger._select_head_event(
+                cursor,
+                stream_id,
+                for_update=False,
+            )
+            if parent_event is None:
+                raise PostgresCompletionOutboxV3PersistenceError(
+                    "TBM_POSTGRES_COMPLETION_OUTBOX_EFFECT_HISTORY_MISSING",
+                    "completion delivery has no canonical effect stream head",
+                )
+            first_global_position = (
+                ledger._select_global_position(cursor, for_update=True) + 1
+            )
+            events = build_effect_delivery_event_batch(
+                previous,
+                current,
+                parent_event=parent_event,
+                first_global_position=first_global_position,
+                trusted_context=access.event_trusted_context(),
+            )
+            request = LedgerAppendRequest(
+                access=access,
+                stream_id=stream_id,
+                expected_stream_version=parent_event.stream_version,
+                events=events,
+                idempotency=LedgerIdempotency(
+                    events[0].idempotency_key_sha256,
+                    events[0].request_sha256,
+                ),
+            )
+            ledger._append_in_transaction(cursor, request)
+            if (
+                ledger._select_head_event(
+                    cursor,
+                    stream_id,
+                    for_update=False,
+                )
+                != events[-1]
+            ):
+                raise PostgresCompletionOutboxV3PersistenceError(
+                    "TBM_POSTGRES_COMPLETION_OUTBOX_EFFECT_READBACK",
+                    "effect delivery event read-back changed",
+                )
+        except (EventLedgerPortError, EffectEventV1Error) as error:
+            raise PostgresCompletionOutboxV3PersistenceError(
+                "TBM_POSTGRES_COMPLETION_OUTBOX_EFFECT_APPEND_FAILED",
+                "effect delivery event batch could not be appended atomically",
+            ) from error
+        finally:
+            bootstrap.close()
+            if ledger is not None:
+                ledger.close()
+
     @_synchronized
     def complete_session(
         self,
@@ -843,6 +1146,7 @@ class PostgresCompletionOutboxV3Repository:
         try:
             with self._connection.transaction():
                 with self._connection.cursor(row_factory=dict_row) as cursor:
+                    self.gate_sessions._prepare_event_first_write(cursor)
                     self._lock_schema(cursor, for_write=True)
                     completion = self._outcomes.complete_session(request)
                     event = build_completion_outbox_event(
@@ -850,6 +1154,12 @@ class PostgresCompletionOutboxV3Repository:
                         completion.session,
                     )
                     initial = build_initial_completion_outbox_delivery(event)
+                    self._append_or_verify_effect_requested(
+                        cursor,
+                        completion=completion,
+                        event=event,
+                        initial=initial,
+                    )
                     if completion.inserted:
                         self._insert_bundle(cursor, event, initial)
                         event_inserted = True
@@ -1046,6 +1356,7 @@ class PostgresCompletionOutboxV3Repository:
         try:
             with self._connection.transaction():
                 with self._connection.cursor(row_factory=dict_row) as cursor:
+                    self._prepare_delivery_effect_write(cursor)
                     self._lock_outbox_schema(cursor, for_write=True)
                     now = self._outcomes._gate_sessions._database_now(cursor)
                     cursor.execute(
@@ -1090,6 +1401,11 @@ class PostgresCompletionOutboxV3Repository:
                         claimed,
                         strict=True,
                     ):
+                        self._append_delivery_effect_events(
+                            cursor,
+                            previous,
+                            current,
+                        )
                         self._append_delivery(cursor, previous, current)
                     retained = tuple(
                         self._select_current_delivery(
@@ -1193,6 +1509,7 @@ class PostgresCompletionOutboxV3Repository:
         try:
             with self._connection.transaction():
                 with self._connection.cursor(row_factory=dict_row) as cursor:
+                    self._prepare_delivery_effect_write(cursor)
                     self._lock_outbox_schema(cursor, for_write=True)
                     current = self._select_current_delivery(
                         cursor,
@@ -1209,6 +1526,11 @@ class PostgresCompletionOutboxV3Repository:
                         previous=current.updated_at,
                     )
                     updated = operation(current, now)
+                    self._append_delivery_effect_events(
+                        cursor,
+                        current,
+                        updated,
+                    )
                     self._append_delivery(cursor, current, updated)
                     retained = self._select_current_delivery(
                         cursor,

@@ -37,6 +37,7 @@ from .durable_retrieval_preparation_v3 import (
 from .durable_semantic_gate_v3 import (
     AuthenticatedSemanticGateSessionService,
 )
+from .ledger_replay_export_v1 import ContextualLedgerReplayExportReaderV1
 from .gate_service_v3 import AuthenticatedGateSessionService
 from .gate_worker_v3 import (
     GateSessionRecoveryResult,
@@ -47,6 +48,7 @@ from .postgres_authorization_v3 import PostgresAuthorizationV3Repository
 from .postgres_completion_outbox_v3 import (
     PostgresCompletionOutboxV3Repository,
 )
+from .postgres_event_ledger_v1 import PostgresEventLedgerV1
 from .postgres_gate_evidence_v3 import PostgresGateEvidenceV3Repository
 from .postgres_replay_v3 import PostgresReplayV3Repository
 from .postgres_semantic_gate_artifact_v3 import (
@@ -68,6 +70,7 @@ from .sqlite_authorization_v3 import SQLiteAuthorizationV3Repository
 from .sqlite_completion_outbox_v3 import (
     SQLiteCompletionOutboxV3Repository,
 )
+from .sqlite_event_ledger_v1 import SQLiteEventLedgerV1
 from .sqlite_gate_evidence_v3 import SQLiteGateEvidenceV3Repository
 from .sqlite_replay_v3 import SQLiteReplayV3Repository
 from .sqlite_semantic_gate_artifact_v3 import (
@@ -102,6 +105,10 @@ _POSTGRES_SCHEMA_CATALOG = (
     (
         "trace_backed_memory_v3_completion_outbox",
         "tbm.completion-outbox.v3",
+    ),
+    (
+        "trace_backed_memory_v3_event_ledger",
+        "tbm.event-ledger-port.v1",
     ),
 )
 
@@ -273,15 +280,23 @@ class DurableSQLiteRuntime:
             self.evidence_repository = SQLiteGateEvidenceV3Repository(
                 connection
             )
+            self.evidence_repository.enable_event_first()
             self.semantic_repository = (
                 SQLiteSemanticGateArtifactV3Repository(connection)
             )
+            self.semantic_repository.enable_event_first()
             self.replay_repository = SQLiteReplayV3Repository(connection)
+            self.replay_repository.enable_event_first()
+            self.replay_export_reader = ContextualLedgerReplayExportReaderV1(
+                lambda access: SQLiteEventLedgerV1(connection, access),
+                self.replay_repository,
+            )
             self.outbox_repository = SQLiteCompletionOutboxV3Repository(
                 connection,
                 clock=dependencies.clock,
             )
             self.sessions = self.outbox_repository.gate_sessions
+            self.sessions.enable_event_first()
 
             self.authorization_service = AuthenticatedRetrievalService(
                 registry_provider=dependencies.registry_provider,
@@ -350,6 +365,7 @@ class DurableSQLiteRuntime:
                 revision_source=dependencies.revision_source,
                 replay_authority=self.replay_repository,
                 completion_authority=self.outbox_repository,
+                replay_export_reader=self.replay_export_reader,
             )
             self.service_bundle = DurableServiceBundle(
                 authority_graph=self.authority_graph,
@@ -562,14 +578,22 @@ class DurablePostgresRuntime:
             self.evidence_repository = PostgresGateEvidenceV3Repository(
                 connection
             )
+            self.evidence_repository.enable_event_first()
             self.semantic_repository = (
                 PostgresSemanticGateArtifactV3Repository(connection)
             )
+            self.semantic_repository.enable_event_first()
             self.replay_repository = PostgresReplayV3Repository(connection)
+            self.replay_repository.enable_event_first()
+            self.replay_export_reader = ContextualLedgerReplayExportReaderV1(
+                lambda access: PostgresEventLedgerV1(connection, access),
+                self.replay_repository,
+            )
             self.outbox_repository = (
                 PostgresCompletionOutboxV3Repository(connection)
             )
             self.sessions = self.outbox_repository.gate_sessions
+            self.sessions.enable_event_first()
 
             self.authorization_service = AuthenticatedRetrievalService(
                 registry_provider=dependencies.registry_provider,
@@ -638,6 +662,7 @@ class DurablePostgresRuntime:
                 revision_source=dependencies.revision_source,
                 replay_authority=self.replay_repository,
                 completion_authority=self.outbox_repository,
+                replay_export_reader=self.replay_export_reader,
             )
             self.service_bundle = DurableServiceBundle(
                 authority_graph=self.authority_graph,

@@ -38,7 +38,9 @@ GateSession revision 或 replay manifest。opt-in
 [SQLite 仓库](sqlite-semantic-gate-artifact-v3.zh-CN.md)现已把精确
 public/internal 字节与 attempt 原子持久化；opt-in
 [PostgreSQL 仓库](postgres-semantic-gate-artifact-v3.zh-CN.md)现已提供同等的
-原子精确字节边界及 catalog-validated install/rollback。
+原子精确字节边界及 catalog-validated install/rollback。显式 durable composition
+会启用 [Semantic Gate Attempt Event v1](semantic-gate-attempt-event-v1.zh-CN.md)
+定义的 transactional canonical-event adapter；binding contract 本身仍保持存储中立。
 [认证 provider invocation 服务](semantic-gate-service-v3.zh-CN.md)与 opt-in
 [durable GateSession 组合](durable-semantic-gate-v3.zh-CN.md)现已创建、核验并挂接
 这些记录；更高层 durable facade 会继续推进 finalization，并由显式 durable

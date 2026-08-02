@@ -30,10 +30,14 @@ index 或 trigger。它还会拒绝遮蔽 artifact/parent-evidence 表或附着�
 - succeeded attempt 的一份精确 response binding 与字节；
 - failed attempt 不得带 response。
 
-一个 `BEGIN IMMEDIATE` transaction 或一个嵌套 savepoint 会追加
+默认情况下，一个 `BEGIN IMMEDIATE` transaction 或一个嵌套 savepoint 会追加
 SemanticGateAttempt、保存去重字节、保存角色 binding、重新加载完整 attempt
-chain，并核验精确 artifact 读回。任何冲突或读回失败都会回滚整个 unit，包括新
-追加的 attempt。精确 retry 返回逐行 insertion flag，不复制数据。
+chain，并核验精确 artifact 读回。显式 durable runtime 会启用
+[Semantic Gate Attempt Event v1](semantic-gate-attempt-event-v1.zh-CN.md) 定义的
+event-first mode：同一 transaction 会先核验已保留的 System Gate parent 并 append
+canonical attempt event，再写 attempt 与 Artifact projections。任何冲突或读回失败
+都会回滚整个 unit，包括 event head/idempotency 与新追加的 attempt。精确 retry 返回
+逐行 insertion flag，不复制数据，也不分配新的 global position。
 `load_attempt_with_artifacts()` 会重新核验 attempt chain、descriptor 列、角色
 digest、内容派生 ID、长度与精确字节。
 
@@ -50,7 +54,8 @@ replacement write。专用 insert-conflict guard 在关闭 `recursive_triggers` 
 encryption key 也会被本仓库拒绝。Artifact descriptor JSON 永不嵌入原始字节。
 
 本仓库不认证 provider、不建立可信 timestamp、不执行 retention/access-control
-policy、不追加 GateSession/replay 记录，也不从 active Agent/MCP 路径产生数据。
-PostgreSQL 对等实现已单独记录；provider trust 与 active integration 仍是后续
-工作。拥有 DDL 权限的 SQLite 文件所有者与管理员仍属于信任边界；检测完整离线
+policy，也不追加 GateSession/replay 记录。只有可信 durable composition 可以绑定
+event identity context 并启用 event-first mode；external request JSON 不能做到这一点。
+兼容 Agent/MCP profile 保持不变。PostgreSQL 对等实现与 provider authentication 是
+独立边界。拥有 DDL 权限的 SQLite 文件所有者与管理员仍属于信任边界；检测完整离线
 重写需要外部签名 checkpoint。

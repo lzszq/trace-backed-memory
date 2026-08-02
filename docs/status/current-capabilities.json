@@ -1,6 +1,6 @@
 {
   "ledger_version": "tbm.capability-status.v1",
-  "status_date": "2026-08-01",
+  "status_date": "2026-08-03",
   "product_version": "0.1.0",
   "persistence_model": "authority_graph",
   "ledger_protocol": "tbm.event.v1",
@@ -115,12 +115,29 @@
     {
       "id": "replay.durable-v3",
       "status": "opt-in",
-      "evidence": ["src/trace_backed_memory/replay_v3.py"]
+      "evidence": [
+        "src/trace_backed_memory/replay_v3.py",
+        "src/trace_backed_memory/finalization_event_v1.py",
+        "src/trace_backed_memory/ledger_replay_export_v1.py",
+        "tests/test_ledger_replay_export_v1.py",
+        "docs/protocols/ledger-replay-export-v1.md"
+      ]
     },
     {
       "id": "completion.outbox-v3",
       "status": "opt-in",
-      "evidence": ["src/trace_backed_memory/completion_outbox_worker_v3.py"]
+      "evidence": [
+        "src/trace_backed_memory/completion_outbox_worker_v3.py",
+        "src/trace_backed_memory/effect_event_v1.py",
+        "src/trace_backed_memory/effect_reducer_v1.py",
+        "src/trace_backed_memory/sqlite_completion_outbox_v3.py",
+        "src/trace_backed_memory/postgres_completion_outbox_v3.py",
+        "tests/test_effect_event_v1.py",
+        "tests/test_sqlite_completion_outbox_event_first_v1.py",
+        "tests/test_postgres_completion_outbox_event_first_v1.py",
+        "docs/protocols/completion-outbox-v3.md",
+        "docs/protocols/effect-event-v1.md"
+      ]
     },
     {
       "id": "operations.audit-recovery-v3",
@@ -134,6 +151,9 @@
         "src/trace_backed_memory/event_v1.py",
         "src/trace_backed_memory/sqlite_event_ledger_v1.py",
         "src/trace_backed_memory/postgres_event_ledger_v1.py",
+        "src/trace_backed_memory/finalization_event_v1.py",
+        "src/trace_backed_memory/outcome_event_v1.py",
+        "src/trace_backed_memory/effect_event_v1.py",
         "schemas/event_v1.schema.json",
         "docs/protocols/event-v1.md"
       ]
@@ -145,6 +165,9 @@
         "src/trace_backed_memory/event_registry_v1.py",
         "schemas/event_type_registry_v1.schema.json",
         "schemas/event_payload_registry_v1.schema.json",
+        "examples/event_type_registry_v1.example.json",
+        "tests/test_effect_event_v1.py",
+        "docs/protocols/effect-event-v1.md",
         "docs/protocols/event-registry-v1.md"
       ]
     },
@@ -182,6 +205,19 @@
       "evidence": [
         "src/trace_backed_memory/sqlite_event_ledger_v1.py",
         "src/trace_backed_memory/postgres_event_ledger_v1.py",
+        "src/trace_backed_memory/sqlite_replay_v3.py",
+        "src/trace_backed_memory/postgres_replay_v3.py",
+        "src/trace_backed_memory/ledger_replay_export_v1.py",
+        "src/trace_backed_memory/sqlite_outcome_v3.py",
+        "src/trace_backed_memory/postgres_outcome_v3.py",
+        "src/trace_backed_memory/sqlite_outcome_attribution_v3.py",
+        "src/trace_backed_memory/postgres_outcome_attribution_v3.py",
+        "src/trace_backed_memory/sqlite_completion_outbox_v3.py",
+        "src/trace_backed_memory/postgres_completion_outbox_v3.py",
+        "tests/test_sqlite_outcome_event_first_v1.py",
+        "tests/test_postgres_outcome_event_first_v1.py",
+        "tests/test_sqlite_completion_outbox_event_first_v1.py",
+        "tests/test_postgres_completion_outbox_event_first_v1.py",
         "schemas/sqlite-v3-event-ledger.sql",
         "schemas/postgres-v3-event-ledger.sql",
         "docs/adr/0006-full-persistence-reducer-native-memory.md"
@@ -195,7 +231,14 @@
         "src/trace_backed_memory/reducer_registry.py",
         "src/trace_backed_memory/projection.py",
         "src/trace_backed_memory/projection_checkpoint.py",
+        "src/trace_backed_memory/finalization_reducer_v1.py",
+        "src/trace_backed_memory/outcome_reducer_v1.py",
+        "src/trace_backed_memory/effect_reducer_v1.py",
         "src/trace_backed_memory/daemon_entry.py",
+        "tests/test_finalization_event_v1.py",
+        "tests/test_outcome_event_v1.py",
+        "tests/test_effect_event_v1.py",
+        "tests/test_ledger_replay_export_v1.py",
         "tests/test_reducer_projection.py",
         "tests/test_sqlite_event_ledger_v1.py",
         "tests/test_postgres_event_ledger_v1.py",

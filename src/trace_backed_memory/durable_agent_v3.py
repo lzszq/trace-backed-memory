@@ -36,7 +36,11 @@ from .durable_semantic_gate_v3 import (
     DurableSemanticGateV3Error,
 )
 from .gate_completion_v3 import GateCompletionRequest
-from .gate_service_v3 import AuthenticatedPreparedGateResult
+from .gate_service_v3 import (
+    AuthenticatedPreparedGateResult,
+    bind_authority_event_context,
+    bind_gate_session_event_context,
+)
 from .gate_session_v3 import GateSession
 from .replay_export_v3 import (
     REPLAY_EXPORT_MAX_CONTENT_BYTES,
@@ -252,7 +256,7 @@ class AuthenticatedDurableAgentMemory:
         execution_service = service_bundle.execution_service
         session_authority = graph.session_authority
         evidence_reader = graph.evidence_authority
-        replay_export_reader = graph.replay_authority
+        replay_export_reader = graph.replay_export_reader
         if not all(
             callable(getattr(session_authority, name, None))
             for name in ("get", "transition")
@@ -283,6 +287,7 @@ class AuthenticatedDurableAgentMemory:
         self._finalization_service = finalization_service
         self._execution_service = execution_service
         self._session_authority: DurableAgentSessionAuthority = session_authority
+        self._semantic_authority = graph.semantic_authority
         self._evidence_reader: DurableAgentEvidenceReader = evidence_reader
         self._replay_export_reader = cast(
             DurableAgentReplayExportReader,
@@ -599,7 +604,17 @@ class AuthenticatedDurableAgentMemory:
     ) -> _Result:
         def verified_operation(scope: AuthorizedRetrievalScope) -> _Result:
             self._verify_transition_scope(context, scope)
-            return operation(scope)
+            with bind_gate_session_event_context(
+                self._session_authority,
+                scope,
+            ), bind_authority_event_context(
+                self._semantic_authority,
+                scope,
+            ), bind_authority_event_context(
+                self._finalization_service.replay_authority,
+                scope,
+            ):
+                return operation(scope)
 
         try:
             authorized = self._authorization_service.authorize_permission(
@@ -633,7 +648,11 @@ class AuthenticatedDurableAgentMemory:
     ) -> _Result:
         def verified_operation(scope: AuthorizedRetrievalScope) -> _Result:
             self._verify_replay_read_scope(context, scope)
-            return operation(scope)
+            with bind_authority_event_context(
+                self._replay_export_reader,
+                scope,
+            ):
+                return operation(scope)
 
         try:
             authorized = self._authorization_service.authorize_permission(

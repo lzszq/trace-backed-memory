@@ -44,6 +44,7 @@ atomic transaction；service compensation 与 recovery 语义仍然适用。
 
 ## 当前边界
 
-本版本提供 SQLite 与 PostgreSQL authority。实际产生这些记录的 active retriever
-以及 Agent/MCP/HTTP/SDK 集成仍是后续工作。PostgreSQL owner 与 superuser 属于
-数据库管理信任边界；runtime role 不得拥有或修改该 schema。
+本版本提供 SQLite 与 PostgreSQL authority。显式 durable retrieval preparation 与
+durable HTTP/MCP/SDK profile 会产生并消费这些记录；默认 compatibility retrieval/
+adapter 不会。PostgreSQL owner 与 superuser 属于数据库管理信任边界；runtime role
+不得拥有或修改该 schema。

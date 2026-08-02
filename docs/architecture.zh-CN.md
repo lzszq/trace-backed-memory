@@ -582,11 +582,15 @@ catalog 校验、调用方 savepoint 与 fail-closed `RESTRICT` rollback。两�
 默认兼容 Agent/MCP emission，但会由显式 durable runtime graph 选择。
 `semantic_gate_artifact_v3.py` 现已把精确非空
 prompt/response 字节、内容派生 ID、classification 与 encryption metadata
-绑定到 attempt 对应角色，但不会把字节嵌入 JSON。durable artifact 仓库、
-`sqlite_semantic_gate_artifact_v3.py` 现已提供 SQLite 持久化：一个外层
-transaction 组合 attempt append、精确 public/internal 字节、角色 binding、SQL
-digest/descriptor guard 与完整读回。`postgres_semantic_gate_artifact_v3.py`
-现已提供 PostgreSQL 对等存储：隔离且受 active-v2 门禁的 schema 增加数据库
+绑定到 attempt 对应角色，但不会把字节嵌入 JSON。durable artifact 仓库
+`sqlite_semantic_gate_artifact_v3.py` 现已提供 SQLite 持久化：一个外层 transaction
+先追加并读回 canonical Semantic Gate attempt event，再投影
+`SemanticGateAttempt`，写入精确 public/internal 字节与角色 binding，最后完成 SQL
+digest/descriptor 及 bundle 读回校验。第一次 attempt 必须引用已保留的
+`tbm.system_gate.evaluated` parent；retry 必须引用已保留的上一条 attempt event。
+parent 与 mutation scope 必须一致，但 transition authorization decision 可以刷新。
+`postgres_semantic_gate_artifact_v3.py` 以相同 event-first 顺序提供 PostgreSQL
+对等存储：隔离且受 active-v2 门禁的 schema 增加数据库
 SHA-256/descriptor guard、catalog 校验、并发精确 replay、调用方 savepoint 与
 fail-closed `RESTRICT` rollback。两个字节仓库都不提供静态加密，因此均拒绝敏感
 明文。`semantic_gate_service_v3.py` 现会核验精确可信的
@@ -609,7 +613,8 @@ event、active head 与 policy，保留并读回完整 component bundle，再通
 与最终 session revision；authority 分离时使用显式恢复。显式 durable HTTP/MCP
 transport 只会在启动时 content policy 允许时暴露已授权
 replay。生产 shared-service 的受保护内容加密/retention、有签名 provider
-attestation 与持久 transition-event linkage 尚未提供。`durable_execution_v3.py`
+attestation 与其余 lifecycle transition-event linkage 尚未提供；finalization
+transition/injection linkage 已由 F2 event-first path 交付。`durable_execution_v3.py`
 提供 opt-in runtime 后半段：
 回放并核验精确保留 finalization bundle，要求当前 owner-matched transition 授权，
 通过 CAS 发布 `EXECUTING`，支持精确 revision 的 resume/abandonment，通过每次调用的
@@ -831,8 +836,9 @@ partition stream head；psycopg savepoint 保留 caller transaction，并在每�
 reducer checkpoint 与 append-only、连续的 projection activation chain。CAS
 activation/rollback 只选择已保留 build，绝不会修改 canonical event。两个后端具有跨
 adapter receipt/page 一致性测试。显式 metadata-only `tbmd ledger` / `tbmd projection`
-operator 命令可以检查并重建所选 SQLite ledger，但 active Gate 或 Memory lifecycle
-command 仍不会写入该 ledger。
+operator 命令可以检查并重建所选 SQLite ledger。默认 compatibility Gate/Memory
+lifecycle command 不会写入；显式 durable F2 GateSession、Gate evidence、Semantic
+attempt 与 finalization slice 会写入。
 
 ## Full Persistence 目标架构
 
@@ -855,9 +861,27 @@ event-ledger 应用端口。详见[规范事件 v1](protocols/event-v1.zh-CN.md)
 evidence、shadow comparison、CAS activation/rollback、SQLite/PostgreSQL checkpoint
 持久化、显式 projection operator CLI，以及 Windows/Linux × Python 3.11-3.13 的
 golden-digest matrix。详见
-[Reducer 与 Projection Runtime v1](protocols/reducer-v1.zh-CN.md)。GateSession、Memory、
-index、outbox、audit 与 metrics 的领域 reducer，以及 active lifecycle integration、
-migration 与 cutover 仍属于后续里程碑。
+[Reducer 与 Projection Runtime v1](protocols/reducer-v1.zh-CN.md)。第一组 F2 增量现已让
+两个 durable backend 在每次 GateSession revision 写入前 append canonical event，再同步
+写 revision-row projection。typed reducer 可重建精确 current GateSession state，并覆盖
+SQLite 持久 checkpoint/resume、shadow comparison、activation、rollback 与逐字段 row
+parity。RetrievalSnapshot/SystemGateEvaluation 写入也会先 append 紧凑、artifact-linked
+events，再同步写 row；pure Gate-evidence reducer 可重建其 current session linkage。详见
+[Gate Evidence Event v1](protocols/gate-evidence-event-v1.zh-CN.md)。Semantic Gate attempt
+write 现会要求已保留的 System Gate event，先 append 紧凑 failed/succeeded event，再写
+attempt 与 exact-byte projection，并可重建精确 chain/Artifact linkage。详见
+[Semantic Gate Attempt Event v1](protocols/semantic-gate-attempt-event-v1.zh-CN.md)。final
+finalization 现会在同一 SQLite/PostgreSQL transaction 内依次 append
+`tbm.usage_decision.finalized` 与 `tbm.injection.rendered`，并同步写 GateSession/replay
+projection。`final-decision-injection` reducer 会重建精确 decision、injection、manifest、
+Artifact role、authorization、causation 与 event-head linkage。显式 durable replay
+reader 从这些 event 派生 metadata，并只从 authenticated replay authority 读取精确字节。
+详见 [Finalization Event v1](protocols/finalization-event-v1.zh-CN.md) 与
+[Ledger Replay Export v1](protocols/ledger-replay-export-v1.zh-CN.md)。outcome/attribution
+与本地 completion-effect event/reducer 现已提供到 delivery history/dead letter 的精确
+authority parity。provider receipt、unknown-result reconciliation、durable compensation、
+Memory/index/audit/metrics reducer、完整 lifecycle integration、migration 与 cutover
+仍未完成。
 
 机器可读的 [`authority-registry.json`](status/authority-registry.json) 会把每个当前
 已登记 SQLite/PostgreSQL 持久化模块分类为 ledger、replaceable projection、compatibility

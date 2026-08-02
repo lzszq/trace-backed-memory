@@ -57,7 +57,9 @@ UsageDecision 才可信。
 
 ## 集成边界
 
-该契约与 opt-in finalization service 尚未接入 active snapshot-v2 Store、local Agent、
-STDIO MCP、HTTP 或 SDK adapter。当前明文 replay authority 只接受 `public` 或
-`internal` 组件字节。对 confidential 或 restricted 内容做 finalization，需要未来提供
-能通过 authenticated encryption 保持精确身份的 replay authority。
+该契约与 opt-in finalization service 尚未接入 active snapshot-v2 Store 或默认
+compatibility Agent/MCP/HTTP/SDK adapter。显式 durable HTTP/MCP profile 与 durable
+Python/TypeScript client 会选择 durable facade/event-first finalization path。当前明文
+replay authority 只接受 `public` 或 `internal` 组件字节。对 confidential 或 restricted
+内容做 finalization，需要未来提供能通过 authenticated encryption 保持精确身份的
+replay authority。

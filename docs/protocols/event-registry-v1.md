@@ -60,9 +60,12 @@ deployed code provenance remains a release/distribution responsibility.
 
 ## Deterministic artifacts
 
-The sealed default registry currently publishes the contract exercised by the
-canonical event example: `tbm.memory.proposed` version 1. It deterministically
-generates:
+The sealed default registry publishes the canonical memory proposal plus the
+typed GateSession, retrieval/System Gate evidence, Semantic Gate attempt,
+finalization, outcome/attribution, and local effect families. The current
+catalog contains 29 version-1 event types, including all eight
+`tbm.effect.*` events described by [Effect Event v1](effect-event-v1.md). It
+deterministically generates:
 
 - `examples/event_type_registry_v1.example.json` — content-addressed catalog;
 - `schemas/event_type_registry_v1.schema.json` — catalog preflight schema;

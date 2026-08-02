@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Literal, NoReturn, Protocol
@@ -23,6 +24,7 @@ from .gate_completion_v3 import (
 from .gate_service_v3 import GateSessionWriter
 from .gate_session_v3 import GATE_SESSION_MAX_LEASE_SECONDS, GateSession
 from .outcome_v3 import RunOutcome
+from .outcome_event_v1 import OutcomeEvaluatorEventContext
 from .replay_v3 import DecisionReplayManifest, InjectionArtifact
 from .service_v3 import (
     AuthenticatedRetrievalService,
@@ -82,6 +84,27 @@ class OutcomeEvaluatorAuthenticator(Protocol):
         self,
         context: AuthenticatedOutcomeEvaluatorContext,
     ) -> TrustedOutcomeEvaluator: ...
+
+
+@contextmanager
+def bind_outcome_evaluator_event_context(
+    authority: object,
+    evaluator: TrustedOutcomeEvaluator,
+) -> Iterator[None]:
+    if type(evaluator) is not TrustedOutcomeEvaluator:
+        raise TypeError("evaluator must be exactly TrustedOutcomeEvaluator")
+    binder = getattr(authority, "bind_evaluator_event_context", None)
+    if not callable(binder):
+        yield
+        return
+    event_context = OutcomeEvaluatorEventContext(
+        evaluator_id=evaluator.evaluator_id,
+        evaluator_version=evaluator.evaluator_version,
+        authenticator_id=evaluator.authenticator_id,
+        credential_id=evaluator.credential_id,
+    )
+    with binder(event_context):
+        yield
 
 
 @dataclass(frozen=True)
@@ -470,7 +493,10 @@ class DurableExecutionService:
         )
         current = self._load_session(request.session_id)
         self._verify_session_scope(current, context, transition_scope)
-        self._authenticate_evaluator(evaluator_context, request)
+        trusted_evaluator = self._authenticate_evaluator(
+            evaluator_context,
+            request,
+        )
         if current.status not in {"executing", "completed"}:
             raise DurableExecutionV3Error(
                 "TBM_DURABLE_EXECUTION_STATUS_INVALID",
@@ -487,7 +513,11 @@ class DurableExecutionService:
                 "GateSession does not match the completion replay parent"
             )
         try:
-            write = self._completion_authority.complete_session(request)
+            with bind_outcome_evaluator_event_context(
+                self._completion_authority,
+                trusted_evaluator,
+            ):
+                write = self._completion_authority.complete_session(request)
         except Exception as error:
             raise DurableExecutionV3Error(
                 "TBM_DURABLE_EXECUTION_COMPLETION_FAILED",
@@ -626,7 +656,7 @@ class DurableExecutionService:
         self,
         context: AuthenticatedOutcomeEvaluatorContext,
         request: GateCompletionRequest,
-    ) -> None:
+    ) -> TrustedOutcomeEvaluator:
         try:
             trusted = self._evaluator_authenticator(context)
         except Exception:
@@ -647,6 +677,7 @@ class DurableExecutionService:
                 "TBM_DURABLE_EXECUTION_EVALUATOR_REJECTED",
                 "outcome evaluator authentication was rejected",
             )
+        return trusted
 
     def _verify_scopes(
         self,
@@ -932,4 +963,5 @@ __all__ = [
     "OutcomeEvaluatorAuthenticator",
     "OutcomeEvaluatorStatus",
     "TrustedOutcomeEvaluator",
+    "bind_outcome_evaluator_event_context",
 ]

@@ -55,10 +55,13 @@ aborts the complete rollback.
 ## Current boundary
 
 The ledger stores attempt provenance and artifact hashes, not prompt/response
-artifact bytes. It does not authenticate providers or timestamps, append a
-GateSession revision, or emit attempts from the active Store, Agent, or MCP
-path. Artifact validation, retention, authorization, and transactionally
-integrated GateSession/replay service operations remain outstanding.
+artifact bytes by itself. The PostgreSQL artifact coordinator now adds exact
+public/internal bytes and canonical event-first append in the same transaction.
+The low-level ledger does not authenticate providers or timestamps or append a
+GateSession revision; the authenticated coordinator and explicit durable
+runtime do. Default compatibility Store/Agent/MCP paths remain unchanged.
+Sensitive Artifact storage and full event-sourced projection cutover remain
+outstanding.
 
 PostgreSQL schema owners and superusers remain inside the database trust
 boundary; runtime roles must not own, alter, disable triggers on, or broaden

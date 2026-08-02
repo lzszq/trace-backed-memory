@@ -69,7 +69,9 @@ GateSession linkage.
 ## Integration boundary
 
 The contract and opt-in finalization service are not wired into the active
-snapshot-v2 Store, local Agent, STDIO MCP, HTTP, or SDK adapters. The current
-plaintext replay authorities accept only `public` or `internal` component
-bytes. Confidential or restricted finalization requires a future replay
-authority that preserves exact identity through authenticated encryption.
+snapshot-v2 Store or default compatibility Agent/MCP/HTTP/SDK adapters.
+Explicit durable HTTP/MCP profiles and durable Python/TypeScript clients select
+the durable facade and event-first finalization path. The current plaintext
+replay authorities accept only `public` or `internal` component bytes.
+Confidential or restricted finalization requires a future replay authority that
+preserves exact identity through authenticated encryption.

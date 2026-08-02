@@ -14,6 +14,7 @@ from .gate_service_v3 import (
     GateSessionReplayError,
     GateSessionWriter,
     PreparedGateEvidence,
+    bind_gate_session_event_context,
 )
 from .gate_session_v3 import GateSession
 from .retrieval_preparation_v3 import (
@@ -274,10 +275,14 @@ class DurableRetrievalPreparationService:
                 value=evidence,
             )
             try:
-                receipt = self._evidence_authority.store_bundle(
-                    evidence.snapshot,
-                    evidence.system_gate_evaluation,
-                )
+                with bind_gate_session_event_context(
+                    self._evidence_authority,  # type: ignore[arg-type]
+                    scope,
+                ):
+                    receipt = self._evidence_authority.store_bundle(
+                        evidence.snapshot,
+                        evidence.system_gate_evaluation,
+                    )
             except Exception as error:
                 raise DurableRetrievalPreparationV3Error(
                     "TBM_DURABLE_RETRIEVAL_EVIDENCE_STORE_FAILED",

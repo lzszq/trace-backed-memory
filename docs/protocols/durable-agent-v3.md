@@ -58,7 +58,8 @@ The facade exposes:
 5. `complete(context, evaluator_context, request)`:
    recovers retained retrieval evidence, persists a fresh transition
    authorization, authenticates the live evaluator, and atomically publishes
-   RunOutcome, `COMPLETED`, and the completion outbox event;
+   evaluator/RunOutcome/completed-session events, the completion outbox event
+   and initial delivery, and `EffectRequested`;
 6. `abandon(context, request)`:
    recovers retained retrieval evidence, authorizes, and publishes
    exact-version terminal abandonment;

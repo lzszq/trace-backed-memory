@@ -110,6 +110,23 @@ sha256:9a257f398b55db473403a66d17cafc01983baa50aeb68ca70d69783c0444e9d4
 与 Linux 的 Python 3.11、3.12、3.13 上运行同一份 committed golden fixture。各平台
 不会自行生成 expected value；六个 job 都必须匹配同一份字节。
 
-这项 F1 能力证明 generic runtime 与 operator lifecycle。它还不能重建 GateSession、
-MemoryCatalog、activated head、retrieval index、outbox、audit、metrics 或 PR risk，也不会
-使任何 active 产品 transport 变成 event-first。
+这项 F1 能力证明 generic runtime 与 operator lifecycle。第一组 F2 增量现已注册 pure
+GateSession-current 与 Gate-evidence-current reducer。canonical GateSession revision
+events 可重建精确 current session，并与保留的 authority rows 逐字段 parity；SQLite
+还会为该 reducer 持久保存 checkpoint/resume、shadow comparison、activation 与 rollback。
+Retrieval 与 System Gate events 可重建紧凑的 current evidence 和 Artifact linkage。详见
+[Gate Evidence Event v1](gate-evidence-event-v1.zh-CN.md)。后续已交付的 F2 增量要求读取
+已保留的 System Gate parent event，并重建精确 Semantic attempt chain 与 descriptor-only prompt/
+response linkage；parity 会同时绑定 authority bundles 与 canonical event bytes。详见
+[Semantic Gate Attempt Event v1](semantic-gate-attempt-event-v1.zh-CN.md)。当前 F2 slice
+注册 `final-decision-injection`；它消费
+`tbm.usage_decision.finalized` 与 `tbm.injection.rendered`，重建精确 decision/
+injection/manifest/Artifact-role head，并与保留的 GateSession/replay authority 做逐字段
+parity。详见 [Finalization Event v1](finalization-event-v1.zh-CN.md)。默认 registry
+还包含 `outcome-current`、`outcome-attribution` 与 `effect-queue`；显式
+SQLite/PostgreSQL event-first 路径会核验 RunOutcome、OutcomeAttribution、completion
+delivery history 与 dead-letter parity。详见
+[Effect Event v1](effect-event-v1.zh-CN.md)。MemoryCatalog、activated head、retrieval
+index、audit、metrics 与 PR risk 尚未 reducer-native。provider receipt、unknown-result
+reconciliation、durable compensation 与 F2 其余 cutover gate 仍未关闭，因此这些
+opt-in reducer 不会改变 `full_persistence=false`。

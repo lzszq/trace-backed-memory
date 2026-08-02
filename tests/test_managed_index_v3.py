@@ -103,6 +103,7 @@ def _request(
 def _scope() -> tbm.AuthorizedRetrievalScope:
     return tbm.AuthorizedRetrievalScope(
         authorization_event_id=AUTHORIZATION_ID,
+        organization_id="organization_001",
         principal_id="principal_001",
         agent_client_id="client_001",
         tenant_id="tenant_001",

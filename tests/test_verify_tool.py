@@ -33,6 +33,7 @@ def test_verify_tool_lists_fast_cross_platform_commands_without_running():
         ],
         [sys.executable, "-m", "ruff", "check", "src", "tools", "examples"],
         [sys.executable, "-m", "mypy", "src/trace_backed_memory"],
+        [sys.executable, "tools/verify_full_persistence_progress.py"],
         [sys.executable, "tools/verify_projection_determinism.py"],
         [sys.executable, "-m", "pytest"],
     ]

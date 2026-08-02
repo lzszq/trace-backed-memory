@@ -38,7 +38,9 @@ For each invocation the service:
    bindings from server-owned provenance, reusing an existing immutable
    descriptor when retry bytes are identical;
 6. atomically appends through the configured artifact authority and requires an
-   exact durable read-back.
+   exact durable read-back. Explicit durable authorities first append the
+   compact canonical attempt event in that same transaction; the service does
+   not duplicate event policy.
 
 The provider callback receives only `SemanticProviderCall`. It may return a
 `SemanticProviderResult`; it cannot choose provider/model/template/config

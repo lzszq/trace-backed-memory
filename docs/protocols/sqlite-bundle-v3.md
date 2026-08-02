@@ -6,14 +6,18 @@
 
 The unified SQLite v3 bundle is an opt-in local durable-storage contract. It
 does not change the active snapshot version 2, SQLite schema version 1,
-PostgreSQL schema version 2, or `tbm.agent.v1` compatibility boundary. Active
-MCP, HTTP, CLI, and SDK profiles do not select the durable runtime yet.
+PostgreSQL schema version 2, or `tbm.agent.v1` compatibility boundary. Default
+compatibility MCP/HTTP/CLI/SDK profiles do not select it; explicit durable HTTP
+and MCP profiles plus the durable SDK clients do.
 
 `schemas/sqlite-v3.components.json` is the ordered component manifest.
 `schemas/sqlite-v3.sql` is generated from its 16 non-migration authority
 components. `schemas/sqlite-v3-migration.sql` remains isolated staging and is
 not part of the runtime bundle. The event-ledger component is installed and
-fingerprinted but is not selected by the durable runtime composition yet.
+fingerprinted. The durable runtime selects it for event-first GateSession,
+Retrieval/System Gate evidence, Semantic attempt, and finalization slices, and
+uses ledger metadata with replay-authority bytes for finalized replay export.
+It is not yet the sole source for every authority or projection.
 
 ## Install and verification
 

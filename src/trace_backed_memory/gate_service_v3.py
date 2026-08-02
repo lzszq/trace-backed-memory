@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from typing import Generic, Never, Protocol, TypeVar
 
 from .authorization_v3 import AuthorizationDecision
 from ._timestamps import parse_rfc3339
+from .event_v1 import EventTrustedContext
 from .gate_session_v3 import GateSession
 from .service_v3 import (
     AuthenticatedRetrievalService,
@@ -80,6 +82,41 @@ class GateSessionWriter(Protocol):
         run_outcome_id: str | None = None,
         terminal_reason: str | None = None,
     ) -> GateSession: ...
+
+
+@contextmanager
+def bind_authority_event_context(
+    authority: object,
+    scope: AuthorizedRetrievalScope,
+) -> Iterator[None]:
+    if type(scope) is not AuthorizedRetrievalScope:
+        raise TypeError("scope must be exactly AuthorizedRetrievalScope")
+    binder = getattr(authority, "bind_event_context", None)
+    if not callable(binder):
+        yield
+        return
+    trusted_context = EventTrustedContext(
+        organization_id=scope.organization_id,
+        tenant_id=scope.tenant_id,
+        repository_id=scope.repository_id,
+        environment_id=scope.environment_id,
+        principal_id=scope.principal_id,
+        agent_client_id=scope.agent_client_id,
+        actor_type="agent_client",
+        actor_id=scope.agent_client_id,
+        authorization_decision_id=scope.authorization_event_id,
+    )
+    with binder(trusted_context):
+        yield
+
+
+@contextmanager
+def bind_gate_session_event_context(
+    session_writer: GateSessionWriter,
+    scope: AuthorizedRetrievalScope,
+) -> Iterator[None]:
+    with bind_authority_event_context(session_writer, scope):
+        yield
 
 
 @dataclass(frozen=True)
@@ -247,6 +284,18 @@ class AuthenticatedGateSessionService:
         )
 
     def _prepare_authorized(
+        self,
+        scope: AuthorizedRetrievalScope,
+        request: GatePreparationRequest,
+        prepare: Callable[
+            [AuthorizedRetrievalScope, GateSession],
+            PreparedGateEvidence[_PreparedValue],
+        ],
+    ) -> tuple[GateSession, PreparedGateEvidence[_PreparedValue]]:
+        with bind_gate_session_event_context(self._session_writer, scope):
+            return self._prepare_authorized_bound(scope, request, prepare)
+
+    def _prepare_authorized_bound(
         self,
         scope: AuthorizedRetrievalScope,
         request: GatePreparationRequest,

@@ -962,29 +962,55 @@ comparison、显式批准的 CAS activation 与 append-only rollback。SQLite/Po
 各自 event-ledger schema 中保留精确 checkpoint 与 projection-head history。显式
 `tbmd ledger` / `tbmd projection` 命令可以针对 operator 选择的 SQLite ledger 执行
 verify、inspect、rebuild、compare、activate 与 rollback。同一 committed golden digest
-会在 Windows/Linux 的 Python 3.11-3.13 上核验。GateSession/Memory/index/outbox reducer、
-migration、lifecycle integration 与 event-first cutover 仍未完成。
+会在 Windows/Linux 的 Python 3.11-3.13 上核验。F2 现已进入实施阶段：两个 durable
+backend 都会在同步 revision-row projection 前 append typed GateSession revision event，
+GateSession reducer 支持精确 row parity，SQLite 覆盖持久 rebuild/resume、comparison、
+activation 与 rollback。RetrievalSnapshot/SystemGateEvaluation 写入也会在两个 backend
+中先 append 紧凑、Artifact-linked events，再同步写 row，并由 pure current-linkage reducer
+重建。Semantic Gate attempt 现会要求已保留的 System Gate parent，并先 append 紧凑
+failed/succeeded event，再写 attempt/exact-byte projection；pure reducer 会把 canonical
+event 绑定到逐字段 authority parity。finalization 现会在同一 SQLite/PostgreSQL 原子
+unit 中依次 append `UsageDecisionFinalized` 与 `InjectionRendered`，并同步写 session/
+replay projection；`final-decision-injection` reducer 会核验精确 authority parity。显式
+durable replay reader 从 ledger 重建 metadata，并从 authenticated replay authority 加载
+精确字节。outcome/attribution event/reducer 现在会重建精确 durable row；completion
+outbox 操作会追加本地 effect request/delivery/dead-letter evidence，并由 `effect-queue`
+核验精确 history parity。provider receipt、unknown-result reconciliation、durable
+compensation、Memory/index/audit/metrics reducer、migration、完整 lifecycle integration
+与其余 event-first cutover 仍未完成。SQLite local daemon 现还具备真实子进程
+`SIGKILL`/reopen sweep：分别在已确认的 `PREPARED`、`DECIDED`、`FINALIZED`、
+`EXECUTING` 与 `COMPLETED` commit 后硬杀并重启；每次重启都要求精确 command replay，
+最终 ledger 还会通过 reducer 与 durable GateSession row 做 parity 核验，且不得出现重复
+逻辑 transition。更细粒度的 auth/`CREATED`/evidence/provider/replay-retention，以及
+outbox ack 前后 crash failpoint 仍未完成，因此完整 crash matrix 尚未交付。
 
 - **F0 — 架构冻结（已交付）：** ADR-0006、canonical event contract/registry、
   ledger port，以及禁止新增独立 authority 的 guard。
 - **F1 — Ledger 与 reducer kernel（opt-in 基础已交付）：** opt-in SQLite/PostgreSQL
   event ledger、Artifact reference、versioned reducer runtime、projection operator CLI
-  与六格跨平台 determinism verification 已交付；active 产品 lifecycle 尚未选择它们。
-- **F2 — Durable lifecycle event-first cutover：** GateSession、retrieval/Gate、
-  replay、outcome/effect projection、`tbmd`、HTTP、MCP 与 SDK 使用同一 event-first
-  composition 与 crash matrix。
+  与六格跨平台 determinism verification 已交付；F1 基础本身和默认 compatibility
+  lifecycle 不选择它们，显式 durable F2 slice 会选择。
+- **F2 — Durable lifecycle event-first cutover（实施中）：** GateSession revision
+  event/reducer、Retrieval/System Gate evidence event/reducer、Semantic attempt-chain
+  与 final decision/injection event/reducer 已作为 transactional migration 增量实现；
+  显式 durable runtime 已选择 ledger-backed replay export。outcome/attribution 与本地
+  completion-effect projection 已交付到 dead letter。local-daemon hard-restart sweep 已
+  覆盖五个 acknowledged lifecycle commit，但更细的 transaction/effect failpoint 仍未完成。
+  provider receipt/reconciliation、durable compensation、完整 transport parity 与完整
+  crash matrix 仍未完成。
 - **F3 — Trace、Git 与 effect evidence：** 有序 Trace/Git observation、Git-graph
   projection、external-effect receipt、Codex hook 与受治理 retention/crypto-erasure。
 - **F4 — 受治理 memory projection：** failure extraction、structured evidence、
-  MemoryRevision publication、ActivatedRevision retrieval、policy/index 与 outcome
-  projection 全部 reducer-native。
+  MemoryRevision publication、ActivatedRevision retrieval、policy/index 与其余 Memory
+  projection 变为 reducer-native；opt-in outcome/effect reducer 已在 F2 交付。
 - **F5 — 迁移与切换：** 导入 compatibility/durable-v3 source，核验并 shadow compare
   rebuild state，默认选择 ledger，冻结旧写入，并保留 read-only rollback window。
 - **F6 — Shared service 与稳定发布：** authenticated remote transport、PostgreSQL
   tenant isolation、Review Console、GitHub PR Check、observability、backup/DR、
   security governance 与 stable-release qualification。
 
-前十五个 PR 已按依赖固定：F0-01 至 F0-05、F1-01 至 F1-06、GateSession event
-adapter/reducer、replay exporter reducer，以及 outcome/effect reducer。在这些基础落地
-前，冻结新增 standalone authority、protocol family 与 SQL component；只有已记录的
-security/corruption 修复，或 ledger、reducer、migration blocker 可以例外。
+前十五项依赖有序基础现已作为候选工作交付：F0-01 至 F0-05、F1-01 至 F1-06、
+GateSession event adapter/reducer、replay exporter reducer，以及 outcome/effect reducer。
+在其余 cutover gate 完成前，仍冻结新增 standalone authority、protocol family 与 SQL
+component；只有已记录的 security/corruption 修复，或 ledger、reducer、migration blocker
+可以例外。

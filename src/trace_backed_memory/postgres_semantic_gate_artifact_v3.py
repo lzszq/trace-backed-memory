@@ -2,13 +2,26 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import wraps
 import re
 from threading import RLock
 from typing import NoReturn, ParamSpec, TypeVar, cast
 
+from .event_v1 import (
+    CanonicalEvent,
+    EventTrustedContext,
+)
 from .gate_evaluation_v3 import SemanticGateAttempt
+from .ledger_port_v1 import (
+    EventLedgerPortError,
+    LedgerAccessContext,
+    LedgerAppendRequest,
+    LedgerClassificationFilter,
+    LedgerIdempotency,
+    LedgerTenantPartition,
+)
 from .postgres import _load_psycopg
 from .postgres_authorization_v3 import _CATALOG_SHA256_QUERY
 from .postgres_semantic_gate_v3 import (
@@ -25,6 +38,17 @@ from .semantic_gate_artifact_v3 import (
     dumps_semantic_gate_artifact_binding,
     loads_semantic_gate_artifact_binding,
     verify_semantic_gate_artifact_binding,
+)
+from .semantic_gate_attempt_event_v1 import (
+    SemanticGateAttemptEventRef,
+    SemanticGateAttemptEventV1Error,
+    build_semantic_gate_attempt_event,
+    parse_semantic_gate_attempt_event,
+    semantic_gate_attempt_event_id,
+    semantic_gate_attempt_event_ref,
+    semantic_gate_attempt_stream_id,
+    verify_semantic_gate_event_scope,
+    verify_semantic_gate_system_parent,
 )
 
 
@@ -130,6 +154,38 @@ class PostgresSemanticGateArtifactV3Repository:
         self._semantic_repository = PostgresSemanticGateV3Repository(connection)
         self._lock = RLock()
         self._closed = False
+        self._event_first = False
+        self._event_context: ContextVar[EventTrustedContext | None] = ContextVar(
+            f"tbm_postgres_semantic_gate_event_context_{id(self)}",
+            default=None,
+        )
+
+    @_synchronized
+    def enable_event_first(self) -> None:
+        self._require_open()
+        transaction_status = getattr(
+            getattr(self._connection, "info", None),
+            "transaction_status",
+            None,
+        )
+        if transaction_status is not None and int(transaction_status) != 0:
+            raise PostgresSemanticGateArtifactV3ConflictError(
+                "event-first mode cannot be enabled during a transaction"
+            )
+        self._event_first = True
+
+    @contextmanager
+    def bind_event_context(
+        self,
+        trusted_context: EventTrustedContext,
+    ) -> Iterator[None]:
+        if type(trusted_context) is not EventTrustedContext:
+            raise ValueError("trusted_context must be exactly EventTrustedContext")
+        token = self._event_context.set(trusted_context)
+        try:
+            yield
+        finally:
+            self._event_context.reset(token)
 
     @classmethod
     def connect(
@@ -538,6 +594,206 @@ class PostgresSemanticGateArtifactV3Repository:
             )
         return inserted
 
+    def _event_access(
+        self,
+    ) -> tuple[EventTrustedContext, LedgerAccessContext]:
+        trusted_context = self._event_context.get()
+        if trusted_context is None:
+            raise PostgresSemanticGateArtifactV3ConflictError(
+                "event-first Semantic Gate mutation requires trusted event context"
+            )
+        return trusted_context, LedgerAccessContext(
+            partition=LedgerTenantPartition(
+                trusted_context.organization_id,
+                trusted_context.tenant_id,
+                trusted_context.repository_id,
+                trusted_context.environment_id,
+            ),
+            principal_id=trusted_context.principal_id,
+            agent_client_id=trusted_context.agent_client_id,
+            actor_type=trusted_context.actor_type,
+            actor_id=trusted_context.actor_id,
+            authorization_decision_id=(
+                trusted_context.authorization_decision_id
+            ),
+            classification_filter=LedgerClassificationFilter(
+                ("public", "internal", "confidential", "restricted")
+            ),
+        )
+
+    @staticmethod
+    def _select_event_by_id(
+        cursor: object,
+        ledger: object,
+        event_id: str,
+    ) -> CanonicalEvent | None:
+        cursor.execute(
+            "SELECT event_id, event_sha256, partition_sha256, "
+            "organization_id, tenant_id, repository_id, environment_id, "
+            "stream_id, stream_version, global_position, "
+            "previous_stream_event_sha256, classification, "
+            "artifact_ref_count, canonical_event FROM "
+            "trace_backed_memory_v3_event_ledger.events "
+            "WHERE event_id = %s",
+            (event_id,),
+        )
+        rows = cursor.fetchall()
+        if not rows:
+            return None
+        if len(rows) != 1:
+            raise PostgresSemanticGateArtifactV3PersistenceError(
+                "Semantic Gate attempt event lookup is ambiguous"
+            )
+        return ledger._stored_event(cursor, rows[0])
+
+    @staticmethod
+    def _verify_retained_event(
+        event: CanonicalEvent,
+        expected_ref: SemanticGateAttemptEventRef,
+        trusted_context: EventTrustedContext,
+    ) -> None:
+        try:
+            verify_semantic_gate_event_scope(event, trusted_context)
+            retained_ref = parse_semantic_gate_attempt_event(event)
+        except Exception as error:
+            raise PostgresSemanticGateArtifactV3ConflictError(
+                "retained Semantic Gate attempt event failed validation"
+            ) from error
+        if retained_ref != expected_ref:
+            raise PostgresSemanticGateArtifactV3ConflictError(
+                "Semantic Gate attempt event has conflicting immutable content"
+            )
+
+    def _prepare_event_first_write(self, cursor: object) -> None:
+        if not self._event_first:
+            return
+        from .postgres_event_ledger_v1 import PostgresEventLedgerV1
+
+        trusted_context = self._event_context.get()
+        if trusted_context is None:
+            raise PostgresSemanticGateArtifactV3ConflictError(
+                "event-first Semantic Gate mutation requires trusted event context"
+            )
+        access = LedgerAccessContext(
+            partition=LedgerTenantPartition(
+                trusted_context.organization_id,
+                trusted_context.tenant_id,
+                trusted_context.repository_id,
+                trusted_context.environment_id,
+            ),
+            principal_id=trusted_context.principal_id,
+            agent_client_id=trusted_context.agent_client_id,
+            actor_type=trusted_context.actor_type,
+            actor_id=trusted_context.actor_id,
+            authorization_decision_id=(
+                trusted_context.authorization_decision_id
+            ),
+            classification_filter=LedgerClassificationFilter(
+                ("public", "internal", "confidential", "restricted")
+            ),
+        )
+        ledger = PostgresEventLedgerV1(self._connection, access)
+        try:
+            ledger._lock_schema(cursor, write=True)
+            ledger._select_global_position(cursor, for_update=True)
+        finally:
+            ledger.close()
+
+    def _append_attempt_event(
+        self,
+        cursor: object,
+        attempt: SemanticGateAttempt,
+        prompt: StoredSemanticGateArtifact,
+        response: StoredSemanticGateArtifact | None,
+    ) -> None:
+        if not self._event_first:
+            return
+        from .postgres_event_ledger_v1 import PostgresEventLedgerV1
+
+        trusted_context, access = self._event_access()
+        ledger = PostgresEventLedgerV1(self._connection, access)
+        try:
+            ledger._lock_schema(cursor, write=True)
+            expected_ref = semantic_gate_attempt_event_ref(
+                attempt,
+                prompt,
+                response,
+            )
+            system_gate_event = None
+            if attempt.sequence == 1:
+                system_gate_event = self._select_event_by_id(
+                    cursor,
+                    ledger,
+                    expected_ref.causation_event_id,
+                )
+                verify_semantic_gate_system_parent(
+                    attempt,
+                    system_gate_event,
+                    trusted_context,
+                )
+            retained = self._select_event_by_id(
+                cursor,
+                ledger,
+                semantic_gate_attempt_event_id(attempt.attempt_id),
+            )
+            if retained is not None:
+                self._verify_retained_event(
+                    retained,
+                    expected_ref,
+                    trusted_context,
+                )
+                return
+            stream_id = semantic_gate_attempt_stream_id(
+                attempt.system_gate_evaluation_id
+            )
+            previous_event = ledger._select_head_event(
+                cursor,
+                stream_id,
+                for_update=False,
+            )
+            if attempt.sequence == 1:
+                if previous_event is not None:
+                    raise PostgresSemanticGateArtifactV3ConflictError(
+                        "Semantic Gate attempt stream already has a head"
+                    )
+            elif (
+                previous_event is None
+                or previous_event.event_id
+                != semantic_gate_attempt_event_id(
+                    cast(str, attempt.previous_attempt_id)
+                )
+                or previous_event.stream_version != attempt.sequence - 1
+            ):
+                raise PostgresSemanticGateArtifactV3ConflictError(
+                    "Semantic Gate retry does not extend the event stream"
+                )
+            event = build_semantic_gate_attempt_event(
+                attempt,
+                prompt,
+                response,
+                system_gate_event=system_gate_event,
+                previous_event=previous_event,
+                global_position=(
+                    ledger._select_global_position(cursor, for_update=True) + 1
+                ),
+                trusted_context=trusted_context,
+            )
+            ledger._append_in_transaction(
+                cursor,
+                LedgerAppendRequest(
+                    access=access,
+                    stream_id=stream_id,
+                    expected_stream_version=attempt.sequence - 1,
+                    events=(event,),
+                    idempotency=LedgerIdempotency(
+                        event.idempotency_key_sha256,
+                        event.request_sha256,
+                    ),
+                ),
+            )
+        finally:
+            ledger.close()
+
     @_synchronized
     def store_attempt_with_artifacts(
         self,
@@ -549,6 +805,14 @@ class PostgresSemanticGateArtifactV3Repository:
         self._validate_bundle(attempt, prompt, response)
         try:
             with self._connection.transaction():
+                with self._cursor() as event_cursor:
+                    self._prepare_event_first_write(event_cursor)
+                    self._append_attempt_event(
+                        event_cursor,
+                        attempt,
+                        prompt,
+                        response,
+                    )
                 attempt_result = self._semantic_repository.store_attempt(attempt)
                 with self._secured_cursor(for_write=True) as cursor:
                     prompt_artifact_inserted = self._put_artifact(
@@ -591,6 +855,13 @@ class PostgresSemanticGateArtifactV3Repository:
                 response_artifact_inserted,
                 response_binding_inserted,
             )
+        except (
+            SemanticGateAttemptEventV1Error,
+            EventLedgerPortError,
+        ) as error:
+            raise PostgresSemanticGateArtifactV3ConflictError(
+                "Semantic Gate attempt event conflicts with immutable storage"
+            ) from error
         except (
             PostgresSemanticGateArtifactV3Error,
             PostgresSemanticGateV3Error,

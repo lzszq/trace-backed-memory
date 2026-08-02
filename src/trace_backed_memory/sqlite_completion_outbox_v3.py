@@ -31,9 +31,26 @@ from .completion_outbox_v3 import (
     verify_completion_outbox_event,
 )
 from .contracts_v3 import V3ContractError
+from .effect_event_v1 import (
+    EffectEventV1Error,
+    build_completion_effect_requested_event,
+    build_effect_delivery_event_batch,
+    effect_event_stream_id,
+)
+from .event_v1 import CanonicalEvent
 from .gate_completion_v3 import GateCompletionRequest, GateCompletionResult
+from .ledger_port_v1 import (
+    EventLedgerPortError,
+    LedgerAccessContext,
+    LedgerAppendRequest,
+    LedgerClassificationFilter,
+    LedgerIdempotency,
+    LedgerTenantPartition,
+)
+from .outcome_event_v1 import OutcomeEvaluatorEventContext
 from .resources import PackagedResourceError, read_packaged_resource
 from .sqlite_gate_session_v3 import SQLiteGateSessionRepository
+from .sqlite_event_ledger_v1 import SQLiteEventLedgerV1
 from .sqlite_outcome_v3 import (
     SQLiteOutcomeV3ConflictError,
     SQLiteOutcomeV3NotFoundError,
@@ -112,6 +129,67 @@ class SQLiteCompletionOutboxClaim:
 
 def _service_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+@lru_cache(maxsize=1)
+def _effect_bootstrap_access() -> LedgerAccessContext:
+    return LedgerAccessContext(
+        partition=LedgerTenantPartition(
+            "internal_effect_bootstrap",
+            "internal_effect_bootstrap",
+            "internal_effect_bootstrap",
+            "internal_effect_bootstrap",
+        ),
+        principal_id="internal_effect_bootstrap",
+        agent_client_id="internal_effect_bootstrap",
+        actor_type="service",
+        actor_id="internal_effect_bootstrap",
+        authorization_decision_id="internal_effect_bootstrap",
+        classification_filter=LedgerClassificationFilter(
+            ("public", "internal", "confidential", "restricted")
+        ),
+    )
+
+
+def _effect_delivery_access(
+    parent_event: CanonicalEvent,
+    worker_id: str,
+) -> LedgerAccessContext:
+    return LedgerAccessContext(
+        partition=LedgerTenantPartition(
+            parent_event.organization_id,
+            parent_event.tenant_id,
+            parent_event.repository_id,
+            parent_event.environment_id,
+        ),
+        principal_id=parent_event.principal_id,
+        agent_client_id=parent_event.agent_client_id,
+        actor_type="worker",
+        actor_id=worker_id,
+        authorization_decision_id=parent_event.authorization_decision_id,
+        classification_filter=LedgerClassificationFilter(
+            ("public", "internal", "confidential", "restricted")
+        ),
+    )
+
+
+def _effect_retained_access(event: CanonicalEvent) -> LedgerAccessContext:
+    return LedgerAccessContext(
+        partition=LedgerTenantPartition(
+            event.organization_id,
+            event.tenant_id,
+            event.repository_id,
+            event.environment_id,
+        ),
+        principal_id=event.principal_id,
+        agent_client_id=event.agent_client_id,
+        actor_type=event.actor_type,
+        actor_id=event.actor_id,
+        authorization_decision_id=event.authorization_decision_id,
+        classification_filter=LedgerClassificationFilter(
+            ("public", "internal", "confidential", "restricted")
+        ),
+    )
 
 
 def _mutation_depths() -> dict[int, int]:
@@ -503,6 +581,14 @@ class SQLiteCompletionOutboxV3Repository:
 
         return self.outcomes.gate_sessions
 
+    @contextmanager
+    def bind_evaluator_event_context(
+        self,
+        evaluator_context: OutcomeEvaluatorEventContext,
+    ) -> Iterator[None]:
+        with self.outcomes.bind_evaluator_event_context(evaluator_context):
+            yield
+
     def _require_open(self) -> None:
         if self._closed:
             raise SQLiteCompletionOutboxV3PersistenceError(
@@ -867,6 +953,172 @@ class SQLiteCompletionOutboxV3Repository:
                 "completion outbox delivery version is stale",
             )
 
+    def _append_or_verify_effect_requested(
+        self,
+        cursor: sqlite3.Cursor,
+        *,
+        completion: GateCompletionResult,
+        event: CompletionOutboxEvent,
+        initial: CompletionOutboxDelivery,
+    ) -> None:
+        if not self.gate_sessions._event_first:
+            return
+        access = self.gate_sessions._event_access(completion.session)
+        trusted_context = access.event_trusted_context()
+        ledger = SQLiteEventLedgerV1(self._connection, access)
+        try:
+            ledger._require_schema(cursor)
+            completed_event = ledger._select_head_event(
+                cursor,
+                completion.session.session_id,
+            )
+            if completed_event is None:
+                raise SQLiteCompletionOutboxV3PersistenceError(
+                    "TBM_SQLITE_COMPLETION_OUTBOX_EFFECT_HISTORY_MISSING",
+                    "completed GateSession has no canonical event head",
+                )
+            stream_id = effect_event_stream_id(event.event_id)
+            retained_head = ledger._select_head_event(cursor, stream_id)
+            if completion.inserted:
+                if retained_head is not None:
+                    raise SQLiteCompletionOutboxV3ConflictError(
+                        "TBM_SQLITE_COMPLETION_OUTBOX_EFFECT_CONFLICT",
+                        "completion effect stream already exists",
+                    )
+                next_global_position = (
+                    ledger._select_global_position(cursor) + 1
+                )
+                retained_request = None
+            else:
+                retained_events = ledger._events_from_query(
+                    cursor,
+                    f"SELECT {ledger._event_select()} "
+                    "FROM v3_event_ledger_events "
+                    "WHERE partition_sha256 = ? AND stream_id = ? "
+                    "AND stream_version = 1",
+                    (access.partition.partition_sha256, stream_id),
+                )
+                if len(retained_events) != 1:
+                    raise SQLiteCompletionOutboxV3PersistenceError(
+                        "TBM_SQLITE_COMPLETION_OUTBOX_EFFECT_HISTORY_MISSING",
+                        "completed outbox event has no EffectRequested event",
+                    )
+                retained_request = retained_events[0]
+                next_global_position = retained_request.global_position
+                trusted_context = _effect_retained_access(
+                    retained_request
+                ).event_trusted_context()
+            expected = build_completion_effect_requested_event(
+                event,
+                initial,
+                completed_event=completed_event,
+                global_position=next_global_position,
+                trusted_context=trusted_context,
+            )
+            if completion.inserted:
+                request = LedgerAppendRequest(
+                    access=access,
+                    stream_id=stream_id,
+                    expected_stream_version=0,
+                    events=(expected,),
+                    idempotency=LedgerIdempotency(
+                        expected.idempotency_key_sha256,
+                        expected.request_sha256,
+                    ),
+                )
+                ledger._append_in_transaction(cursor, request)
+                retained_request = ledger._select_head_event(cursor, stream_id)
+            if retained_request != expected:
+                raise SQLiteCompletionOutboxV3PersistenceError(
+                    "TBM_SQLITE_COMPLETION_OUTBOX_EFFECT_READBACK",
+                    "EffectRequested event read-back changed",
+                )
+        except (EventLedgerPortError, EffectEventV1Error) as error:
+            raise SQLiteCompletionOutboxV3PersistenceError(
+                "TBM_SQLITE_COMPLETION_OUTBOX_EFFECT_APPEND_FAILED",
+                "EffectRequested could not be appended atomically",
+            ) from error
+        finally:
+            ledger.close()
+
+    def _append_delivery_effect_events(
+        self,
+        cursor: sqlite3.Cursor,
+        previous: CompletionOutboxDelivery,
+        current: CompletionOutboxDelivery,
+    ) -> None:
+        if not self.gate_sessions._event_first:
+            return
+        worker_id = current.worker_id or previous.worker_id
+        if worker_id is None:
+            raise SQLiteCompletionOutboxV3PersistenceError(
+                "TBM_SQLITE_COMPLETION_OUTBOX_EFFECT_WORKER_MISSING",
+                "effect delivery transition has no authenticated worker",
+            )
+        bootstrap = SQLiteEventLedgerV1(
+            self._connection,
+            _effect_bootstrap_access(),
+        )
+        ledger: SQLiteEventLedgerV1 | None = None
+        try:
+            bootstrap._require_schema(cursor)
+            stream_id = effect_event_stream_id(current.event_id)
+            requested_events = bootstrap._events_from_query(
+                cursor,
+                f"SELECT {bootstrap._event_select()} "
+                "FROM v3_event_ledger_events "
+                "WHERE stream_id = ? AND stream_version = 1",
+                (stream_id,),
+            )
+            if len(requested_events) != 1:
+                raise SQLiteCompletionOutboxV3PersistenceError(
+                    "TBM_SQLITE_COMPLETION_OUTBOX_EFFECT_HISTORY_MISSING",
+                    "completion delivery has no canonical effect stream",
+                )
+            access = _effect_delivery_access(requested_events[0], worker_id)
+            ledger = SQLiteEventLedgerV1(self._connection, access)
+            parent_event = ledger._select_head_event(cursor, stream_id)
+            if parent_event is None:
+                raise SQLiteCompletionOutboxV3PersistenceError(
+                    "TBM_SQLITE_COMPLETION_OUTBOX_EFFECT_HISTORY_MISSING",
+                    "completion delivery has no canonical effect stream head",
+                )
+            first_global_position = (
+                ledger._select_global_position(cursor) + 1
+            )
+            events = build_effect_delivery_event_batch(
+                previous,
+                current,
+                parent_event=parent_event,
+                first_global_position=first_global_position,
+                trusted_context=access.event_trusted_context(),
+            )
+            request = LedgerAppendRequest(
+                access=access,
+                stream_id=stream_id,
+                expected_stream_version=parent_event.stream_version,
+                events=events,
+                idempotency=LedgerIdempotency(
+                    events[0].idempotency_key_sha256,
+                    events[0].request_sha256,
+                ),
+            )
+            ledger._append_in_transaction(cursor, request)
+            if ledger._select_head_event(cursor, stream_id) != events[-1]:
+                raise SQLiteCompletionOutboxV3PersistenceError(
+                    "TBM_SQLITE_COMPLETION_OUTBOX_EFFECT_READBACK",
+                    "effect delivery event read-back changed",
+                )
+        except (EventLedgerPortError, EffectEventV1Error) as error:
+            raise SQLiteCompletionOutboxV3PersistenceError(
+                "TBM_SQLITE_COMPLETION_OUTBOX_EFFECT_APPEND_FAILED",
+                "effect delivery event batch could not be appended atomically",
+            ) from error
+        finally:
+            bootstrap.close()
+            if ledger is not None:
+                ledger.close()
+
     @_synchronized
     def complete_session(
         self,
@@ -885,6 +1137,12 @@ class SQLiteCompletionOutboxV3Repository:
                         completion.session,
                     )
                     initial = build_initial_completion_outbox_delivery(event)
+                    self._append_or_verify_effect_requested(
+                        cursor,
+                        completion=completion,
+                        event=event,
+                        initial=initial,
+                    )
                     if completion.inserted:
                         with self._allow_mutation():
                             self._insert_bundle(cursor, event, initial)
@@ -1118,6 +1376,11 @@ class SQLiteCompletionOutboxV3Repository:
                             claimed,
                             strict=True,
                         ):
+                            self._append_delivery_effect_events(
+                                cursor,
+                                previous,
+                                current,
+                            )
                             self._append_delivery(cursor, previous, current)
                     retained = tuple(
                         self._select_current_delivery(
@@ -1229,6 +1492,11 @@ class SQLiteCompletionOutboxV3Repository:
                         )
                     now = self._trusted_now(not_before=current.updated_at)
                     updated = operation(current, now)
+                    self._append_delivery_effect_events(
+                        cursor,
+                        current,
+                        updated,
+                    )
                     with self._allow_mutation():
                         self._append_delivery(cursor, current, updated)
                     retained = self._select_current_delivery(

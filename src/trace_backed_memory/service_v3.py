@@ -73,6 +73,7 @@ class AuthenticatedServiceContext:
 @dataclass(frozen=True)
 class AuthorizedRetrievalScope:
     authorization_event_id: str
+    organization_id: str
     principal_id: str
     agent_client_id: str
     tenant_id: str
@@ -414,8 +415,18 @@ class AuthenticatedRetrievalService:
             ),
             None,
         )
+        tenant = next(
+            (
+                item
+                for item in registry.tenants
+                if item.tenant_id == context.tenant_id
+            ),
+            None,
+        )
         if (
             environment is None
+            or tenant is None
+            or tenant.status != "active"
             or environment.status != "active"
             or environment.tenant_id != context.tenant_id
             or environment.repository_id is None
@@ -436,6 +447,7 @@ class AuthenticatedRetrievalService:
             )
         return AuthorizedRetrievalScope(
             authorization_event_id=decision.authorization_event_id,
+            organization_id=tenant.organization_id,
             principal_id=decision.principal_id,
             agent_client_id=decision.agent_client_id,
             tenant_id=context.tenant_id,

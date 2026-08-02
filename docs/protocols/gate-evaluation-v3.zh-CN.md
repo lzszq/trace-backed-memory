@@ -39,17 +39,18 @@ evaluation 契约本身不调用模型、不认证 provider，也不挂接 GateS
 RetrievalSnapshot/System Gate/session linkage，并通过 CAS 把完整 attempt chain
 挂接到 `DECIDED`。
 
-剩余边界包括这些引用的 tenant authorization；classification-backed encryption、
-retention 与 artifact access control；超出可信内部 callback 的签名 provider
-attestation；跨 authority 原子 finalization 与 replay-manifest linkage；以及 active
-Agent/MCP/HTTP/SDK 接入。SQLite ledger 通过唯一
+剩余边界包括这些引用的 tenant authorization；敏感分类的 classification-backed
+encryption 与 artifact access；超出可信内部 callback 的签名 provider attestation；
+以及完整 event-sourced projection cutover。显式 durable Agent/MCP/HTTP/SDK profile
+已经组合保留的 Gate 记录。SQLite ledger 通过唯一
 `(system_gate_evaluation_id, sequence)` 与 CAS head 强制线性 sequence；low-level
 parent verifier 核验单个 link，`verify_semantic_gate_attempt_chain()` 核验完整有界
 chain。shared deployment 使用对等的
 [PostgreSQL ledger](postgres-semantic-gate-v3.zh-CN.md)。
 
-active snapshot-v2 Store、SQLite-v1/PostgreSQL-v2 adapter、Agent 与 MCP 尚不产生
-这些记录；side-by-side SQLite ledger 不改变该 active compatibility boundary。
+默认 snapshot-v2 Store、SQLite-v1/PostgreSQL-v2 adapter、Agent 与 MCP 不产生这些
+记录；显式 durable profile 会产生它们，而 side-by-side ledger 不改变默认
+compatibility boundary。
 
 runtime parser 会在 UTF-8 encode 前拒绝超大字符串，并执行结构 JSON Schema 无法
 表达的跨字段不变量：唯一 System

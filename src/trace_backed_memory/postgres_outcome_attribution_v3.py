@@ -9,10 +9,27 @@ from threading import RLock
 from typing import NoReturn, ParamSpec, TypeVar
 
 from .contracts_v3 import V3ContractError
+from .gate_session_v3 import GateSession
+from .ledger_port_v1 import (
+    EventLedgerPortError,
+    LedgerAppendRequest,
+    LedgerIdempotency,
+)
+from .outcome_event_v1 import (
+    OUTCOME_ATTRIBUTION_PROPOSED_EVENT,
+    OutcomeEventV1Error,
+    build_outcome_attribution_event_batch,
+    outcome_attribution_event_stream_id,
+    parse_outcome_attribution_proposed_event,
+    parse_outcome_attribution_verified_event,
+    parse_run_outcome_recorded_event,
+    run_outcome_event_stream_id,
+)
 from .outcome_v3 import (
     OUTCOME_ATTRIBUTION_CONTRACT_VERSION,
     OutcomeAttribution,
     OutcomeContractError,
+    RunOutcome,
     dumps_outcome_attribution,
     loads_outcome_attribution,
     verify_outcome_attribution,
@@ -916,7 +933,7 @@ class PostgresOutcomeAttributionV3Repository:
         self,
         cursor: object,
         attribution: OutcomeAttribution,
-    ) -> None:
+    ) -> tuple[RunOutcome, GateSession]:
         try:
             outcome = self._outcomes._select_outcome(
                 cursor,
@@ -928,6 +945,7 @@ class PostgresOutcomeAttributionV3Repository:
                 for_update=False,
             )
             verify_outcome_attribution(attribution, outcome, session)
+            return outcome, session
         except (
             OutcomeContractError,
             PostgresGateSessionNotFoundError,
@@ -945,6 +963,184 @@ class PostgresOutcomeAttributionV3Repository:
                 "TBM_POSTGRES_OUTCOME_ATTRIBUTION_DEPENDENCY",
                 "PostgreSQL outcome dependency failed validation",
             ) from error
+
+    def _append_attribution_events(
+        self,
+        cursor: object,
+        attribution: OutcomeAttribution,
+        outcome: RunOutcome,
+        completed_session: GateSession,
+    ) -> None:
+        if not self._outcomes._gate_sessions._event_first:
+            return
+        from .postgres_event_ledger_v1 import PostgresEventLedgerV1
+
+        access = self._outcomes._gate_sessions._event_access(
+            completed_session
+        )
+        ledger = PostgresEventLedgerV1(self._connection, access)
+        try:
+            ledger._lock_schema(cursor, write=True)
+            outcome_event = ledger._select_head_event(
+                cursor,
+                run_outcome_event_stream_id(outcome.run_outcome_id),
+                for_update=False,
+            )
+            if outcome_event is None:
+                raise PostgresOutcomeAttributionV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_ATTRIBUTION_EVENT_PARENT_MISSING",
+                    "OutcomeAttribution has no canonical RunOutcome parent",
+                )
+            record = parse_run_outcome_recorded_event(
+                outcome_event,
+                completed_session=completed_session,
+            )
+            if record.outcome != outcome:
+                raise PostgresOutcomeAttributionV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_ATTRIBUTION_EVENT_PARENT_INVALID",
+                    "RunOutcome event differs from the authority row",
+                )
+            events = build_outcome_attribution_event_batch(
+                attribution,
+                outcome_event=outcome_event,
+                completed_session=completed_session,
+                first_global_position=(
+                    ledger._select_global_position(
+                        cursor,
+                        for_update=True,
+                    )
+                    + 1
+                ),
+                trusted_context=access.event_trusted_context(),
+            )
+            stream_id = outcome_attribution_event_stream_id(
+                attribution.attribution_id
+            )
+            ledger._append_in_transaction(
+                cursor,
+                LedgerAppendRequest(
+                    access=access,
+                    stream_id=stream_id,
+                    expected_stream_version=0,
+                    events=events,
+                    idempotency=LedgerIdempotency(
+                        events[0].idempotency_key_sha256,
+                        events[0].request_sha256,
+                    ),
+                ),
+            )
+            if (
+                ledger._select_head_event(
+                    cursor,
+                    stream_id,
+                    for_update=False,
+                )
+                != events[-1]
+            ):
+                raise PostgresOutcomeAttributionV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_ATTRIBUTION_EVENT_READBACK",
+                    "OutcomeAttribution event batch read-back changed",
+                )
+        except (
+            EventLedgerPortError,
+            OutcomeEventV1Error,
+        ) as error:
+            raise PostgresOutcomeAttributionV3PersistenceError(
+                "TBM_POSTGRES_OUTCOME_ATTRIBUTION_EVENT_APPEND_FAILED",
+                "OutcomeAttribution event batch could not be appended atomically",
+            ) from error
+        finally:
+            ledger.close()
+
+    def _verify_attribution_event_history(
+        self,
+        cursor: object,
+        attribution: OutcomeAttribution,
+        outcome: RunOutcome,
+        completed_session: GateSession,
+    ) -> None:
+        if not self._outcomes._gate_sessions._event_first:
+            return
+        from .postgres_event_ledger_v1 import PostgresEventLedgerV1
+
+        access = self._outcomes._gate_sessions._event_access(
+            completed_session
+        )
+        ledger = PostgresEventLedgerV1(self._connection, access)
+        try:
+            outcome_event = ledger._select_head_event(
+                cursor,
+                run_outcome_event_stream_id(outcome.run_outcome_id),
+                for_update=False,
+            )
+            head = ledger._select_head_event(
+                cursor,
+                outcome_attribution_event_stream_id(
+                    attribution.attribution_id
+                ),
+                for_update=False,
+            )
+            if outcome_event is None or head is None:
+                raise PostgresOutcomeAttributionV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_ATTRIBUTION_EVENT_HISTORY_MISSING",
+                    "OutcomeAttribution canonical event history is missing",
+                )
+            record = parse_run_outcome_recorded_event(
+                outcome_event,
+                completed_session=completed_session,
+            )
+            if record.outcome != outcome:
+                raise PostgresOutcomeAttributionV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_ATTRIBUTION_EVENT_HISTORY_INVALID",
+                    "OutcomeAttribution RunOutcome event is inconsistent",
+                )
+            if attribution.claim_strength == "association":
+                proposal = parse_outcome_attribution_proposed_event(head)
+                valid = (
+                    head.event_type == OUTCOME_ATTRIBUTION_PROPOSED_EVENT
+                    and proposal.to_attribution() == attribution
+                    and proposal.run_outcome_event_id == outcome_event.event_id
+                )
+            else:
+                previous_sha256 = head.previous_stream_event_sha256
+                proposal_event = (
+                    None
+                    if previous_sha256 is None
+                    else ledger._select_event_by_sha256(
+                        cursor,
+                        previous_sha256,
+                    )
+                )
+                if proposal_event is None:
+                    valid = False
+                else:
+                    verified = parse_outcome_attribution_verified_event(
+                        head,
+                        proposal_event=proposal_event,
+                    )
+                    proposal = parse_outcome_attribution_proposed_event(
+                        proposal_event
+                    )
+                    valid = (
+                        verified.attribution == attribution
+                        and proposal.run_outcome_event_id
+                        == outcome_event.event_id
+                    )
+            if not valid:
+                raise PostgresOutcomeAttributionV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_ATTRIBUTION_EVENT_HISTORY_INVALID",
+                    "OutcomeAttribution events differ from the authority row",
+                )
+        except (
+            EventLedgerPortError,
+            OutcomeEventV1Error,
+        ) as error:
+            raise PostgresOutcomeAttributionV3PersistenceError(
+                "TBM_POSTGRES_OUTCOME_ATTRIBUTION_EVENT_HISTORY_INVALID",
+                "OutcomeAttribution event history failed validation",
+            ) from error
+        finally:
+            ledger.close()
 
     @classmethod
     def _insert(
@@ -1002,8 +1198,45 @@ class PostgresOutcomeAttributionV3Repository:
         try:
             with self._connection.transaction():
                 with self._connection.cursor(row_factory=dict_row) as cursor:
+                    self._outcomes._gate_sessions._prepare_event_first_write(
+                        cursor
+                    )
                     self._lock_schema(cursor, for_write=True)
-                    self._verify_linkage(cursor, attribution)
+                    existing = self._select_optional(
+                        cursor,
+                        attribution.attribution_id,
+                    )
+                    if existing is not None:
+                        if existing != attribution:
+                            raise PostgresOutcomeAttributionV3ConflictError(
+                                "TBM_POSTGRES_OUTCOME_ATTRIBUTION_CONFLICT",
+                                "OutcomeAttribution ID has different content",
+                            )
+                        outcome, session = self._verify_linkage(
+                            cursor,
+                            existing,
+                        )
+                        self._verify_attribution_event_history(
+                            cursor,
+                            existing,
+                            outcome,
+                            session,
+                        )
+                        self._verify_schema_catalog(cursor)
+                        return PostgresOutcomeAttributionWrite(
+                            existing,
+                            False,
+                        )
+                    outcome, session = self._verify_linkage(
+                        cursor,
+                        attribution,
+                    )
+                    self._append_attribution_events(
+                        cursor,
+                        attribution,
+                        outcome,
+                        session,
+                    )
                     inserted = self._insert(cursor, attribution)
                     retained = self._select(
                         cursor,

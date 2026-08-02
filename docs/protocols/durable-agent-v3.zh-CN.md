@@ -47,8 +47,9 @@ facade 暴露：
    持久化一条新的 `gate_session:transition` 授权，并且只在确实需要执行时返回精确
    保留 snippet；
 5. `complete(context, evaluator_context, request)`：恢复已保留 retrieval evidence，
-   持久化新的 transition 授权，认证实时 evaluator，并原子发布 RunOutcome、
-   `COMPLETED` 与 completion outbox event；
+   持久化新的 transition 授权，认证实时 evaluator，并原子发布 evaluator/RunOutcome/
+   completed-session event、completion outbox event 与初始 delivery，以及
+   `EffectRequested`；
 6. `abandon(context, request)`：恢复已保留 retrieval evidence，授权并发布精确版本的
    终态 abandonment；
 7. `cancel(context, request)`：恢复已保留 retrieval evidence，从 `PREPARED` 或

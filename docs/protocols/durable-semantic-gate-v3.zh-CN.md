@@ -19,8 +19,9 @@ session/evaluation/snapshot/Trace/run 不匹配。
 provider context 仍由 transport 派生，且必须与服务端持有的 provider、
 authenticator、credential registration 完全一致。该 provider authentication
 不是 tenant authorization。session 必须已由 authenticated durable retrieval
-preparation 边界生成；组合服务仍是可信内部服务，不会暴露给 active adapter。
-它的 provider callback 必须由服务端持有；provider authentication 不会把调用方
+preparation 边界生成；组合服务仍是可信内部 kernel，而不是 transport authenticator。
+显式 durable HTTP/MCP 与 SDK profile 会通过 authenticated durable Agent facade
+暴露它；默认 compatibility adapter 不会。它的 provider callback 必须由服务端持有；provider authentication 不会把调用方
 提供的 callback 变成可信模型 provenance，签名 provider attestation 仍是后续工作。
 
 ## 决策顺序
@@ -89,5 +90,6 @@ transaction 可以一起回滚 session transition、attempt 与 artifact binding
 独立的 opt-in durable finalization 组合现在已经提供 rendering、content-addressed
 final injection、完整 replay-bundle 保留与 `DECIDED -> FINALIZED` CAS。
 opt-in [已认证 durable Agent](durable-agent-v3.zh-CN.md) 会继续组合 execution 与
-outcome completion。active transport authentication 与 Agent/MCP/HTTP/SDK
-emission 仍是独立后续工作。
+outcome completion。显式 durable HTTP/MCP 与 Python/TypeScript SDK profile 已暴露
+该 facade；默认 compatibility adapter 与具备 peer authentication 的 shared-service
+transport 仍是独立边界。

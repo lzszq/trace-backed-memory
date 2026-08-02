@@ -38,9 +38,9 @@ receipt, or failed compensation produces
 the coordinator never reconstructs a process-local request token.
 
 This is ordered compensation, not a transaction spanning the authorization
-and GateSession authorities. The active Agent/MCP still does not emit the
-required RetrievalSnapshot and SystemGateEvaluation records, so it is not
-wired into that runtime yet. Opt-in downstream services now provide durable
-retrieval preparation, `AWAITING_DECISION`/`DECIDED`, bounded expiry recovery,
-and completion authorities. Finalization/execution orchestration and active
-cross-process resume remain later service slices.
+and GateSession authorities. Default compatibility Agent/MCP still does not
+emit the required RetrievalSnapshot and SystemGateEvaluation records. Opt-in
+downstream services now provide durable retrieval preparation,
+`AWAITING_DECISION`/`DECIDED`, bounded expiry recovery, event-first
+finalization, execution, and completion authorities. Full transport/crash
+conformance and shared-service cross-process operation remain later slices.

@@ -44,6 +44,10 @@ GateSession revision, or replay manifest. The opt-in
 public/internal bytes atomically with their attempt. The opt-in
 [PostgreSQL repository](postgres-semantic-gate-artifact-v3.md) now provides
 the same atomic exact-byte boundary with catalog-validated install/rollback.
+Explicit durable composition enables their transactional canonical-event
+adapter described by
+[Semantic Gate Attempt Event v1](semantic-gate-attempt-event-v1.md); the
+binding contract itself remains storage-neutral.
 The [authenticated provider invocation service](semantic-gate-service-v3.md)
 and opt-in
 [durable GateSession composition](durable-semantic-gate-v3.md) now create,

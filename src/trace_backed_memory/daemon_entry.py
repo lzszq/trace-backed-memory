@@ -37,6 +37,7 @@ from .durable_sdk import (
     DurableAgentHTTPClient,
     DurableAgentHTTPClientError,
 )
+from .event_registry_v1 import DEFAULT_EVENT_TYPE_REGISTRY
 from .local_daemon_v3 import (
     LOCAL_DAEMON_CONTRACT_VERSION,
     DurableLocalWorkerLoop,
@@ -819,6 +820,7 @@ def _projection_runtime(ledger: SQLiteEventLedgerV1) -> ProjectionRuntime:
         ledger,
         build_default_reducer_registry(),
         ledger,
+        event_registry=DEFAULT_EVENT_TYPE_REGISTRY,
     )
 
 

@@ -1378,9 +1378,13 @@ the attempt role and digest, size, classification, and required encryption
 metadata. Do not log or embed those bytes in descriptor JSON. Binding presence
 does not authenticate a provider, prove encryption at rest, or authorize
 finalization. Use `SQLiteSemanticGateArtifactV3Repository` only for `public`
-or `internal` bytes; it atomically appends the attempt, bytes, and bindings,
-and rejects sensitive classifications because it has no encryption-at-rest
-provider. Active Agent/MCP integration remains separate work. The isolated PostgreSQL
+or `internal` bytes. In event-first mode it must load the retained System Gate
+or prior-attempt parent, append and read back the canonical attempt event, then
+project the attempt, bytes, and bindings in the same transaction. Parent and
+mutation scopes must match; a retry may carry a fresh transition authorization
+decision. It rejects sensitive classifications because it has no
+encryption-at-rest provider. Default compatibility Agent/MCP integration
+remains unchanged; explicit durable profiles select this event-first path. The isolated PostgreSQL
 peer must preserve the same chain rules through parent-before-head row locks,
 exact CAS, deferred commit checks, caller savepoints, and fail-closed catalog
 verification and rollback.
@@ -1442,7 +1446,8 @@ and return a current server-owned `TrustedOutcomeEvaluator` registration that
 exactly matches the context and evaluator/version in `GateCompletionRequest`.
 IDs alone are not authentication proof. Then call the durable execution service so the
 existing completion-outbox authority atomically publishes RunOutcome,
-`COMPLETED`, event, and initial delivery. The transition authorization event
+`COMPLETED`, event, initial delivery, and canonical `EffectRequested` after the
+evaluator/RunOutcome/completed-session event sequence. The transition authorization event
 returned by the service proves what it verified for that call; GateSession v3
 does not yet durably link that event in the revision.
 
@@ -1563,13 +1568,20 @@ For opt-in completion publication, use
 `PostgresCompletionOutboxV3Repository.complete_session()` instead of
 completing through the lower-level outcome authority. This preserves one
 atomic boundary across the completed GateSession revision, RunOutcome,
-completion event, and initial delivery state. Install and roll back PostgreSQL
+completion event, initial delivery state, and `EffectRequested`. Install and roll back PostgreSQL
 dependencies in GateSession → RunOutcome → completion-outbox order.
 Dispatchers must claim bounded pages with bounded leases, acknowledge or fail
 only the exact leased revision and worker, and allow expired leases to be
 reclaimed. Treat delivery as at least once: downstream consumers must
 deduplicate by the immutable `event_id`. A response digest is audit metadata
-and does not establish exactly-once remote effects. Do not repair an outcome
+and does not establish exactly-once remote effects. Claim/reclaim must append
+`EffectStarted`; acknowledgement must append `EffectSucceeded`; retry or
+dead-letter failure must append `EffectFailed` followed by the matching
+disposition event in the same transaction as the delivery revision. Use the
+actual `worker_id` as canonical actor. Treat `EffectSucceeded` as local callback
+acknowledgement only; it is not a provider receipt or proof of provider-side
+success. Provider unknown-result reconciliation and durable compensation remain
+separate work. Do not repair an outcome
 that exists without its event; investigate and recover the violated transaction
 boundary. Active durable completion-outbox emission is available through the
 explicit durable HTTP/MCP and Python/TypeScript SDK profiles, and `tbmd local`
@@ -1643,13 +1655,16 @@ sensitive evidence, preserve its `export_sha256`, and run
 `loads_replay_bundle_export()` or `verify_replay_bundle_export()` before
 import or analysis. Never expose repository IDs as a public lookup oracle.
 
-Use `store_complete_bundle()` to atomically retain the UsageDecision first,
-the exact snapshot, System Gate evaluation, Semantic Gate prompt/response,
-ancestry commitment, policy, renderer descriptor, injection artifact, and
-complete manifest. Read every stored byte back before the session CAS. Exact
-terminal replay must load and cross-check those retained bytes and must never
-rerender. If bundle retention may have succeeded but the `FINALIZED` session
-CAS cannot be confirmed, return an explicit recovery-required result.
+Compatibility callers use `store_complete_bundle()` to atomically retain the
+UsageDecision first, the exact snapshot, System Gate evaluation, Semantic Gate
+prompt/response, ancestry commitment, policy, renderer descriptor, injection
+artifact, and complete manifest before the session CAS. Explicit durable
+SQLite/PostgreSQL runtimes enable `store_complete_finalization()` instead: the
+finalized-session event, rendered-injection event, GateSession revision, and
+replay projections must share one transaction and exact read-back. Exact
+terminal replay must cross-check the retained events, descriptors, and bytes
+and must never rerender. Compatibility recovery remains explicit when bundle
+retention may have succeeded but the session CAS cannot be confirmed.
 
 Classification metadata is not enforcement. The opt-in SQLite and isolated
 PostgreSQL Artifact authorities encrypt all accepted classes with a
@@ -1662,9 +1677,10 @@ preserve exact content identity. Both verify exact bytes and immutable
 descriptor linkage, treat exact replay as idempotent, and preserve a borrowed
 transaction through a savepoint; neither provides access control, retention,
 or GateSession authority by itself. The opt-in finalization service supplies
-the authorized GateSession linkage around those repositories. The current
-Store and active adapters still do not use these contracts and must not
-advertise exact decision replay.
+the authorized GateSession linkage around those repositories. Explicit durable
+HTTP/MCP runtimes use the event-first finalization path and ledger-backed replay
+reader; the current compatibility Store and default adapters do not and must
+not advertise exact decision replay.
 
 The opt-in durable execution service may read that exact retained bundle only
 through the authenticated finalization replay boundary. It returns snippet

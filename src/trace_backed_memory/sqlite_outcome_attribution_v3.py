@@ -12,10 +12,27 @@ from typing import NoReturn, ParamSpec, TypeVar
 
 from ._timestamps import parse_rfc3339
 from .contracts_v3 import V3ContractError
+from .gate_session_v3 import GateSession
+from .ledger_port_v1 import (
+    EventLedgerPortError,
+    LedgerAppendRequest,
+    LedgerIdempotency,
+)
+from .outcome_event_v1 import (
+    OUTCOME_ATTRIBUTION_PROPOSED_EVENT,
+    OutcomeEventV1Error,
+    build_outcome_attribution_event_batch,
+    outcome_attribution_event_stream_id,
+    parse_outcome_attribution_proposed_event,
+    parse_outcome_attribution_verified_event,
+    parse_run_outcome_recorded_event,
+    run_outcome_event_stream_id,
+)
 from .outcome_v3 import (
     OUTCOME_ATTRIBUTION_CONTRACT_VERSION,
     OutcomeAttribution,
     OutcomeContractError,
+    RunOutcome,
     dumps_outcome_attribution,
     loads_outcome_attribution,
     verify_outcome_attribution,
@@ -32,6 +49,7 @@ from .sqlite_outcome_v3 import (
     SQLiteOutcomeV3Repository,
     SQLiteOutcomeV3SchemaError,
 )
+from .sqlite_event_ledger_v1 import SQLiteEventLedgerV1
 
 
 SQLITE_OUTCOME_ATTRIBUTION_V3_SCHEMA_VERSION = 1
@@ -637,7 +655,7 @@ class SQLiteOutcomeAttributionV3Repository:
         self,
         cursor: sqlite3.Cursor,
         attribution: OutcomeAttribution,
-    ) -> None:
+    ) -> tuple[RunOutcome, GateSession]:
         try:
             outcome = self._outcomes._select_outcome(
                 cursor,
@@ -648,6 +666,7 @@ class SQLiteOutcomeAttributionV3Repository:
                 outcome.session_id,
             )
             verify_outcome_attribution(attribution, outcome, session)
+            return outcome, session
         except (
             OutcomeContractError,
             SQLiteGateSessionNotFoundError,
@@ -665,6 +684,166 @@ class SQLiteOutcomeAttributionV3Repository:
                 "TBM_SQLITE_OUTCOME_ATTRIBUTION_DEPENDENCY",
                 "SQLite outcome dependency failed validation",
             ) from error
+
+    def _append_attribution_events(
+        self,
+        cursor: sqlite3.Cursor,
+        attribution: OutcomeAttribution,
+        outcome: RunOutcome,
+        completed_session: GateSession,
+    ) -> None:
+        if not self._outcomes._gate_sessions._event_first:
+            return
+        access = self._outcomes._gate_sessions._event_access(
+            completed_session
+        )
+        ledger = SQLiteEventLedgerV1(self._connection, access)
+        try:
+            ledger._require_schema(cursor)
+            outcome_event = ledger._select_head_event(
+                cursor,
+                run_outcome_event_stream_id(outcome.run_outcome_id),
+            )
+            if outcome_event is None:
+                raise SQLiteOutcomeAttributionV3PersistenceError(
+                    "TBM_SQLITE_OUTCOME_ATTRIBUTION_EVENT_PARENT_MISSING",
+                    "OutcomeAttribution has no canonical RunOutcome parent",
+                )
+            record = parse_run_outcome_recorded_event(
+                outcome_event,
+                completed_session=completed_session,
+            )
+            if record.outcome != outcome:
+                raise SQLiteOutcomeAttributionV3PersistenceError(
+                    "TBM_SQLITE_OUTCOME_ATTRIBUTION_EVENT_PARENT_INVALID",
+                    "RunOutcome event differs from the authority row",
+                )
+            events = build_outcome_attribution_event_batch(
+                attribution,
+                outcome_event=outcome_event,
+                completed_session=completed_session,
+                first_global_position=(
+                    ledger._select_global_position(cursor) + 1
+                ),
+                trusted_context=access.event_trusted_context(),
+            )
+            stream_id = outcome_attribution_event_stream_id(
+                attribution.attribution_id
+            )
+            ledger._append_in_transaction(
+                cursor,
+                LedgerAppendRequest(
+                    access=access,
+                    stream_id=stream_id,
+                    expected_stream_version=0,
+                    events=events,
+                    idempotency=LedgerIdempotency(
+                        events[0].idempotency_key_sha256,
+                        events[0].request_sha256,
+                    ),
+                ),
+            )
+            if ledger._select_head_event(cursor, stream_id) != events[-1]:
+                raise SQLiteOutcomeAttributionV3PersistenceError(
+                    "TBM_SQLITE_OUTCOME_ATTRIBUTION_EVENT_READBACK",
+                    "OutcomeAttribution event batch read-back changed",
+                )
+        except (
+            EventLedgerPortError,
+            OutcomeEventV1Error,
+        ) as error:
+            raise SQLiteOutcomeAttributionV3PersistenceError(
+                "TBM_SQLITE_OUTCOME_ATTRIBUTION_EVENT_APPEND_FAILED",
+                "OutcomeAttribution event batch could not be appended atomically",
+            ) from error
+        finally:
+            ledger.close()
+
+    def _verify_attribution_event_history(
+        self,
+        cursor: sqlite3.Cursor,
+        attribution: OutcomeAttribution,
+        outcome: RunOutcome,
+        completed_session: GateSession,
+    ) -> None:
+        if not self._outcomes._gate_sessions._event_first:
+            return
+        access = self._outcomes._gate_sessions._event_access(
+            completed_session
+        )
+        ledger = SQLiteEventLedgerV1(self._connection, access)
+        try:
+            outcome_event = ledger._select_head_event(
+                cursor,
+                run_outcome_event_stream_id(outcome.run_outcome_id),
+            )
+            head = ledger._select_head_event(
+                cursor,
+                outcome_attribution_event_stream_id(
+                    attribution.attribution_id
+                ),
+            )
+            if outcome_event is None or head is None:
+                raise SQLiteOutcomeAttributionV3PersistenceError(
+                    "TBM_SQLITE_OUTCOME_ATTRIBUTION_EVENT_HISTORY_MISSING",
+                    "OutcomeAttribution canonical event history is missing",
+                )
+            record = parse_run_outcome_recorded_event(
+                outcome_event,
+                completed_session=completed_session,
+            )
+            if record.outcome != outcome:
+                raise SQLiteOutcomeAttributionV3PersistenceError(
+                    "TBM_SQLITE_OUTCOME_ATTRIBUTION_EVENT_HISTORY_INVALID",
+                    "OutcomeAttribution RunOutcome event is inconsistent",
+                )
+            if attribution.claim_strength == "association":
+                proposal = parse_outcome_attribution_proposed_event(head)
+                valid = (
+                    head.event_type == OUTCOME_ATTRIBUTION_PROPOSED_EVENT
+                    and proposal.to_attribution() == attribution
+                    and proposal.run_outcome_event_id == outcome_event.event_id
+                )
+            else:
+                previous_sha256 = head.previous_stream_event_sha256
+                proposal_event = (
+                    None
+                    if previous_sha256 is None
+                    else ledger._select_event_by_sha256(
+                        cursor,
+                        previous_sha256,
+                    )
+                )
+                if proposal_event is None:
+                    valid = False
+                else:
+                    verified = parse_outcome_attribution_verified_event(
+                        head,
+                        proposal_event=proposal_event,
+                    )
+                    proposal = parse_outcome_attribution_proposed_event(
+                        proposal_event
+                    )
+                    valid = (
+                        verified.attribution == attribution
+                        and proposal.run_outcome_event_id
+                        == outcome_event.event_id
+                    )
+            if not valid:
+                raise SQLiteOutcomeAttributionV3PersistenceError(
+                    "TBM_SQLITE_OUTCOME_ATTRIBUTION_EVENT_HISTORY_INVALID",
+                    "OutcomeAttribution events differ from the authority row",
+                )
+        except (
+            EventLedgerPortError,
+            OutcomeEventV1Error,
+        ) as error:
+            raise SQLiteOutcomeAttributionV3PersistenceError(
+                "TBM_SQLITE_OUTCOME_ATTRIBUTION_EVENT_HISTORY_INVALID",
+                "OutcomeAttribution event history failed validation",
+            ) from error
+        finally:
+            ledger.close()
 
     @_synchronized
     def put_attribution(
@@ -688,9 +867,27 @@ class SQLiteOutcomeAttributionV3Repository:
                                 "TBM_SQLITE_OUTCOME_ATTRIBUTION_CONFLICT",
                                 "OutcomeAttribution ID has different content",
                             )
-                        self._verify_linkage(cursor, existing)
+                        outcome, session = self._verify_linkage(
+                            cursor,
+                            existing,
+                        )
+                        self._verify_attribution_event_history(
+                            cursor,
+                            existing,
+                            outcome,
+                            session,
+                        )
                         return SQLiteOutcomeAttributionWrite(existing, False)
-                    self._verify_linkage(cursor, attribution)
+                    outcome, session = self._verify_linkage(
+                        cursor,
+                        attribution,
+                    )
+                    self._append_attribution_events(
+                        cursor,
+                        attribution,
+                        outcome,
+                        session,
+                    )
                     cursor.execute(
                         "INSERT INTO v3_outcome_attributions ("
                         "attribution_id, run_outcome_id, usage_decision_id, "

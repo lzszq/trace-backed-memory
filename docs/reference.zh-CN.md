@@ -371,9 +371,11 @@ injection，以及固定八项 component 的 decision replay manifest。complete
 复验。隔离 PostgreSQL install/rollback 资源现已建立匹配的不可变关系边界，并在
 fail-closed 删除前核对预期 catalog membership；opt-in
 `PostgresReplayV3Repository` 提供 canonical descriptor/byte-digest 复验、精确
-idempotency、嵌套 transaction ownership 与 schema drift 检查。两个 peer 的
-`store_complete_bundle()` 都要求 content-derived UsageDecision artifact 位于首位，并把
-全部去重 supporting component 与 injection/manifest 原子保留。
+idempotency、嵌套 transaction ownership 与 schema drift 检查。compatibility caller
+使用 `store_complete_bundle()`；它要求 content-derived UsageDecision artifact 位于
+首位，并把全部去重 supporting component 与 injection/manifest 原子保留。显式 durable
+runtime 会启用 `store_complete_finalization()`；该路径会在一个 transaction 内 append
+finalized-session/rendered-injection events，并发布 GateSession/replay projections。
 
 `tbm.replay-export.v3` 在这些记录之上提供可移植 read/verify 层。
 `build_replay_bundle_export()` 接受已经授权的 typed record；
@@ -384,7 +386,11 @@ manifest，并要求显式 classification allowlist；
 injection linkage。它是 package-root Python API，不是 Agent/HTTP/MCP endpoint。
 两个 SQL peer 还提供 `load_manifest_for_session()`，使已认证 facade 能从已保留
 session linkage 解析唯一 manifest，而无需接受调用方选择的内容 ID，也不会在
-manifest lookup 时读取 artifact bytes。
+Artifact lookup 前读取内容字节。显式 durable runtime 会改为把
+`LedgerReplayExportReaderV1` 绑定到可信 replay-read scope；它从 canonical finalization
+event 重建 manifest/injection metadata，从 replay authority 加载精确 descriptor/bytes，
+并可要求与 projection-backed export 逐字节 parity。详见
+[ledger replay export v1](protocols/ledger-replay-export-v1.zh-CN.md)。
 
 `tbm.usage-decision.v3` 记录精确有序收窄审计、确定性 System block、当前
 authorization/evidence/policy/renderer 关联与固定 replay component map。
@@ -449,15 +455,17 @@ provenance。它不 approve/activate memory；这些仍是独立认证 service o
 storage-neutral `tbm.retrieval-snapshot.v3` 契约以内容派生 ID 记录一次精确的
 已授权检索结果。它绑定 session/request/trace、授权事件、context/query 摘要、
 retriever/index 版本、有序 memory-revision 命中、候选哈希、逐阶段分数、
-确定性融合与显式截断原因。相似度始终只是排序证据，不是权限或门禁证据。
-active Store/Agent/MCP 尚不产生它。详见
+确定性融合与显式截断原因。相似度始终只是排序证据，不是权限或门禁证据。默认
+compatibility Store/Agent/MCP 不产生它；显式 durable HTTP/MCP 与 SDK profile
+会通过 durable preparation runtime 产生该记录。详见
 [检索快照契约](protocols/retrieval-snapshot-v3.zh-CN.md)。
 
 配套 `tbm.system-gate-evaluation.v3` 与 `tbm.semantic-gate-attempt.v3`
 契约记录逐候选确定性 rule 和完整模型 attempt provenance，不包含 raw
 prompt/response 内容。跨记录核验要求精确 snapshot 覆盖，并强制模型只能缩小
-System Gate 结果；失败调用仍是 immutable、仅 provenance 的 attempt。active
-Store/Agent/MCP 尚不产生这些记录。详见
+System Gate 结果；失败调用仍是 immutable、仅 provenance 的 attempt。默认
+compatibility Store/Agent/MCP 不产生这些记录；显式 durable profile 使用
+event-first Gate evidence 与 Semantic attempt coordinator。详见
 [门禁评估契约](protocols/gate-evaluation-v3.zh-CN.md)。
 
 `SemanticGateArtifactBinding` 把一段精确非空 prompt 或 response 字节连接到
@@ -468,16 +476,18 @@ response，并提供不嵌入原始字节的严格有界 JSON。它不是字节�
 认证边界。详见
 [Semantic Gate artifact 绑定契约](protocols/semantic-gate-artifact-v3.zh-CN.md)。
 
-`SQLiteSemanticGateArtifactV3Repository` 原子组合 attempt ledger、精确
-public/internal prompt/response 字节与角色 binding。它支持精确幂等重放和调用方
-savepoint；SQL guard 会重算内容 hash、比较 descriptor 字段、阻止 replacement
-write，并拒绝意外的受管 trigger/index。由于 adapter 不提供静态加密，它会拒绝
+`SQLiteSemanticGateArtifactV3Repository` 会先原子追加并读回 canonical Semantic
+attempt event，再投影 attempt 并写入精确 public/internal prompt/response 字节与角色
+binding。第一次 attempt 必须引用已保留的 System Gate event；retry 必须引用已保留
+的上一条 attempt event。它支持精确幂等重放和调用方 savepoint；SQL guard 会重算
+内容 hash、比较 descriptor 字段、阻止 replacement write、拒绝意外的受管
+trigger/index，并一起回滚 event head 与全部 projection。由于 adapter 不提供静态加密，它会拒绝
 敏感分类。详见
 [SQLite Semantic Gate artifact 仓库契约](protocols/sqlite-semantic-gate-artifact-v3.zh-CN.md)。
 
 `PostgresSemanticGateArtifactV3Repository` 提供隔离 PostgreSQL 对等实现。一个
-外层 transaction 把 SemanticGateAttempt append、精确 public/internal 字节与
-角色 binding 原子组合，因此 artifact 冲突也会回滚新 attempt。PostgreSQL 会
+外层 transaction 按 event ledger -> attempt projection -> 精确 Artifact projection
+顺序执行，因此 artifact 冲突也会回滚 event head 与新 projection。PostgreSQL 会
 独立重算字节 SHA-256、核对每个 descriptor 字段、验证完整 security catalog、
 保留调用方 transaction、支持并发精确 replay，并提供 fail-closed `RESTRICT`
 rollback。由于 adapter 不提供静态加密，敏感分类仍会被拒绝。详见
@@ -503,11 +513,13 @@ retained-success recovery 不会重复 provider 调用。详见
 
 `DurableFinalizationRequest` 只指定 decided session revision 与有界 finalization lease。
 `DurableFinalizationService` 从 durable evidence 派生所有输入；即使最终集合为空，也要求
-同一个实时 authorization event；在渲染前后复查 active head 与 policy；保存并读回完整
-UsageDecision/replay bundle；再通过 CAS 发布 `FINALIZED`。精确 finalized replay
-不会重新渲染。bundle 已保留但 session transition 无法确认时，会返回显式
-recovery-required 状态。详见
-[durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)与
+同一个实时 authorization event；在渲染前后复查 active head 与 policy；依次 append
+`tbm.usage_decision.finalized` 与 `tbm.injection.rendered`；并在 `FINALIZED` 同一
+transaction 中保存、读回完整 UsageDecision/replay bundle。精确 finalized replay
+不会重新渲染。event-first 失败会回滚 session、event 与 replay projection；compatibility
+caller 继续保留原来的 recovery-required 边界。详见
+[durable finalization v3](protocols/durable-finalization-v3.zh-CN.md)、
+[finalization event v1](protocols/finalization-event-v1.zh-CN.md) 与
 [UsageDecision v3](protocols/usage-decision-v3.zh-CN.md)。
 
 `DurableExecutionStartRequest` 只指定 finalized session 与精确 revision。
@@ -607,7 +619,7 @@ completion notification 和 append-only delivery revision 契约。
 `SQLiteCompletionOutboxV3Repository` 与
 `PostgresCompletionOutboxV3Repository` 组合对应 completion authority，使
 completed GateSession revision、RunOutcome、immutable event、初始 `pending`
-delivery 与 delivery head 处于同一 transaction。它们支持有界 due claim、过期
+delivery、delivery head 与 canonical `EffectRequested` 处于同一 transaction。它们支持有界 due claim、过期
 lease、带 version 检查的 acknowledgement、retry wait、dead letter、精确 replay、
 完整 history 核验、caller savepoint 与 schema/catalog-drift 拒绝。PostgreSQL
 还提供 database time、row-locked `SKIP LOCKED` claim、canonical insert trigger、
@@ -616,9 +628,13 @@ consumer 必须按内容派生 event ID 去重。`CompletionOutboxDeliveryWorker
 一次有界、storage-neutral dispatch pass、严格的整页 claim 校验、清洗后的
 consumer error、精确 receipt/read-back 校验，以及明确的 delivered/retry/
 dead-letter/superseded/recovery-required 结果。调用方 consumer 可以执行 network
-I/O，但两个 repository 都不提供 network transport，也没有接入 active
-Agent/MCP adapter。详见
-[completion outbox 契约](protocols/completion-outbox-v3.zh-CN.md)。
+I/O。claim/acknowledgement/failure transition 会原子追加 canonical 本地 effect event
+batch，`effect-queue` 会重建精确 delivery history 与 dead-letter parity。
+`EffectSucceeded` 只证明本地 callback acknowledgement，不是 provider receipt 或
+provider 端成功。显式 durable HTTP/MCP/SDK profile 与 `tbmd local` 会选择该边界；
+默认 compatibility adapter 与 shared-service network dispatch 不会。详见
+[completion outbox 契约](protocols/completion-outbox-v3.zh-CN.md)与
+[Effect Event v1](protocols/effect-event-v1.zh-CN.md)。
 
 storage-neutral `tbm.audit-event.v3` 与 `tbm.recovery-action.v3` 增加
 内容寻址 append-only event chain 与显式 recovery-attempt evidence。恢复核验

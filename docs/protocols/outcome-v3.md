@@ -44,8 +44,14 @@ and pre-commit read-back. See
 [SQLite OutcomeAttribution ledger](sqlite-outcome-attribution-v3.md) and
 [PostgreSQL OutcomeAttribution ledger](postgres-outcome-attribution-v3.md)
 provide immutable multi-claim persistence with exact durable linkage and
-content-ID replay. Evaluator authentication, artifact verification, outbox
-delivery, and active runtime integration remain outstanding.
+content-ID replay. Typed canonical outcome events plus `outcome-current` and
+`outcome-attribution` reducers rebuild both authorities with fieldwise parity.
+The explicit durable execution path authenticates the evaluator on every call
+and atomically publishes the RunOutcome, completed session, completion outbox,
+and initial effect request; its worker persists delivery/dead-letter events.
+Artifact-byte verification, provider receipts and unknown-result
+reconciliation, durable compensation, and default/shared-service cutover
+remain outstanding.
 
 Canonical schemas:
 

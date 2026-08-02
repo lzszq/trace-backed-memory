@@ -103,6 +103,7 @@ def _stack(
     permissions: tuple[str, ...] = ("memory:retrieve",),
     connection: sqlite3.Connection | None = None,
     sessions: tbm.SQLiteGateSessionRepository | None = None,
+    event_first: bool = False,
 ) -> _Stack:
     registry = _registry(permissions=permissions)
     context = _service_context(registry)
@@ -111,13 +112,16 @@ def _stack(
         connection = sqlite3.connect(":memory:")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA recursive_triggers = ON")
-    for resource in (
+    resources = [
         "schemas/sqlite-v3-gate-session.sql",
         "schemas/sqlite-v3-gate-evidence.sql",
         "schemas/sqlite-v3-semantic-gate.sql",
         "schemas/sqlite-v3-semantic-gate-artifacts.sql",
         "schemas/sqlite-v3-replay.sql",
-    ):
+    ]
+    if event_first:
+        resources.insert(0, "schemas/sqlite-v3-event-ledger.sql")
+    for resource in resources:
         connection.executescript(tbm.read_packaged_resource(resource).decode("utf-8"))
     if sessions is None:
         sessions = tbm.SQLiteGateSessionRepository(
@@ -181,7 +185,7 @@ def _stack(
         )
         .session
     )
-    return _Stack(
+    stack = _Stack(
         connection,
         decisions,
         authorization,
@@ -195,6 +199,74 @@ def _stack(
         policy,
         decided,
     )
+    if event_first:
+        _backfill_gate_session_events(stack)
+        stack.sessions.enable_event_first()
+        stack.replay.enable_event_first()
+    return stack
+
+
+def _event_context(stack: _Stack) -> tbm.EventTrustedContext:
+    scope = stack.scope
+    return tbm.EventTrustedContext(
+        organization_id=scope.organization_id,
+        tenant_id=scope.tenant_id,
+        repository_id=scope.repository_id,
+        environment_id=scope.environment_id,
+        principal_id=scope.principal_id,
+        agent_client_id=scope.agent_client_id,
+        actor_type="agent_client",
+        actor_id=scope.agent_client_id,
+        authorization_decision_id=scope.authorization_event_id,
+    )
+
+
+def _event_access(stack: _Stack) -> tbm.LedgerAccessContext:
+    trusted = _event_context(stack)
+    return tbm.LedgerAccessContext(
+        partition=tbm.LedgerTenantPartition(
+            trusted.organization_id,
+            trusted.tenant_id,
+            trusted.repository_id,
+            trusted.environment_id,
+        ),
+        principal_id=trusted.principal_id,
+        agent_client_id=trusted.agent_client_id,
+        actor_type=trusted.actor_type,
+        actor_id=trusted.actor_id,
+        authorization_decision_id=trusted.authorization_decision_id,
+        classification_filter=tbm.LedgerClassificationFilter(
+            ("public", "internal", "confidential", "restricted")
+        ),
+    )
+
+
+def _backfill_gate_session_events(stack: _Stack) -> None:
+    ledger = tbm.SQLiteEventLedgerV1(stack.connection, _event_access(stack))
+    previous_session = None
+    previous_event = None
+    try:
+        for session in stack.sessions.history(stack.decided.session_id):
+            event = tbm.build_gate_session_event(
+                session,
+                previous_session=previous_session,
+                parent_event=previous_event,
+                global_position=session.version,
+                trusted_context=_event_context(stack),
+            )
+            ledger.append(
+                session.session_id,
+                session.version - 1,
+                (event,),
+                tbm.LedgerIdempotency(
+                    event.idempotency_key_sha256,
+                    event.request_sha256,
+                ),
+            )
+            previous_session = session
+            previous_event = event
+    finally:
+        ledger.close()
 
 
 def _request(stack: _Stack) -> tbm.DurableFinalizationRequest:
@@ -365,5 +437,87 @@ def test_durable_finalization_respects_caller_transaction_rollback() -> None:
             stack.replay.load_artifact(
                 tbm.usage_decision_artifact_id(result.usage_decision.usage_decision_id)
             )
+    finally:
+        stack.close()
+
+
+def test_event_first_finalization_appends_events_before_replay_projection() -> None:
+    stack = _stack(event_first=True)
+    trusted = _event_context(stack)
+    try:
+        with stack.sessions.bind_event_context(
+            trusted
+        ), stack.replay.bind_event_context(trusted):
+            result = stack.finalizer().finalize(
+                stack.context,
+                stack.scope,
+                _request(stack),
+            )
+
+        ledger = tbm.SQLiteEventLedgerV1(
+            stack.connection,
+            _event_access(stack),
+        )
+        try:
+            events = ledger.read_global().events
+        finally:
+            ledger.close()
+        assert tuple(event.event_type for event in events[-3:]) == (
+            tbm.GATE_SESSION_LEASE_RENEWED_EVENT,
+            tbm.USAGE_DECISION_FINALIZED_EVENT,
+            tbm.INJECTION_RENDERED_EVENT,
+        )
+        rendered = tbm.parse_injection_rendered_event(events[-1])
+        assert rendered.usage_decision == result.usage_decision
+        assert rendered.injection == result.injection
+        assert stack.replay.load_manifest(
+            result.manifest.manifest_sha256
+        ) == result.manifest
+    finally:
+        stack.close()
+
+
+def test_event_first_finalization_rolls_back_events_and_session_on_projection_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stack = _stack(event_first=True)
+    trusted = _event_context(stack)
+
+    def fail_projection(*_args: object) -> bool:
+        raise RuntimeError("synthetic replay projection failure")
+
+    monkeypatch.setattr(stack.replay, "_put_artifact", fail_projection)
+    try:
+        with stack.sessions.bind_event_context(
+            trusted
+        ), stack.replay.bind_event_context(trusted):
+            with pytest.raises(tbm.DurableFinalizationV3Error) as captured:
+                stack.finalizer().finalize(
+                    stack.context,
+                    stack.scope,
+                    _request(stack),
+                )
+        assert captured.value.code == (
+            "TBM_DURABLE_FINALIZATION_EVENT_FIRST_FAILED"
+        )
+        current = stack.sessions.get(stack.decided.session_id)
+        assert current.status == "decided"
+        assert current.version == stack.decided.version + 1
+        ledger = tbm.SQLiteEventLedgerV1(
+            stack.connection,
+            _event_access(stack),
+        )
+        try:
+            event_types = tuple(
+                event.event_type for event in ledger.read_global().events
+            )
+        finally:
+            ledger.close()
+        assert event_types[-1] == tbm.GATE_SESSION_LEASE_RENEWED_EVENT
+        assert tbm.USAGE_DECISION_FINALIZED_EVENT not in event_types
+        assert tbm.INJECTION_RENDERED_EVENT not in event_types
+        assert stack.connection.execute(
+            "SELECT COUNT(*) FROM v3_replay_artifacts"
+        ).fetchone() == (0,)
     finally:
         stack.close()

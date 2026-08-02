@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from typing import Literal, Protocol
 
@@ -100,12 +101,21 @@ class GateSessionRecoveryWorker:
     ) -> GateSessionRecoveryResult:
         if candidate.status in {"prepared", "awaiting_decision"}:
             try:
-                expired = self._repository.transition(
-                    candidate.session_id,
-                    "expired",
-                    expected_version=candidate.version,
-                    terminal_reason="session_expired",
+                binder = getattr(
+                    self._repository,
+                    "bind_recovery_event_context",
+                    None,
                 )
+                binding = (
+                    binder(candidate) if callable(binder) else nullcontext()
+                )
+                with binding:
+                    expired = self._repository.transition(
+                        candidate.session_id,
+                        "expired",
+                        expected_version=candidate.version,
+                        terminal_reason="session_expired",
+                    )
                 self._verify_expired(candidate, expired)
                 if self._repository.get(candidate.session_id) != expired:
                     raise GateSessionRecoveryWorkerError(

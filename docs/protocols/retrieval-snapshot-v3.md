@@ -57,6 +57,7 @@ The optional storage-neutral retrieval-preparation kernel now emits this
 contract together with an exact System Gate evaluation after authorization,
 filtering, ranking, and final head/policy rechecks. It still depends on a
 caller-supplied trusted discovery/index adapter. The active snapshot-v2 Store,
-SQLite-v1/PostgreSQL-v2 adapters, local agent, and MCP runtime do not yet use
-that kernel. Active integration requires explicit versioned migrations and
-service orchestration.
+SQLite-v1/PostgreSQL-v2 adapters, and default compatibility Agent/MCP runtime do
+not use that kernel. Explicit durable retrieval preparation and durable
+HTTP/MCP/SDK profiles do; full default cutover still requires versioned
+migration and service orchestration.

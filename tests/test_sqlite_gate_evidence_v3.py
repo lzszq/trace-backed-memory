@@ -282,6 +282,7 @@ def test_durable_verifier_requires_exact_authorized_session_linkage():
     )
     scope = AuthorizedRetrievalScope(
         authorization_event_id=snapshot.authorization_event_id,
+        organization_id="organization_001",
         principal_id=session.principal_id,
         agent_client_id=session.agent_client_id,
         tenant_id=session.tenant_id,
@@ -328,6 +329,7 @@ def test_durable_verifier_sanitizes_unavailable_and_invalid_authorities():
     )
     scope = AuthorizedRetrievalScope(
         authorization_event_id=snapshot.authorization_event_id,
+        organization_id="organization_001",
         principal_id=session.principal_id,
         agent_client_id=session.agent_client_id,
         tenant_id=session.tenant_id,

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import lru_cache, wraps
 import json
 import re
@@ -13,6 +15,19 @@ from .gate_session_v3 import (
     GateSession,
     GateSessionContractError,
     transition_gate_session,
+)
+from .ledger_port_v1 import (
+    EventLedgerPortError,
+    LedgerAppendRequest,
+    LedgerIdempotency,
+)
+from .outcome_event_v1 import (
+    OutcomeEvaluatorEventContext,
+    OutcomeEventV1Error,
+    build_run_outcome_event_batch,
+    parse_evaluation_authenticated_event,
+    parse_run_outcome_recorded_event,
+    run_outcome_event_stream_id,
 )
 from .outcome_v3 import (
     RUN_OUTCOME_CONTRACT_VERSION,
@@ -237,6 +252,12 @@ class PostgresOutcomeV3Repository:
         self._owns_connection = owns_connection
         self._closed = False
         self._lock = RLock()
+        self._evaluator_event_context: ContextVar[
+            OutcomeEvaluatorEventContext | None
+        ] = ContextVar(
+            f"tbm_postgres_outcome_evaluator_event_context_{id(self)}",
+            default=None,
+        )
         self._gate_sessions = PostgresGateSessionRepository(
             connection,
             allow_direct_completion=False,
@@ -269,6 +290,21 @@ class PostgresOutcomeV3Repository:
 
         self._require_open()
         return self._gate_sessions
+
+    @contextmanager
+    def bind_evaluator_event_context(
+        self,
+        evaluator_context: OutcomeEvaluatorEventContext,
+    ) -> Iterator[None]:
+        if type(evaluator_context) is not OutcomeEvaluatorEventContext:
+            raise ValueError(
+                "evaluator_context must be exactly OutcomeEvaluatorEventContext"
+            )
+        token = self._evaluator_event_context.set(evaluator_context)
+        try:
+            yield
+        finally:
+            self._evaluator_event_context.reset(token)
 
     def _require_open(self) -> None:
         if self._closed or bool(getattr(self._connection, "closed", False)):
@@ -716,6 +752,150 @@ class PostgresOutcomeV3Repository:
             and outcome.error_code == request.error_code
         )
 
+    def _append_outcome_events(
+        self,
+        cursor: object,
+        *,
+        executing: GateSession,
+        completed: GateSession,
+        outcome: RunOutcome,
+    ) -> None:
+        if not self._gate_sessions._event_first:
+            return
+        evaluator_context = self._evaluator_event_context.get()
+        if evaluator_context is None:
+            raise PostgresOutcomeV3ConflictError(
+                "TBM_POSTGRES_OUTCOME_EVALUATOR_CONTEXT_REQUIRED",
+                "event-first outcome completion requires trusted evaluator context",
+            )
+        from .postgres_event_ledger_v1 import PostgresEventLedgerV1
+
+        access = self._gate_sessions._event_access(executing)
+        trusted_context = access.event_trusted_context()
+        ledger = PostgresEventLedgerV1(self._connection, access)
+        try:
+            ledger._lock_schema(cursor, write=True)
+            execution_event = ledger._select_head_event(
+                cursor,
+                executing.session_id,
+                for_update=False,
+            )
+            if execution_event is None:
+                raise PostgresOutcomeV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_EVENT_HISTORY_MISSING",
+                    "executing GateSession has no canonical event head",
+                )
+            first_global_position = ledger._select_global_position(
+                cursor,
+                for_update=True,
+            ) + 1
+            events = build_run_outcome_event_batch(
+                outcome,
+                executing_session=executing,
+                completed_session=completed,
+                execution_event=execution_event,
+                evaluator_context=evaluator_context,
+                first_global_position=first_global_position,
+                trusted_context=trusted_context,
+            )
+            stream_id = run_outcome_event_stream_id(outcome.run_outcome_id)
+            request = LedgerAppendRequest(
+                access=access,
+                stream_id=stream_id,
+                expected_stream_version=0,
+                events=events,
+                idempotency=LedgerIdempotency(
+                    events[0].idempotency_key_sha256,
+                    events[0].request_sha256,
+                ),
+            )
+            ledger._append_in_transaction(cursor, request)
+            if (
+                ledger._select_head_event(
+                    cursor,
+                    stream_id,
+                    for_update=False,
+                )
+                != events[-1]
+            ):
+                raise PostgresOutcomeV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_EVENT_READBACK",
+                    "outcome event batch read-back changed",
+                )
+        except (
+            EventLedgerPortError,
+            OutcomeEventV1Error,
+        ) as error:
+            raise PostgresOutcomeV3PersistenceError(
+                "TBM_POSTGRES_OUTCOME_EVENT_APPEND_FAILED",
+                "outcome event batch could not be appended atomically",
+            ) from error
+        finally:
+            ledger.close()
+
+    def _verify_outcome_event_history(
+        self,
+        cursor: object,
+        *,
+        completed: GateSession,
+        outcome: RunOutcome,
+    ) -> None:
+        if not self._gate_sessions._event_first:
+            return
+        evaluator_context = self._evaluator_event_context.get()
+        if evaluator_context is None:
+            raise PostgresOutcomeV3ConflictError(
+                "TBM_POSTGRES_OUTCOME_EVALUATOR_CONTEXT_REQUIRED",
+                "event-first outcome replay requires trusted evaluator context",
+            )
+        from .postgres_event_ledger_v1 import PostgresEventLedgerV1
+
+        access = self._gate_sessions._event_access(completed)
+        ledger = PostgresEventLedgerV1(self._connection, access)
+        try:
+            head = ledger._select_head_event(
+                cursor,
+                run_outcome_event_stream_id(outcome.run_outcome_id),
+                for_update=False,
+            )
+            if head is None or head.previous_stream_event_sha256 is None:
+                raise PostgresOutcomeV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_EVENT_HISTORY_MISSING",
+                    "completed outcome has no canonical event chain",
+                )
+            evaluation_event = ledger._select_event_by_sha256(
+                cursor,
+                head.previous_stream_event_sha256,
+            )
+            if evaluation_event is None:
+                raise PostgresOutcomeV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_EVENT_HISTORY_MISSING",
+                    "completed outcome evaluation event is missing",
+                )
+            evaluation = parse_evaluation_authenticated_event(
+                evaluation_event
+            )
+            record = parse_run_outcome_recorded_event(
+                head,
+                evaluation_event=evaluation_event,
+                completed_session=completed,
+            )
+            if record.outcome != outcome or evaluation.evaluator != evaluator_context:
+                raise PostgresOutcomeV3PersistenceError(
+                    "TBM_POSTGRES_OUTCOME_EVENT_HISTORY_INVALID",
+                    "completed outcome event chain differs from authority rows",
+                )
+        except (
+            EventLedgerPortError,
+            OutcomeEventV1Error,
+        ) as error:
+            raise PostgresOutcomeV3PersistenceError(
+                "TBM_POSTGRES_OUTCOME_EVENT_HISTORY_INVALID",
+                "completed outcome event chain failed validation",
+            ) from error
+        finally:
+            ledger.close()
+
     @_synchronized
     def complete_session(
         self,
@@ -728,6 +908,7 @@ class PostgresOutcomeV3Repository:
         try:
             with self._connection.transaction():
                 with self._connection.cursor(row_factory=dict_row) as cursor:
+                    self._gate_sessions._prepare_event_first_write(cursor)
                     self._lock_schema(cursor, for_write=True)
                     current = self._gate_sessions._select_current(
                         cursor,
@@ -764,6 +945,11 @@ class PostgresOutcomeV3Repository:
                                 "completed GateSession has inconsistent "
                                 "RunOutcome linkage",
                             ) from error
+                        self._verify_outcome_event_history(
+                            cursor,
+                            completed=current,
+                            outcome=existing,
+                        )
                         self._verify_schema_catalog(cursor)
                         return GateCompletionResult(
                             session=current,
@@ -814,6 +1000,12 @@ class PostgresOutcomeV3Repository:
                         run_outcome_id=outcome.run_outcome_id,
                     )
                     verify_run_outcome(outcome, completed)
+                    self._append_outcome_events(
+                        cursor,
+                        executing=current,
+                        completed=completed,
+                        outcome=outcome,
+                    )
                     self._gate_sessions._append_revision(
                         cursor,
                         current,

@@ -31,12 +31,17 @@ attach to one of those managed tables.
 - one exact response binding and bytes for a succeeded attempt;
 - no response for a failed attempt.
 
-One `BEGIN IMMEDIATE` transaction, or one nested savepoint, appends the
-SemanticGateAttempt, stores deduplicated bytes, stores role bindings, reloads
-the full attempt chain, and verifies exact artifact read-back. Any conflict or
-read-back failure rolls back the whole unit, including a newly appended
-attempt. Exact retries return per-row insertion flags without duplicating
-data. `load_attempt_with_artifacts()` revalidates the attempt chain,
+By default, one `BEGIN IMMEDIATE` transaction, or one nested savepoint, appends
+the SemanticGateAttempt, stores deduplicated bytes, stores role bindings,
+reloads the full attempt chain, and verifies exact artifact read-back. The
+explicit durable runtime enables the event-first mode documented by
+[Semantic Gate Attempt Event v1](semantic-gate-attempt-event-v1.md): the same
+transaction first verifies the retained System Gate parent and appends the
+canonical attempt event, then writes the attempt and Artifact projections.
+Any conflict or read-back failure rolls back the whole unit, including event
+heads/idempotency and a newly appended attempt. Exact retries return per-row
+insertion flags without duplicating data or allocating another global
+position. `load_attempt_with_artifacts()` revalidates the attempt chain,
 descriptor columns, role digest, content-derived ID, size, and exact bytes.
 
 The repository registers deterministic `tbm_sha256(BLOB)` on its connection.
@@ -54,10 +59,11 @@ valid storage-neutral contracts but are rejected here even when they name an
 encryption key. Artifact descriptor JSON never embeds the bytes.
 
 The repository does not authenticate providers, establish trusted timestamps,
-apply retention/access-control policy, append GateSession/replay records, or
-emit from the active Agent/MCP path. PostgreSQL parity and those service
-transactions are separate boundaries; PostgreSQL parity is now documented,
-while provider trust and active integration remain follow-up work. SQLite
+apply retention/access-control policy, or append GateSession/replay records.
+Only trusted durable composition may bind event identity context and enable
+event-first mode; external request JSON cannot do so. Compatibility Agent/MCP
+profiles remain unchanged. PostgreSQL parity and provider authentication are
+separate boundaries. SQLite
 file owners and administrators
 with DDL authority remain trusted; external signed checkpoints are required
 to detect a complete offline rewrite.

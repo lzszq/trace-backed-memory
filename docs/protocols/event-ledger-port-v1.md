@@ -5,11 +5,14 @@
 `tbm.event-ledger-port.v1` freezes the storage-neutral application port for a
 future canonical `tbm.event.v1` ledger. It defines trusted access, atomic batch
 append, exact replay, bounded reads, stream verification, and bounded
-subscriptions. F0 delivered the contract; F1 now adds explicit opt-in SQLite
-and isolated PostgreSQL implementations of that frozen port. Neither is
-selected by the active Agent, `tbmd local`, HTTP, MCP, or SDK composition.
-Metadata-only `tbmd ledger` / `tbmd projection` operator commands can select an
-explicit SQLite event-ledger file for verification and inventory rebuild.
+subscriptions. F0 delivered the contract; F1 adds explicit opt-in SQLite and
+isolated PostgreSQL implementations of that frozen port. The explicit durable
+v3 runtime now selects scoped event-first adapters for GateSession,
+Retrieval/System Gate evidence, Semantic attempts, and finalization, plus a
+ledger-backed finalized replay reader. Default compatibility Agent/MCP behavior
+remains unchanged, and metadata-only `tbmd ledger` / `tbmd projection` operator
+commands can select an explicit SQLite event-ledger file for verification and
+inventory rebuild.
 
 ## Trusted access boundary
 
@@ -105,7 +108,11 @@ policy independently.
 These opt-in backends do not make the existing durable-v3 authorities event
 projections and do not change the current compatibility Store or default
 Agent/MCP behavior. The generic F1 reducer runtime and operator CLI can retain
-checkpoints and projection-head history in these schemas, but only the
-envelope-only inventory reducer is built in. Until an event-first composition
-root and verified cutover select the domain lifecycle, the machine-readable
-persistence model remains `authority_graph` and `full_persistence=false`.
+checkpoints and projection-head history in these schemas. F2 adds typed reducers
+and event/projection parity for the selected GateSession, Gate evidence,
+Semantic attempt, and final decision/injection slices. Explicit durable replay
+export now derives metadata from the ledger and exact bytes from the replay
+authority. Synchronized authorities remain transitional projections and the
+generic reducer runtime is not the sole lifecycle rebuild path. The
+machine-readable persistence model therefore remains
+`authority_graph` and `full_persistence=false` until verified full cutover.

@@ -45,6 +45,9 @@ from trace_backed_memory.durable_runtime_v3 import (
     DurableRuntimeFactory,
     DurableRuntimeV3Error,
 )
+from trace_backed_memory.event_registry_v1 import DEFAULT_EVENT_TYPE_REGISTRY
+from trace_backed_memory.event_v1 import loads_canonical_event
+from trace_backed_memory.reducer import ReducerEvent, execute_reducer_step
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -215,6 +218,128 @@ def test_durable_sqlite_runtime_builds_one_restart_safe_authority_graph(
         completed = runtime.sessions.get(executing.session_id)
         assert completed_response["result"]["session"]["status"] == "completed"
 
+        event_rows = runtime._connection.execute(
+            "SELECT canonical_event FROM v3_event_ledger_events "
+            "WHERE stream_id = ? ORDER BY stream_version",
+            (completed.session_id,),
+        ).fetchall()
+        events = tuple(loads_canonical_event(row[0]) for row in event_rows)
+        assert tuple(event.event_type for event in events) == (
+            tbm.GATE_SESSION_CREATED_EVENT,
+            tbm.GATE_SESSION_PREPARED_EVENT,
+            tbm.SEMANTIC_GATE_REQUESTED_EVENT,
+            tbm.GATE_SESSION_LEASE_RENEWED_EVENT,
+            tbm.SEMANTIC_GATE_DECIDED_EVENT,
+            tbm.GATE_SESSION_LEASE_RENEWED_EVENT,
+            tbm.USAGE_DECISION_FINALIZED_EVENT,
+            tbm.EXECUTION_STARTED_EVENT,
+            tbm.GATE_SESSION_COMPLETED_EVENT,
+        )
+        authorization_ids = tuple(
+            event.authorization_decision_id for event in events
+        )
+        assert authorization_ids[0] == authorization_ids[1]
+        assert authorization_ids[2] == authorization_ids[3] == authorization_ids[4]
+        assert authorization_ids[5] == authorization_ids[6]
+        assert len(
+            {
+                authorization_ids[0],
+                authorization_ids[2],
+                authorization_ids[5],
+                authorization_ids[7],
+                authorization_ids[8],
+            }
+        ) == 5
+        reducer = tbm.build_gate_session_reducer()
+        state = reducer.initial_state()
+        for event in events:
+            state = execute_reducer_step(
+                reducer,
+                state,
+                ReducerEvent(event, DEFAULT_EVENT_TYPE_REGISTRY.consume(event)),
+            ).state
+        tbm.verify_gate_session_projection_parity(state, (completed,))
+
+        snapshot = runtime.evidence_repository.load_snapshot(
+            completed.retrieval_snapshot_id
+        )
+        evidence_rows = runtime._connection.execute(
+            "SELECT canonical_event FROM v3_event_ledger_events "
+            "WHERE stream_id IN (?, ?) ORDER BY global_position",
+            (
+                snapshot.snapshot_id,
+                evaluation.evaluation_id,
+            ),
+        ).fetchall()
+        evidence_events = tuple(
+            loads_canonical_event(row[0]) for row in evidence_rows
+        )
+        assert tuple(event.event_type for event in evidence_events) == (
+            tbm.RETRIEVAL_PREPARED_EVENT,
+            tbm.SYSTEM_GATE_EVALUATED_EVENT,
+        )
+        evidence_reducer = tbm.build_gate_evidence_reducer()
+        evidence_state = evidence_reducer.initial_state()
+        for event in evidence_events:
+            evidence_state = execute_reducer_step(
+                evidence_reducer,
+                evidence_state,
+                ReducerEvent(
+                    event,
+                    DEFAULT_EVENT_TYPE_REGISTRY.consume(event),
+                ),
+            ).state
+        tbm.verify_gate_evidence_projection_parity(
+            evidence_state,
+            (snapshot,),
+            (evaluation,),
+        )
+
+        semantic_bundles = tuple(
+            runtime.semantic_repository.load_attempt_with_artifacts(
+                attempt_id
+            )
+            for attempt_id in completed.semantic_gate_attempt_ids
+        )
+        semantic_rows = runtime._connection.execute(
+            "SELECT canonical_event FROM v3_event_ledger_events "
+            "WHERE stream_id = ? ORDER BY stream_version",
+            (
+                tbm.semantic_gate_attempt_stream_id(
+                    evaluation.evaluation_id
+                ),
+            ),
+        ).fetchall()
+        semantic_events = tuple(
+            loads_canonical_event(row[0]) for row in semantic_rows
+        )
+        assert tuple(event.event_type for event in semantic_events) == (
+            tbm.SEMANTIC_GATE_ATTEMPT_SUCCEEDED_EVENT,
+        )
+        assert semantic_events[0].causation_id == tbm.gate_evidence_event_id(
+            tbm.SYSTEM_GATE_EVALUATED_EVENT,
+            evaluation.evaluation_id,
+        )
+        assert semantic_events[0].authorization_decision_id == (
+            authorization_ids[2]
+        )
+        semantic_reducer = tbm.build_semantic_gate_attempt_reducer()
+        semantic_state = semantic_reducer.initial_state()
+        for event in (evidence_events[1], *semantic_events):
+            semantic_state = execute_reducer_step(
+                semantic_reducer,
+                semantic_state,
+                ReducerEvent(
+                    event,
+                    DEFAULT_EVENT_TYPE_REGISTRY.consume(event),
+                ),
+            ).state
+        tbm.verify_semantic_gate_attempt_projection_parity(
+            semantic_state,
+            semantic_bundles,
+            (evidence_events[1], *semantic_events),
+        )
+
         deliveries = runtime.deliver_outbox(worker_id="worker_runtime_01")
         assert len(deliveries) == 1
         assert deliveries[0].outcome == "delivered"
@@ -331,6 +456,7 @@ def test_durable_postgres_runtime_parity_and_catalog_verification(
         "postgres-v3-replay.sql",
         "postgres-v3-outcome.sql",
         "postgres-v3-completion-outbox.sql",
+        "postgres-v3-event-ledger.sql",
     ):
         installed = postgres_cluster.run_script(ROOT / "schemas" / script)
         assert installed.returncode == 0, installed.stderr

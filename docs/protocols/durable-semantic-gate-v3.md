@@ -20,9 +20,11 @@ session/evaluation/snapshot/Trace/run mismatch before provider work.
 The provider context is still transport-derived and must exactly match the
 server-owned provider, authenticator, and credential registration. This
 provider authentication is not tenant authorization. The session must already
-be the output of the authenticated durable retrieval-preparation boundary; the
-composition service remains a trusted internal service and is not exposed by
-the active adapters. Its provider callback must remain server-owned; provider
+be the output of the authenticated durable retrieval-preparation boundary. The
+composition service remains a trusted internal kernel rather than a transport
+authenticator. Explicit durable HTTP/MCP and SDK profiles expose it through the
+authenticated durable Agent facade; default compatibility adapters do not.
+Its provider callback must remain server-owned; provider
 authentication does not turn a caller-supplied callback into trustworthy model
 provenance, and signed provider attestation remains future work.
 
@@ -100,5 +102,6 @@ The separate opt-in durable finalization composition now provides rendering,
 content-addressed final injection, complete replay-bundle retention, and the
 `DECIDED -> FINALIZED` CAS. The opt-in
 [authenticated durable Agent](durable-agent-v3.md) composes it with execution
-and outcome completion. Active transport authentication and Agent/MCP/HTTP/SDK
-emission remain separate work.
+and outcome completion. Explicit durable HTTP/MCP and Python/TypeScript SDK
+profiles expose that facade; default compatibility adapters and
+peer-authenticated shared-service transport remain separate boundaries.

@@ -1119,6 +1119,220 @@ def test_daemon_crash_restart_lock_concurrency_and_expiry(
         _kill(second)
 
 
+def test_daemon_hard_restart_after_each_acknowledged_lifecycle_commit(
+    tmp_path: Path,
+) -> None:
+    state_directory = tmp_path / ".tbm"
+    port = _free_port()
+    prepare_request = _prepare_request().model_copy(
+        update={
+            "expires_in_seconds": 3_600,
+            "lease_seconds": 600,
+        }
+    )
+
+    process = _start_daemon(
+        state_directory,
+        port,
+        initialize=True,
+    )
+    try:
+        client = _wait_for_client(process, port)
+        prepared_response = client.prepare(prepare_request)
+        session_id = cast(
+            str,
+            prepared_response.result["session"]["session_id"],
+        )
+    finally:
+        _kill(process)
+
+    canonical_state_directory = prepare_local_state_directory(
+        state_directory,
+        create=False,
+    )
+    database = prepare_local_database(
+        canonical_state_directory,
+        initialize=False,
+    )
+    application = create_test_application()
+    with DurableRuntimeFactory(application.dependencies).open_sqlite(
+        database,
+        expose_injection_content=True,
+        expose_replay_content=True,
+    ) as runtime:
+        prepared = runtime.sessions.get(session_id)
+        evaluation = runtime.evidence_repository.load_evaluation(
+            prepared.system_gate_evaluation_id
+        )
+        decide_request = _decide_request(
+            prepared,
+            evaluation,
+        ).model_copy(update={"lease_seconds": 600})
+
+    process = _start_daemon(
+        state_directory,
+        port,
+        initialize=False,
+    )
+    try:
+        client = _wait_for_client(process, port)
+        current = client.get_session({"session_id": session_id})
+        assert current.result["session"]["status"] == "prepared"
+        assert current.result["session"]["version"] == (
+            decide_request.expected_session_version
+        ), current.result["session"]
+        prepare_retry = client.prepare(prepare_request)
+        assert prepare_retry.result == prepared_response.result
+        after_prepare_retry = client.get_session({"session_id": session_id})
+        assert after_prepare_retry.result["session"] == current.result[
+            "session"
+        ], after_prepare_retry.result["session"]
+        decided_response = client.decide(decide_request)
+        assert decided_response.result["session"]["status"] == "decided"
+    finally:
+        _kill(process)
+
+    decided_version = cast(
+        int,
+        decided_response.result["session"]["version"],
+    )
+    finalize_request = DurableFinalizeRequest(
+        session_id=session_id,
+        expected_session_version=decided_version,
+    )
+    process = _start_daemon(
+        state_directory,
+        port,
+        initialize=False,
+    )
+    try:
+        client = _wait_for_client(process, port)
+        current = client.get_session({"session_id": session_id})
+        assert current.result["session"]["status"] == "decided"
+        decide_retry = client.decide(decide_request)
+        assert decide_retry.result["replayed"] is True
+        finalized_response = client.finalize(finalize_request)
+        assert finalized_response.result["session"]["status"] == "finalized"
+    finally:
+        _kill(process)
+
+    finalized_version = cast(
+        int,
+        finalized_response.result["session"]["version"],
+    )
+    start_request = DurableStartRequest(
+        session_id=session_id,
+        expected_session_version=finalized_version,
+    )
+    process = _start_daemon(
+        state_directory,
+        port,
+        initialize=False,
+    )
+    try:
+        client = _wait_for_client(process, port)
+        current = client.get_session({"session_id": session_id})
+        assert current.result["session"]["status"] == "finalized"
+        finalize_retry = client.finalize(finalize_request)
+        assert finalize_retry.result["replayed"] is True
+        started_response = client.start(start_request)
+        assert started_response.result["session"]["status"] == "executing"
+    finally:
+        _kill(process)
+
+    with DurableRuntimeFactory(application.dependencies).open_sqlite(
+        database,
+        expose_injection_content=True,
+        expose_replay_content=True,
+    ) as runtime:
+        executing = runtime.sessions.get(session_id)
+        completion = _completion(executing)
+        complete_request = DurableCompleteRequest(
+            session_id=completion.session_id,
+            expected_session_version=completion.expected_version,
+            result=completion.result,
+            evidence_artifact_sha256s=list(
+                completion.evidence_artifact_sha256s
+            ),
+            output_sha256=completion.output_sha256,
+            tool_outputs_sha256=completion.tool_outputs_sha256,
+            latency_ms=completion.latency_ms,
+            cost_usd=completion.cost_usd,
+            error_code=completion.error_code,
+        )
+
+    process = _start_daemon(
+        state_directory,
+        port,
+        initialize=False,
+    )
+    try:
+        client = _wait_for_client(process, port)
+        current = client.get_session({"session_id": session_id})
+        assert current.result["session"]["status"] == "executing"
+        start_retry = client.start(start_request)
+        assert start_retry.result["replayed"] is True
+        completed_response = client.complete(complete_request)
+        assert completed_response.result["session"]["status"] == "completed"
+    finally:
+        _kill(process)
+
+    process = _start_daemon(
+        state_directory,
+        port,
+        initialize=False,
+    )
+    try:
+        client = _wait_for_client(process, port)
+        current = client.get_session({"session_id": session_id})
+        assert current.result["session"]["status"] == "completed"
+        complete_retry = client.complete(complete_request)
+        assert complete_retry.result["replayed"] is True
+        assert complete_retry.result["outcome"] == completed_response.result[
+            "outcome"
+        ]
+    finally:
+        _kill(process)
+
+    with DurableRuntimeFactory(application.dependencies).open_sqlite(
+        database,
+        expose_injection_content=True,
+        expose_replay_content=True,
+    ) as runtime:
+        completed = runtime.sessions.get(session_id)
+        event_rows = runtime._connection.execute(
+            "SELECT canonical_event FROM v3_event_ledger_events "
+            "WHERE stream_id = ? ORDER BY stream_version",
+            (session_id,),
+        ).fetchall()
+        events = tuple(
+            tbm.loads_canonical_event(row[0]) for row in event_rows
+        )
+        assert tuple(event.event_type for event in events) == (
+            tbm.GATE_SESSION_CREATED_EVENT,
+            tbm.GATE_SESSION_PREPARED_EVENT,
+            tbm.SEMANTIC_GATE_REQUESTED_EVENT,
+            tbm.GATE_SESSION_LEASE_RENEWED_EVENT,
+            tbm.SEMANTIC_GATE_DECIDED_EVENT,
+            tbm.GATE_SESSION_LEASE_RENEWED_EVENT,
+            tbm.USAGE_DECISION_FINALIZED_EVENT,
+            tbm.EXECUTION_STARTED_EVENT,
+            tbm.GATE_SESSION_COMPLETED_EVENT,
+        )
+        reducer = tbm.build_gate_session_reducer()
+        state = reducer.initial_state()
+        for event in events:
+            state = tbm.execute_reducer_step(
+                reducer,
+                state,
+                tbm.ReducerEvent(
+                    event,
+                    tbm.DEFAULT_EVENT_TYPE_REGISTRY.consume(event),
+                ),
+            ).state
+        tbm.verify_gate_session_projection_parity(state, (completed,))
+
+
 def test_daemon_reclaims_an_expired_outbox_lease(
     tmp_path: Path,
 ) -> None:

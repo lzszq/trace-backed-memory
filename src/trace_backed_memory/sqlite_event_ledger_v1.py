@@ -974,6 +974,107 @@ class SQLiteEventLedgerV1:
                 "global ledger head changed during append",
             )
 
+    def _append_in_transaction(
+        self,
+        cursor: sqlite3.Cursor,
+        request: LedgerAppendRequest,
+    ) -> LedgerAppendReceipt:
+        self._require_open()
+        if type(request) is not LedgerAppendRequest:
+            raise ValueError("request must be exactly LedgerAppendRequest")
+        if request.access != self._access_context:
+            raise ValueError("request access must match the bound ledger access")
+        self._require_schema(cursor)
+        idempotency = request.idempotency
+        retained_row = self._select_idempotency(
+            cursor,
+            idempotency.idempotency_key_sha256,
+        )
+        if retained_row is not None:
+            if (
+                retained_row[0] != idempotency.command_sha256
+                or retained_row[1] != request.request_sha256
+            ):
+                raise EventLedgerIdempotencyConflictError(
+                    "TBM_EVENT_LEDGER_IDEMPOTENCY_CONFLICT",
+                    "idempotency key is bound to another command",
+                )
+            retained = self._receipt_from_idempotency_row(
+                cursor,
+                idempotency.idempotency_key_sha256,
+                retained_row,
+            )
+            verify_ledger_append_receipt(request, retained)
+            return retained
+
+        current_head = self._select_head_event(cursor, request.stream_id)
+        next_global_position = self._select_global_position(cursor) + 1
+        verify_ledger_append_precondition(
+            request,
+            current_head=current_head,
+            next_global_position=next_global_position,
+        )
+        partition = self._access_context.partition
+        if current_head is None:
+            cursor.execute(
+                "INSERT INTO v3_event_ledger_stream_heads ("
+                "partition_sha256, stream_id, organization_id, tenant_id, "
+                "repository_id, environment_id, current_stream_version, "
+                "current_event_id, current_event_sha256"
+                ") VALUES (?, ?, ?, ?, ?, ?, 0, NULL, NULL)",
+                (
+                    partition.partition_sha256,
+                    request.stream_id,
+                    partition.organization_id,
+                    partition.tenant_id,
+                    partition.repository_id,
+                    partition.environment_id,
+                ),
+            )
+        for event in request.events:
+            self._insert_event(cursor, event, partition.partition_sha256)
+
+        receipt = build_ledger_append_receipt(request)
+        event_sha256s_json = _canonical_json(
+            [event.event_sha256 for event in request.events]
+        )
+        cursor.execute(
+            "INSERT INTO v3_event_ledger_idempotency ("
+            "partition_sha256, idempotency_key_sha256, command_sha256, "
+            "request_sha256, stream_id, previous_stream_version, "
+            "current_stream_version, first_global_position, "
+            "last_global_position, event_sha256s_json, receipt_sha256"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                partition.partition_sha256,
+                idempotency.idempotency_key_sha256,
+                idempotency.command_sha256,
+                request.request_sha256,
+                request.stream_id,
+                receipt.previous_stream_version,
+                receipt.current_stream_version,
+                receipt.first_global_position,
+                receipt.last_global_position,
+                event_sha256s_json,
+                receipt.receipt_sha256,
+            ),
+        )
+        retained_row = self._select_idempotency(
+            cursor,
+            idempotency.idempotency_key_sha256,
+        )
+        if retained_row is None:
+            raise _integrity_error(
+                "committed idempotency receipt could not be read back"
+            )
+        retained = self._receipt_from_idempotency_row(
+            cursor,
+            idempotency.idempotency_key_sha256,
+            retained_row,
+        )
+        verify_ledger_append_receipt(request, retained)
+        return retained
+
     @_synchronized
     def append(
         self,
@@ -994,99 +1095,7 @@ class SQLiteEventLedgerV1:
             with self._transaction(write=True), closing(
                 self._connection.cursor()
             ) as cursor:
-                self._require_schema(cursor)
-                retained_row = self._select_idempotency(
-                    cursor,
-                    idempotency.idempotency_key_sha256,
-                )
-                if retained_row is not None:
-                    if (
-                        retained_row[0] != idempotency.command_sha256
-                        or retained_row[1] != request.request_sha256
-                    ):
-                        raise EventLedgerIdempotencyConflictError(
-                            "TBM_EVENT_LEDGER_IDEMPOTENCY_CONFLICT",
-                            "idempotency key is bound to another command",
-                        )
-                    retained = self._receipt_from_idempotency_row(
-                        cursor,
-                        idempotency.idempotency_key_sha256,
-                        retained_row,
-                    )
-                    verify_ledger_append_receipt(request, retained)
-                    return retained
-
-                current_head = self._select_head_event(cursor, stream_id)
-                next_global_position = self._select_global_position(cursor) + 1
-                verify_ledger_append_precondition(
-                    request,
-                    current_head=current_head,
-                    next_global_position=next_global_position,
-                )
-                partition = self._access_context.partition
-                if current_head is None:
-                    cursor.execute(
-                        "INSERT INTO v3_event_ledger_stream_heads ("
-                        "partition_sha256, stream_id, organization_id, tenant_id, "
-                        "repository_id, environment_id, current_stream_version, "
-                        "current_event_id, current_event_sha256"
-                        ") VALUES (?, ?, ?, ?, ?, ?, 0, NULL, NULL)",
-                        (
-                            partition.partition_sha256,
-                            stream_id,
-                            partition.organization_id,
-                            partition.tenant_id,
-                            partition.repository_id,
-                            partition.environment_id,
-                        ),
-                    )
-                for event in events:
-                    self._insert_event(
-                        cursor,
-                        event,
-                        partition.partition_sha256,
-                    )
-
-                receipt = build_ledger_append_receipt(request)
-                event_sha256s_json = _canonical_json(
-                    [event.event_sha256 for event in events]
-                )
-                cursor.execute(
-                    "INSERT INTO v3_event_ledger_idempotency ("
-                    "partition_sha256, idempotency_key_sha256, command_sha256, "
-                    "request_sha256, stream_id, previous_stream_version, "
-                    "current_stream_version, first_global_position, "
-                    "last_global_position, event_sha256s_json, receipt_sha256"
-                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        partition.partition_sha256,
-                        idempotency.idempotency_key_sha256,
-                        idempotency.command_sha256,
-                        request.request_sha256,
-                        stream_id,
-                        receipt.previous_stream_version,
-                        receipt.current_stream_version,
-                        receipt.first_global_position,
-                        receipt.last_global_position,
-                        event_sha256s_json,
-                        receipt.receipt_sha256,
-                    ),
-                )
-                retained_row = self._select_idempotency(
-                    cursor,
-                    idempotency.idempotency_key_sha256,
-                )
-                if retained_row is None:
-                    raise _integrity_error(
-                        "committed idempotency receipt could not be read back"
-                    )
-                retained = self._receipt_from_idempotency_row(
-                    cursor,
-                    idempotency.idempotency_key_sha256,
-                    retained_row,
-                )
-                verify_ledger_append_receipt(request, retained)
-                return retained
+                return self._append_in_transaction(cursor, request)
         except EventLedgerPortError:
             raise
         except sqlite3.DatabaseError as error:

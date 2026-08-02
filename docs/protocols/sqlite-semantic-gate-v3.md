@@ -59,13 +59,13 @@ This attempt ledger stores provenance descriptors and artifact hashes, not
 prompt/response bytes by itself. The opt-in
 [SQLite Semantic Gate artifact repository](sqlite-semantic-gate-artifact-v3.md)
 now composes it with exact public/internal byte storage in one transaction.
-Neither repository authenticates providers, chooses trusted timestamps,
-appends GateSession revisions, or emits attempts from the
-active Store, Agent, or MCP path. The
+The low-level ledger itself does not authenticate providers, choose trusted
+timestamps, or append GateSession revisions. The authenticated coordinator and
+explicit durable runtime do, and they append the canonical attempt event before
+this ledger projection; default compatibility Store/Agent/MCP paths do not. The
 [PostgreSQL peer](postgres-semantic-gate-v3.md) now provides shared-database
-persistence parity for attempts; PostgreSQL artifact bytes, authorization,
-retention, and transactionally integrated GateSession/replay service
-operations remain outstanding.
+persistence parity for attempts and exact Artifact bytes. Sensitive Artifact
+storage and full event-sourced projection cutover remain outstanding.
 
 SQLite database administrators remain inside the local trust boundary.
 Repository operations reject disabled required PRAGMAs, and the insert

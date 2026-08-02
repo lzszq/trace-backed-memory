@@ -75,13 +75,13 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 迁移准备 | content-addressed、不可激活的 v2→v3 bundle、精确 plan replay、immutable SQLite staging，以及不改变 active runtime version 的 PostgreSQL version-gated staging/rollback |
 | 统一 SQLite v3 持久化 | opt-in 生成式 15-component bundle 在一个事务中安装完整非迁移 authority catalog，并校验精确 component version 以及全部受控 main/temp table、index、automatic index 与 trigger；active SQLite v1 transport 保持不变 |
 | GateSession 持久化准备 | opt-in side-by-side SQLite 与隔离 PostgreSQL append-only revision、scoped idempotency、CAS transition、可信时钟、有界 due discovery 和 fail-closed PostgreSQL rollback；active SQLite v1/PostgreSQL v2 不变 |
-| 重放持久化准备 | 与存储实现无关的内容寻址 artifact、精确 injection、固定 component decision-manifest 与可移植 `tbm.replay-export.v3` 契约，以及 opt-in 隔离 SQLite/PostgreSQL immutable 字节/descriptor 账本；durable facade 与显式 durable HTTP profile 会用新的 `artifact:read` decision 授权精确版本、session-bound export，response bytes 仍默认关闭 |
+| 重放持久化准备 | 与存储实现无关的内容寻址 artifact、精确 injection、固定 component decision-manifest 与可移植 `tbm.replay-export.v3` 契约，以及 opt-in 隔离 SQLite/PostgreSQL immutable 字节/descriptor 账本；显式 durable finalization 会 append canonical final-decision/injection event，durable facade 会从 ledger 重建 session-bound export metadata，再在新的 `artifact:read` decision 下从 authenticated replay authority 读取精确字节；response bytes 仍默认关闭 |
 | 授权契约准备 | 与存储实现无关的 canonical repository、精确 alias、principal/client、role binding 与关联 decision v3 契约；显式 durable HTTP profile 通过服务端持有的 context 执行授权，兼容 adapter 尚未执行 |
 | 结构化证据准备 | content-addressed FixEvidence 与 regression evidence 绑定精确 case、source Trace、source/fix/verification commit、artifact、独立 reviewer/verifier 与 attestation provenance；严格 MemoryRevision preflight 校验跨记录关系，active v2 record 尚不使用它们 |
 | 不可变 revision publication | 内容派生 proposal 与独立 approval/activation event 绑定精确 artifact、evidence、authorization、actor、scope 与 lineage；隔离 SQLite/PostgreSQL authority 持久化 canonical provenance，通过调用方 boundary 验证 attestation，并以 CAS 锁定 durable target head；已授权 ActivatedRevision source 会通过 SQLite/PostgreSQL Artifact authority 为未来 v3 retrieval 重新核验当前 head、publication provenance、结构化 evidence 与加密内容；active-v2 projection 和 retrieval integration 仍待完成 |
 | 可回放检索准备 | 内容寻址 policy 与可选 authenticated preparation kernel 先授权，再读取已核验 activated revision，过滤 classification/applicability/eval leakage/Git ancestry，对分数做确定性融合，并生成配对 RetrievalSnapshot/System Gate evidence，最后复查 head/policy；opt-in immutable 五视图托管索引 bundle 通过精确 SQLite/PostgreSQL scope-head CAS 提供内容寻址 metadata/lexical/semantic/evidence/Git discovery；durable 组合服务会创建已授权 GateSession、保存并核验精确 evidence 记录对，再通过 CAS 发布 `PREPARED`；生产分片/worker 与默认兼容路径 cutover 仍待完成 |
-| 可回放门禁准备 | 内容派生 System Gate evaluation 与 Semantic Gate attempt 绑定确定性 rule 结果及 provider/model provenance，并强制模型只能缩小；精确 prompt/response binding 核验角色 digest，SQLite/PostgreSQL authority 原子保存 public/internal 字节，共享服务认证 provider registration、持有可信计时与 retry parent，并要求精确读回；opt-in session 组合现会推进 `PREPARED -> AWAITING_DECISION -> DECIDED`、记录完整 attempt chain，并在不重复 provider 调用的情况下恢复已保存 success；opt-in finalization 组合现在会复查授权/head/policy、确定性渲染最终允许集合、保留精确 UsageDecision 与完整 replay bundle，并通过 CAS 发布 `FINALIZED`；active policy emission 仍待完成 |
-| 持久化执行与完成准备 | authenticated execution 组合会在 `FINALIZED` → `EXECUTING` 前核验已保留 injection，支持精确 revision 的 lease resume 与 abandonment，认证已注册 outcome evaluator，并组合 opt-in SQLite 或隔离 PostgreSQL authority，原子绑定一份 content-addressed RunOutcome、`COMPLETED`、一条 immutable completion event 与 append-only leased retry/dead-letter delivery chain；显式 durable transport 已暴露该生命周期，`tbmd local` 会运行有界 SQLite recovery/outbox page，shared-service worker 仍待完成 |
+| 可回放门禁准备 | 内容派生 System Gate evaluation 与 Semantic Gate attempt 绑定确定性 rule 结果及 provider/model provenance，并强制模型只能缩小；精确 prompt/response binding 核验角色 digest，SQLite/PostgreSQL authority 原子保存 public/internal 字节，共享服务认证 provider registration、持有可信计时与 retry parent，并要求精确读回；opt-in session 组合现会推进 `PREPARED -> AWAITING_DECISION -> DECIDED`、记录完整 attempt chain，并在不重复 provider 调用的情况下恢复已保存 success；显式 durable finalization 会在 `FINALIZED`/replay projection 同一 transaction 中 append `tbm.usage_decision.finalized -> tbm.injection.rendered`，`final-decision-injection` 会重建精确 parity；active policy emission 仍待完成 |
+| 持久化执行与完成准备 | authenticated execution 组合会在 `FINALIZED` → `EXECUTING` 前核验已保留 injection，支持精确 revision 的 lease resume 与 abandonment，认证已注册 outcome evaluator，并组合 opt-in SQLite 或隔离 PostgreSQL authority，原子绑定一份 content-addressed RunOutcome、`COMPLETED`、一条 immutable completion event、`EffectRequested` 与 append-only leased retry/dead-letter delivery chain；canonical worker transition event 会供 `effect-queue` reducer 按精确 delivery history 重建。显式 durable transport 已暴露该生命周期，`tbmd local` 会运行有界 SQLite recovery/outbox page；provider receipt、unknown-result reconciliation、durable compensation 与 shared-service worker 仍待完成 |
 | 分发资源 | [`resources/manifest.json`](../resources/manifest.json) 驱动严格、byte-identical 的 Schema/OpenAPI/SQL/迁移/taxonomy/example allowlist、runtime 声明、package data、metadata 与生成索引 |
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类；bounded local document ingestion 对本地 JSON/YAML 先限额再校验，并以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
@@ -103,6 +103,11 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 
 普通同步调用方可以用 `run_memory_execution()` 把第 2-6 步收敛为一次调用；LLM 与 harness 仍由调用方 callback 提供，Store 继续拥有门控、linkage 和原子完成。不需要直接管理底层 Store 生命周期的应用可以使用 `LocalAgentMemory`，由它同时负责 Trace 注册、Repository 同步、稳定错误与 callback 恢复 ID。可选的默认 `tbm-mcp` 命令只通过有界本地 STDIO 暴露这套 runtime 生命周期，把 provenance 固定到配置的 checkout root，并在检索前捕获完整 Git ancestry。SQLite/PostgreSQL 同步持久阶段；该兼容 profile 的 pending request 仍为进程内状态。与持久化实现无关的 `tbm.gate-session.v3` 契约已经定义目标 lifecycle、revision、lease 与 expiry 语义，opt-in、side-by-side SQLite 与隔离 PostgreSQL repository 已能持久化其 immutable revision；授权 v3 契约定义 retrieval 前的 policy boundary，opt-in 隔离 SQLite 与 PostgreSQL authority 能核验精确 policy/request/decision 三元组并持久记录 immutable decision。`AuthenticatedRetrievalService` 提供共享顺序 kernel：匹配可信 identity record、持久化并重新加载 decision、复查 registry 轮换与 environment binding，之后才调用 retrieval。`AuthenticatedGateSessionService` 随后在 preparation 前 durable create/read-back scoped session、阻止重复 retrieval、要求可信 retrieval/System-Gate evidence，并通过 CAS 与显式补偿发布 `PREPARED`。opt-in SQLite/PostgreSQL Gate evidence authority 会原子保存并读回每个精确内容寻址记录对，共享 verifier 再把它绑定到已授权 session 与 identity scope。`DurableRetrievalPreparationService` 会在同一授权 scope 下组合这些 opt-in 边界：先创建 session，不记录第二条 authorization decision 地完成 retrieval preparation，保存并核验记录对，再发布 `PREPARED`。`AuthenticatedSemanticGateSessionService` 随后会核验 durable evidence 与完整 immutable attempt chain，在 provider 工作前发布 `AWAITING_DECISION`，并仅在 attempt/artifact 精确读回后发布 `DECIDED`；failed attempt 保持显式可重试，已保存 success 可在不再次调用 provider 的情况下恢复。authority 分离时保持有序恢复；同一数据库的 repository 可以共享 caller-owned 外层 transaction。`GateSessionRecoveryWorker` 执行有界 due scan，只 expire graph 合法且 session 已到期的 prepared/awaiting head，并把 graph-blocked 或并发状态交给显式 recovery。默认 Agent/MCP profile 尚未使用这些 kernel；可选本地 MCP `--auth-*` profile 会使用 authenticated retrieval kernel 与 SQLite authorization authority，而显式 durable HTTP 与可信本地 MCP profile 会选择完整 durable facade。opt-in `DurableFinalizationService` 现在会复查授权/head/policy、保留完整 replay bundle，并以 SQLite/PostgreSQL caller-transaction 对等性通过 CAS 发布 `FINALIZED`。带 peer authentication 的共享服务 transport、受保护内容加密、持久 transition-event linkage、默认 adapter cutover、CLI durable 选择与 shared-service MCP 仍未交付。需要暂停、人工重试或独立生命周期控制的高级调用方继续直接使用底层方法。
 
+显式 durable SQLite/PostgreSQL runtime 会在 finalization 时依次 append
+`tbm.usage_decision.finalized` 与 `tbm.injection.rendered`，并在同一个 transaction 中写
+`FINALIZED` 与 replay projection。session replay 会从 ledger 重建 canonical metadata，
+再只从 authenticated replay authority 读取精确字节；默认 compatibility 行为不变。
+
 默认本地 loopback HTTP adapter、同步/异步 Python client 与 Node.js TypeScript SDK
 现在会通过默认 MCP 同一套严格 dispatcher 暴露 active version-2 lifecycle。它们的
 bearer secret 只保护本地进程边界，不是 durable v3 组合所需的 service-identity
@@ -115,7 +120,7 @@ transition authorization event，不是指缺少执行状态转换。opt-in
 `DurableExecutionService` 会核验同一份已保留 injection，要求当前有效的
 `gate_session:transition` 授权，通过 CAS 发布 `EXECUTING`，支持显式
 resume/abandonment，认证 outcome evaluator，并组合原子 outcome/completion-outbox
-发布。transport authentication、受保护内容加密、持久 transition-event linkage、
+发布。transport authentication、受保护内容加密、其余 lifecycle transition-event linkage、
 shared-service MCP 与其他 active adapter 仍待完成。
 
 `AuthenticatedDurableAgentMemory` 现在会在一个 adapter-neutral facade 后面组合
@@ -238,11 +243,11 @@ projection rebuild 与 cutover 证据全部完成前，既有 durable-v3 authori
 upcaster；以及用于原子批量 append、精确幂等 replay、有界 read、verification 和
 subscription 的存储中立 ledger 应用端口。仓库守卫还会把每个当前
 SQLite/PostgreSQL 持久化模块登记为 ledger、replaceable projection、compatibility
-migration 或 bundle coordinator，并拒绝未登记 authority。F1 现已增加 opt-in SQLite
+migration 或 bundle coordinator，并拒绝未登记 authority。F1 增加 opt-in SQLite
 与隔离 PostgreSQL event-ledger 后端，覆盖精确 Artifact descriptor、原子 append/replay、
-integrity/catalog 校验、backup/rollback 和跨后端一致性。lifecycle composition、
-cutover 与 active transport path 尚未选择它们。F1
-现在还交付 opt-in `tbm.reducer.v1` runtime：versioned descriptor 与 sealed registry、
+integrity/catalog 校验、backup/rollback 和跨后端一致性。F1 基础本身与默认
+compatibility path 不会选择它们；显式 durable F2 lifecycle slice 现已选择。F1 还交付
+opt-in `tbm.reducer.v1` runtime：versioned descriptor 与 sealed registry、
 有界 canonical state、双执行 determinism 检查、typed-event/upcaster consumption、
 checkpoint/resume、poison evidence、shadow comparison、CAS activation、append-only
 rollback、SQLite/PostgreSQL checkpoint parity，以及显式 metadata-only `tbmd ledger` /
@@ -253,6 +258,30 @@ Memory lifecycle 选择它。详见
 [Event Type Registry v1](protocols/event-registry-v1.zh-CN.md) 与
 [Event Ledger Port v1](protocols/event-ledger-port-v1.zh-CN.md)，以及
 [Reducer 与 Projection Runtime v1](protocols/reducer-v1.zh-CN.md)。
+
+F2 现已进入实施阶段。显式 durable SQLite/PostgreSQL runtime 会启用 event-first
+GateSession revision：每条 canonical event 与同步 revision-row projection 共享同一
+transaction，typed reducer 可重建精确 current session。SQLite 已覆盖持久 checkpoint
+resume、shadow comparison、activation、rollback 与逐字段 parity。durable retrieval
+preparation 还会先 append 紧凑、绑定 exact digest/Artifact ref 的 RetrievalSnapshot 与
+SystemGateEvaluation events，再写现有 evidence rows；pure current-linkage reducer 与
+原子 rollback 测试已经覆盖该路径。详见
+[Gate Evidence Event v1](protocols/gate-evidence-event-v1.zh-CN.md)。Semantic Gate attempt
+现会先 append 紧凑 failed/succeeded event，再写 attempt/exact-byte projection；它要求已
+保留的 System Gate parent，并以精确 event/authority parity 重建。详见
+[Semantic Gate Attempt Event v1](protocols/semantic-gate-attempt-event-v1.zh-CN.md)。
+finalization 现会在同一 transaction 内 append `UsageDecisionFinalized` 与
+`InjectionRendered`，并同步发布 `FINALIZED` 和 replay projection；
+`final-decision-injection` reducer 会重建精确 decision、injection、manifest、Artifact
+role 与 event-head linkage。显式 durable replay export 现从 ledger 派生 metadata，只从
+authenticated replay authority 加载精确字节，并核验 projection parity。详见
+[Finalization Event v1](protocols/finalization-event-v1.zh-CN.md) 与
+[Ledger Replay Export v1](protocols/ledger-replay-export-v1.zh-CN.md)。typed outcome/
+attribution 与本地 completion-effect event/reducer 已覆盖精确 RunOutcome、
+OutcomeAttribution、delivery-history 与 dead-letter parity。provider receipt、
+unknown-result reconciliation、durable compensation、完整 transport conformance 与 F2
+kill matrix 仍未完成。因此 ledger 尚未成为
+唯一 durable 事实源，`full_persistence` 继续为 `false`。
 
 Phase 71 强化可信提升与运行时边界：Failure Case 只能来自 `fail`/`error` Trace，verify 前必须具备 reviewer、root cause 与 review timestamp，dirty source 不能激活 Lesson；LLM response 限制为 64 KiB、1,000 nodes、depth 20，reason 最多 2,000 字符；所有未被 LLM 选中的系统候选都会进入 blocked 审计，超过 50 项时确定性保留前 50 项并记录其余项；`short_summary` 与 `full_case_summary` 使用不同 renderer，关键词检索支持 Unicode。
 

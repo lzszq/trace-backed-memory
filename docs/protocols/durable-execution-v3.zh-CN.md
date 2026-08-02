@@ -58,12 +58,17 @@ authenticator 重新加载，确保 revoke 与 credential rotation 无需重建�
 1. 从 executing session 与测量结果派生并插入 content-addressed RunOutcome；
 2. 通过 CAS 以精确 outcome ID 推进 `EXECUTING -> COMPLETED`；
 3. 追加 immutable completion event 与初始 delivery revision；
-4. 读回并核验 session、outcome、event 与当前 delivery。
+4. 在 evaluator、RunOutcome 与 completed-session event 之后追加 canonical
+   `EffectRequested`；
+5. 读回并核验 session、outcome、event、effect 与当前 delivery。
 
 exact retry 返回已保留 outcome 与 event，不会创建第二个 event，但
 `expected_version` 必须仍精确指向已保留 completed revision 的 parent。delivery 仍采用
 at-least-once 语义：consumer 按 event ID 去重，有界 outbox worker 负责 lease、retry、
 acknowledgement 与 dead-letter transition。
+每次成功 delivery transition 都会把 canonical effect event batch 与 outbox revision
+原子追加。`EffectSucceeded` 只代表本地 callback acknowledgement；provider receipt、
+unknown-result reconciliation 与 durable compensation 不属于本 F2 slice。
 
 ## abandonment 与恢复
 

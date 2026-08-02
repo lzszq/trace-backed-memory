@@ -33,9 +33,9 @@ receipt 产生 `GatePreparationFailedError`。并发 revision、异常 transitio
 或补偿失败会产生 `GatePreparationRecoveryRequiredError`，其中携带最后一次可读取
 的 durable session；coordinator 绝不重建进程内 request token。
 
-这是有顺序的补偿，不是跨 authorization/GateSession authority 的事务。active
-Agent/MCP 尚未产生所需 RetrievalSnapshot 与 SystemGateEvaluation record，因此
-当前还没有接入该 runtime。opt-in 下游服务现已提供 durable retrieval preparation、
-`AWAITING_DECISION`/`DECIDED`、有界 expiry recovery 与 completion authority。
-finalization/execution orchestration 与 active cross-process resume 仍是后续
-service slice。
+这是有顺序的补偿，不是跨 authorization/GateSession authority 的事务。默认
+compatibility Agent/MCP 尚未产生所需 RetrievalSnapshot 与 SystemGateEvaluation
+record。opt-in 下游服务现已提供 durable retrieval preparation、
+`AWAITING_DECISION`/`DECIDED`、有界 expiry recovery、event-first finalization、
+execution 与 completion authority。完整 transport/crash conformance 与 shared-service
+cross-process operation 仍是后续 slice。

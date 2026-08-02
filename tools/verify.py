@@ -29,6 +29,7 @@ def _base_commands(*, fast: bool) -> list[list[str]]:
         ],
         [python, "-m", "ruff", "check", "src", "tools", "examples"],
         [python, "-m", "mypy", "src/trace_backed_memory"],
+        [python, "tools/verify_full_persistence_progress.py"],
         [python, "tools/verify_projection_determinism.py"],
     ]
     if fast:

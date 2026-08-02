@@ -35,7 +35,9 @@ RunOutcome/GateSession authority。`complete_session()` 在一个 outer transact
 2. 插入 immutable RunOutcome；
 3. 插入 immutable completion event；
 4. 插入初始 `pending` delivery revision 与 head；
-5. commit 前读回并核验所有保留记录。
+5. 在 evaluator authentication、RunOutcome 与 completed-session event 之后追加
+   canonical `EffectRequested`；
+6. commit 前读回并核验所有保留记录。
 
 完全相同的 completion replay 会返回已保留 event 与当前 delivery head，不会创建
 第二条 event。如果 completed outcome 已存在但对应 outbox event 缺失，repository
@@ -59,6 +61,13 @@ callback 前先校验完整 claim batch，并且只接受带可选 canonical res
 attempt 数。每项结果明确分类为 `delivered`、`retry_wait`、`dead_letter`、
 `superseded` 或 `recovery_required`，所有成功状态写入都必须精确读回。畸形
 claim、违反 transition 的 receipt 或与配置不同的 retry delay 一律 fail closed。
+
+显式 event-first repository 会为 claim/reclaim 追加 `EffectStarted`，为
+acknowledgement 追加 `EffectSucceeded`，并为失败 disposition 成对追加
+`EffectFailed`/`EffectRetryScheduled` 或 `EffectFailed`/`EffectDeadLettered`。
+这些 canonical event 与 delivery revision/head 是一个原子单元。`effect-queue` reducer
+会重建精确 delivery history 与当前状态；详见
+[Effect Event v1](effect-event-v1.zh-CN.md)。
 
 SQLite schema 使用 immutable event/delivery revision、单个 compare-and-swap
 head、canonical descriptor 校验、整数微秒级 due 排序、schema drift 检测与调用方
@@ -85,7 +94,9 @@ trigger、privilege 与 policy 变化。
 
 Delivery 是 **at least once**。Worker 可能已经成功发布，却在 acknowledge 前崩溃，
 之后 lease 会被重新领取。因此 consumer 必须按 `event_id` 去重；response digest
-只是审计 metadata，不是远端副作用 exactly once 的证明。
+只是审计 metadata，不是远端副作用 exactly once 的证明。`delivered` 与
+`EffectSucceeded` 只表示本地 consumer callback 已被 acknowledge；它们不是 provider
+receipt，也不能证明 provider 端执行成功。
 配置的 lease 必须覆盖 consumer 的最长处理时间。callback 执行期间 lease 到期时，
 另一个 worker 可能在第一个 worker acknowledge 前再次调用同一 event 的 consumer。
 `recovery_required` 表示 callback 已完成，但 acknowledgement 或 failure write

@@ -40,17 +40,17 @@
 | `retrieval.activated-revision-v3` | Retrieval | ActivatedRevision source | `opt-in` | 默认 adapter 检索兼容记录；显式 durable runtime 使用 operator 提供的 v3 source。 |
 | `retrieval.managed-index-v3` | Retrieval | Managed-index source | `opt-in` | 默认 adapter 检索兼容记录；显式 durable runtime 可使用该 source。 |
 | `artifact.encrypted-authority-v3` | 受保护内容 | 加密 Artifact authority | `opt-in` | 显式 durable runtime 使用配置的 authority；尚无 object storage/KMS 产品路径。 |
-| `replay.durable-v3` | Replay | Durable replay authority | `opt-in` | 启动 policy 允许 content 时，显式 durable HTTP/MCP 会导出 session-bound replay；默认 adapter 不会。 |
-| `completion.outbox-v3` | 完成 | Outcome 与 outbox authority/worker | `opt-in` | 显式 `tbmd local` 会运行有界 SQLite delivery page 并 reclaim 过期 lease；shared-service dispatch 仍待完成。 |
+| `replay.durable-v3` | Replay | Durable replay authority | `opt-in` | 启动 policy 允许 content 时，显式 durable HTTP/MCP 会从 canonical finalization event 重建 session-bound replay metadata，并从 authenticated replay authority 读取精确字节；默认 adapter 仍使用 projection-backed path 且不暴露 replay。 |
+| `completion.outbox-v3` | 完成 | Outcome、outbox 与本地 effect authority/worker | `opt-in` | 显式 durable SQLite/PostgreSQL completion 会追加 `EffectRequested`；worker transition 会追加 canonical started/succeeded/failed/retry/dead-letter evidence，`effect-queue` 会重建精确 delivery history。`tbmd local` 运行有界 SQLite page；provider receipt/reconciliation、durable compensation 与 shared-service dispatch 仍待完成。 |
 | `operations.audit-recovery-v3` | 运维 | Audit/recovery authority/worker | `opt-in` | 显式 `tbmd local` 会 expire 到期的 PREPARED/AWAITING_DECISION session；它不会执行任意 audit remediation action。 |
-| `protocol.canonical-event-v1` | Full Persistence 协议 | `tbm.event.v1` 规范信封 | `opt-in` | 已交付严格、存储中立的信封、Schema、示例和双语参考；隔离 SQLite/PostgreSQL event ledger 会精确保留它，opt-in inventory reducer 可重放 envelope metadata，但 active composition root 尚未选择它。 |
-| `protocol.event-type-registry-v1` | Full Persistence 协议 | sealed typed event registry、payload schema 与 upcaster | `contract-only` | 未知 type/version 可以保留，但不能被静默消费；generic reducer runtime 可绑定 sealed registry，但 end-user operator 路径只暴露 envelope-only inventory reducer，没有 typed domain lifecycle。 |
+| `protocol.canonical-event-v1` | Full Persistence 协议 | `tbm.event.v1` 规范信封 | `opt-in` | 已交付严格、存储中立的信封、Schema、示例和双语参考；隔离 SQLite/PostgreSQL event ledger 会精确保留它，显式 durable root 已选择 event-first GateSession、Gate evidence、Semantic attempt、finalization、outcome/attribution 与本地 effect slice。默认 compatibility 保持不变。 |
+| `protocol.event-type-registry-v1` | Full Persistence 协议 | sealed typed event registry、payload schema 与 upcaster | `contract-only` | 未知 type/version 可以保留，但不能被静默消费；sealed 默认 registry 现包含 29 个 typed Gate、finalization、outcome 与 effect event。generic/domain reducer 均可绑定它，operator activation 保持显式并 fail closed。 |
 | `protocol.event-ledger-port-v1` | Full Persistence 协议 | 原子 append/read/verify/subscribe 应用端口 | `opt-in` | 存储中立契约已有 WAL/单 owner SQLite 与 row-lock PostgreSQL 后端，覆盖精确 replay、integrity/catalog 校验和跨后端一致性。 |
 | `migration.snapshot-v3` | 迁移 | Snapshot v3 plan/bundle/verify/staging | `contract-only` | 没有 apply、cutover、rollback 编排。 |
 | `persistence.unified-sqlite-v3` | 持久化切换 | 统一 SQLite v3 schema | `opt-in` | 一个生成 bundle 安装并指纹校验全部 16 个 durable authority schema（含 event ledger）；active 兼容边界仍为 SQLite 1。 |
 | `persistence.unified-postgresql-v3` | 持久化切换 | 统一 PostgreSQL v3 schema | `planned` | 当前兼容边界为 PostgreSQL 2。 |
-| `persistence.canonical-event-ledger` | Full Persistence | Canonical append-only event ledger | `opt-in` | 已交付隔离 SQLite/PostgreSQL 后端和仅描述符 Artifact 引用；active composition root 尚未选择它们，因此当前 source-of-truth model 仍是 authority graph。 |
-| `persistence.reducer-runtime` | Full Persistence | Versioned deterministic reducer 与可重建 projection | `opt-in` | `tbm.reducer.v1` 提供 sealed version/code/config registry、有界双执行 state、typed upcasting、checkpoint/resume、poison evidence、shadow compare、显式批准的 CAS activation 与 append-only rollback。SQLite/PostgreSQL 保留 checkpoint/head history；显式 `tbmd` operator 命令可重建 inventory projection。active Gate/Memory lifecycle 尚未选择该 runtime。 |
+| `persistence.canonical-event-ledger` | Full Persistence | Canonical append-only event ledger | `opt-in` | 已交付隔离 SQLite/PostgreSQL 后端和仅描述符 Artifact 引用；显式 durable root 已选择 event-first GateSession、Gate evidence、Semantic attempt、finalization、outcome/attribution 与本地 completion-effect adapter，并选择 ledger-backed replay reader；同步 authority 仍是过渡 projection，source-of-truth model 仍为 `authority_graph`。 |
+| `persistence.reducer-runtime` | Full Persistence | Versioned deterministic reducer 与可重建 projection | `opt-in` | `tbm.reducer.v1` 提供 sealed version/code/config registry、有界双执行 state、typed upcasting、checkpoint/resume、poison evidence、shadow compare、显式批准的 CAS activation 与 append-only rollback。SQLite/PostgreSQL 保留 checkpoint/head history；F2 reducer 会校验 GateSession、Gate-evidence、Semantic-attempt、final decision/injection、RunOutcome、OutcomeAttribution、EffectQueue delivery-history 与 dead-letter parity。generic runtime 尚未成为全部 active Gate/Memory projection 的唯一重建路径。 |
 | `transport.durable-http` | Durable transport | Durable HTTP profile | `active` | 显式 `tbm-http --profile durable-v3`；可信 application factory、bearer 边界、统一 SQLite/PostgreSQL v3 runtime，默认隐藏内容。 |
 | `transport.durable-mcp` | Durable transport | Durable MCP profile | `active` | 显式 `tbm-mcp --profile durable-v3`；可信本地 application factory、有界 STDIO、统一 SQLite/PostgreSQL v3 runtime、跨重启续接，且默认隐藏内容。它不是带 peer authentication 的 shared-service MCP。 |
 | `sdk.durable-python-typescript` | SDK | Durable Python/TypeScript client | `active` | 显式 durable HTTP profile 已提供同步/异步 Python client 与无运行时依赖的 Node.js TypeScript client；同一份共享 fixture 会通过 Python 与 TypeScript lifecycle 测试。 |
@@ -74,7 +74,8 @@
 当前机器可读边界是 `persistence_model="authority_graph"`、
 `ledger_protocol="tbm.event.v1"`、`reducer_protocol="tbm.reducer.v1"` 与
 `full_persistence=false`。事件信封、ledger backend 与 generic reducer/projection operator
-路径均为 opt-in；active lifecycle composition 与 cutover 尚未把它们选为当前事实来源。
+路径均为 opt-in；显式 durable lifecycle slice 会使用 event-first write 与 ledger-derived
+replay metadata，但尚无经过核验的完整 cutover 把 ledger 选为唯一当前事实来源。
 
 ## 状态提升规则
 

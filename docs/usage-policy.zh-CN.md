@@ -511,8 +511,12 @@ provider 已认证或 finalize 已获授权。持久化前使用
 角色与 digest、长度、classification 及必需的 encryption metadata；不得在
 descriptor JSON 中记录或嵌入这些字节。绑定存在也不证明静态加密已经执行。
 `SQLiteSemanticGateArtifactV3Repository` 只能保存 `public` 或 `internal`
-字节；它原子追加 attempt、字节与 binding，并因没有静态加密 provider 而拒绝
-敏感分类。active Agent/MCP 集成仍是独立后续工作。隔离 PostgreSQL 对等实现必须通过 parent-before-head
+字节。在 event-first 模式中，它必须加载已保留的 System Gate 或上一条 attempt
+parent，追加并读回 canonical attempt event，再在同一 transaction 中投影 attempt、
+字节与 binding。parent 与 mutation scope 必须一致；retry 可以携带新的 transition
+authorization decision。它因没有静态加密 provider 而拒绝敏感分类。默认
+compatibility Agent/MCP 集成保持不变；显式 durable profile 会选择此 event-first
+路径。隔离 PostgreSQL 对等实现必须通过 parent-before-head
 row lock、exact CAS、deferred commit check、调用方 savepoint，以及 fail-closed
 catalog 校验/rollback 保持相同 chain 规则。
 SQLite 文件所有者属于可信边界：本地 DDL 无法证明一条内部完全自洽的离线重写
@@ -561,7 +565,8 @@ completion 必须让每次调用的可信 evaluator authenticator 校验 transpo
 `GateCompletionRequest` evaluator/version 精确匹配的 server-owned
 `TrustedOutcomeEvaluator` registration。随后通过 durable execution service 调用既有
 completion-outbox authority，原子发布 RunOutcome、`COMPLETED`、event 与初始
-delivery。服务返回的 transition authorization event 只表示本次调用核验的授权；
+delivery，并在 evaluator/RunOutcome/completed-session event 之后追加 canonical
+`EffectRequested`。服务返回的 transition authorization event 只表示本次调用核验的授权；
 GateSession v3 尚未在 revision 中持久挂接该 event。
 
 ## 已认证 durable Agent 策略
@@ -663,12 +668,19 @@ string 与 artifact hash 只是 provenance，不是 authentication 或 bytes 已
 `SQLiteCompletionOutboxV3Repository.complete_session()` 或
 `PostgresCompletionOutboxV3Repository.complete_session()`，而不是直接通过
 底层 outcome authority 完成。这样 completed GateSession revision、RunOutcome、
-completion event 与初始 delivery state 会处于同一 atomic boundary。PostgreSQL
+completion event、初始 delivery state 与 `EffectRequested` 会处于同一 atomic
+boundary。PostgreSQL
 依赖必须按 GateSession → RunOutcome → completion-outbox 顺序安装，并按相反顺序
 回滚。Dispatcher 必须使用有界 page 与 lease 领取任务，只能由相同 worker 对精确
 leased revision 执行 acknowledge 或 fail，并允许过期 lease 被重新领取。Delivery
 是 at least once，因此 downstream consumer 必须按 immutable `event_id` 去重；
-response digest 只是 audit metadata，不能证明远端副作用 exactly once。outcome
+response digest 只是 audit metadata，不能证明远端副作用 exactly once。claim/reclaim
+必须追加 `EffectStarted`；acknowledgement 必须追加 `EffectSucceeded`；retry 或
+dead-letter failure 必须在 delivery revision 的同一 transaction 中先追加
+`EffectFailed`，再追加对应 disposition event。canonical actor 必须使用真实
+`worker_id`。`EffectSucceeded` 只代表本地 callback acknowledgement，不是 provider
+receipt 或 provider 端成功证明。provider unknown-result reconciliation 与 durable
+compensation 仍是独立工作。outcome
 已存在但 event 缺失时不得静默修补，应调查并恢复被破坏的 transaction boundary。
 显式 durable HTTP/MCP 与 Python/TypeScript SDK profile 已提供 active durable
 completion-outbox emission，`tbmd local` 也会执行有界 SQLite delivery page。
@@ -734,12 +746,15 @@ evidence 处理并保留 `export_sha256`，import 或分析前使用
 `loads_replay_bundle_export()` 或 `verify_replay_bundle_export()` 核验。不得把
 repository ID 暴露成公共查询 oracle。
 
-使用 `store_complete_bundle()` 原子保留排在首位的 UsageDecision、精确 snapshot、
-System Gate evaluation、Semantic Gate prompt/response、ancestry commitment、
-policy、renderer descriptor、injection artifact 与 complete manifest。session CAS
-前必须读回每一份已存字节。精确 terminal replay 必须加载并交叉核验这些保留字节，绝不
-重新渲染。如果 bundle 可能已成功保留但无法确认 `FINALIZED` session CAS，必须返回
-明确的 recovery-required 结果。
+compatibility caller 使用 `store_complete_bundle()`，在 session CAS 前原子保留排在
+首位的 UsageDecision、精确 snapshot、System Gate evaluation、Semantic Gate
+prompt/response、ancestry commitment、policy、renderer descriptor、injection artifact
+与 complete manifest。显式 durable SQLite/PostgreSQL runtime 会改用
+`store_complete_finalization()`：finalized-session event、rendered-injection event、
+GateSession revision 与 replay projection 必须共享一个 transaction，并精确读回。精确
+terminal replay 必须交叉核验已保留 event、descriptor 与 bytes，绝不重新渲染。
+compatibility 路径中 bundle 可能成功但 session CAS 无法确认时，仍必须返回明确的
+recovery-required 结果。
 
 classification metadata 本身不执行安全策略。opt-in SQLite 与隔离 PostgreSQL
 Artifact Authority 会通过调用方 provider 加密所有接受的 classification、授权每次
@@ -750,8 +765,9 @@ opt-in SQLite/PostgreSQL replay repository 会逐字节保存接受的内容，
 保留精确内容身份。两者校验精确字节与 immutable descriptor linkage，把精确 replay
 视为 idempotent，并通过 savepoint 保留 borrowed transaction；两者都不提供 access
 control、retention，单独使用时也不提供 GateSession authority。opt-in finalization
-service 会在这些 repository 外围提供已授权的 GateSession linkage。当前 Store 与
-active adapter 仍不使用这些契约，也不得宣称支持精确 decision replay。
+service 会在这些 repository 外围提供已授权的 GateSession linkage。显式 durable
+HTTP/MCP runtime 会使用 event-first finalization 与 ledger-backed replay reader；当前
+compatibility Store/default adapter 不使用，也不得宣称支持精确 decision replay。
 
 opt-in durable execution service 只能通过 authenticated finalization replay
 boundary 读取这份精确保留 bundle。它只会为 live executing start/resume 返回

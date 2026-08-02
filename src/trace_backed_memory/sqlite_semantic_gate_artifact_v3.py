@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache, wraps
 import hashlib
@@ -11,7 +12,19 @@ import sqlite3
 from threading import RLock
 from typing import NoReturn, ParamSpec, TypeVar
 
+from .event_v1 import (
+    CanonicalEvent,
+    EventTrustedContext,
+)
 from .gate_evaluation_v3 import SemanticGateAttempt
+from .ledger_port_v1 import (
+    EventLedgerPortError,
+    LedgerAccessContext,
+    LedgerAppendRequest,
+    LedgerClassificationFilter,
+    LedgerIdempotency,
+    LedgerTenantPartition,
+)
 from .resources import PackagedResourceError, read_packaged_resource
 from .semantic_gate_artifact_v3 import (
     SEMANTIC_GATE_ARTIFACT_CONTRACT_VERSION,
@@ -21,6 +34,17 @@ from .semantic_gate_artifact_v3 import (
     dumps_semantic_gate_artifact_binding,
     loads_semantic_gate_artifact_binding,
     verify_semantic_gate_artifact_binding,
+)
+from .semantic_gate_attempt_event_v1 import (
+    SemanticGateAttemptEventRef,
+    SemanticGateAttemptEventV1Error,
+    build_semantic_gate_attempt_event,
+    parse_semantic_gate_attempt_event,
+    semantic_gate_attempt_event_id,
+    semantic_gate_attempt_event_ref,
+    semantic_gate_attempt_stream_id,
+    verify_semantic_gate_event_scope,
+    verify_semantic_gate_system_parent,
 )
 from .sqlite_semantic_gate_v3 import (
     SQLiteSemanticGateV3Error,
@@ -262,6 +286,33 @@ class SQLiteSemanticGateArtifactV3Repository:
         self._lock = RLock()
         self._closed = False
         self._savepoint_number = 0
+        self._event_first = False
+        self._event_context: ContextVar[EventTrustedContext | None] = ContextVar(
+            f"tbm_sqlite_semantic_gate_event_context_{id(self)}",
+            default=None,
+        )
+
+    @_synchronized
+    def enable_event_first(self) -> None:
+        self._require_open()
+        if self._connection.in_transaction:
+            raise SQLiteSemanticGateArtifactV3ConflictError(
+                "event-first mode cannot be enabled during a transaction"
+            )
+        self._event_first = True
+
+    @contextmanager
+    def bind_event_context(
+        self,
+        trusted_context: EventTrustedContext,
+    ) -> Iterator[None]:
+        if type(trusted_context) is not EventTrustedContext:
+            raise ValueError("trusted_context must be exactly EventTrustedContext")
+        token = self._event_context.set(trusted_context)
+        try:
+            yield
+        finally:
+            self._event_context.reset(token)
 
     @classmethod
     def connect(
@@ -630,6 +681,154 @@ class SQLiteSemanticGateArtifactV3Repository:
             )
         return stored
 
+    def _event_access(
+        self,
+    ) -> tuple[EventTrustedContext, LedgerAccessContext]:
+        trusted_context = self._event_context.get()
+        if trusted_context is None:
+            raise SQLiteSemanticGateArtifactV3ConflictError(
+                "event-first Semantic Gate mutation requires trusted event context"
+            )
+        return trusted_context, LedgerAccessContext(
+            partition=LedgerTenantPartition(
+                trusted_context.organization_id,
+                trusted_context.tenant_id,
+                trusted_context.repository_id,
+                trusted_context.environment_id,
+            ),
+            principal_id=trusted_context.principal_id,
+            agent_client_id=trusted_context.agent_client_id,
+            actor_type=trusted_context.actor_type,
+            actor_id=trusted_context.actor_id,
+            authorization_decision_id=(
+                trusted_context.authorization_decision_id
+            ),
+            classification_filter=LedgerClassificationFilter(
+                ("public", "internal", "confidential", "restricted")
+            ),
+        )
+
+    @staticmethod
+    def _select_event_by_id(
+        cursor: sqlite3.Cursor,
+        ledger: object,
+        event_id: str,
+    ) -> CanonicalEvent | None:
+        cursor.execute(
+            f"SELECT {ledger._event_select()} FROM v3_event_ledger_events "
+            "WHERE event_id = ?",
+            (event_id,),
+        )
+        row = cursor.fetchone()
+        return None if row is None else ledger._event_from_row(cursor, row)
+
+    @staticmethod
+    def _verify_retained_event(
+        event: CanonicalEvent,
+        expected_ref: SemanticGateAttemptEventRef,
+        trusted_context: EventTrustedContext,
+    ) -> None:
+        try:
+            verify_semantic_gate_event_scope(event, trusted_context)
+            retained_ref = parse_semantic_gate_attempt_event(event)
+        except Exception as error:
+            raise SQLiteSemanticGateArtifactV3ConflictError(
+                "retained Semantic Gate attempt event failed validation"
+            ) from error
+        if retained_ref != expected_ref:
+            raise SQLiteSemanticGateArtifactV3ConflictError(
+                "Semantic Gate attempt event has conflicting immutable content"
+            )
+
+    def _append_attempt_event(
+        self,
+        cursor: sqlite3.Cursor,
+        attempt: SemanticGateAttempt,
+        prompt: StoredSemanticGateArtifact,
+        response: StoredSemanticGateArtifact | None,
+    ) -> None:
+        if not self._event_first:
+            return
+        from .sqlite_event_ledger_v1 import SQLiteEventLedgerV1
+
+        trusted_context, access = self._event_access()
+        ledger = SQLiteEventLedgerV1(self._connection, access)
+        try:
+            ledger._require_schema(cursor)
+            expected_ref = semantic_gate_attempt_event_ref(
+                attempt,
+                prompt,
+                response,
+            )
+            system_gate_event = None
+            if attempt.sequence == 1:
+                system_gate_event = self._select_event_by_id(
+                    cursor,
+                    ledger,
+                    expected_ref.causation_event_id,
+                )
+                verify_semantic_gate_system_parent(
+                    attempt,
+                    system_gate_event,
+                    trusted_context,
+                )
+            retained = self._select_event_by_id(
+                cursor,
+                ledger,
+                semantic_gate_attempt_event_id(attempt.attempt_id),
+            )
+            if retained is not None:
+                self._verify_retained_event(
+                    retained,
+                    expected_ref,
+                    trusted_context,
+                )
+                return
+            stream_id = semantic_gate_attempt_stream_id(
+                attempt.system_gate_evaluation_id
+            )
+            previous_event = ledger._select_head_event(cursor, stream_id)
+            if attempt.sequence == 1:
+                if previous_event is not None:
+                    raise SQLiteSemanticGateArtifactV3ConflictError(
+                        "Semantic Gate attempt stream already has a head"
+                    )
+            elif (
+                previous_event is None
+                or previous_event.event_id
+                != semantic_gate_attempt_event_id(
+                    attempt.previous_attempt_id or ""
+                )
+                or previous_event.stream_version != attempt.sequence - 1
+            ):
+                raise SQLiteSemanticGateArtifactV3ConflictError(
+                    "Semantic Gate retry does not extend the event stream"
+                )
+            event = build_semantic_gate_attempt_event(
+                attempt,
+                prompt,
+                response,
+                system_gate_event=system_gate_event,
+                previous_event=previous_event,
+                global_position=ledger._select_global_position(cursor) + 1,
+                trusted_context=trusted_context,
+            )
+            ledger._append_in_transaction(
+                cursor,
+                LedgerAppendRequest(
+                    access=access,
+                    stream_id=stream_id,
+                    expected_stream_version=attempt.sequence - 1,
+                    events=(event,),
+                    idempotency=LedgerIdempotency(
+                        event.idempotency_key_sha256,
+                        event.request_sha256,
+                    ),
+                ),
+            )
+        finally:
+            ledger.close()
+
     @_synchronized
     def store_attempt_with_artifacts(
         self,
@@ -641,6 +840,13 @@ class SQLiteSemanticGateArtifactV3Repository:
         self._validate_bundle(attempt, prompt, response)
         try:
             with self._transaction(write=True):
+                with closing(self._connection.cursor()) as event_cursor:
+                    self._append_attempt_event(
+                        event_cursor,
+                        attempt,
+                        prompt,
+                        response,
+                    )
                 attempt_result = self._semantic_repository.store_attempt(
                     attempt
                 )
@@ -686,6 +892,13 @@ class SQLiteSemanticGateArtifactV3Repository:
                 response_artifact_inserted=response_artifact_inserted,
                 response_binding_inserted=response_binding_inserted,
             )
+        except (
+            SemanticGateAttemptEventV1Error,
+            EventLedgerPortError,
+        ) as error:
+            raise SQLiteSemanticGateArtifactV3ConflictError(
+                "Semantic Gate attempt event conflicts with immutable storage"
+            ) from error
         except (
             SQLiteSemanticGateArtifactV3Error,
             SQLiteSemanticGateV3Error,

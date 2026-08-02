@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import replace
 import sqlite3
 from types import SimpleNamespace
@@ -443,6 +444,61 @@ def test_durable_execution_reloads_evaluator_authentication_each_completion():
             == "TBM_DURABLE_EXECUTION_EVALUATOR_REJECTED"
         )
         assert stack.base.sessions.get(started.session.session_id) == started.session
+    finally:
+        stack.close()
+
+
+def test_durable_execution_binds_trusted_evaluator_event_provenance():
+    stack = _ExecutionStack()
+    try:
+        started = stack.start()
+
+        class _CapturingAuthority:
+            def __init__(self):
+                self.contexts = []
+                self.active_context = None
+
+            @property
+            def gate_sessions(self):
+                return stack.base.sessions
+
+            @contextmanager
+            def bind_evaluator_event_context(self, context):
+                self.contexts.append(context)
+                self.active_context = context
+                try:
+                    yield
+                finally:
+                    self.active_context = None
+
+            def complete_session(self, request):
+                assert self.active_context is not None
+                return stack.outbox.complete_session(request)
+
+            def get_event(self, event_id):
+                return stack.outbox.get_event(event_id)
+
+            def get_delivery(self, event_id):
+                return stack.outbox.get_delivery(event_id)
+
+        authority = _CapturingAuthority()
+        service = stack.make_service(completion_authority=authority)
+        service.complete(
+            stack.base.context,
+            stack.transition_scope,
+            EVALUATOR_CONTEXT,
+            stack.completion(started.session),
+        )
+
+        assert authority.contexts == [
+            tbm.OutcomeEvaluatorEventContext(
+                evaluator_id=EVALUATOR.evaluator_id,
+                evaluator_version=EVALUATOR.evaluator_version,
+                authenticator_id=EVALUATOR.authenticator_id,
+                credential_id="credential_outcome_evaluator",
+            )
+        ]
+        assert authority.active_context is None
     finally:
         stack.close()
 

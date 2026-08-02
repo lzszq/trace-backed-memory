@@ -356,18 +356,40 @@ class DurableFinalizationService:
             policy,
             created_at,
         )
-        self._store_and_verify_bundle(bundle)
-        self._recheck_live_inputs(
-            context,
-            scope,
-            rendered.candidates,
-            policy,
+        event_first_writer = getattr(
+            self._replay_authority,
+            "store_complete_finalization",
+            None,
         )
-        finalized = self._publish_finalized(
-            claimed,
-            bundle.usage_decision,
-            bundle.injection,
-        )
+        if (
+            getattr(self._replay_authority, "event_first_enabled", False)
+            is True
+            and callable(event_first_writer)
+        ):
+            self._recheck_live_inputs(
+                context,
+                scope,
+                rendered.candidates,
+                policy,
+            )
+            finalized = self._store_and_publish_event_first(
+                claimed,
+                bundle,
+                event_first_writer,
+            )
+        else:
+            self._store_and_verify_bundle(bundle)
+            self._recheck_live_inputs(
+                context,
+                scope,
+                rendered.candidates,
+                policy,
+            )
+            finalized = self._publish_finalized(
+                claimed,
+                bundle.usage_decision,
+                bundle.injection,
+            )
         return DurableFinalizationResult(
             session=finalized,
             usage_decision=bundle.usage_decision,
@@ -815,6 +837,63 @@ class DurableFinalizationService:
                 bundle.usage_decision,
                 bundle.injection,
             )
+
+    def _store_and_publish_event_first(
+        self,
+        decided: GateSession,
+        bundle: _FinalizationBundle,
+        writer: Callable[..., object],
+    ) -> GateSession:
+        try:
+            finalized = writer(
+                bundle.usage_decision,
+                bundle.supporting_artifacts,
+                bundle.injection,
+                bundle.snippet.encode("utf-8"),
+                bundle.manifest,
+                decided_session=decided,
+                transition_finalized=lambda: self._transition_finalized(
+                    decided,
+                    bundle.usage_decision.final_memory_revision_ids,
+                    bundle.injection.artifact.artifact_id,
+                    bundle.usage_decision.usage_decision_id,
+                ),
+            )
+        except DurableFinalizationV3Error:
+            raise
+        except Exception:
+            try:
+                current = self._load_session(decided.session_id)
+            except DurableFinalizationV3Error:
+                raise DurableFinalizationRecoveryRequiredError(
+                    decided,
+                    bundle.usage_decision,
+                    bundle.injection,
+                ) from None
+            if current == decided:
+                raise DurableFinalizationV3Error(
+                    "TBM_DURABLE_FINALIZATION_EVENT_FIRST_FAILED",
+                    "atomic event-first finalization failed",
+                ) from None
+            raise DurableFinalizationRecoveryRequiredError(
+                current,
+                bundle.usage_decision,
+                bundle.injection,
+            ) from None
+        if type(finalized) is not GateSession:
+            raise DurableFinalizationRecoveryRequiredError(
+                self._load_session(decided.session_id),
+                bundle.usage_decision,
+                bundle.injection,
+            )
+        retained = self._load_session(decided.session_id)
+        if retained != finalized:
+            raise DurableFinalizationRecoveryRequiredError(
+                retained,
+                bundle.usage_decision,
+                bundle.injection,
+            )
+        return finalized
 
     def _claim_decision_lease(
         self,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache, wraps
 from pathlib import Path
@@ -9,11 +10,35 @@ import sqlite3
 from threading import RLock
 from typing import ParamSpec, TypeVar
 
+from .event_v1 import (
+    CanonicalEvent,
+    EventTrustedContext,
+    verify_event_trusted_context,
+)
 from .gate_evaluation_v3 import (
     SystemGateEvaluation,
     dumps_system_gate_evaluation,
     loads_system_gate_evaluation,
     verify_system_gate_evaluation,
+)
+from .gate_evidence_event_v1 import (
+    RETRIEVAL_PREPARED_EVENT,
+    SYSTEM_GATE_EVALUATED_EVENT,
+    GateEvidenceEventV1Error,
+    GateEvidenceRecordRef,
+    build_retrieval_prepared_event,
+    build_system_gate_evaluated_event,
+    parse_gate_evidence_event,
+    retrieval_snapshot_record_ref,
+    system_gate_evaluation_record_ref,
+)
+from .ledger_port_v1 import (
+    EventLedgerPortError,
+    LedgerAccessContext,
+    LedgerAppendRequest,
+    LedgerClassificationFilter,
+    LedgerIdempotency,
+    LedgerTenantPartition,
 )
 from .resources import PackagedResourceError, read_packaged_resource
 from .retrieval_v3 import (
@@ -162,6 +187,33 @@ class SQLiteGateEvidenceV3Repository:
         self._lock = RLock()
         self._closed = False
         self._savepoint_number = 0
+        self._event_first = False
+        self._event_context: ContextVar[EventTrustedContext | None] = ContextVar(
+            f"tbm_sqlite_gate_evidence_event_context_{id(self)}",
+            default=None,
+        )
+
+    @_synchronized
+    def enable_event_first(self) -> None:
+        self._require_open()
+        if self._connection.in_transaction:
+            raise SQLiteGateEvidenceV3ConflictError(
+                "event-first mode cannot be enabled during a transaction"
+            )
+        self._event_first = True
+
+    @contextmanager
+    def bind_event_context(
+        self,
+        trusted_context: EventTrustedContext,
+    ) -> Iterator[None]:
+        if type(trusted_context) is not EventTrustedContext:
+            raise ValueError("trusted_context must be exactly EventTrustedContext")
+        token = self._event_context.set(trusted_context)
+        try:
+            yield
+        finally:
+            self._event_context.reset(token)
 
     @classmethod
     def connect(
@@ -380,6 +432,146 @@ class SQLiteGateEvidenceV3Repository:
         self._evaluation_from_row(stored)
         return inserted
 
+    def _event_access(
+        self,
+        authorization_event_id: str,
+    ) -> tuple[EventTrustedContext, LedgerAccessContext]:
+        trusted_context = self._event_context.get()
+        if trusted_context is None:
+            raise SQLiteGateEvidenceV3ConflictError(
+                "event-first gate evidence mutation requires trusted event context"
+            )
+        if (
+            trusted_context.authorization_decision_id
+            != authorization_event_id
+        ):
+            raise SQLiteGateEvidenceV3ConflictError(
+                "trusted event context does not match gate evidence authorization"
+            )
+        return trusted_context, LedgerAccessContext(
+            partition=LedgerTenantPartition(
+                trusted_context.organization_id,
+                trusted_context.tenant_id,
+                trusted_context.repository_id,
+                trusted_context.environment_id,
+            ),
+            principal_id=trusted_context.principal_id,
+            agent_client_id=trusted_context.agent_client_id,
+            actor_type=trusted_context.actor_type,
+            actor_id=trusted_context.actor_id,
+            authorization_decision_id=(
+                trusted_context.authorization_decision_id
+            ),
+            classification_filter=LedgerClassificationFilter(
+                ("public", "internal", "confidential", "restricted")
+            ),
+        )
+
+    @staticmethod
+    def _verify_retained_event(
+        event: CanonicalEvent,
+        expected_type: str,
+        expected_ref: GateEvidenceRecordRef,
+        trusted_context: EventTrustedContext,
+    ) -> None:
+        try:
+            verify_event_trusted_context(event, trusted_context)
+            retained_ref = parse_gate_evidence_event(event)
+        except Exception as error:
+            raise SQLiteGateEvidenceV3ConflictError(
+                "retained gate evidence event failed validation"
+            ) from error
+        if event.event_type != expected_type or retained_ref != expected_ref:
+            raise SQLiteGateEvidenceV3ConflictError(
+                "gate evidence stream has conflicting immutable content"
+            )
+
+    def _append_bundle_events(
+        self,
+        cursor: sqlite3.Cursor,
+        snapshot: RetrievalSnapshot,
+        evaluation: SystemGateEvaluation,
+    ) -> None:
+        if not self._event_first:
+            return
+        from .sqlite_event_ledger_v1 import SQLiteEventLedgerV1
+
+        trusted_context, access = self._event_access(
+            snapshot.authorization_event_id
+        )
+        ledger = SQLiteEventLedgerV1(self._connection, access)
+        try:
+            ledger._require_schema(cursor)
+            retrieval_event = ledger._select_head_event(
+                cursor,
+                snapshot.snapshot_id,
+            )
+            expected_retrieval = retrieval_snapshot_record_ref(snapshot)
+            if retrieval_event is None:
+                retrieval_event = build_retrieval_prepared_event(
+                    snapshot,
+                    global_position=ledger._select_global_position(cursor) + 1,
+                    trusted_context=trusted_context,
+                )
+                ledger._append_in_transaction(
+                    cursor,
+                    LedgerAppendRequest(
+                        access=access,
+                        stream_id=snapshot.snapshot_id,
+                        expected_stream_version=0,
+                        events=(retrieval_event,),
+                        idempotency=LedgerIdempotency(
+                            retrieval_event.idempotency_key_sha256,
+                            retrieval_event.request_sha256,
+                        ),
+                    ),
+                )
+            else:
+                self._verify_retained_event(
+                    retrieval_event,
+                    RETRIEVAL_PREPARED_EVENT,
+                    expected_retrieval,
+                    trusted_context,
+                )
+
+            evaluation_event = ledger._select_head_event(
+                cursor,
+                evaluation.evaluation_id,
+            )
+            expected_evaluation = system_gate_evaluation_record_ref(
+                evaluation,
+                causation_event_id=retrieval_event.event_id,
+            )
+            if evaluation_event is None:
+                evaluation_event = build_system_gate_evaluated_event(
+                    evaluation,
+                    retrieval_event=retrieval_event,
+                    global_position=ledger._select_global_position(cursor) + 1,
+                    trusted_context=trusted_context,
+                )
+                ledger._append_in_transaction(
+                    cursor,
+                    LedgerAppendRequest(
+                        access=access,
+                        stream_id=evaluation.evaluation_id,
+                        expected_stream_version=0,
+                        events=(evaluation_event,),
+                        idempotency=LedgerIdempotency(
+                            evaluation_event.idempotency_key_sha256,
+                            evaluation_event.request_sha256,
+                        ),
+                    ),
+                )
+            else:
+                self._verify_retained_event(
+                    evaluation_event,
+                    SYSTEM_GATE_EVALUATED_EVENT,
+                    expected_evaluation,
+                    trusted_context,
+                )
+        finally:
+            ledger.close()
+
     @_synchronized
     def store_bundle(
         self,
@@ -399,6 +591,7 @@ class SQLiteGateEvidenceV3Repository:
             with self._transaction(write=True):
                 with closing(self._connection.cursor()) as cursor:
                     self._require_schema(cursor)
+                    self._append_bundle_events(cursor, snapshot, evaluation)
                     snapshot_inserted = self._put_snapshot(cursor, snapshot)
                     evaluation_inserted = self._put_evaluation(
                         cursor,
@@ -416,6 +609,10 @@ class SQLiteGateEvidenceV3Repository:
             ValueError,
         ):
             raise
+        except (GateEvidenceEventV1Error, EventLedgerPortError) as error:
+            raise SQLiteGateEvidenceV3ConflictError(
+                "gate evidence event conflicts with immutable storage"
+            ) from error
         except sqlite3.IntegrityError as error:
             raise SQLiteGateEvidenceV3ConflictError(
                 "gate evidence conflicts with immutable storage"

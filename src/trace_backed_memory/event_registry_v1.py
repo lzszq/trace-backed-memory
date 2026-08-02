@@ -16,6 +16,30 @@ from .event_v1 import (
     EventV1ContractError,
     validate_event_payload,
 )
+from .finalization_event_v1 import (
+    FINALIZATION_EVENT_TYPES,
+    finalization_event_payload_schema,
+)
+from .effect_event_v1 import (
+    EFFECT_EVENT_TYPES,
+    effect_event_payload_schema,
+)
+from .gate_evidence_event_v1 import (
+    GATE_EVIDENCE_EVENT_TYPES,
+    gate_evidence_event_payload_schema,
+)
+from .gate_session_event_v1 import (
+    GATE_SESSION_EVENT_TYPES,
+    gate_session_event_payload_schema,
+)
+from .outcome_event_v1 import (
+    OUTCOME_EVENT_TYPES,
+    outcome_event_payload_schema,
+)
+from .semantic_gate_attempt_event_v1 import (
+    SEMANTIC_GATE_ATTEMPT_EVENT_TYPES,
+    semantic_gate_attempt_event_payload_schema,
+)
 
 
 EVENT_REGISTRY_PROTOCOL_VERSION = "tbm.event-registry.v1"
@@ -661,6 +685,66 @@ def build_default_event_type_registry() -> EventTypeRegistry:
             },
         )
     )
+    for event_type in GATE_SESSION_EVENT_TYPES:
+        registry.register(
+            EventPayloadRegistration(
+                event_type=event_type,
+                event_version=1,
+                event_kind="domain",
+                payload_schema=f"{event_type}.v1",
+                schema=gate_session_event_payload_schema(event_type),
+            )
+        )
+    for event_type in GATE_EVIDENCE_EVENT_TYPES:
+        registry.register(
+            EventPayloadRegistration(
+                event_type=event_type,
+                event_version=1,
+                event_kind="domain",
+                payload_schema=f"{event_type}.v1",
+                schema=gate_evidence_event_payload_schema(event_type),
+            )
+        )
+    for event_type in SEMANTIC_GATE_ATTEMPT_EVENT_TYPES:
+        registry.register(
+            EventPayloadRegistration(
+                event_type=event_type,
+                event_version=1,
+                event_kind="domain",
+                payload_schema=f"{event_type}.v1",
+                schema=semantic_gate_attempt_event_payload_schema(event_type),
+            )
+        )
+    for event_type in FINALIZATION_EVENT_TYPES:
+        registry.register(
+            EventPayloadRegistration(
+                event_type=event_type,
+                event_version=1,
+                event_kind="domain",
+                payload_schema=f"{event_type}.v1",
+                schema=finalization_event_payload_schema(event_type),
+            )
+        )
+    for event_type in OUTCOME_EVENT_TYPES:
+        registry.register(
+            EventPayloadRegistration(
+                event_type=event_type,
+                event_version=1,
+                event_kind="domain",
+                payload_schema=f"{event_type}.v1",
+                schema=outcome_event_payload_schema(event_type),
+            )
+        )
+    for event_type in EFFECT_EVENT_TYPES:
+        registry.register(
+            EventPayloadRegistration(
+                event_type=event_type,
+                event_version=1,
+                event_kind="domain",
+                payload_schema=f"{event_type}.v1",
+                schema=effect_event_payload_schema(event_type),
+            )
+        )
     return registry.seal()
 
 

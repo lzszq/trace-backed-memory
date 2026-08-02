@@ -22,9 +22,11 @@ session ID、预期 revision 与有界 lease 请求的 `DurableFinalizationReque
 4. 要求 snapshot authorization event 与当前 authorized scope 完全相同，即使最终允许
    集合为空也不能跳过；
 5. 只加载允许的当前 ActivatedRevision candidate，并核验 revision 与 candidate hash；
-6. 在渲染前后以及 bundle 保留后，立即再次复查当前授权、active head 与 policy；
-7. 保存并读回精确 replay bundle；以及
-8. 通过 compare-and-swap 发布并读回 `FINALIZED`。
+6. 在渲染前后立即再次复查当前授权、active head 与 policy；
+7. append/read back `tbm.usage_decision.finalized`，发布 `FINALIZED` revision，再
+   append/read back `tbm.injection.rendered`；
+8. 在同一个 event-first transaction 中保存并读回精确 replay projection；以及
+9. 再次核验保留结果与当前授权。
 
 完整 Semantic Gate chain 会在渲染前通过核验，因此 System Gate block 保持单调；
 UsageDecision 还会分别保留每个确定性 block 的原因与规则。
@@ -61,13 +63,16 @@ evidence，也不会静默创建新的最终决策。
 
 ## 事务边界
 
-在独立 authority 之间，finalization 是有序恢复，不是 distributed transaction。
-已保留的 replay bundle 可能需要显式 GateSession recovery transition。
+显式 durable SQLite/PostgreSQL runtime 会启用 replay repository 的
+`store_complete_finalization()` 路径。repository 会开启一个外层 unit：读取精确 decided
+event head，append finalized transition/rendered-injection events，写 GateSession/replay
+projection，并精确读回。event、transition、projection 或 read-back 任一步失败，都会
+回滚全部 finalization write。此前 claim 阶段已提交的 lease renewal 有意保持提交。
 
-当 SQLite 或 PostgreSQL GateSession、evidence、Semantic Gate artifact 与 replay
-repository 明确共享同一个 caller-owned connection 时，调用方可以用外层 transaction
-包住 finalization。repository savepoint 允许调用方一起提交或回滚续期 lease、完整
-bundle 与 `FINALIZED` revision。服务本身不会开启或拥有该外层 transaction。
+PostgreSQL 固定使用 `event-ledger schema/global lock → replay schema validation →
+GateSession transition/session-head locks` 顺序。caller-owned 外层 transaction 仍由 caller
+持有。未显式启用 event-first mode 的 compatibility repository 继续保留原来的
+`store_complete_bundle()` → GateSession CAS recovery 边界。
 
 ## 集成边界
 
@@ -81,4 +86,6 @@ Python/TypeScript durable client 会选择 HTTP profile。
 独立的 opt-in
 [durable execution 组合](durable-execution-v3.zh-CN.md)会使用其 authenticated
 exact replay boundary。另见
-[已认证 durable Agent v3](durable-agent-v3.zh-CN.md)。
+[已认证 durable Agent v3](durable-agent-v3.zh-CN.md)、
+[finalization event v1](finalization-event-v1.zh-CN.md) 与
+[ledger replay export v1](ledger-replay-export-v1.zh-CN.md)。

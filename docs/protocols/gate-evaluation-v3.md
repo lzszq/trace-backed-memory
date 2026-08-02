@@ -49,18 +49,18 @@ RetrievalSnapshot/System Gate/session linkage and CAS-attaches the complete
 attempt chain to `DECIDED`.
 
 The remaining boundary includes tenant authorization for those references;
-classification-backed encryption, retention, and artifact access control;
-signed provider attestation beyond the trusted internal callback; atomic
-cross-authority finalization and replay-manifest linkage; and active
-Agent/MCP/HTTP/SDK integration. The SQLite ledger uses a unique
+classification-backed encryption and artifact access for sensitive classes;
+signed provider attestation beyond the trusted internal callback; and full
+event-sourced projection cutover. Explicit durable Agent/MCP/HTTP/SDK profiles
+already compose the retained Gate records. The SQLite ledger uses a unique
 `(system_gate_evaluation_id, sequence)` key and CAS head; the low-level parent
 verifier checks one link, while `verify_semantic_gate_attempt_chain()` verifies
 the complete bounded chain. Shared deployments use the equivalent
 [PostgreSQL ledger](postgres-semantic-gate-v3.md).
 
-The active snapshot-v2 Store, SQLite-v1/PostgreSQL-v2 adapters, Agent, and MCP
-do not emit these records yet. The side-by-side SQLite ledger does not change
-that active compatibility boundary.
+The default snapshot-v2 Store, SQLite-v1/PostgreSQL-v2 adapters, Agent, and MCP
+do not emit these records. Explicit durable profiles do; the side-by-side
+ledgers do not change the default compatibility boundary.
 
 The runtime parser rejects oversized strings before UTF-8 encoding and also
 enforces cross-field invariants that structural JSON

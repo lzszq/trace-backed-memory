@@ -50,7 +50,10 @@ secret-metadata policy，因此 typed evolution 不能绕过基础信封的安�
 
 ## 确定性产物
 
-已密封的默认注册表当前发布规范事件示例使用的契约：`tbm.memory.proposed` version 1。
+已密封的默认注册表会发布 canonical memory proposal，以及 typed GateSession、
+Retrieval/System Gate evidence、Semantic Gate attempt、finalization、outcome/attribution
+与本地 effect 事件族。当前 catalog 包含 29 个 version-1 event type，其中包括
+[Effect Event v1](effect-event-v1.zh-CN.md) 定义的全部八个 `tbm.effect.*` event。
 它确定性生成：
 
 - `examples/event_type_registry_v1.example.json`——内容寻址目录；

@@ -46,10 +46,12 @@ function、trigger、ACL/security catalog 与 canonical fingerprint，再使用
 
 ## 当前边界
 
-ledger 保存 attempt provenance 与 artifact hash，不保存 prompt/response
-artifact 字节。它不认证 provider/timestamp、不追加 GateSession revision，也不从
-active Store、Agent 或 MCP 路径产生 attempt。Artifact 校验、retention、授权，
-以及与 GateSession/replay service 的事务集成仍待完成。
+ledger 本身保存 attempt provenance 与 artifact hash，不保存 prompt/response
+artifact 字节。PostgreSQL artifact coordinator 现在会在同一 transaction 中增加精确
+public/internal 字节与 canonical event-first append。low-level ledger 不认证
+provider/timestamp，也不追加 GateSession revision；authenticated coordinator 与显式
+durable runtime 会完成这些工作。默认 compatibility Store/Agent/MCP 路径保持不变。
+敏感 Artifact 存储与完整 event-sourced projection cutover 仍待完成。
 
 PostgreSQL schema owner 与 superuser 属于数据库信任边界；runtime role 不得拥有、
 修改、禁用该 schema 的 trigger 或扩大其权限。检测可信管理员对一段内部完全有效

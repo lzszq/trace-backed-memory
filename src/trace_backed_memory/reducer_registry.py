@@ -6,6 +6,17 @@ import json
 from typing import NoReturn
 
 from .contracts_v3 import V3ContractError
+from .effect_reducer_v1 import build_effect_queue_reducer
+from .finalization_reducer_v1 import build_finalization_reducer
+from .gate_evidence_reducer_v1 import build_gate_evidence_reducer
+from .gate_session_reducer_v1 import build_gate_session_reducer
+from .outcome_reducer_v1 import (
+    build_outcome_attribution_reducer,
+    build_outcome_current_reducer,
+)
+from .semantic_gate_attempt_reducer_v1 import (
+    build_semantic_gate_attempt_reducer,
+)
 from .reducer import (
     REDUCER_PROTOCOL_VERSION,
     Reducer,
@@ -200,6 +211,13 @@ class ReducerRegistry:
 def build_default_reducer_registry() -> ReducerRegistry:
     registry = ReducerRegistry()
     registry.register(build_event_inventory_reducer())
+    registry.register(build_gate_evidence_reducer())
+    registry.register(build_gate_session_reducer())
+    registry.register(build_semantic_gate_attempt_reducer())
+    registry.register(build_finalization_reducer())
+    registry.register(build_outcome_current_reducer())
+    registry.register(build_outcome_attribution_reducer())
+    registry.register(build_effect_queue_reducer())
     return registry.seal()
 
 

@@ -9,6 +9,8 @@ orientation; these documents define the engineering contracts.
 
 - [Current capability status](status/current-capability-matrix.md)
 - [Machine-readable capability status](status/current-capabilities.json)
+- [Fixed 490-atom Full Persistence progress contract](status/full-persistence-progress.md)
+- [Machine-readable Full Persistence progress](status/full-persistence-progress.json)
 - [Product definition and current capabilities](product.en.md)
 - [Detailed API and operations reference](reference.md)
 - [Reference architecture](architecture.md)
@@ -42,6 +44,10 @@ orientation; these documents define the engineering contracts.
 - [Event type registry and upcasters v1](protocols/event-registry-v1.md)
 - [Event ledger application port v1](protocols/event-ledger-port-v1.md)
 - [Reducer and projection runtime v1](protocols/reducer-v1.md)
+- [Gate evidence canonical events and reducer v1](protocols/gate-evidence-event-v1.md)
+- [Semantic Gate attempt canonical events and reducer v1](protocols/semantic-gate-attempt-event-v1.md)
+- [Final decision and injection canonical event/reducer v1](protocols/finalization-event-v1.md)
+- [Ledger-backed replay export v1](protocols/ledger-replay-export-v1.md)
 - [Structured regression evidence v3](protocols/evidence-v3.md)
 - [FixEvidence v3](protocols/fix-evidence-v3.md)
 - [MemoryRevision proposal and publication events v3](protocols/memory-revision-v3.md)
@@ -73,6 +79,7 @@ orientation; these documents define the engineering contracts.
 - [PostgreSQL RunOutcome completion v3](protocols/postgres-outcome-v3.md)
 - [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.md)
 - [Completion outbox contract and SQLite/PostgreSQL authorities v3](protocols/completion-outbox-v3.md)
+- [Local effect events and EffectQueue reducer v1](protocols/effect-event-v1.md)
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Content-addressed replay and portable export contracts v3](protocols/replay-v3.md)
 - [Authenticated encrypted Artifact Authority v3](protocols/artifact-authority-v3.md)
@@ -104,13 +111,20 @@ protocol, not another persistence version. Its pending gate requests remain
 process-local.
 The canonical event envelope, sealed typed registry/upcaster catalog, and
 storage-neutral event-ledger port are strict F0 boundaries. F1 adds opt-in
-SQLite/PostgreSQL ledger backends and descriptor-only Artifact linkage; no
-active composition root selects them, so the active source-of-truth model
-remains the registered authority graph. The opt-in `tbm.reducer.v1` runtime,
+SQLite/PostgreSQL ledger backends and descriptor-only Artifact linkage. The
+explicit durable v3 root now selects event-first adapters for GateSession,
+Retrieval/System Gate evidence, Semantic attempts, finalization, outcome/
+attribution, and local completion effects, plus a ledger-backed finalized
+replay reader; default compatibility adapters remain
+unchanged, synchronized authorities are still projections, and the
+machine-readable source-of-truth model remains `authority_graph` with
+`full_persistence=false`. The opt-in `tbm.reducer.v1` runtime,
 SQLite/PostgreSQL checkpoints and projection-head history, explicit `tbmd`
 operator rebuild/compare/swap/rollback commands, and six-cell deterministic
-golden matrix are delivered; only the envelope inventory reducer is built in,
-not the active Gate or Memory projections.
+golden matrix are delivered. Typed reducers and parity checks exist for the F2
+slices above, including final decision/injection and replay export, but the
+generic reducer runtime is not yet the sole rebuild path for all active Gate
+and Memory projections.
 The persistence-neutral `tbm.gate-session.v3` lifecycle contract and opt-in
 side-by-side SQLite and isolated PostgreSQL revision repositories are
 published. Opt-in preparation, Semantic Gate, completion, and recovery
@@ -139,17 +153,23 @@ composition now advances a prepared GateSession through
 the complete monotonic attempt chain with explicit retry/recovery semantics.
 The opt-in durable finalization composition now rechecks the current
 authorization event, active revision heads, and policy; deterministically
-renders the final allowed set; atomically retains an exact UsageDecision,
-injection, and complete eight-component replay bundle; and CAS-publishes
-`FINALIZED` with SQLite/PostgreSQL caller-transaction parity.
+renders the final allowed set; appends `UsageDecisionFinalized` followed by
+`InjectionRendered`; atomically retains the exact UsageDecision, injection,
+and complete replay bundle; and publishes `FINALIZED` with SQLite/PostgreSQL
+caller-transaction parity. Its session-bound replay path reconstructs metadata
+from the canonical ledger and reads exact bytes from the authenticated replay
+authority, while the default compatibility path remains projection-backed.
 `DurableExecutionService` then verifies that exact retained injection before
 `FINALIZED -> EXECUTING`, supports authenticated exact-version resume and
 abandonment, authenticates the registered outcome evaluator, and composes
 atomic `RunOutcome + COMPLETED + completion outbox` publication with
-SQLite/PostgreSQL parity. Managed production indexes, encrypted
-protected-content finalization, durable transition-event linkage, default
-  adapter cutover, CLI durable selection, and shared-service transport remain
-  outstanding.
+SQLite/PostgreSQL parity. The same transaction appends `EffectRequested`, and
+worker transitions append canonical started/succeeded/failed/retry/dead-letter
+evidence that `effect-queue` rebuilds with exact delivery-history parity.
+Provider receipts, unknown-result reconciliation, durable compensation,
+managed production indexes, encrypted protected-content finalization, default
+adapter cutover, CLI durable selection, and shared-service transport remain
+outstanding.
 `AuthenticatedDurableAgentMemory` now composes those opt-in stages behind one
 adapter-neutral lifecycle. It reconstructs the original retrieval scope from
 retained RetrievalSnapshot authorization linkage, rejects mismatched service

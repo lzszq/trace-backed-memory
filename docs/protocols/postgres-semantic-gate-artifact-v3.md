@@ -6,8 +6,9 @@
 repository for exact Semantic Gate provider bytes. It composes the existing
 PostgreSQL SemanticGateAttempt ledger with public/internal prompt and response
 artifacts and their `tbm.semantic-gate-artifact.v3` role bindings. It does not
-change active PostgreSQL schema version 2 and is not wired to Agent, MCP, or
-GateSession transitions.
+change active PostgreSQL schema version 2. Explicit durable PostgreSQL
+composition now enables its event-first mode; compatibility Agent/MCP profiles
+remain unchanged.
 
 The repository does not provide encryption at rest. It therefore rejects
 `confidential` and `restricted` bytes and rejects non-null encryption-key
@@ -35,10 +36,14 @@ installed.
 
 ## Atomic store and exact replay
 
-`store_attempt_with_artifacts()` opens one outer PostgreSQL transaction. The
-attempt append runs in a nested savepoint, followed by artifact and binding
-writes. An artifact conflict therefore rolls back a newly appended attempt.
-Caller-owned transactions remain caller-owned.
+`store_attempt_with_artifacts()` opens one outer PostgreSQL transaction. In
+event-first mode it first locks the event-ledger schema/global head, verifies
+the retained System Gate or attempt parent, and appends the canonical attempt
+event. The attempt append then runs in a nested savepoint, followed by Artifact
+and binding projections. An Artifact conflict therefore rolls back event
+heads/idempotency plus a newly appended attempt. Caller-owned transactions
+remain caller-owned. See
+[Semantic Gate Attempt Event v1](semantic-gate-attempt-event-v1.md).
 
 Artifacts are deduplicated by both derived artifact ID and SHA-256. Bindings
 are deduplicated by attempt and role. Exact replay returns insertion flags;
@@ -64,5 +69,6 @@ The schema owner and PostgreSQL superusers remain trusted operators: they can
 rewrite database state outside the repository boundary. Hashes establish byte
 identity, not provider authorship or trusted time. Provider authentication,
 trusted timestamps, signed external checkpoints, GateSession/replay
-transaction linkage, encrypted sensitive storage, and active emission remain
-separate work.
+transaction linkage, and encrypted sensitive storage remain separate work.
+Trusted adapters alone bind event identity and mutation authorization context;
+request JSON cannot select it.

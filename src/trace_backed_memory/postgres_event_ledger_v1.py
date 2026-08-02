@@ -1097,6 +1097,119 @@ class PostgresEventLedgerV1:
                 "global ledger head changed during append",
             )
 
+    def _append_in_transaction(
+        self,
+        cursor: object,
+        request: LedgerAppendRequest,
+    ) -> LedgerAppendReceipt:
+        self._require_open()
+        if type(request) is not LedgerAppendRequest:
+            raise ValueError("request must be exactly LedgerAppendRequest")
+        if request.access != self._access_context:
+            raise ValueError("request access must match the bound ledger access")
+        self._lock_schema(cursor, write=True)
+        next_global = self._select_global_position(
+            cursor,
+            for_update=True,
+        ) + 1
+        idempotency = request.idempotency
+        retained_row = self._select_idempotency(
+            cursor,
+            idempotency.idempotency_key_sha256,
+            for_update=True,
+        )
+        if retained_row is not None:
+            if (
+                retained_row.get("command_sha256")
+                != idempotency.command_sha256
+                or retained_row.get("request_sha256")
+                != request.request_sha256
+            ):
+                raise EventLedgerIdempotencyConflictError(
+                    "TBM_EVENT_LEDGER_IDEMPOTENCY_CONFLICT",
+                    "idempotency key is bound to another command",
+                )
+            retained = self._receipt_from_row(
+                cursor,
+                idempotency.idempotency_key_sha256,
+                retained_row,
+            )
+            verify_ledger_append_receipt(request, retained)
+            return retained
+        partition = self._access_context.partition
+        cursor.execute(
+            """
+            INSERT INTO trace_backed_memory_v3_event_ledger.stream_heads (
+                partition_sha256, stream_id, organization_id, tenant_id,
+                repository_id, environment_id, current_stream_version,
+                current_event_id, current_event_sha256
+            ) VALUES (%s, %s, %s, %s, %s, %s, 0, NULL, NULL)
+            ON CONFLICT (partition_sha256, stream_id) DO NOTHING
+            """,
+            (
+                partition.partition_sha256,
+                request.stream_id,
+                partition.organization_id,
+                partition.tenant_id,
+                partition.repository_id,
+                partition.environment_id,
+            ),
+        )
+        current_head = self._select_head_event(
+            cursor,
+            request.stream_id,
+            for_update=True,
+        )
+        verify_ledger_append_precondition(
+            request,
+            current_head=current_head,
+            next_global_position=next_global,
+        )
+        for event in request.events:
+            self._insert_event(cursor, event)
+        receipt = build_ledger_append_receipt(request)
+        cursor.execute(
+            """
+            INSERT INTO trace_backed_memory_v3_event_ledger.idempotency (
+                partition_sha256, idempotency_key_sha256, command_sha256,
+                request_sha256, stream_id, previous_stream_version,
+                current_stream_version, first_global_position,
+                last_global_position, event_sha256s_json, receipt_sha256
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                partition.partition_sha256,
+                idempotency.idempotency_key_sha256,
+                idempotency.command_sha256,
+                request.request_sha256,
+                request.stream_id,
+                receipt.previous_stream_version,
+                receipt.current_stream_version,
+                receipt.first_global_position,
+                receipt.last_global_position,
+                _canonical_json(
+                    [event.event_sha256 for event in request.events]
+                ),
+                receipt.receipt_sha256,
+            ),
+        )
+        retained_row = self._select_idempotency(
+            cursor,
+            idempotency.idempotency_key_sha256,
+            for_update=False,
+        )
+        if retained_row is None:
+            raise _integrity_error(
+                "committed idempotency receipt could not be read back"
+            )
+        retained = self._receipt_from_row(
+            cursor,
+            idempotency.idempotency_key_sha256,
+            retained_row,
+        )
+        verify_ledger_append_receipt(request, retained)
+        return retained
+
     @_synchronized
     def append(
         self,
@@ -1116,113 +1229,7 @@ class PostgresEventLedgerV1:
         try:
             with self._connection.transaction():
                 with self._cursor() as cursor:
-                    self._lock_schema(cursor, write=True)
-                    next_global = self._select_global_position(
-                        cursor,
-                        for_update=True,
-                    ) + 1
-                    retained_row = self._select_idempotency(
-                        cursor,
-                        idempotency.idempotency_key_sha256,
-                        for_update=True,
-                    )
-                    if retained_row is not None:
-                        if (
-                            retained_row.get("command_sha256")
-                            != idempotency.command_sha256
-                            or retained_row.get("request_sha256")
-                            != request.request_sha256
-                        ):
-                            raise EventLedgerIdempotencyConflictError(
-                                "TBM_EVENT_LEDGER_IDEMPOTENCY_CONFLICT",
-                                "idempotency key is bound to another command",
-                            )
-                        retained = self._receipt_from_row(
-                            cursor,
-                            idempotency.idempotency_key_sha256,
-                            retained_row,
-                        )
-                        verify_ledger_append_receipt(request, retained)
-                        return retained
-                    partition = self._access_context.partition
-                    cursor.execute(
-                        """
-                        INSERT INTO
-                            trace_backed_memory_v3_event_ledger.stream_heads (
-                                partition_sha256, stream_id, organization_id,
-                                tenant_id, repository_id, environment_id,
-                                current_stream_version, current_event_id,
-                                current_event_sha256
-                            ) VALUES (%s, %s, %s, %s, %s, %s, 0, NULL, NULL)
-                        ON CONFLICT (partition_sha256, stream_id) DO NOTHING
-                        """,
-                        (
-                            partition.partition_sha256,
-                            stream_id,
-                            partition.organization_id,
-                            partition.tenant_id,
-                            partition.repository_id,
-                            partition.environment_id,
-                        ),
-                    )
-                    current_head = self._select_head_event(
-                        cursor,
-                        stream_id,
-                        for_update=True,
-                    )
-                    verify_ledger_append_precondition(
-                        request,
-                        current_head=current_head,
-                        next_global_position=next_global,
-                    )
-                    for event in events:
-                        self._insert_event(cursor, event)
-                    receipt = build_ledger_append_receipt(request)
-                    cursor.execute(
-                        """
-                        INSERT INTO
-                            trace_backed_memory_v3_event_ledger.idempotency (
-                                partition_sha256, idempotency_key_sha256,
-                                command_sha256, request_sha256, stream_id,
-                                previous_stream_version, current_stream_version,
-                                first_global_position, last_global_position,
-                                event_sha256s_json, receipt_sha256
-                            ) VALUES (
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
-                            )
-                        """,
-                        (
-                            partition.partition_sha256,
-                            idempotency.idempotency_key_sha256,
-                            idempotency.command_sha256,
-                            request.request_sha256,
-                            stream_id,
-                            receipt.previous_stream_version,
-                            receipt.current_stream_version,
-                            receipt.first_global_position,
-                            receipt.last_global_position,
-                            _canonical_json(
-                                [event.event_sha256 for event in events]
-                            ),
-                            receipt.receipt_sha256,
-                        ),
-                    )
-                    retained_row = self._select_idempotency(
-                        cursor,
-                        idempotency.idempotency_key_sha256,
-                        for_update=False,
-                    )
-                    if retained_row is None:
-                        raise _integrity_error(
-                            "committed idempotency receipt could not be read back"
-                        )
-                    retained = self._receipt_from_row(
-                        cursor,
-                        idempotency.idempotency_key_sha256,
-                        retained_row,
-                    )
-                    verify_ledger_append_receipt(request, retained)
-                    return retained
+                    return self._append_in_transaction(cursor, request)
         except EventLedgerPortError:
             raise
         except Exception as error:

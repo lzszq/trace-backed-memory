@@ -46,6 +46,7 @@ class DurableAuthorityGraph:
     revision_source: ActivatedRevisionRetrievalSource
     replay_authority: FinalizationReplayAuthority
     completion_authority: CompletionOutboxAuthority
+    replay_export_reader: object | None = None
     contract_version: str = DURABLE_COMPOSITION_CONTRACT_VERSION
 
     def __post_init__(self) -> None:
@@ -55,6 +56,14 @@ class DurableAuthorityGraph:
             is not AuthenticatedRetrievalService
         ):
             _invalid()
+        replay_export_reader = self.replay_export_reader
+        if replay_export_reader is None:
+            replay_export_reader = self.replay_authority
+            object.__setattr__(
+                self,
+                "replay_export_reader",
+                replay_export_reader,
+            )
         required = (
             (
                 self.session_authority,
@@ -79,6 +88,16 @@ class DurableAuthorityGraph:
                 self.replay_authority,
                 (
                     "store_complete_bundle",
+                    "load_artifact",
+                    "load_artifact_descriptor",
+                    "load_injection",
+                    "load_manifest",
+                    "load_manifest_for_session",
+                ),
+            ),
+            (
+                replay_export_reader,
+                (
                     "load_artifact",
                     "load_artifact_descriptor",
                     "load_injection",

@@ -1847,24 +1847,57 @@ SQLite/PostgreSQL retain exact checkpoints and projection-head history in their
 event-ledger schemas. Explicit `tbmd ledger` and `tbmd projection` commands
 verify, inspect, rebuild, compare, activate, and roll back an operator-selected
 SQLite ledger. One committed golden digest is checked on Python 3.11-3.13 on
-Windows and Linux. GateSession/Memory/index/outbox reducers, migration,
-lifecycle integration, and event-first cutover remain outstanding.
+Windows and Linux. F2 is now in progress: both durable backends append typed
+GateSession revision events before synchronous revision-row projections, the
+GateSession reducer supports exact row parity, and SQLite exercises persistent
+rebuild/resume, comparison, activation, and rollback. RetrievalSnapshot and
+SystemGateEvaluation writes also append compact Artifact-linked events before
+their synchronous rows in both backends, with a pure current-linkage reducer.
+Semantic Gate attempts now require the retained System Gate parent and append
+compact failed/succeeded events before attempt/exact-byte projections; their
+pure reducer binds canonical events to fieldwise authority parity. Finalization
+now appends `UsageDecisionFinalized` then `InjectionRendered` in one atomic
+SQLite/PostgreSQL unit with the session and replay projections. The
+`final-decision-injection` reducer verifies exact authority parity, and the
+explicit durable replay reader reconstructs metadata from the ledger while
+loading exact bytes from the authenticated replay authority. Outcome/
+attribution events and reducers now rebuild exact durable rows, and completion
+outbox operations append local effect request/delivery/dead-letter evidence
+that `effect-queue` verifies with exact history parity. Provider receipts,
+unknown-result reconciliation, durable compensation, Memory/index/audit/
+metrics reducers, migration, complete lifecycle integration, and the remaining
+event-first cutover remain outstanding. The SQLite local daemon now also has a
+real child-process `SIGKILL`/reopen sweep after acknowledged `PREPARED`,
+`DECIDED`, `FINALIZED`, `EXECUTING`, and `COMPLETED` commits. Each restart
+requires exact command replay, and the final ledger is reducer-checked against
+the durable GateSession row without duplicate logical transitions. Fine-grained
+auth/`CREATED`/evidence/provider/replay-retention and outbox pre/post-ack crash
+failpoints remain open, so the complete crash matrix is not yet delivered.
 
 - **F0 — Architecture freeze (delivered):** ADR-0006, canonical event contract
   and registry, ledger ports, and a guard against new independent authorities.
 - **F1 — Ledger and reducer kernel (opt-in foundation delivered):** opt-in
   SQLite/PostgreSQL event ledgers, Artifact references, versioned reducer
   runtime, projection operator CLI, and six-cell cross-platform determinism
-  verification are delivered; no active product lifecycle selects them.
-- **F2 — Durable lifecycle event-first cutover:** GateSession, retrieval/Gates,
-  replay, outcome/effect projections, `tbmd`, HTTP, MCP, and SDKs use the same
-  event-first composition and crash matrix.
+  verification are delivered; the F1 foundation alone and default compatibility
+  lifecycle do not select them, while the explicit durable F2 slices do.
+- **F2 — Durable lifecycle event-first cutover (in progress):** GateSession
+  revision events/reducer, Retrieval/System Gate evidence events/reducer, and
+  Semantic attempt-chain and final decision/injection events/reducers are
+  implemented as transactional migration increments; ledger-backed replay
+  export is selected by explicit durable runtimes. Outcome/attribution and
+  local completion-effect projections through dead letter are delivered.
+  A local-daemon hard-restart sweep covers five acknowledged lifecycle commits,
+  but the finer transaction/effect failpoints remain open. Provider receipt/
+  reconciliation, durable compensation, full transport parity, and the complete
+  crash matrix remain open.
 - **F3 — Trace, Git, and effect evidence:** ordered Trace/Git observations,
   Git-graph projection, external-effect receipts, Codex hooks, and governed
   retention/crypto-erasure.
 - **F4 — Governed memory projections:** failure extraction, structured evidence,
   MemoryRevision publication, ActivatedRevision retrieval, policy/index, and
-  outcome projections are reducer-native.
+  remaining Memory projections become reducer-native; the opt-in outcome/
+  effect reducers are already delivered in F2.
 - **F5 — Migration and cutover:** import compatibility and durable-v3 sources,
   verify and shadow-compare rebuilt state, select the ledger by default, freeze
   old writes, and retain a read-only rollback window.
@@ -1872,8 +1905,9 @@ lifecycle integration, and event-first cutover remain outstanding.
   PostgreSQL tenant isolation, Review Console, GitHub PR Check, observability,
   backup/DR, security governance, and stable-release qualification.
 
-The first fifteen PRs are fixed in dependency order: F0-01 through F0-05,
-F1-01 through F1-06, GateSession event adapter/reducer, replay exporter reducer,
-and outcome/effect reducers. Until those foundations land, new standalone
-authorities, protocol families, and SQL components are frozen except for
-documented security/corruption fixes or ledger, reducer, and migration blockers.
+The first fifteen dependency-ordered foundations are now delivered as
+candidate work: F0-01 through F0-05, F1-01 through F1-06, GateSession event
+adapter/reducer, replay exporter reducer, and outcome/effect reducers. New
+standalone authorities, protocol families, and SQL components remain frozen
+except for documented security/corruption fixes or ledger, reducer, and
+migration blockers while the remaining cutover gates are completed.

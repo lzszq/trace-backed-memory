@@ -6,13 +6,16 @@
 
 统一 SQLite v3 bundle 是 opt-in 的本地 durable storage 契约。它不会改变
 active snapshot version 2、SQLite schema version 1、PostgreSQL schema
-version 2 或 `tbm.agent.v1` 兼容边界。active MCP、HTTP、CLI 和 SDK profile
-目前仍未选择 durable runtime。
+version 2 或 `tbm.agent.v1` 兼容边界。默认 compatibility MCP/HTTP/CLI/SDK
+profile 不会选择它；显式 durable HTTP/MCP profile 与 durable SDK client 会选择它。
 
 `schemas/sqlite-v3.components.json` 是有序 component manifest。
 `schemas/sqlite-v3.sql` 由其中 16 个非迁移 authority component 生成。
 `schemas/sqlite-v3-migration.sql` 继续作为隔离 staging，不进入 runtime bundle。
-event-ledger component 会被安装并纳入指纹，但 durable runtime composition 尚未选择它。
+event-ledger component 会被安装并纳入指纹。durable runtime 已为 event-first
+GateSession、Retrieval/System Gate evidence、Semantic attempt 与 finalization slice
+选择它，并使用 ledger metadata + replay-authority bytes 提供 finalized replay export；
+但它尚未成为每个 authority 或 projection 的唯一事实源。
 
 ## 安装与校验
 

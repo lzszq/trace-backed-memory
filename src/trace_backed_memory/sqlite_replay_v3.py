@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache, wraps
 from pathlib import Path
@@ -10,6 +11,22 @@ import sqlite3
 from threading import RLock
 from typing import NoReturn, ParamSpec, TypeVar, cast
 
+from .event_v1 import EventTrustedContext
+from .finalization_event_v1 import (
+    FinalizationEventV1Error,
+    build_injection_rendered_event,
+    finalization_event_stream_id,
+)
+from .gate_session_event_v1 import gate_session_event_id
+from .gate_session_v3 import GateSession
+from .ledger_port_v1 import (
+    EventLedgerPortError,
+    LedgerAccessContext,
+    LedgerAppendRequest,
+    LedgerClassificationFilter,
+    LedgerIdempotency,
+    LedgerTenantPartition,
+)
 from .replay_v3 import (
     ARTIFACT_MAX_BYTES,
     INJECTION_ARTIFACT_MAX_BYTES,
@@ -27,6 +44,7 @@ from .replay_v3 import (
     verify_artifact_content,
 )
 from .resources import PackagedResourceError, read_packaged_resource
+from .usage_decision_v3 import UsageDecision
 
 
 SQLITE_REPLAY_V3_SCHEMA_VERSION = 1
@@ -177,6 +195,37 @@ class SQLiteReplayV3Repository:
         self._lock = RLock()
         self._closed = False
         self._savepoint_number = 0
+        self._event_first = False
+        self._event_context: ContextVar[EventTrustedContext | None] = ContextVar(
+            f"tbm_sqlite_replay_event_context_{id(self)}",
+            default=None,
+        )
+
+    @property
+    def event_first_enabled(self) -> bool:
+        return self._event_first
+
+    @_synchronized
+    def enable_event_first(self) -> None:
+        self._require_open()
+        if self._connection.in_transaction:
+            raise SQLiteReplayV3ConflictError(
+                "event-first mode cannot be enabled during a transaction"
+            )
+        self._event_first = True
+
+    @contextmanager
+    def bind_event_context(
+        self,
+        trusted_context: EventTrustedContext,
+    ) -> Iterator[None]:
+        if type(trusted_context) is not EventTrustedContext:
+            raise ValueError("trusted_context must be exactly EventTrustedContext")
+        token = self._event_context.set(trusted_context)
+        try:
+            yield
+        finally:
+            self._event_context.reset(token)
 
     @classmethod
     def connect(
@@ -969,6 +1018,178 @@ class SQLiteReplayV3Repository:
                 error,
                 "store complete replay bundle",
             )
+
+    @_synchronized
+    def store_complete_finalization(
+        self,
+        usage_decision: UsageDecision,
+        supporting_artifacts: tuple[StoredReplayArtifact, ...],
+        injection: InjectionArtifact,
+        content: bytes,
+        manifest: DecisionReplayManifest,
+        *,
+        decided_session: GateSession,
+        transition_finalized: Callable[[], GateSession],
+    ) -> GateSession:
+        """Atomically append finalization events before replay projections."""
+
+        self._require_open()
+        if not self._event_first:
+            raise SQLiteReplayV3ConflictError(
+                "event-first finalization is not enabled"
+            )
+        if type(usage_decision) is not UsageDecision:
+            raise ValueError("usage_decision must be exactly UsageDecision")
+        if type(decided_session) is not GateSession:
+            raise ValueError("decided_session must be exactly GateSession")
+        if not callable(transition_finalized):
+            raise ValueError("transition_finalized must be callable")
+        _validate_complete_bundle_inputs(
+            supporting_artifacts,
+            injection,
+            manifest,
+        )
+        trusted_context = self._event_context.get()
+        if trusted_context is None:
+            raise SQLiteReplayV3ConflictError(
+                "event-first finalization requires trusted event context"
+            )
+        access = LedgerAccessContext(
+            partition=LedgerTenantPartition(
+                trusted_context.organization_id,
+                trusted_context.tenant_id,
+                trusted_context.repository_id,
+                trusted_context.environment_id,
+            ),
+            principal_id=trusted_context.principal_id,
+            agent_client_id=trusted_context.agent_client_id,
+            actor_type=trusted_context.actor_type,
+            actor_id=trusted_context.actor_id,
+            authorization_decision_id=(
+                trusted_context.authorization_decision_id
+            ),
+            classification_filter=LedgerClassificationFilter(
+                ("public", "internal", "confidential", "restricted")
+            ),
+        )
+        from .sqlite_event_ledger_v1 import SQLiteEventLedgerV1
+
+        ledger = SQLiteEventLedgerV1(self._connection, access)
+        try:
+            with self._transaction(write=True):
+                with closing(self._connection.cursor()) as cursor:
+                    ledger._require_schema(cursor)
+                    self._require_schema(cursor)
+                    decided_event = ledger._select_head_event(
+                        cursor,
+                        decided_session.session_id,
+                    )
+                    if (
+                        decided_event is None
+                        or decided_event.event_id
+                        != gate_session_event_id(decided_session)
+                    ):
+                        raise SQLiteReplayV3ConflictError(
+                            "decided GateSession event head is unavailable"
+                        )
+                    finalized_session = transition_finalized()
+                    if type(finalized_session) is not GateSession:
+                        raise SQLiteReplayV3PersistenceError(
+                            "finalization transition returned an invalid receipt"
+                        )
+                    finalized_event = ledger._select_head_event(
+                        cursor,
+                        finalized_session.session_id,
+                    )
+                    if (
+                        finalized_event is None
+                        or finalized_event.event_id
+                        != gate_session_event_id(finalized_session)
+                    ):
+                        raise SQLiteReplayV3PersistenceError(
+                            "finalized GateSession event head is unavailable"
+                        )
+                    event = build_injection_rendered_event(
+                        usage_decision,
+                        supporting_artifacts,
+                        injection,
+                        content,
+                        manifest,
+                        decided_session=decided_session,
+                        finalized_session=finalized_session,
+                        decided_event=decided_event,
+                        finalized_event=finalized_event,
+                        global_position=(
+                            ledger._select_global_position(cursor) + 1
+                        ),
+                        trusted_context=trusted_context,
+                    )
+                    ledger._append_in_transaction(
+                        cursor,
+                        LedgerAppendRequest(
+                            access=access,
+                            stream_id=finalization_event_stream_id(
+                                manifest.manifest_sha256
+                            ),
+                            expected_stream_version=0,
+                            events=(event,),
+                            idempotency=LedgerIdempotency(
+                                event.idempotency_key_sha256,
+                                event.request_sha256,
+                            ),
+                        ),
+                    )
+                    for stored in supporting_artifacts:
+                        self._put_artifact(
+                            cursor,
+                            stored.artifact,
+                            stored.content,
+                        )
+                    self._put_artifact(cursor, injection.artifact, content)
+                    self._put_injection(cursor, injection)
+                    self._put_manifest(cursor, manifest)
+                    retained_supporting = tuple(
+                        self._load_artifact(
+                            cursor,
+                            stored.artifact.artifact_id,
+                        )
+                        for stored in supporting_artifacts
+                    )
+                    if (
+                        retained_supporting != supporting_artifacts
+                        or self._load_injection(
+                            cursor,
+                            injection.artifact.artifact_id,
+                        )
+                        != (injection, content)
+                        or self._load_manifest(
+                            cursor,
+                            manifest.manifest_sha256,
+                        )
+                        != manifest
+                    ):
+                        raise SQLiteReplayV3PersistenceError(
+                            "event-first finalization read-back changed"
+                        )
+                    return finalized_session
+        except (FinalizationEventV1Error, EventLedgerPortError) as error:
+            raise SQLiteReplayV3ConflictError(
+                "finalization event conflicts with immutable storage"
+            ) from error
+        except (
+            SQLiteReplayV3ConflictError,
+            SQLiteReplayV3PersistenceError,
+            SQLiteReplayV3SchemaError,
+            ValueError,
+        ):
+            raise
+        except sqlite3.DatabaseError as error:
+            self._raise_database_error(
+                error,
+                "store complete event-first finalization",
+            )
+        finally:
+            ledger.close()
 
     @_synchronized
     def load_artifact_descriptor(

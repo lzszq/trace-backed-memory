@@ -33,6 +33,16 @@ def test_codex_cli_round_trips_durable_stdio_profile(tmp_path: Path) -> None:
         pytest.skip("Codex CLI is not installed")
 
     root = Path(__file__).resolve().parents[1]
+    probe = _run_codex(
+        executable,
+        "--version",
+        cwd=root,
+        env=dict(os.environ),
+    )
+    if probe.returncode in {126, 127}:
+        pytest.skip("Codex CLI runtime is not installed")
+    assert probe.returncode == 0, probe.stderr
+
     codex_home = tmp_path / "codex-home"
     codex_home.mkdir()
     environment = dict(os.environ)

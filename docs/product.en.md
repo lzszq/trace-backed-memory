@@ -77,13 +77,13 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Migration preparation | Content-addressed inert v2-to-v3 bundles, exact plan replay, immutable SQLite staging, and version-gated PostgreSQL staging/rollback without changing active runtime versions |
 | Unified SQLite v3 persistence | Opt-in generated 15-component bundle installs the complete non-migration authority catalog in one transaction and verifies exact component versions plus all controlled main/temp tables, indexes, automatic indexes, and triggers; active SQLite v1 transports remain unchanged |
 | GateSession persistence preparation | Opt-in side-by-side SQLite and isolated PostgreSQL append-only revisions, scoped idempotency, CAS transitions, trusted clocks, bounded due discovery, and fail-closed PostgreSQL rollback without changing active SQLite v1/PostgreSQL v2 |
-| Replay persistence preparation | Storage-neutral content-addressed artifact, exact injection, fixed-component decision-manifest, and portable `tbm.replay-export.v3` contracts plus opt-in isolated SQLite/PostgreSQL immutable byte/descriptor ledgers; the durable facade and explicit durable HTTP profile authorize an exact-version, session-bound export with a fresh `artifact:read` decision, with response bytes still disabled by default |
+| Replay persistence preparation | Storage-neutral content-addressed artifact, exact injection, fixed-component decision-manifest, and portable `tbm.replay-export.v3` contracts plus opt-in isolated SQLite/PostgreSQL immutable byte/descriptor ledgers; explicit durable finalization appends canonical final-decision/injection events, and the durable facade reconstructs session-bound export metadata from that ledger while reading exact bytes from the authenticated replay authority under a fresh `artifact:read` decision; response bytes remain disabled by default |
 | Authorization contract preparation | Storage-neutral canonical repository, exact alias, principal/client, role-binding, and linked-decision v3 contracts plus opt-in isolated SQLite/PostgreSQL immutable authorities; the explicit durable HTTP profile enforces them through server-owned contexts, while compatibility adapters do not |
 | Structured evidence preparation | Content-addressed FixEvidence and regression evidence bind the exact case, source Trace, source/fix/verification commits, artifacts, independent reviewers/verifiers, and attestation provenance; strict MemoryRevision preflight verifies their cross-record linkage, while active v2 records do not use them |
 | Immutable revision publication | Content-derived proposals and separate approval/activation events bind exact artifact, evidence, authorization, actors, scope, and lineage; isolated SQLite/PostgreSQL authorities persist canonical provenance, validate attestations through a caller boundary, and CAS-lock the durable target head; an authorized ActivatedRevision source revalidates the current head, publication provenance, structured evidence, and encrypted content through SQLite/PostgreSQL Artifact authorities for future v3 retrieval; active-v2 projection and retrieval integration remain outstanding |
 | Replayable retrieval preparation | Content-addressed policy and optional authenticated preparation kernel authorize first, load verified activated revisions, filter classification/applicability/eval leakage/Git ancestry, deterministically fuse scores, and emit paired RetrievalSnapshot/System Gate evidence with final head/policy rechecks; an opt-in immutable five-view managed index bundle supplies content-addressed metadata/lexical/semantic/evidence/Git discovery through exact SQLite/PostgreSQL scope-head CAS; a durable composition service creates the authorized GateSession, stores and verifies the exact evidence pair, and CAS-publishes `PREPARED`; production sharding/workers and default compatibility cutover remain outstanding |
-| Replayable gate preparation | Content-derived System Gate evaluations and Semantic Gate attempts bind deterministic rule outcomes and provider/model provenance while enforcing that a model can only narrow; exact prompt/response bindings verify role digests, SQLite/PostgreSQL authorities atomically retain public/internal bytes, and one shared service authenticates the provider registration, owns trusted timing and retry parents, and requires exact read-back; an opt-in session composition now advances `PREPARED -> AWAITING_DECISION -> DECIDED`, records the complete attempt chain, and recovers retained success without repeating the provider call; an opt-in finalization composition now rechecks authorization/head/policy, deterministically renders the final allowed set, retains the exact UsageDecision plus complete replay bundle, and CAS-publishes `FINALIZED`; active policy emission remains outstanding |
-| Durable execution and completion preparation | An authenticated execution composition verifies the retained injection before `FINALIZED` → `EXECUTING`, supports exact-version lease resume and abandonment, authenticates a registered outcome evaluator, and composes opt-in SQLite or isolated PostgreSQL authorities that atomically bind one content-addressed RunOutcome to `COMPLETED` plus one immutable completion event and append-only leased retry/dead-letter delivery chain; explicit durable transports expose this lifecycle, and `tbmd local` operates bounded SQLite recovery/outbox pages, while shared-service workers remain outstanding |
+| Replayable gate preparation | Content-derived System Gate evaluations and Semantic Gate attempts bind deterministic rule outcomes and provider/model provenance while enforcing that a model can only narrow; exact prompt/response bindings verify role digests, SQLite/PostgreSQL authorities atomically retain public/internal bytes, and one shared service authenticates the provider registration, owns trusted timing and retry parents, and requires exact read-back; an opt-in session composition now advances `PREPARED -> AWAITING_DECISION -> DECIDED`, records the complete attempt chain, and recovers retained success without repeating the provider call; explicit durable finalization appends `tbm.usage_decision.finalized -> tbm.injection.rendered` in one transaction with `FINALIZED` and replay projections, while `final-decision-injection` rebuilds exact parity; active policy emission remains outstanding |
+| Durable execution and completion preparation | An authenticated execution composition verifies the retained injection before `FINALIZED` → `EXECUTING`, supports exact-version lease resume and abandonment, authenticates a registered outcome evaluator, and composes opt-in SQLite or isolated PostgreSQL authorities that atomically bind one content-addressed RunOutcome to `COMPLETED`, one immutable completion event, `EffectRequested`, and an append-only leased retry/dead-letter delivery chain; canonical worker transition events feed the `effect-queue` reducer with exact delivery-history parity. Explicit durable transports expose this lifecycle, and `tbmd local` operates bounded SQLite recovery/outbox pages; provider receipts, unknown-result reconciliation, durable compensation, and shared-service workers remain outstanding |
 | Distribution resources | [`resources/manifest.json`](../resources/manifest.json) drives the strict byte-identical packaged Schema/OpenAPI/SQL/migration/taxonomy/example allowlist, runtime declaration, package data, metadata, and generated index |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
@@ -104,6 +104,12 @@ All caller-owned JSON is checked for duplicate object keys before conversion to 
 6. `complete_memory_run()` or `complete_memory_runs()` atomically writes the Trace and decision outcome. Snapshot operators can submit measured results with `tbm complete` or `tbm complete-batch`.
 
 Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Applications that do not need the lower-level Store lifecycle can use `LocalAgentMemory`, which also owns Trace registration, repository synchronization, stable errors, and callback recovery IDs. The optional default `tbm-mcp` command exposes only this runtime lifecycle over bounded local STDIO, fixes provenance to a configured checkout root, and captures complete Git ancestry before retrieval. SQLite and PostgreSQL synchronize durable phases; pending requests in that compatibility profile remain process-local. The `tbm.gate-session.v3` contract defines the target lifecycle, revision, lease, and expiry semantics, with opt-in side-by-side SQLite and isolated PostgreSQL repositories for immutable revisions. The authorization-v3 contract defines the pre-retrieval policy boundary; opt-in isolated SQLite and PostgreSQL authorities verify exact policy/request/decision triples and durably record immutable decisions. `AuthenticatedRetrievalService` provides the shared ordering kernel that matches trusted identity records, persists and reloads the decision, rechecks registry rotation and environment binding, and only then calls retrieval. `AuthenticatedGateSessionService` then durably creates and reads back a scoped session before preparation, suppresses duplicate retrieval, requires trusted retrieval/System-Gate evidence, and CAS-publishes `PREPARED` with explicit compensation. The opt-in SQLite/PostgreSQL Gate evidence authorities atomically store and reload each exact content-addressed pair, while the shared verifier binds it to the authorized session and identity scope. `DurableRetrievalPreparationService` composes these opt-in boundaries under one authorization scope: it creates the session first, prepares retrieval without a second authorization decision, stores and verifies the pair, and then publishes `PREPARED`. `AuthenticatedSemanticGateSessionService` then verifies that durable evidence and the complete immutable attempt chain, publishes `AWAITING_DECISION` before provider work, and publishes `DECIDED` only after exact attempt/artifact read-back; failed attempts remain explicitly retryable and a retained success is recoverable without another provider call. Separate authorities retain ordered recovery; same-database repositories may share a caller-owned outer transaction. `GateSessionRecoveryWorker` performs bounded due scans, expires only legally session-expired prepared/awaiting heads, and reports graph-blocked or concurrent state for explicit recovery. The default agent/MCP profile does not use these kernels; the opt-in local MCP `--auth-*` profile uses the authenticated retrieval kernel and SQLite authorization authority, while explicit durable HTTP and trusted-local MCP profiles select the complete durable facade. The opt-in `DurableFinalizationService` now rechecks authorization/head/policy, retains the complete replay bundle, and CAS-publishes `FINALIZED` with SQLite/PostgreSQL caller-transaction parity. `DurableExecutionService` then verifies that exact retained injection, authorizes and CAS-publishes `EXECUTING`, supports explicit resume/abandonment, authenticates the outcome evaluator, and composes atomic outcome/completion-outbox publication. Peer-authenticated shared-service transport, protected-content encryption, durable transition-event linkage, default adapter cutover, CLI durable selection, and shared-service MCP remain outstanding. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
+
+In explicit durable SQLite/PostgreSQL runtimes, finalization appends
+`tbm.usage_decision.finalized` then `tbm.injection.rendered` in the same
+transaction as `FINALIZED` and replay projections. Session replay reconstructs
+canonical metadata from the ledger and reads exact bytes only from the
+authenticated replay authority; default compatibility behavior is unchanged.
 
 The default local loopback HTTP adapter, synchronous/asynchronous Python
 clients, and Node.js TypeScript SDK expose the active version-2 lifecycle
@@ -240,11 +246,11 @@ and the storage-neutral ledger application port for atomic batch append, exact
 idempotent replay, bounded reads, verification, and subscriptions. A repository
 guard also registers every current SQLite/PostgreSQL persistence module as
 a ledger, replaceable projection, compatibility migration, or bundle
-coordinator and rejects unregistered authorities. F1 now adds opt-in SQLite and
+coordinator and rejects unregistered authorities. F1 adds opt-in SQLite and
 isolated PostgreSQL event-ledger backends with exact Artifact descriptors,
 atomic append/replay, integrity/catalog verification, backup/rollback, and
-cross-backend conformance. No lifecycle composition, cutover, or active
-transport path selects them yet. F1 now also
+cross-backend conformance. The F1 foundation alone and default compatibility
+paths do not select them; explicit durable F2 lifecycle slices now do. F1 also
 delivers the opt-in `tbm.reducer.v1` runtime: versioned descriptors and sealed
 registries, bounded canonical state, double-execution determinism checks,
 typed-event/upcaster consumption, checkpoint/resume, poison evidence, shadow
@@ -257,6 +263,34 @@ ledger; they do not select it for the current Gate or Memory lifecycle. See
 [Event Type Registry v1](protocols/event-registry-v1.md), and
 [Event Ledger Port v1](protocols/event-ledger-port-v1.md), and
 [Reducer and Projection Runtime v1](protocols/reducer-v1.md).
+
+F2 is now in progress. Explicit durable SQLite/PostgreSQL runtimes enable
+event-first GateSession revisions: each canonical event and synchronous
+revision-row projection share one transaction, and a typed reducer rebuilds
+the exact current session. SQLite exercises persistent checkpoint resume,
+shadow comparison, activation, rollback, and fieldwise parity. Durable
+retrieval preparation also appends compact, exact-digest Artifact-linked
+RetrievalSnapshot and SystemGateEvaluation events before the existing evidence
+rows, with a pure current-linkage reducer and atomic rollback tests. See
+[Gate Evidence Event v1](protocols/gate-evidence-event-v1.md). Semantic Gate
+attempts now append compact failed/succeeded events before the attempt and
+exact-byte projections, require the retained System Gate parent, and rebuild
+with exact event/authority parity. See
+[Semantic Gate Attempt Event v1](protocols/semantic-gate-attempt-event-v1.md).
+Finalization now appends `UsageDecisionFinalized` and `InjectionRendered` in
+the same transaction as `FINALIZED` and replay projections. The
+`final-decision-injection` reducer rebuilds exact decision, injection, manifest,
+Artifact-role, and event-head linkage. Explicit durable replay export now
+derives metadata from the ledger, loads exact bytes only from the authenticated
+replay authority, and verifies projection parity. See
+[Finalization Event v1](protocols/finalization-event-v1.md) and
+[Ledger Replay Export v1](protocols/ledger-replay-export-v1.md). Typed outcome/
+attribution and local completion-effect events/reducers now cover exact
+RunOutcome, OutcomeAttribution, delivery-history, and dead-letter parity.
+Provider receipts, unknown-result reconciliation, durable compensation,
+complete transport conformance, and the F2 kill matrix remain open.
+The ledger is therefore not yet the sole durable source of truth and
+`full_persistence` remains `false`.
 
 The implemented hardening includes:
 
@@ -328,7 +362,7 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
   scope from retained evidence, rejects mismatched authority graphs, and
   provides one stateless lifecycle boundary with SQLite/PostgreSQL parity.
   Peer-authenticated shared-service transport, protected-content encryption,
-  durable transition-event linkage, shared-service workers, default adapter
+  the remaining lifecycle transition-event linkage, shared-service workers, default adapter
   cutover and CLI durable selection remain out of scope.
 - Storage-neutral replay descriptors now define the required retriever/index,
   Gate prompt/response, ancestry, policy, renderer, and exact snippet hashes,

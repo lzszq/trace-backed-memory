@@ -27,9 +27,13 @@ For a fresh decided session, the service:
 5. loads only the allowed current ActivatedRevision candidates and verifies
    their revision and candidate hashes;
 6. rechecks current authorization, active heads, and policy immediately before
-   and after rendering, and once more after bundle retention;
-7. stores and reads back the exact replay bundle; and
-8. compare-and-swap publishes and reads back `FINALIZED`.
+   and after rendering;
+7. appends and reads back `tbm.usage_decision.finalized`, publishes the
+   `FINALIZED` revision, then appends and reads back
+   `tbm.injection.rendered`;
+8. stores and reads back the exact replay projections in the same event-first
+   transaction; and
+9. rechecks the retained result and current authorization.
 
 System Gate blocks remain monotonic because the complete Semantic Gate chain is
 verified before any render, and UsageDecision separately retains every
@@ -74,16 +78,19 @@ evidence or creates a new final decision silently.
 
 ## Transaction boundary
 
-Across independent authorities, finalization is ordered recovery rather than a
-distributed transaction. A retained replay bundle may require an explicit
-GateSession recovery transition.
+Explicit durable SQLite/PostgreSQL runtimes enable the replay repository's
+`store_complete_finalization()` path. The repository opens one outer unit that
+reads the exact decided-event head, appends the finalized transition and
+rendered-injection events, writes the GateSession/replay projections, and
+performs exact read-back. Any event, transition, projection, or read-back
+failure rolls back all finalization writes. The lease renewal committed by the
+earlier claim is intentionally not rolled back.
 
-When SQLite or PostgreSQL GateSession, evidence, Semantic Gate artifact, and
-replay repositories deliberately share one caller-owned connection, the
-caller can wrap finalization in an outer transaction. Repository savepoints
-then allow the caller to commit or roll back the renewed lease, complete
-bundle, and `FINALIZED` revision together. The service does not open or own
-that outer transaction.
+PostgreSQL preserves the fixed order `event-ledger schema/global lock → replay
+schema validation → GateSession transition/session-head locks`. A caller-owned
+outer transaction remains caller-owned. Compatibility repositories that do not
+explicitly enable event-first mode retain the earlier
+`store_complete_bundle()` then GateSession-CAS recovery boundary.
 
 ## Integration boundary
 
@@ -98,4 +105,6 @@ the process-local Gate of the default compatibility MCP profile.
 The separate opt-in
 [durable execution composition](durable-execution-v3.md) consumes its
 authenticated exact replay boundary. See also
-[authenticated durable Agent v3](durable-agent-v3.md).
+[authenticated durable Agent v3](durable-agent-v3.md),
+[finalization event v1](finalization-event-v1.md), and
+[ledger replay export v1](ledger-replay-export-v1.md).

@@ -38,8 +38,12 @@ commit 前读回。详见
 opt-in [SQLite OutcomeAttribution ledger](sqlite-outcome-attribution-v3.zh-CN.md)
 与 [PostgreSQL OutcomeAttribution ledger](postgres-outcome-attribution-v3.zh-CN.md)
 提供 immutable multi-claim persistence、精确 durable linkage 与 content-ID
-replay。evaluator authentication、artifact verification、outbox delivery 与
-active runtime integration 仍未完成。
+replay。typed canonical outcome event 以及 `outcome-current`/
+`outcome-attribution` reducer 会逐字段重建并核验两个 authority。显式 durable execution
+路径会在每次调用时认证 evaluator，并原子发布 RunOutcome、completed session、completion
+outbox 与初始 effect request；worker 会持久化 delivery/dead-letter event。artifact byte
+核验、provider receipt 与 unknown-result reconciliation、durable compensation，以及
+default/shared-service cutover 仍未完成。
 
 规范 Schema：
 

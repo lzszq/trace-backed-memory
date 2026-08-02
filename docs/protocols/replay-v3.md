@@ -9,7 +9,9 @@ process-local Gate durable. An opt-in isolated SQLite repository persists
 these records; isolated PostgreSQL install and fail-closed rollback schemas
 establish the same immutable relational boundary, and an opt-in PostgreSQL
 repository now provides exact-byte and descriptor validation. Neither ledger
-is connected to active runtime state.
+changes default compatibility or active-v2 state. Explicit durable runtimes
+select event-first finalization and the ledger-backed replay reader described
+below.
 
 ## Content identity
 
@@ -121,7 +123,11 @@ rolls back the whole operation.
 `store_complete_bundle()` additionally requires the first supporting artifact
 to be the content-derived UsageDecision artifact for the manifest's exact
 usage ID. It atomically stores that record, any deduplicated replay-component
-artifacts, the injection bytes/descriptor, and the manifest.
+artifacts, the injection bytes/descriptor, and the manifest. Compatibility
+callers retain this path. Explicit durable runtimes enable
+`store_complete_finalization()`, which also appends the finalized-session and
+rendered-injection events and writes the GateSession projection in the same
+transaction.
 
 `load_artifact_descriptor()` checks descriptor columns and physical content
 length without fetching the content BLOB. Full loads repeat that preflight,
@@ -180,18 +186,28 @@ by the Python parser and must be checked after Schema validation.
 
 ## Durable finalization composition
 
-The opt-in durable finalization service uses `store_complete_bundle()` and
-reads every retained component back before publishing `FINALIZED`. An exact
-finalized replay reloads the UsageDecision, all seven supporting component
-artifacts, the injection, and the reconstructed manifest without rerendering.
-The service authorizes and rechecks one retrieval scope, but remains an
-internal composition rather than an active runtime adapter.
+The opt-in durable finalization service uses event-first
+`store_complete_finalization()` in explicit SQLite/PostgreSQL durable runtimes.
+The canonical order is `tbm.usage_decision.finalized →
+tbm.injection.rendered → replay projections`, with `FINALIZED` published in the
+same transaction. Any finalization event or projection failure rolls back the
+whole unit. Compatibility callers continue to use `store_complete_bundle()`
+and the existing CAS/recovery boundary.
 
-The current v2 Store, active SQLite v1 adapter, PostgreSQL v2 adapter, local
-agent, and STDIO MCP do not persist or emit these records. The opt-in SQLite
-ledger and opt-in PostgreSQL repository provide the retained storage boundary
-and implement the replay export reader surfaces. The authenticated durable
-Agent provides replay-read authorization over that exact graph; explicit
+Explicit durable replay reads bind `LedgerReplayExportReaderV1` to the trusted
+replay-read scope. It performs deterministic finalization-stream lookup when a
+manifest digest is known and a bounded 100,000-event global scan for
+session-bound lookup, reconstructs manifest/injection metadata from
+`tbm.injection.rendered`, then loads exact descriptors and bytes only from the
+replay authority. Event references and stored content must match exactly;
+parity verification also requires the projection-backed export and
+`export_sha256` to be identical.
+
+The current v2 Store, active SQLite v1 adapter, PostgreSQL v2 adapter, default
+local agent, and default STDIO MCP do not persist or emit these records. The
+opt-in SQLite ledger and opt-in PostgreSQL repository provide the retained
+storage boundary. The authenticated durable Agent provides replay-read
+authorization over that exact graph; explicit
 durable HTTP/MCP and Python/TypeScript clients expose it only under startup
 content policy. A production shared-service runtime must additionally
 authenticate transport identity and apply retention/encryption before exposing

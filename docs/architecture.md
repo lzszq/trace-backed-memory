@@ -1758,11 +1758,16 @@ compatibility Agent/MCP emission and are selected by the explicit durable
 runtime graph. `semantic_gate_artifact_v3.py` now binds exact non-empty
 prompt/response bytes, content-derived IDs, classifications, and encryption
 metadata to each attempt role without embedding the bytes in JSON. Durable
-SQLite storage is now provided by
-`sqlite_semantic_gate_artifact_v3.py`: one outer transaction composes attempt
-append, exact public/internal bytes, role bindings, SQL digest/descriptor
-guards, and full read-back. PostgreSQL artifact storage is now provided by
-`postgres_semantic_gate_artifact_v3.py`. Its
+SQLite storage is now provided by `sqlite_semantic_gate_artifact_v3.py`: one
+outer transaction first appends and reads back the canonical Semantic Gate
+attempt event, then projects the `SemanticGateAttempt`, writes exact
+public/internal bytes and role bindings, and completes SQL digest/descriptor
+and bundle read-back checks. The first attempt requires the retained
+`tbm.system_gate.evaluated` parent; retries require the retained
+previous-attempt event. Parent and mutation scopes must match even though a
+fresh transition authorization decision may be used. PostgreSQL artifact
+storage is now provided by `postgres_semantic_gate_artifact_v3.py` with the
+same event-first order. Its
 isolated active-v2-gated schema adds database SHA-256/descriptor guards,
 catalog validation, concurrent exact replay, caller savepoints, and
 fail-closed `RESTRICT` rollback. Both byte repositories reject sensitive
@@ -1793,7 +1798,9 @@ rollback across lease, bundle, and final session revision; separated
 authorities use explicit recovery. Explicit durable HTTP/MCP transports expose
 authorized replay only under their startup content policy. Production
 shared-service protected-content encryption/retention, signed provider
-attestation, and durable transition-event linkage are not yet provided.
+attestation, and the remaining lifecycle transition-event linkage are not yet
+provided. Finalization transition/injection linkage is delivered by the F2
+event-first path.
 `durable_execution_v3.py` supplies the opt-in runtime back half: it replays
 and verifies the exact retained finalization bundle, requires current
 owner-matched transition authorization, CAS-publishes `EXECUTING`, supports
@@ -2062,8 +2069,9 @@ checkpoints and an append-only, contiguous projection activation chain. CAS
 activation/rollback selects a retained build and never edits canonical events.
 These backends have cross-adapter receipt/page conformance tests. Explicit
 metadata-only `tbmd ledger` and `tbmd projection` operator commands may inspect
-and rebuild a selected SQLite ledger, but no active Gate or Memory lifecycle
-command writes the ledger yet.
+and rebuild a selected SQLite ledger. Default compatibility Gate/Memory
+lifecycle commands do not write it; explicit durable F2 GateSession, Gate
+evidence, Semantic attempt, and finalization slices do.
 
 ## Full Persistence target architecture
 
@@ -2091,9 +2099,32 @@ runtime, bounded deterministic state, checkpoint/resume, poison evidence,
 shadow comparison, CAS activation/rollback, SQLite/PostgreSQL checkpoint
 persistence, the explicit projection operator CLI, and a Windows/Linux ×
 Python 3.11-3.13 golden-digest matrix. See
-[Reducer and Projection Runtime v1](protocols/reducer-v1.md). Domain reducers
-for GateSession, Memory, index, outbox, audit, and metrics; active lifecycle
-integration; migration; and cutover remain later milestones.
+[Reducer and Projection Runtime v1](protocols/reducer-v1.md). The first F2
+increment now maps every GateSession revision to a canonical event before its
+synchronous revision-row projection in both durable backends. A typed reducer
+rebuilds exact current GateSession state, including persistent SQLite
+checkpoint/resume, shadow comparison, activation, rollback, and fieldwise row
+parity. RetrievalSnapshot and SystemGateEvaluation writes likewise append
+compact artifact-linked events before their synchronous rows, and a pure
+Gate-evidence reducer rebuilds their current session linkage. See
+[Gate Evidence Event v1](protocols/gate-evidence-event-v1.md). Semantic Gate
+attempt writes now require the retained System Gate event, append compact
+failed/succeeded events before attempt and exact-byte projections, and rebuild
+the exact chain plus Artifact linkage. See
+[Semantic Gate Attempt Event v1](protocols/semantic-gate-attempt-event-v1.md).
+Finalization now appends `tbm.usage_decision.finalized` followed by
+`tbm.injection.rendered` in the same SQLite/PostgreSQL transaction as the
+GateSession and replay projections. The `final-decision-injection` reducer
+rebuilds exact decision, injection, manifest, Artifact-role, authorization,
+causation, and event-head linkage. The explicit durable replay reader derives
+metadata from those events and reads exact bytes only from the authenticated
+replay authority. See [Finalization Event v1](protocols/finalization-event-v1.md)
+and [Ledger Replay Export v1](protocols/ledger-replay-export-v1.md).
+Outcome/attribution and local completion-effect events/reducers now provide
+exact authority parity through delivery history and dead letter. Provider
+receipts, unknown-result reconciliation, durable compensation, Memory/index/
+audit/metrics reducers, complete lifecycle integration, migration, and cutover
+remain open.
 
 The machine-readable
 [`authority-registry.json`](status/authority-registry.json) classifies every

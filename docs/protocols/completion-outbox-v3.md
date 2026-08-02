@@ -37,7 +37,9 @@ following in one outer transaction or caller savepoint:
 2. inserts the immutable RunOutcome;
 3. inserts the immutable completion event;
 4. inserts its initial `pending` delivery revision and head;
-5. reads back and verifies every retained record before commit.
+5. appends the canonical `EffectRequested` event after the authenticated
+   evaluator, RunOutcome, and completed-session events; and
+6. reads back and verifies every retained record before commit.
 
 An exact completion replay returns the retained event and current delivery
 head without creating a second event. A pre-existing completed outcome without
@@ -64,6 +66,14 @@ classified as `delivered`, `retry_wait`, `dead_letter`, `superseded`, or
 `recovery_required`, and every successful state write is read back exactly.
 Malformed claims, transition-invalid receipts, or a different configured retry
 delay fail closed.
+
+The explicit event-first repositories append `EffectStarted` for claim or
+reclaim, `EffectSucceeded` for acknowledgement, and paired
+`EffectFailed`/`EffectRetryScheduled` or
+`EffectFailed`/`EffectDeadLettered` events for failure disposition. Those
+canonical events and the delivery revision/head are one atomic unit. The
+`effect-queue` reducer rebuilds the exact delivery history and current status;
+see [Effect Event v1](effect-event-v1.md).
 
 The SQLite schema uses immutable event and delivery-revision rows, one
 compare-and-swap head, canonical descriptor validation, integer-microsecond due
@@ -95,6 +105,9 @@ Delivery is **at least once**. A worker can publish successfully and crash
 before acknowledgement, after which the lease is reclaimed. Consumers must
 therefore deduplicate by `event_id`; a response digest is audit metadata, not
 proof that a remote side effect occurred exactly once.
+`delivered` and `EffectSucceeded` mean only that the local consumer callback
+was acknowledged; they are not provider receipts or proof of provider-side
+success.
 The configured lease must cover the consumer's maximum processing time.
 Lease expiry during a callback may allow another worker to invoke the consumer
 for the same event before the first worker can acknowledge it. A

@@ -49,7 +49,8 @@ and recovery semantics still apply.
 
 ## Current boundary
 
-This release provides SQLite and PostgreSQL authorities. An active retriever
-that emits these records and Agent/MCP/HTTP/SDK integration remain future
-work. PostgreSQL owner and superuser roles remain inside the database
-administration trust boundary; runtime roles must not own or alter the schema.
+This release provides SQLite and PostgreSQL authorities. Explicit durable
+retrieval preparation and durable HTTP/MCP/SDK profiles emit and consume these
+records; default compatibility retrieval and adapters do not. PostgreSQL owner
+and superuser roles remain inside the database administration trust boundary;
+runtime roles must not own or alter the schema.

@@ -7,7 +7,9 @@
 不激活 memory，也不会把当前进程内 Gate 变成 durable Gate。现有 opt-in 隔离
 SQLite repository 可持久化这些记录；隔离 PostgreSQL 安装与 fail-closed rollback
 schema 建立相同的不可变关系边界；opt-in PostgreSQL repository 现已提供精确
-byte/descriptor 验证。两个 ledger 都尚未连接 active runtime state。
+byte/descriptor 验证。两个 ledger 都不会改变默认 compatibility 或 active-v2 state；
+显式 durable runtime 会选择下文的 event-first finalization 与 ledger-backed replay
+reader。
 
 ## 内容身份
 
@@ -141,19 +143,27 @@ Python parser 检查。
 
 ## Durable finalization 组合
 
-opt-in durable finalization service 会调用 `store_complete_bundle()`，并在发布
-`FINALIZED` 前读回每个已保留组件。对 finalized session 的精确 replay 会重新加载
-UsageDecision、全部七个 supporting component artifact、injection 与重建后的 manifest，
-而不会重新渲染。该服务会授权并复查一个 retrieval scope，但仍是内部组合，不是 active
-runtime adapter。
+显式 SQLite/PostgreSQL durable runtime 中，opt-in durable finalization service 会调用
+event-first `store_complete_finalization()`。canonical 顺序是
+`tbm.usage_decision.finalized → tbm.injection.rendered → replay projection`，并在同一个
+transaction 中发布 `FINALIZED`；finalization event 或 projection 任一步失败都会回滚
+整个 unit。compatibility caller 继续使用 `store_complete_bundle()` 与现有 CAS/recovery
+边界。
 
 `store_complete_bundle()` 要求第一个 supporting artifact 必须由 manifest 的精确
 UsageDecision ID 派生，并原子保存去重后的 supporting artifact、injection 字节/descriptor
 与 manifest。SQLite 和 PostgreSQL peer 都保留幂等、整体回滚与 caller-savepoint 语义。
 
-当前 v2 Store、active SQLite v1 adapter、PostgreSQL v2 adapter、本地 Agent 与
-STDIO MCP 均不会持久化或输出这些记录。opt-in SQLite 账本与 opt-in PostgreSQL
-repository 提供 retained storage boundary，并满足 replay export reader surface。
+显式 durable replay read 会把 `LedgerReplayExportReaderV1` 绑定到可信 replay-read
+scope。已知 manifest digest 时它会确定性读取 finalization stream；session-bound lookup
+使用有界 100,000-event global scan。它从 `tbm.injection.rendered` 重建 manifest/injection
+metadata，再只从 replay authority 加载精确 descriptor/bytes。event reference 与存储
+content 必须完全一致；parity verification 还要求 projection-backed export 与
+`export_sha256` 完全相同。
+
+当前 v2 Store、active SQLite v1 adapter、PostgreSQL v2 adapter、默认本地 Agent 与
+默认 STDIO MCP 均不会持久化或输出这些记录。opt-in SQLite 账本与 opt-in PostgreSQL
+repository 提供 retained storage boundary。
 已认证 durable Agent 会在这套精确 authority graph 上提供 replay-read authorization；
 显式 durable HTTP/MCP 与 Python/TypeScript client 只会在启动 content policy 允许时
 暴露。生产 shared-service runtime 在暴露 replay export 前，还必须认证 transport

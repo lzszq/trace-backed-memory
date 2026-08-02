@@ -123,7 +123,28 @@ gate. CI runs that same committed golden fixture on Python 3.11, 3.12, and 3.13
 on both Windows and Linux. A platform does not generate its own expected value;
 all six jobs must match the same bytes.
 
-This F1 capability proves the generic runtime and operator lifecycle. It does
-not yet rebuild GateSession, MemoryCatalog, activated heads, retrieval indexes,
-outbox, audit, metrics, or PR risk, and it does not make any active product
-transport event-first.
+This F1 capability proves the generic runtime and operator lifecycle. The first
+F2 increment now registers pure GateSession-current and Gate-evidence-current
+reducers. Canonical GateSession revision events can rebuild the exact current
+session and pass fieldwise parity against retained authority rows; SQLite also
+persists checkpoint/resume, shadow comparison, activation, and rollback for
+that reducer. Retrieval and System Gate events rebuild compact current evidence
+and Artifact linkage. See
+[Gate Evidence Event v1](gate-evidence-event-v1.md). The following delivered F2
+increment requires the retained System Gate parent event and rebuilds the exact Semantic
+attempt chain plus descriptor-only prompt/response linkage; parity binds both
+authority bundles and canonical event bytes. See
+[Semantic Gate Attempt Event v1](semantic-gate-attempt-event-v1.md).
+The current F2 slice registers `final-decision-injection`; it consumes
+`tbm.usage_decision.finalized` plus `tbm.injection.rendered`, rebuilds exact
+decision/injection/manifest/Artifact-role heads, and verifies fieldwise parity
+against the retained GateSession and replay authorities. See
+[Finalization Event v1](finalization-event-v1.md). The default registry also
+contains `outcome-current`, `outcome-attribution`, and `effect-queue`; the
+explicit SQLite/PostgreSQL event-first paths verify RunOutcome,
+OutcomeAttribution, completion delivery history, and dead-letter parity. See
+[Effect Event v1](effect-event-v1.md). MemoryCatalog, activated heads,
+retrieval indexes, audit, metrics, and PR risk are not yet reducer-native.
+Provider receipts, unknown-result reconciliation, durable compensation, and
+the remaining F2 cutover gates also remain open, so these opt-in reducers do
+not change `full_persistence=false`.

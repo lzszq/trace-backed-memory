@@ -41,6 +41,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def _install(cluster: PostgresCluster) -> None:
     cluster.load_schema()
     for script in (
+        "postgres-v3-event-ledger.sql",
         "postgres-v3-gate-session.sql",
         "postgres-v3-gate-evidence.sql",
         "postgres-v3-semantic-gate.sql",
@@ -57,6 +58,7 @@ def _decided_stack(
     session_id: str,
     permissions: tuple[str, ...] = ("memory:retrieve",),
     sessions: tbm.PostgresGateSessionRepository | None = None,
+    event_first: bool = False,
 ):
     registry = _registry(permissions=permissions)
     context = _service_context(registry)
@@ -122,6 +124,15 @@ def _decided_stack(
             prepared.value.system_gate_evaluation
         ),
     ).session
+    if event_first:
+        _backfill_gate_session_events(
+            sessions,
+            decided,
+            prepared.scope,
+            connection,
+        )
+        sessions.enable_event_first()
+        replay.enable_event_first()
     finalizer = tbm.DurableFinalizationService(
         authorization_service=authorization,
         session_writer=sessions,
@@ -141,6 +152,77 @@ def _decided_stack(
         decided,
         finalizer,
     )
+
+
+def _event_context(
+    scope: tbm.AuthorizedRetrievalScope,
+) -> tbm.EventTrustedContext:
+    return tbm.EventTrustedContext(
+        organization_id=scope.organization_id,
+        tenant_id=scope.tenant_id,
+        repository_id=scope.repository_id,
+        environment_id=scope.environment_id,
+        principal_id=scope.principal_id,
+        agent_client_id=scope.agent_client_id,
+        actor_type="agent_client",
+        actor_id=scope.agent_client_id,
+        authorization_decision_id=scope.authorization_event_id,
+    )
+
+
+def _event_access(
+    scope: tbm.AuthorizedRetrievalScope,
+) -> tbm.LedgerAccessContext:
+    trusted = _event_context(scope)
+    return tbm.LedgerAccessContext(
+        partition=tbm.LedgerTenantPartition(
+            trusted.organization_id,
+            trusted.tenant_id,
+            trusted.repository_id,
+            trusted.environment_id,
+        ),
+        principal_id=trusted.principal_id,
+        agent_client_id=trusted.agent_client_id,
+        actor_type=trusted.actor_type,
+        actor_id=trusted.actor_id,
+        authorization_decision_id=trusted.authorization_decision_id,
+        classification_filter=tbm.LedgerClassificationFilter(
+            ("public", "internal", "confidential", "restricted")
+        ),
+    )
+
+
+def _backfill_gate_session_events(
+    sessions: tbm.PostgresGateSessionRepository,
+    decided: tbm.GateSession,
+    scope: tbm.AuthorizedRetrievalScope,
+    connection,
+) -> None:
+    ledger = tbm.PostgresEventLedgerV1(connection, _event_access(scope))
+    previous_session = None
+    previous_event = None
+    try:
+        for session in sessions.history(decided.session_id):
+            event = tbm.build_gate_session_event(
+                session,
+                previous_session=previous_session,
+                parent_event=previous_event,
+                global_position=session.version,
+                trusted_context=_event_context(scope),
+            )
+            ledger.append(
+                session.session_id,
+                session.version - 1,
+                (event,),
+                tbm.LedgerIdempotency(
+                    event.idempotency_key_sha256,
+                    event.request_sha256,
+                ),
+            )
+            previous_session = session
+            previous_event = event
+    finally:
+        ledger.close()
 
 
 def test_postgres_durable_finalization_parity(
@@ -226,6 +308,159 @@ def test_postgres_durable_finalization_respects_outer_rollback(
                     tbm.usage_decision_artifact_id(
                         result.usage_decision.usage_decision_id
                     )
+                )
+        finally:
+            decisions.close()
+
+
+def test_postgres_event_first_finalization_is_atomic_and_replayable(
+    postgres_cluster: PostgresCluster,
+) -> None:
+    psycopg = pytest.importorskip("psycopg")
+    _install(postgres_cluster)
+    with psycopg.connect(
+        **postgres_cluster.connection_kwargs()
+    ) as connection:
+        (
+            decisions,
+            context,
+            scope,
+            sessions,
+            replay,
+            decided,
+            finalizer,
+        ) = _decided_stack(
+            connection,
+            session_id="gate_session_postgres_event_first_finalization",
+            event_first=True,
+        )
+        trusted = _event_context(scope)
+        try:
+            with sessions.bind_event_context(
+                trusted
+            ), replay.bind_event_context(trusted):
+                result = finalizer.finalize(
+                    context,
+                    scope,
+                    tbm.DurableFinalizationRequest(
+                        decided.session_id,
+                        decided.version,
+                    ),
+                )
+
+            ledger = tbm.PostgresEventLedgerV1(
+                connection,
+                _event_access(scope),
+            )
+            try:
+                events = ledger.read_global().events
+            finally:
+                ledger.close()
+            assert tuple(event.event_type for event in events[-3:]) == (
+                tbm.GATE_SESSION_LEASE_RENEWED_EVENT,
+                tbm.USAGE_DECISION_FINALIZED_EVENT,
+                tbm.INJECTION_RENDERED_EVENT,
+            )
+            rendered = tbm.parse_injection_rendered_event(events[-1])
+            assert rendered.usage_decision == result.usage_decision
+            assert rendered.injection == result.injection
+            assert replay.load_manifest(
+                result.manifest.manifest_sha256
+            ) == result.manifest
+            parity_ledger = tbm.PostgresEventLedgerV1(
+                connection,
+                _event_access(scope),
+            )
+            try:
+                ledger_reader = tbm.LedgerReplayExportReaderV1(
+                    parity_ledger,
+                    replay,
+                )
+                assert tbm.verify_ledger_replay_export_parity(
+                    ledger_reader,
+                    replay,
+                    result.manifest.manifest_sha256,
+                    allowed_classifications=frozenset({"internal"}),
+                ).export_sha256 == tbm.export_replay_bundle(
+                    replay,
+                    result.manifest.manifest_sha256,
+                    allowed_classifications=frozenset({"internal"}),
+                ).export_sha256
+            finally:
+                parity_ledger.close()
+        finally:
+            decisions.close()
+
+
+def test_postgres_event_first_finalization_rolls_back_after_projection_failure(
+    postgres_cluster: PostgresCluster,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    psycopg = pytest.importorskip("psycopg")
+    _install(postgres_cluster)
+    with psycopg.connect(
+        **postgres_cluster.connection_kwargs()
+    ) as connection:
+        (
+            decisions,
+            context,
+            scope,
+            sessions,
+            replay,
+            decided,
+            finalizer,
+        ) = _decided_stack(
+            connection,
+            session_id="gate_session_postgres_event_first_rollback",
+            event_first=True,
+        )
+        original = replay._put_artifact
+
+        def fail_projection(*args: object) -> bool:
+            original(*args)
+            raise RuntimeError("synthetic replay projection failure")
+
+        monkeypatch.setattr(replay, "_put_artifact", fail_projection)
+        trusted = _event_context(scope)
+        try:
+            with sessions.bind_event_context(
+                trusted
+            ), replay.bind_event_context(trusted):
+                with pytest.raises(tbm.DurableFinalizationV3Error) as captured:
+                    finalizer.finalize(
+                        context,
+                        scope,
+                        tbm.DurableFinalizationRequest(
+                            decided.session_id,
+                            decided.version,
+                        ),
+                    )
+            assert captured.value.code == (
+                "TBM_DURABLE_FINALIZATION_EVENT_FIRST_FAILED"
+            )
+            current = sessions.get(decided.session_id)
+            assert current.status == "decided"
+            assert current.version == decided.version + 1
+            ledger = tbm.PostgresEventLedgerV1(
+                connection,
+                _event_access(scope),
+            )
+            try:
+                event_types = tuple(
+                    event.event_type
+                    for event in ledger.read_global().events
+                )
+            finally:
+                ledger.close()
+            assert event_types[-1] == tbm.GATE_SESSION_LEASE_RENEWED_EVENT
+            assert tbm.USAGE_DECISION_FINALIZED_EVENT not in event_types
+            assert tbm.INJECTION_RENDERED_EVENT not in event_types
+            with pytest.raises(KeyError):
+                replay.load_manifest_for_session(
+                    decided.session_id,
+                    decided.decision_id or "",
+                    "usage_decision_sha256_" + "0" * 64,
+                    "artifact_sha256_" + "0" * 64,
                 )
         finally:
             decisions.close()

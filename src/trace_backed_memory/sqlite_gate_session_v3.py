@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache, wraps
@@ -16,6 +17,8 @@ from ._timestamps import (
     parse_rfc3339,
 )
 from .contracts_v3 import V3ContractError
+from .event_v1 import EventTrustedContext, loads_canonical_event
+from .gate_session_event_v1 import build_gate_session_event
 from .gate_session_v3 import (
     GATE_SESSION_CONTRACT_VERSION,
     GATE_SESSION_MAX_LEASE_SECONDS,
@@ -31,6 +34,14 @@ from .gate_session_v3 import (
     transition_gate_session,
 )
 from .resources import PackagedResourceError, read_packaged_resource
+from .ledger_port_v1 import (
+    LedgerAccessContext,
+    LedgerAppendRequest,
+    LedgerClassificationFilter,
+    LedgerIdempotency,
+    LedgerTenantPartition,
+)
+from .sqlite_event_ledger_v1 import SQLiteEventLedgerV1
 
 
 SQLITE_GATE_SESSION_SCHEMA_VERSION = 1
@@ -221,6 +232,11 @@ class SQLiteGateSessionRepository:
         self._lock = RLock()
         self._closed = False
         self._savepoint_number = 0
+        self._event_first = False
+        self._event_context: ContextVar[EventTrustedContext | None] = ContextVar(
+            f"tbm_sqlite_gate_session_event_context_{id(self)}",
+            default=None,
+        )
         try:
             if not self._connection.in_transaction:
                 self._connection.execute("PRAGMA foreign_keys = ON")
@@ -246,6 +262,133 @@ class SQLiteGateSessionRepository:
                 "TBM_SQLITE_GATE_SESSION_RECURSIVE_TRIGGERS",
                 "SQLite GateSession repository requires recursive triggers",
             )
+
+    @_synchronized
+    def enable_event_first(self) -> None:
+        self._require_open()
+        if self._connection.in_transaction:
+            raise SQLiteGateSessionConflictError(
+                "TBM_SQLITE_GATE_SESSION_EVENT_FIRST_STATE",
+                "event-first mode cannot be enabled during a transaction",
+            )
+        self._event_first = True
+
+    @contextmanager
+    def bind_event_context(
+        self,
+        trusted_context: EventTrustedContext,
+    ) -> Iterator[None]:
+        if type(trusted_context) is not EventTrustedContext:
+            raise ValueError("trusted_context must be exactly EventTrustedContext")
+        token = self._event_context.set(trusted_context)
+        try:
+            yield
+        finally:
+            self._event_context.reset(token)
+
+    def _event_access(
+        self,
+        session: GateSession | None = None,
+    ) -> LedgerAccessContext:
+        trusted_context = self._event_context.get()
+        if trusted_context is None:
+            raise SQLiteGateSessionConflictError(
+                "TBM_SQLITE_GATE_SESSION_EVENT_CONTEXT_REQUIRED",
+                "event-first GateSession mutation requires trusted event context",
+            )
+        if session is not None:
+            for session_name, context_name in (
+                ("tenant_id", "tenant_id"),
+                ("repository_id", "repository_id"),
+                ("principal_id", "principal_id"),
+                ("agent_client_id", "agent_client_id"),
+            ):
+                if getattr(session, session_name) != getattr(
+                    trusted_context,
+                    context_name,
+                ):
+                    raise SQLiteGateSessionConflictError(
+                        "TBM_SQLITE_GATE_SESSION_EVENT_CONTEXT_INVALID",
+                        "trusted event context does not match GateSession identity",
+                    )
+        return LedgerAccessContext(
+            partition=LedgerTenantPartition(
+                trusted_context.organization_id,
+                trusted_context.tenant_id,
+                trusted_context.repository_id,
+                trusted_context.environment_id,
+            ),
+            principal_id=trusted_context.principal_id,
+            agent_client_id=trusted_context.agent_client_id,
+            actor_type=trusted_context.actor_type,
+            actor_id=trusted_context.actor_id,
+            authorization_decision_id=(
+                trusted_context.authorization_decision_id
+            ),
+            classification_filter=LedgerClassificationFilter(
+                ("public", "internal", "confidential", "restricted")
+            ),
+        )
+
+    @contextmanager
+    def bind_recovery_event_context(
+        self,
+        session: GateSession,
+    ) -> Iterator[None]:
+        if type(session) is not GateSession:
+            raise ValueError("session must be exactly GateSession")
+        if not self._event_first:
+            yield
+            return
+        with self._lock:
+            self._require_open()
+            try:
+                with closing(self._connection.cursor()) as cursor:
+                    self._require_schema(cursor)
+                    cursor.execute(
+                        "SELECT canonical_event FROM v3_event_ledger_events "
+                        "WHERE stream_id = ? AND stream_version = ?",
+                        (session.session_id, session.version),
+                    )
+                    rows = cursor.fetchall()
+                if len(rows) != 1 or type(rows[0][0]) is not str:
+                    raise SQLiteGateSessionPersistenceError(
+                        "TBM_SQLITE_GATE_SESSION_EVENT_HISTORY_INVALID",
+                        "GateSession recovery event head is missing or ambiguous",
+                    )
+                head = loads_canonical_event(rows[0][0])
+            except SQLiteGateSessionError:
+                raise
+            except Exception as error:
+                raise SQLiteGateSessionPersistenceError(
+                    "TBM_SQLITE_GATE_SESSION_EVENT_HISTORY_INVALID",
+                    "GateSession recovery event head is invalid",
+                ) from error
+            if (
+                head.stream_id != session.session_id
+                or head.stream_version != session.version
+                or head.tenant_id != session.tenant_id
+                or head.repository_id != session.repository_id
+                or head.principal_id != session.principal_id
+                or head.agent_client_id != session.agent_client_id
+            ):
+                raise SQLiteGateSessionPersistenceError(
+                    "TBM_SQLITE_GATE_SESSION_EVENT_HISTORY_INVALID",
+                    "GateSession recovery event head does not match the session",
+                )
+            trusted_context = EventTrustedContext(
+                organization_id=head.organization_id,
+                tenant_id=session.tenant_id,
+                repository_id=session.repository_id,
+                environment_id=head.environment_id,
+                principal_id=session.principal_id,
+                agent_client_id=session.agent_client_id,
+                actor_type="worker",
+                actor_id="worker_local_gate_recovery",
+                authorization_decision_id="local_owner_recovery_authority",
+            )
+            with self.bind_event_context(trusted_context):
+                yield
 
     @classmethod
     def connect(
@@ -676,6 +819,11 @@ class SQLiteGateSessionRepository:
                             "TBM_SQLITE_GATE_SESSION_ID_CONFLICT",
                             "session_id is already bound to another request",
                         )
+                    self._append_revision_event(
+                        cursor,
+                        previous_session=None,
+                        next_session=proposed,
+                    )
                     cursor.execute(
                         "INSERT INTO gate_session_heads ("
                         "session_id, tenant_id, repository_id, principal_id, "
@@ -969,13 +1117,18 @@ class SQLiteGateSessionRepository:
                 "GateSession lease has expired",
             )
 
-    @staticmethod
     def _append_revision(
+        self,
         cursor: sqlite3.Cursor,
         current: GateSession,
         next_session: GateSession,
         expected_version: int,
     ) -> None:
+        self._append_revision_event(
+            cursor,
+            previous_session=current,
+            next_session=next_session,
+        )
         SQLiteGateSessionRepository._insert_revision(cursor, next_session)
         cursor.execute(
             "UPDATE gate_session_heads SET current_version = ? "
@@ -992,6 +1145,49 @@ class SQLiteGateSessionRepository:
                 "expected_version does not match the current session "
                 "revision",
             )
+
+    def _append_revision_event(
+        self,
+        cursor: sqlite3.Cursor,
+        *,
+        previous_session: GateSession | None,
+        next_session: GateSession,
+    ) -> None:
+        if not self._event_first:
+            return
+        access = self._event_access(next_session)
+        trusted_context = access.event_trusted_context()
+        ledger = SQLiteEventLedgerV1(self._connection, access)
+        try:
+            ledger._require_schema(cursor)
+            parent_event = ledger._select_head_event(
+                cursor,
+                next_session.session_id,
+            )
+            next_global_position = ledger._select_global_position(cursor) + 1
+            event = build_gate_session_event(
+                next_session,
+                previous_session=previous_session,
+                parent_event=parent_event,
+                global_position=next_global_position,
+                trusted_context=trusted_context,
+            )
+            idempotency = LedgerIdempotency(
+                event.idempotency_key_sha256,
+                event.request_sha256,
+            )
+            request = LedgerAppendRequest(
+                access=access,
+                stream_id=next_session.session_id,
+                expected_stream_version=(
+                    0 if previous_session is None else previous_session.version
+                ),
+                events=(event,),
+                idempotency=idempotency,
+            )
+            ledger._append_in_transaction(cursor, request)
+        finally:
+            ledger.close()
 
     @_synchronized
     def list_due(self, *, limit: int = 100) -> tuple[GateSession, ...]:

@@ -530,9 +530,12 @@ fail-closed load verification. Isolated PostgreSQL install/rollback resources
 establish the matching immutable relational boundary, while the opt-in
 `PostgresReplayV3Repository` supplies canonical descriptor and byte-digest
 verification, exact idempotency, nested transaction ownership, and schema
-drift checks. `store_complete_bundle()` on both peers requires the
-content-derived UsageDecision artifact first and atomically retains every
-deduplicated supporting component with the injection and manifest. Fail-closed
+drift checks. Compatibility callers use `store_complete_bundle()`, which
+requires the content-derived UsageDecision artifact first and atomically
+retains every deduplicated supporting component with the injection and
+manifest. Explicit durable runtimes enable `store_complete_finalization()`;
+that path appends the finalized-session and rendered-injection events and
+publishes the GateSession/replay projections in one transaction. Fail-closed
 removal verifies expected catalog membership.
 
 `tbm.replay-export.v3` provides the portable read/verify layer over those
@@ -546,6 +549,11 @@ is a package-root Python API, not an Agent/HTTP/MCP endpoint. Both SQL peers
 also expose `load_manifest_for_session()` so an authenticated facade can
 resolve one unique manifest from retained session linkage without accepting a
 caller-selected content ID or reading artifact bytes during manifest lookup.
+Explicit durable runtimes instead bind `LedgerReplayExportReaderV1` to the
+trusted replay-read scope. It reconstructs manifest/injection metadata from the
+canonical finalization event, loads exact descriptors and bytes from the replay
+authority, and can require byte-for-byte parity with the projection-backed
+export. See [ledger replay export v1](protocols/ledger-replay-export-v1.md).
 
 `tbm.usage-decision.v3` records the exact ordered narrowing audit, deterministic
 System blocks, current authorization/evidence/policy/renderer linkage, and
@@ -627,8 +635,9 @@ authorized retrieval result under a content-derived ID. It binds session,
 request, trace, authorization, context/query digests, retriever/index versions,
 ordered memory-revision hits, candidate hashes, per-stage scores, deterministic
 fusion, and explicit truncation reasons. Similarity remains ranking evidence,
-never permission or gate evidence. Active Store/Agent/MCP paths do not emit it
-yet. See
+never permission or gate evidence. Default compatibility Store/Agent/MCP paths
+do not emit it; explicit durable HTTP/MCP and SDK profiles do through the
+durable preparation runtime. See
 [the retrieval snapshot contract](protocols/retrieval-snapshot-v3.md).
 
 The paired `tbm.system-gate-evaluation.v3` and
@@ -636,8 +645,9 @@ The paired `tbm.system-gate-evaluation.v3` and
 rules and complete model-attempt provenance without raw prompt/response
 content. Cross-record verification requires exact snapshot coverage and
 enforces the permanent rule that a model may only narrow System Gate results.
-Failed calls remain immutable provenance-only attempts. Active Store/Agent/MCP
-paths do not emit these records yet. See
+Failed calls remain immutable provenance-only attempts. Default compatibility
+Store/Agent/MCP paths do not emit these records; explicit durable profiles use
+the event-first Gate evidence and Semantic attempt coordinators. See
 [the gate evaluation contract](protocols/gate-evaluation-v3.md).
 
 `SemanticGateArtifactBinding` joins one exact non-empty prompt or response
@@ -649,18 +659,22 @@ JSON without embedding the bytes. It is not a byte repository or provider
 authentication boundary. See
 [the Semantic Gate artifact binding contract](protocols/semantic-gate-artifact-v3.md).
 
-`SQLiteSemanticGateArtifactV3Repository` atomically composes the attempt
-ledger with exact public/internal prompt/response bytes and role bindings.
-It supports exact idempotent replay and caller savepoints; SQL guards
+`SQLiteSemanticGateArtifactV3Repository` atomically appends and reads back the
+canonical Semantic attempt event before projecting the attempt and writing
+exact public/internal prompt/response bytes and role bindings. A first attempt
+requires the retained System Gate event; a retry requires the retained prior
+attempt event. It supports exact idempotent replay and caller savepoints; SQL guards
 recompute content hashes, compare descriptor fields, block replacement
-writes, and reject unexpected managed triggers/indexes. Sensitive classes are
+writes, reject unexpected managed triggers/indexes, and roll back event heads
+and all projections together. Sensitive classes are
 rejected because this adapter does not encrypt at rest. See
 [the SQLite Semantic Gate artifact repository contract](protocols/sqlite-semantic-gate-artifact-v3.md).
 
 `PostgresSemanticGateArtifactV3Repository` provides the isolated PostgreSQL
-peer. One outer transaction composes the SemanticGateAttempt append with exact
-public/internal bytes and role bindings, so artifact conflicts also roll back
-new attempts. PostgreSQL independently recomputes byte SHA-256, checks every
+peer with the same event-ledger -> attempt projection -> exact Artifact
+projection order in one outer transaction, so artifact conflicts also roll
+back the event head and new projections. PostgreSQL independently recomputes
+byte SHA-256, checks every
 descriptor field, validates the complete security catalog, preserves caller
 transactions, supports concurrent exact replay, and provides a fail-closed
 `RESTRICT` rollback. Sensitive classes remain rejected because the adapter
@@ -691,11 +705,14 @@ recovery do not repeat the provider call. See
 `DurableFinalizationRequest` names only the decided session revision and a
 bounded finalization lease. `DurableFinalizationService` derives every input
 from durable evidence, requires the same live authorization event even for an
-empty final set, rechecks active heads and policy around rendering, stores and
-reads back the complete UsageDecision/replay bundle, and CAS-publishes
-`FINALIZED`. Exact finalized replay does not rerender. A retained bundle with
-an unconfirmed session transition returns explicit recovery-required state.
-See [durable finalization v3](protocols/durable-finalization-v3.md) and
+empty final set, rechecks active heads and policy around rendering, appends
+`tbm.usage_decision.finalized` then `tbm.injection.rendered`, and stores and
+reads back the complete UsageDecision/replay bundle in the same transaction as
+`FINALIZED`. Exact finalized replay does not rerender. Event-first failure
+rolls back the session, events, and replay projections; compatibility callers
+retain the earlier recovery-required boundary. See
+[durable finalization v3](protocols/durable-finalization-v3.md),
+[finalization event v1](protocols/finalization-event-v1.md), and
 [UsageDecision v3](protocols/usage-decision-v3.md).
 
 `DurableExecutionStartRequest` names only the finalized session and exact
@@ -811,7 +828,8 @@ storage-neutral completion notification and append-only delivery revision
 contracts. `SQLiteCompletionOutboxV3Repository` and
 `PostgresCompletionOutboxV3Repository` compose the corresponding completion
 authorities so the completed GateSession revision, RunOutcome, immutable
-event, initial `pending` delivery, and delivery head are one transaction. They
+event, initial `pending` delivery, delivery head, and canonical
+`EffectRequested` are one transaction. They
 support bounded due claims, expiring leases, version-checked acknowledgement,
 retry waits, dead letter, exact replay, full history verification, caller
 savepoints, and schema/catalog-drift rejection. PostgreSQL adds database time,
@@ -822,9 +840,14 @@ consumers must deduplicate by the content-derived event ID.
 pass, strict whole-page claim validation, sanitized consumer errors, exact
 receipt/read-back verification, and explicit delivered/retry/dead-letter/
 superseded/recovery-required results. Its caller-owned consumer may perform
-network I/O, but neither repository supplies a network transport or is wired
-to active Agent/MCP adapters. See
-[the completion outbox contract](protocols/completion-outbox-v3.md).
+network I/O. Claim/acknowledgement/failure transitions atomically append the
+canonical local effect event batch, and `effect-queue` rebuilds exact delivery
+history and dead-letter parity. `EffectSucceeded` proves only local callback
+acknowledgement, not a provider receipt or provider-side success. Explicit
+durable HTTP/MCP/SDK profiles and `tbmd local` select this boundary; default
+compatibility adapters and shared-service network dispatch do not. See
+[the completion outbox contract](protocols/completion-outbox-v3.md) and
+[Effect Event v1](protocols/effect-event-v1.md).
 
 The storage-neutral `tbm.audit-event.v3` and `tbm.recovery-action.v3`
 contracts add a content-addressed append-only event chain and explicit

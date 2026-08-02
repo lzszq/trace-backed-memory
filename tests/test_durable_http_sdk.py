@@ -1285,6 +1285,7 @@ def test_durable_sdk_aligns_address_token_and_tls_security_contracts() -> None:
         )
 
     verified = ssl.create_default_context()
+    verified.minimum_version = ssl.TLSVersion.TLSv1_2
     DurableAgentHTTPClient(
         "https://127.0.0.1:8766",
         TOKEN,

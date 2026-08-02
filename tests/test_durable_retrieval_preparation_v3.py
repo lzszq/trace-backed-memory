@@ -225,6 +225,7 @@ def test_authorized_scope_hook_rejects_forged_scope_before_discovery():
     context = _context(registry)
     forged_scope = tbm.AuthorizedRetrievalScope(
         authorization_event_id="authz_sha256_" + ("0" * 64),
+        organization_id="organization_001",
         principal_id=context.principal.principal_id,
         agent_client_id=context.agent_client.agent_client_id,
         tenant_id=context.tenant_id,

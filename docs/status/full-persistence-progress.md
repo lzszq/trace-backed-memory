@@ -1,0 +1,48 @@
+# Full Persistence Progress Contract
+
+**English** | [简体中文](full-persistence-progress.zh-CN.md)
+
+The machine-readable source is
+[`full-persistence-progress.json`](full-persistence-progress.json). It freezes
+the denominator used for every progress report against the desktop execution
+plan. A later report may change a numerator only by naming the affected atom
+IDs and evidence; it may not replace the denominator with a phase-local or
+top-level-bullet count.
+
+## Fixed denominator
+
+The 490 atoms are reconstructed from the complete plan as follows:
+
+| Source | Count |
+| --- | ---: |
+| F0-F6 release-train bullets | 312 |
+| Deduplicated test matrix | 74 |
+| Definition of Done | 67 |
+| Retention and erasure requirements | 33 |
+| Cross-cutting global gates | 4 |
+| **Total** | **490** |
+
+The fixed phase denominators are F0 48, F1 90, F2 62, F3 117, F4 38, F5 48,
+and F6 87. These counts are classification buckets for the same 490 atoms, not
+additional work.
+
+## Reporting rule
+
+Formal progress counts only committed atoms. Candidate progress is always
+reported separately and names every uncommitted atom. Unknown, weakly tested,
+or contradictory evidence counts as incomplete. Historical formal phase
+allocation is not reconstructed from the total because doing so would invent
+evidence.
+
+The current formal baseline is 182/490 (37.14%). It comprises the audited
+162-atom prior baseline plus the promoted 20-atom F2 event-first tranche:
+finalization/replay, GateSession/Gate-evidence/Semantic events and reducers,
+RunOutcome and OutcomeAttribution projections, and the local EffectQueue
+delivery-history/dead-letter slice. The machine-readable contract retains the
+last promoted atom IDs and evidence paths. There is currently no additional
+uncommitted atom candidate, and durable compensation is not counted.
+
+A local-daemon child-process hard-restart test now covers acknowledged
+`PREPARED`, `DECIDED`, `FINALIZED`, `EXECUTING`, and `COMPLETED` commits with
+exact retries and final reducer parity. This is partial F2 crash-matrix evidence,
+not a completed atom, so it does not change 182/490.

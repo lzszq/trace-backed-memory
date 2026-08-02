@@ -1105,6 +1105,7 @@ def test_retrieval_preparation_scope_stage_and_discovery_guards():
     context = _context(_registry(permissions=("memory:retrieve",)))
     scope = tbm.AuthorizedRetrievalScope(
         authorization_event_id=AUTHORIZATION_ID,
+        organization_id="organization_001",
         principal_id=context.principal.principal_id,
         agent_client_id=context.agent_client.agent_client_id,
         tenant_id=context.tenant_id,

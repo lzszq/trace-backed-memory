@@ -31,7 +31,9 @@ evaluation ID、精确且有界的 UTF-8 prompt 字节，以及预期的 durable
 4. 在 provider callback 前后立即采样可信 service clock，并派生有界 latency；
 5. 根据服务端持有的 provenance 构造内容寻址 attempt 与精确 prompt/response role
    binding；retry 字节相同时复用已有不可变 descriptor；
-6. 通过配置的 artifact authority 原子追加，并要求精确 durable read-back。
+6. 通过配置的 artifact authority 原子追加，并要求精确 durable read-back。显式 durable
+   authority 会在同一 transaction 内先 append 紧凑 canonical attempt event；service
+   不复制 event policy。
 
 provider callback 只能收到 `SemanticProviderCall`，并可返回
 `SemanticProviderResult`；它不能选择 provider/model/template/config identity、

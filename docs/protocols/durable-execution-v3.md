@@ -70,13 +70,20 @@ The completion authority then performs one atomic write:
    session and measured result;
 2. CAS `EXECUTING -> COMPLETED` with the exact outcome ID;
 3. append the immutable completion event and initial delivery revision; and
-4. read back and verify the session, outcome, event, and current delivery.
+4. append the canonical `EffectRequested` event after the evaluator,
+   RunOutcome, and completed-session events; and
+5. read back and verify the session, outcome, event, effect, and current
+   delivery.
 
 Exact retries return the retained outcome and event without creating a second
 event, but only when `expected_version` still names the exact parent of the
 retained completed revision. Delivery remains at-least-once: consumers
 deduplicate by event ID, and the bounded outbox worker owns lease, retry,
 acknowledgement, and dead-letter transitions.
+Each successful delivery transition atomically appends its canonical effect
+event batch with the outbox revision. `EffectSucceeded` is only local callback
+acknowledgement; provider receipts, unknown-result reconciliation, and durable
+compensation remain outside this F2 slice.
 
 ## Abandonment and recovery
 

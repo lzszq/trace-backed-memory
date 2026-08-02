@@ -2622,6 +2622,7 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- sqlite-v3-audit.sql
 |   |-- sqlite-v3-authorization.sql
 |   |-- sqlite-v3-gate-session.sql
+|   |-- sqlite-v3-gate-session-timestamp-hotfix.sql
 |   |-- sqlite-v3-outcome-attribution.sql
 |   |-- sqlite-v3-outcome.sql
 |   |-- sqlite-v3-migration.sql

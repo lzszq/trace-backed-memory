@@ -7,11 +7,14 @@ import sys
 
 import pytest
 
+import trace_backed_memory as tbm
+import trace_backed_memory.sqlite_bundle_v3 as bundle_sqlite
 from trace_backed_memory.resources import read_packaged_resource
 from trace_backed_memory.sqlite_bundle_v3 import (
     SQLITE_V3_BUNDLE_CONTRACT_VERSION,
     SQLITE_V3_BUNDLE_METADATA_TABLE,
     SQLiteV3BundleError,
+    apply_sqlite_v3_gate_session_timestamp_hotfix,
     install_sqlite_v3_bundle,
     load_sqlite_v3_bundle_manifest,
     sqlite_v3_catalog_sha256,
@@ -20,6 +23,12 @@ from trace_backed_memory.sqlite_bundle_v3 import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+LEGACY_GATE_SESSION_FIXTURE = (
+    ROOT
+    / "tests"
+    / "fixtures"
+    / "sqlite-v3-gate-session-timestamp-legacy.sql"
+)
 
 
 def _connection(
@@ -97,6 +106,162 @@ def test_sqlite_v3_bundle_installs_the_exact_complete_catalog() -> None:
             manifest.component_set_sha256,
             manifest.catalog_sha256,
         )
+    finally:
+        connection.close()
+
+
+def test_sqlite_v3_bundle_hotfixes_legacy_gate_session_timestamp_trigger(
+) -> None:
+    connection = _connection()
+    try:
+        manifest = install_sqlite_v3_bundle(connection)
+        connection.executescript(
+            LEGACY_GATE_SESSION_FIXTURE.read_text(encoding="utf-8")
+        )
+        with pytest.raises(SQLiteV3BundleError) as stale:
+            verify_sqlite_v3_bundle(connection)
+        assert stale.value.code == "TBM_SQLITE_V3_BUNDLE_SCHEMA_INVALID"
+
+        assert apply_sqlite_v3_gate_session_timestamp_hotfix(connection) == (
+            manifest
+        )
+        assert install_sqlite_v3_bundle(connection) == manifest
+        repository = tbm.SQLiteGateSessionRepository(
+            connection,
+            clock=iter(
+                (
+                    "2026-08-03T00:00:00Z",
+                    "2026-08-03T00:00:01Z",
+                    "2026-08-03T00:00:01.500000Z",
+                )
+            ).__next__,
+        )
+        created = repository.create_or_get(
+            session_id="gate_session_hotfix_001",
+            tenant_id="tenant_001",
+            repository_id="repository_001",
+            principal_id="principal_001",
+            agent_client_id="agent_001",
+            trace_id="trace_001",
+            run_id="run_001",
+            request_fingerprint="sha256:" + "a" * 64,
+            idempotency_key="hotfix-001",
+            expires_in_seconds=600,
+        ).session
+        prepared = repository.transition(
+            created.session_id,
+            "prepared",
+            expected_version=created.version,
+            lease_seconds=120,
+            retrieval_snapshot_id="retrieval_001",
+            system_gate_evaluation_id="system_gate_001",
+        )
+        renewed = repository.renew_lease(
+            prepared.session_id,
+            expected_version=prepared.version,
+            lease_seconds=180,
+        )
+        assert renewed.updated_at == "2026-08-03T00:00:01.500000Z"
+    finally:
+        connection.close()
+
+
+def test_sqlite_v3_bundle_hotfix_rejects_unrelated_gate_session_drift() -> None:
+    connection = _connection()
+    try:
+        install_sqlite_v3_bundle(connection)
+        connection.executescript(
+            LEGACY_GATE_SESSION_FIXTURE.read_text(encoding="utf-8")
+        )
+        connection.execute(
+            "CREATE TRIGGER extra_gate_session_hotfix_trigger "
+            "AFTER INSERT ON gate_session_revisions BEGIN SELECT 1; END"
+        )
+        before = connection.execute(
+            f"SELECT component_set_sha256 FROM "
+            f"{SQLITE_V3_BUNDLE_METADATA_TABLE}"
+        ).fetchone()
+
+        with pytest.raises(SQLiteV3BundleError) as captured:
+            apply_sqlite_v3_gate_session_timestamp_hotfix(connection)
+
+        assert captured.value.code == (
+            "TBM_SQLITE_V3_GATE_SESSION_HOTFIX_PRECONDITION"
+        )
+        assert connection.execute(
+            f"SELECT component_set_sha256 FROM "
+            f"{SQLITE_V3_BUNDLE_METADATA_TABLE}"
+        ).fetchone() == before
+    finally:
+        connection.close()
+
+
+def test_sqlite_v3_bundle_hotfix_rejects_temporary_gate_session_drift() -> None:
+    connection = _connection()
+    try:
+        install_sqlite_v3_bundle(connection)
+        connection.executescript(
+            LEGACY_GATE_SESSION_FIXTURE.read_text(encoding="utf-8")
+        )
+        connection.execute(
+            "CREATE TEMP TRIGGER extra_gate_session_hotfix_trigger "
+            "AFTER INSERT ON gate_session_revisions BEGIN SELECT 1; END"
+        )
+        before = connection.execute(
+            f"SELECT component_set_sha256 FROM "
+            f"{SQLITE_V3_BUNDLE_METADATA_TABLE}"
+        ).fetchone()
+
+        with pytest.raises(SQLiteV3BundleError) as captured:
+            apply_sqlite_v3_gate_session_timestamp_hotfix(connection)
+
+        assert captured.value.code == (
+            "TBM_SQLITE_V3_GATE_SESSION_HOTFIX_PRECONDITION"
+        )
+        assert connection.execute(
+            f"SELECT component_set_sha256 FROM "
+            f"{SQLITE_V3_BUNDLE_METADATA_TABLE}"
+        ).fetchone() == before
+    finally:
+        connection.close()
+
+
+def test_sqlite_v3_bundle_hotfix_rolls_back_failed_verification(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = _connection()
+    try:
+        install_sqlite_v3_bundle(connection)
+        connection.executescript(
+            LEGACY_GATE_SESSION_FIXTURE.read_text(encoding="utf-8")
+        )
+        before = connection.execute(
+            f"SELECT component_set_sha256 FROM "
+            f"{SQLITE_V3_BUNDLE_METADATA_TABLE}"
+        ).fetchone()
+
+        def fail_verification(
+            _connection: sqlite3.Connection,
+        ) -> bundle_sqlite.SQLiteV3BundleManifest:
+            raise SQLiteV3BundleError(
+                "TBM_TEST_VERIFICATION_FAILED",
+                "injected verification failure",
+            )
+
+        monkeypatch.setattr(
+            bundle_sqlite,
+            "verify_sqlite_v3_bundle",
+            fail_verification,
+        )
+        with pytest.raises(SQLiteV3BundleError) as captured:
+            apply_sqlite_v3_gate_session_timestamp_hotfix(connection)
+
+        assert captured.value.code == "TBM_TEST_VERIFICATION_FAILED"
+        assert connection.in_transaction is False
+        assert connection.execute(
+            f"SELECT component_set_sha256 FROM "
+            f"{SQLITE_V3_BUNDLE_METADATA_TABLE}"
+        ).fetchone() == before
     finally:
         connection.close()
 

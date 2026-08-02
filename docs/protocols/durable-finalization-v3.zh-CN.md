@@ -28,6 +28,12 @@ session ID、预期 revision 与有界 lease 请求的 `DurableFinalizationReque
 8. 在同一个 event-first transaction 中保存并读回精确 replay projection；以及
 9. 再次核验保留结果与当前授权。
 
+只有 durable history 证明唯一中间 revision 是仍有效的 lease renewal、且全部 decided
+field 保持不变时，幂等 retry 才可以让 expected revision 比当前 `DECIDED` revision
+恰少一版。已保留 claim 的可信 `updated_at` 同时作为 bundle 时间戳，因此并发重复请求
+与 crash retry 会重建相同的内容寻址 UsageDecision、injection 与 manifest。其他 stale
+revision、缺失 history、过期 lease 或非单调续租一律 fail closed。
+
 完整 Semantic Gate chain 会在渲染前通过核验，因此 System Gate block 保持单调；
 UsageDecision 还会分别保留每个确定性 block 的原因与规则。
 
@@ -61,6 +67,11 @@ authenticated `replay()` boundary 会对仍保留精确 finalization linkage 的
 并在可用时附带已保留的 UsageDecision 与 InjectionArtifact。服务绝不会删除不可变
 evidence，也不会静默创建新的最终决策。
 
+compatibility 路径在 bundle write 已提交后的恢复会复用同一条已保留 lease revision，
+先重建逐字节相同的 bundle，再重试 CAS；不会生成新时间戳或遗留第二个分歧 manifest。
+event-first 路径同样保留已提交 lease revision，并在失败 transaction 回滚后重建同一
+bundle。
+
 ## 事务边界
 
 显式 durable SQLite/PostgreSQL runtime 会启用 replay repository 的
@@ -68,6 +79,11 @@ evidence，也不会静默创建新的最终决策。
 event head，append finalized transition/rendered-injection events，写 GateSession/replay
 projection，并精确读回。event、transition、projection 或 read-back 任一步失败，都会
 回滚全部 finalization write。此前 claim 阶段已提交的 lease renewal 有意保持提交。
+
+SQLite 子进程在 replay-manifest insert 后、transaction commit 前遭 `SIGKILL` 的测试
+证明 replay row、finalization event 与 session projection 会一起回滚。重新打开后只能
+看到先前仍有效的 lease claim；retry 会重建同一 bundle，并只发布一个逻辑
+finalization。
 
 PostgreSQL 固定使用 `event-ledger schema/global lock → replay schema validation →
 GateSession transition/session-head locks` 顺序。caller-owned 外层 transaction 仍由 caller

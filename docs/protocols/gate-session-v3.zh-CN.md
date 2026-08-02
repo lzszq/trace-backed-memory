@@ -92,6 +92,11 @@ lease 或 session 过期后的转换，返回稳定的 `TBM_SQLITE_GATE_SESSION_
 即使面对 direct SQL 也会保护 append-only history、revision 连续性、生命周期图和
 immutable head identity；repository 读取时仍会重新校验 canonical payload 与 head
 identity。
+timestamp 前进关系会分别比较 canonical UTC 秒与六位 microsecond component，不再比较
+变长 RFC 3339 文本，也不依赖有范围上限的 epoch conversion。因此省略小数与六位小数
+不会颠倒 lease 顺序，offset 形式的 direct SQL 会 fail closed，契约支持的年份范围仍可
+精确比较。仍使用 legacy 文本比较的既有统一 bundle 通过
+[统一 SQLite v3 bundle](sqlite-bundle-v3.zh-CN.md)中记录的精确、原子兼容边界修复。
 
 ## 隔离 PostgreSQL repository
 

@@ -19,10 +19,19 @@ SQLITE_V3_COMPONENT_MANIFEST_RESOURCE = (
     "schemas/sqlite-v3.components.json"
 )
 SQLITE_V3_BUNDLE_RESOURCE = "schemas/sqlite-v3.sql"
+SQLITE_V3_GATE_SESSION_TIMESTAMP_HOTFIX_RESOURCE = (
+    "schemas/sqlite-v3-gate-session-timestamp-hotfix.sql"
+)
 SQLITE_V3_BUNDLE_METADATA_TABLE = (
     "trace_backed_memory_v3_bundle_schema"
 )
 _SHA256_PREFIX = "sha256:"
+_LEGACY_GATE_SESSION_COMPONENT_SET_SHA256 = (
+    "sha256:3b845f08d52c83705b55cb369758db23a344d9324a006d6541cae554bf921381"
+)
+_LEGACY_GATE_SESSION_VALIDATION_TRIGGER_SHA256 = (
+    "sha256:b687332cce0e8e90b8cff81aaa95340d7c3ac3c0dc5258cb020c9862683e5160"
+)
 _EXACT_MANIFEST_FIELDS = {
     "manifest_version",
     "bundle_contract_version",
@@ -313,6 +322,170 @@ def sqlite_v3_catalog_sha256(connection: sqlite3.Connection) -> str:
     return _sha256(encoded)
 
 
+def _gate_session_validation_trigger_sha256(
+    connection: sqlite3.Connection,
+) -> str:
+    row = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'trigger' "
+        "AND name = 'gate_session_revisions_validate_insert'"
+    ).fetchone()
+    if row is None or len(row) != 1 or type(row[0]) is not str:
+        _failed(
+            "TBM_SQLITE_V3_GATE_SESSION_HOTFIX_PRECONDITION",
+            "SQLite GateSession validation trigger is unavailable",
+        )
+    return _sha256(" ".join(row[0].split()).encode("utf-8"))
+
+
+def _gate_session_schema_definitions(
+    connection: sqlite3.Connection,
+) -> tuple[tuple[str, str, str, str, str], ...]:
+    definitions: list[tuple[str, str, str, str, str]] = []
+    for catalog in ("sqlite_master", "sqlite_temp_master"):
+        rows = connection.execute(
+            f"SELECT type, name, tbl_name, sql FROM {catalog} "
+            "WHERE sql IS NOT NULL AND (tbl_name IN ("
+            "'trace_backed_memory_v3_gate_session_schema', "
+            "'gate_session_heads', 'gate_session_revisions') "
+            "OR name = 'trace_backed_memory_v3_gate_session_schema') "
+            "ORDER BY name"
+        ).fetchall()
+        for row in rows:
+            if (
+                len(row) != 4
+                or any(type(value) is not str for value in row)
+            ):
+                _failed(
+                    "TBM_SQLITE_V3_GATE_SESSION_HOTFIX_PRECONDITION",
+                    "SQLite GateSession schema definition is invalid",
+                )
+            definitions.append(
+                (
+                    catalog,
+                    row[0],
+                    row[1],
+                    row[2],
+                    " ".join(row[3].split()),
+                )
+            )
+    return tuple(definitions)
+
+
+def _canonical_gate_session_schema_definitions() -> tuple[
+    tuple[str, str, str, str, str], ...
+]:
+    try:
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.executescript(
+                read_packaged_resource(
+                    "schemas/sqlite-v3-gate-session.sql"
+                ).decode("utf-8")
+            )
+            return _gate_session_schema_definitions(connection)
+        finally:
+            connection.close()
+    except SQLiteV3BundleError:
+        raise
+    except (
+        OSError,
+        UnicodeError,
+        sqlite3.Error,
+        PackagedResourceError,
+    ) as error:
+        raise SQLiteV3BundleError(
+            "TBM_SQLITE_V3_BUNDLE_RESOURCE_DRIFT",
+            "SQLite GateSession schema resource is invalid",
+        ) from error
+
+
+def _legacy_gate_session_schema_matches(
+    connection: sqlite3.Connection,
+) -> bool:
+    actual = {
+        row[2]: row for row in _gate_session_schema_definitions(connection)
+    }
+    canonical = {
+        row[2]: row for row in _canonical_gate_session_schema_definitions()
+    }
+    trigger_name = "gate_session_revisions_validate_insert"
+    if set(actual) != set(canonical) or trigger_name not in actual:
+        return False
+    trigger = actual.pop(trigger_name)
+    canonical.pop(trigger_name)
+    return (
+        actual == canonical
+        and _sha256(trigger[4].encode("utf-8"))
+        == _LEGACY_GATE_SESSION_VALIDATION_TRIGGER_SHA256
+    )
+
+
+def _gate_session_timestamp_hotfix_statements() -> tuple[str, ...]:
+    try:
+        script = read_packaged_resource(
+            SQLITE_V3_GATE_SESSION_TIMESTAMP_HOTFIX_RESOURCE
+        ).decode("utf-8")
+    except (OSError, UnicodeError, PackagedResourceError) as error:
+        raise SQLiteV3BundleError(
+            "TBM_SQLITE_V3_BUNDLE_RESOURCE_DRIFT",
+            "SQLite GateSession hotfix resource is invalid",
+        ) from error
+    statements: list[str] = []
+    pending = ""
+    for line in script.splitlines(keepends=True):
+        pending += line
+        if sqlite3.complete_statement(pending):
+            statements.append(pending.strip())
+            pending = ""
+    if pending.strip():
+        _failed(
+            "TBM_SQLITE_V3_BUNDLE_RESOURCE_DRIFT",
+            "SQLite GateSession hotfix resource is incomplete",
+        )
+    normalized = tuple(" ".join(statement.split()) for statement in statements)
+    if (
+        len(statements) < 5
+        or normalized[:3]
+        != (
+            "PRAGMA foreign_keys = ON;",
+            "PRAGMA recursive_triggers = ON;",
+            "BEGIN IMMEDIATE;",
+        )
+        or normalized[-1] != "COMMIT;"
+    ):
+        _failed(
+            "TBM_SQLITE_V3_BUNDLE_RESOURCE_DRIFT",
+            "SQLite GateSession hotfix transaction boundary is invalid",
+        )
+    return tuple(statements[3:-1])
+
+
+def _canonical_gate_session_validation_trigger_sha256() -> str:
+    try:
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.executescript(
+                read_packaged_resource(
+                    "schemas/sqlite-v3-gate-session.sql"
+                ).decode("utf-8")
+            )
+            return _gate_session_validation_trigger_sha256(connection)
+        finally:
+            connection.close()
+    except SQLiteV3BundleError:
+        raise
+    except (
+        OSError,
+        UnicodeError,
+        sqlite3.Error,
+        PackagedResourceError,
+    ) as error:
+        raise SQLiteV3BundleError(
+            "TBM_SQLITE_V3_BUNDLE_RESOURCE_DRIFT",
+            "SQLite GateSession schema resource is invalid",
+        ) from error
+
+
 def verify_sqlite_v3_bundle(
     connection: sqlite3.Connection,
 ) -> SQLiteV3BundleManifest:
@@ -391,6 +564,105 @@ def verify_sqlite_v3_bundle(
     return manifest
 
 
+def apply_sqlite_v3_gate_session_timestamp_hotfix(
+    connection: sqlite3.Connection,
+) -> SQLiteV3BundleManifest:
+    """Atomically repair the legacy variable-precision timestamp trigger."""
+
+    if not isinstance(connection, sqlite3.Connection):
+        raise TypeError("connection must be sqlite3.Connection")
+    if connection.in_transaction:
+        _failed(
+            "TBM_SQLITE_V3_GATE_SESSION_HOTFIX_TRANSACTION_ACTIVE",
+            "SQLite GateSession hotfix requires an idle connection",
+        )
+    manifest = load_sqlite_v3_bundle_manifest()
+    canonical_definitions = _canonical_gate_session_schema_definitions()
+    canonical_trigger_sha256 = (
+        _canonical_gate_session_validation_trigger_sha256()
+    )
+    hotfix_statements = _gate_session_timestamp_hotfix_statements()
+    try:
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA recursive_triggers = ON")
+        connection.execute("BEGIN IMMEDIATE")
+        metadata = connection.execute(
+            f"SELECT schema_version, contract_version, "
+            "component_set_sha256, catalog_sha256 "
+            f"FROM {SQLITE_V3_BUNDLE_METADATA_TABLE} "
+            "WHERE singleton = 1"
+        ).fetchall()
+        current = (
+            manifest.schema_version,
+            manifest.bundle_contract_version,
+            manifest.component_set_sha256,
+            manifest.catalog_sha256,
+        )
+        legacy = (
+            manifest.schema_version,
+            manifest.bundle_contract_version,
+            _LEGACY_GATE_SESSION_COMPONENT_SET_SHA256,
+            manifest.catalog_sha256,
+        )
+        trigger_sha256 = _gate_session_validation_trigger_sha256(connection)
+        if metadata == [current]:
+            if (
+                trigger_sha256 != canonical_trigger_sha256
+                or _gate_session_schema_definitions(connection)
+                != canonical_definitions
+            ):
+                _failed(
+                    "TBM_SQLITE_V3_GATE_SESSION_HOTFIX_PRECONDITION",
+                    "SQLite GateSession trigger does not match the current bundle",
+                )
+            verified = verify_sqlite_v3_bundle(connection)
+            connection.commit()
+            return verified
+        if (
+            metadata != [legacy]
+            or sqlite_v3_catalog_sha256(connection)
+            != manifest.catalog_sha256
+            or trigger_sha256
+            != _LEGACY_GATE_SESSION_VALIDATION_TRIGGER_SHA256
+            or not _legacy_gate_session_schema_matches(connection)
+        ):
+            _failed(
+                "TBM_SQLITE_V3_GATE_SESSION_HOTFIX_PRECONDITION",
+                "SQLite v3 bundle is not the exact supported hotfix source",
+            )
+        for statement in hotfix_statements:
+            connection.execute(statement)
+        if (
+            _gate_session_validation_trigger_sha256(connection)
+            != canonical_trigger_sha256
+            or _gate_session_schema_definitions(connection)
+            != canonical_definitions
+        ):
+            _failed(
+                "TBM_SQLITE_V3_GATE_SESSION_HOTFIX_FAILED",
+                "SQLite GateSession timestamp hotfix was not retained",
+            )
+        verified = verify_sqlite_v3_bundle(connection)
+        connection.commit()
+        return verified
+    except SQLiteV3BundleError:
+        if connection.in_transaction:
+            connection.rollback()
+        raise
+    except (
+        OSError,
+        UnicodeError,
+        sqlite3.Error,
+        PackagedResourceError,
+    ) as error:
+        if connection.in_transaction:
+            connection.rollback()
+        raise SQLiteV3BundleError(
+            "TBM_SQLITE_V3_GATE_SESSION_HOTFIX_FAILED",
+            "SQLite GateSession timestamp hotfix failed",
+        ) from error
+
+
 def install_sqlite_v3_bundle(
     connection: sqlite3.Connection,
 ) -> SQLiteV3BundleManifest:
@@ -407,6 +679,12 @@ def install_sqlite_v3_bundle(
     try:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA recursive_triggers = ON")
+        existing = connection.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
+            f"AND name = '{SQLITE_V3_BUNDLE_METADATA_TABLE}'"
+        ).fetchone()
+        if existing == (1,):
+            return apply_sqlite_v3_gate_session_timestamp_hotfix(connection)
         bundle = read_packaged_resource(manifest.bundle_resource).decode(
             "utf-8"
         )
@@ -432,10 +710,12 @@ __all__ = [
     "SQLITE_V3_BUNDLE_RESOURCE",
     "SQLITE_V3_BUNDLE_SCHEMA_VERSION",
     "SQLITE_V3_COMPONENT_MANIFEST_RESOURCE",
+    "SQLITE_V3_GATE_SESSION_TIMESTAMP_HOTFIX_RESOURCE",
     "SQLITE_V3_COMPONENT_MANIFEST_VERSION",
     "SQLiteV3BundleError",
     "SQLiteV3BundleManifest",
     "SQLiteV3Component",
+    "apply_sqlite_v3_gate_session_timestamp_hotfix",
     "install_sqlite_v3_bundle",
     "load_sqlite_v3_bundle_manifest",
     "sqlite_v3_catalog_rows",

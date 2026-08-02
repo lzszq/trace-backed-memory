@@ -103,6 +103,14 @@ session expiry. Database triggers
 protect append-only history, revision continuity, the lifecycle graph, and
 immutable head identity even from direct SQL; repository reads still
 revalidate canonical payloads and head identity before returning them.
+Timestamp progression compares the canonical UTC second and six-digit
+microsecond components separately rather than comparing variable-length RFC
+3339 text or relying on a bounded epoch conversion. Values with omitted versus
+six-digit fractions do not invert lease ordering, offset-form direct SQL fails
+closed, and the supported contract year range remains exact. Existing unified
+bundles with the legacy text comparison are repaired through the exact, atomic
+compatibility boundary documented in
+[Unified SQLite v3 bundle](sqlite-bundle-v3.md).
 
 ## Isolated PostgreSQL repository
 

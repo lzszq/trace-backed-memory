@@ -130,6 +130,171 @@ def test_sqlite_gate_session_equal_clock_advances_one_second():
     repository.close()
 
 
+def test_sqlite_gate_session_lease_renewal_orders_mixed_timestamp_precision():
+    repository = tbm.SQLiteGateSessionRepository.connect(
+        ":memory:",
+        initialize=True,
+        clock=Clock(
+            [
+                "2026-07-27T00:00:00Z",
+                "2026-07-27T00:00:01Z",
+                "2026-07-27T00:00:01.500000Z",
+            ]
+        ),
+    )
+    try:
+        prepared = _prepared(repository)
+        renewed = repository.renew_lease(
+            prepared.session_id,
+            expected_version=prepared.version,
+            lease_seconds=180,
+        )
+        assert renewed.status == "prepared"
+        assert renewed.updated_at == "2026-07-27T00:00:01.500000Z"
+        assert renewed.lease_expires_at == (
+            "2026-07-27T00:03:01.500000Z"
+        )
+    finally:
+        repository.close()
+
+
+def test_sqlite_gate_session_trigger_rejects_offset_fractional_regression():
+    connection = sqlite3.connect(":memory:")
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA recursive_triggers = ON")
+    connection.executescript(
+        tbm.read_packaged_resource(
+            "schemas/sqlite-v3-gate-session.sql"
+        ).decode("utf-8")
+    )
+    try:
+        connection.execute(
+            "INSERT INTO gate_session_heads ("
+            "session_id, tenant_id, repository_id, principal_id, "
+            "agent_client_id, trace_id, run_id, request_fingerprint, "
+            "idempotency_key, current_version"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "session_offset_fractional",
+                "tenant_001",
+                "repository_001",
+                "principal_001",
+                "agent_001",
+                "trace_001",
+                "run_001",
+                FINGERPRINT,
+                "offset-fractional",
+                1,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO gate_session_revisions ("
+            "session_id, version, status, updated_at, expires_at, "
+            "lease_expires_at, payload"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "session_offset_fractional",
+                1,
+                "created",
+                "2026-08-03T00:00:01.5+00:00",
+                "2026-08-03T00:10:00+00:00",
+                None,
+                "{}",
+            ),
+        )
+
+        with pytest.raises(
+            sqlite3.IntegrityError,
+            match="invalid GateSession revision transition",
+        ):
+            connection.execute(
+                "INSERT INTO gate_session_revisions ("
+                "session_id, version, status, updated_at, expires_at, "
+                "lease_expires_at, payload"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "session_offset_fractional",
+                    2,
+                    "canceled",
+                    "2026-08-03T00:00:01.10+00:00",
+                    "2026-08-03T00:10:00+00:00",
+                    None,
+                    "{}",
+                ),
+            )
+    finally:
+        connection.close()
+
+
+def test_sqlite_gate_session_trigger_orders_year_9999_microseconds():
+    connection = sqlite3.connect(":memory:")
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA recursive_triggers = ON")
+    connection.executescript(
+        tbm.read_packaged_resource(
+            "schemas/sqlite-v3-gate-session.sql"
+        ).decode("utf-8")
+    )
+    try:
+        connection.execute(
+            "INSERT INTO gate_session_heads ("
+            "session_id, tenant_id, repository_id, principal_id, "
+            "agent_client_id, trace_id, run_id, request_fingerprint, "
+            "idempotency_key, current_version"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "session_year_9999",
+                "tenant_001",
+                "repository_001",
+                "principal_001",
+                "agent_001",
+                "trace_001",
+                "run_001",
+                FINGERPRINT,
+                "year-9999",
+                1,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO gate_session_revisions ("
+            "session_id, version, status, updated_at, expires_at, "
+            "lease_expires_at, payload"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "session_year_9999",
+                1,
+                "created",
+                "9999-12-31T23:59:58.999999Z",
+                "9999-12-31T23:59:59.999999Z",
+                None,
+                "{}",
+            ),
+        )
+
+        connection.execute(
+            "INSERT INTO gate_session_revisions ("
+            "session_id, version, status, updated_at, expires_at, "
+            "lease_expires_at, payload"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "session_year_9999",
+                2,
+                "canceled",
+                "9999-12-31T23:59:59.000000Z",
+                "9999-12-31T23:59:59.999999Z",
+                None,
+                "{}",
+            ),
+        )
+        assert connection.execute(
+            "SELECT status FROM gate_session_revisions "
+            "WHERE session_id = ? AND version = 2",
+            ("session_year_9999",),
+        ).fetchone() == ("canceled",)
+    finally:
+        connection.close()
+
+
 def test_sqlite_gate_session_rejects_backwards_trusted_clock():
     repository = tbm.SQLiteGateSessionRepository.connect(
         ":memory:",

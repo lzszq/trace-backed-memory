@@ -187,7 +187,51 @@ WHEN
             WHERE previous.session_id = NEW.session_id
               AND previous.version = NEW.version - 1
               AND head.current_version = previous.version
-              AND previous.updated_at < NEW.updated_at
+              AND (
+                  (
+                      length(previous.updated_at) = 20
+                      AND substr(previous.updated_at, 20, 1) = 'Z'
+                  )
+                  OR (
+                      length(previous.updated_at) = 27
+                      AND substr(previous.updated_at, 20, 1) = '.'
+                      AND substr(previous.updated_at, 21, 6)
+                          NOT GLOB '*[^0-9]*'
+                      AND substr(previous.updated_at, 27, 1) = 'Z'
+                  )
+              )
+              AND (
+                  (
+                      length(NEW.updated_at) = 20
+                      AND substr(NEW.updated_at, 20, 1) = 'Z'
+                  )
+                  OR (
+                      length(NEW.updated_at) = 27
+                      AND substr(NEW.updated_at, 20, 1) = '.'
+                      AND substr(NEW.updated_at, 21, 6)
+                          NOT GLOB '*[^0-9]*'
+                      AND substr(NEW.updated_at, 27, 1) = 'Z'
+                  )
+              )
+              AND (
+                  substr(previous.updated_at, 1, 19)
+                      < substr(NEW.updated_at, 1, 19)
+                  OR (
+                      substr(previous.updated_at, 1, 19)
+                          = substr(NEW.updated_at, 1, 19)
+                      AND CASE
+                          WHEN length(previous.updated_at) = 20 THEN 0
+                          ELSE CAST(
+                              substr(previous.updated_at, 21, 6) AS INTEGER
+                          )
+                      END < CASE
+                          WHEN length(NEW.updated_at) = 20 THEN 0
+                          ELSE CAST(
+                              substr(NEW.updated_at, 21, 6) AS INTEGER
+                          )
+                      END
+                  )
+              )
               AND previous.expires_at = NEW.expires_at
               AND (
                   (previous.status = 'created'

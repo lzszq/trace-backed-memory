@@ -46,3 +46,17 @@ A local-daemon child-process hard-restart test now covers acknowledged
 `PREPARED`, `DECIDED`, `FINALIZED`, `EXECUTING`, and `COMPLETED` commits with
 exact retries and final reducer parity. This is partial F2 crash-matrix evidence,
 not a completed atom, so it does not change 182/490.
+
+Additional SQLite `SIGKILL` probes cover committed authorization, `CREATED`,
+and Gate-evidence boundaries; rollback inside finalization replay and
+completion/outbox transactions; and consumer-return-before-ack durability with
+lease reclaim and at-least-once redelivery. Exact `CREATED` recovery performs
+fresh authorization without rewriting orphan evidence, and finalization
+rebuilds one deterministic claim-time bundle. Provider receipt/reconciliation,
+the remaining crash cells, PostgreSQL parity, full cross-stream/STDIO transport
+parity, and durable compensation remain incomplete. GateSession session-stream
+event/projection parity now covers the Python facade, Python HTTP sync/async
+SDKs, trusted-local MCP tool boundary, and TypeScript HTTP SDK; the exact legacy
+SQLite timestamp trigger is also repaired atomically on reopen. These are
+additional evidence and a corruption repair only, so formal and candidate
+progress both remain 182/490 (37.14%) with no promoted atom.

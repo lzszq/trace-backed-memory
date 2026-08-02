@@ -4,7 +4,7 @@
 
 This file is generated deterministically from `resources/manifest.json`; do not edit it by hand.
 
-The strict allowlist currently contains **159** resources.
+The strict allowlist currently contains **160** resources.
 
 | Name | Kind | Media type | Bytes | SHA-256 |
 |---|---|---|---:|---|
@@ -150,7 +150,8 @@ The strict allowlist currently contains **159** resources.
 | `schemas/sqlite-v3-entity-registry.sql` | `schema` | `application/sql` | 20999 | `ec06c93485fc93a67e583981ce6a88b069c2f15520acff16521d7f26472f7b66` |
 | `schemas/sqlite-v3-event-ledger.sql` | `schema` | `application/sql` | 15355 | `f914412afb9f0fc31bb158682defffa9a69e02db807efab4c1e8e2629e38eb3b` |
 | `schemas/sqlite-v3-gate-evidence.sql` | `schema` | `application/sql` | 3759 | `d882427fa6397e7f651077cbcb1b86fc7c91b3a74eb13f6878ade498defe0ee2` |
-| `schemas/sqlite-v3-gate-session.sql` | `schema` | `application/sql` | 7564 | `61ed2a0284f548d63e88b69d4eb86c46113d7f592579c88a9b6868e9bc4e4c4d` |
+| `schemas/sqlite-v3-gate-session-timestamp-hotfix.sql` | `schema` | `application/sql` | 6113 | `f2bb61103ca5dcdc66585794b4b8b8663b9132a0582e2aad95f864bcd24413fe` |
+| `schemas/sqlite-v3-gate-session.sql` | `schema` | `application/sql` | 9358 | `7bd38fe5edbc9b85829ab6f9223f8e79032161f59b4a7b27b6c6b2917f49e470` |
 | `schemas/sqlite-v3-managed-index.sql` | `schema` | `application/sql` | 4597 | `cb9a8670265cb4dfab36408807a34f75a3a617c82506dda0479b9dfbda06f147` |
 | `schemas/sqlite-v3-memory-publication.sql` | `schema` | `application/sql` | 8803 | `26660f544f420bfb3e8be197193023a024f3bf199e03eb43e924cf1401205249` |
 | `schemas/sqlite-v3-memory-revision.sql` | `schema` | `application/sql` | 4447 | `dd547af778f4510c8660f3283bb41f1932c94bd774062d9cc3c2d118bc5f1155` |
@@ -160,8 +161,8 @@ The strict allowlist currently contains **159** resources.
 | `schemas/sqlite-v3-replay.sql` | `schema` | `application/sql` | 5041 | `7e62b7a3f8e11eaa5a025eacb30e83f86ed3d76980620295eaed01d9c3095ce6` |
 | `schemas/sqlite-v3-semantic-gate-artifacts.sql` | `schema` | `application/sql` | 9100 | `074223a8e8dd6df6c0bb158f12638afff038b1f6e83a63831efe7e0743e3f28f` |
 | `schemas/sqlite-v3-semantic-gate.sql` | `schema` | `application/sql` | 7945 | `d036177c6c0d96af676460b80074068049871a6dd0a333a17c6d2328bb203896` |
-| `schemas/sqlite-v3.components.json` | `schema` | `application/json` | 6028 | `116fcbebc17523317d217c4b602d4753201e172bf6938b113c8dd57bf9fd7b31` |
-| `schemas/sqlite-v3.sql` | `schema` | `application/sql` | 136750 | `c9a5fd98d9bb8d5cf79ed846e67dcb237202bdd63a761bc2c5761096c44c7c3e` |
+| `schemas/sqlite-v3.components.json` | `schema` | `application/json` | 6028 | `e54c33a6b26927b2cc2738fe426ab5903f4f6d093f7e20c2bf0439f62c9d7e05` |
+| `schemas/sqlite-v3.sql` | `schema` | `application/sql` | 138544 | `a5cea1f10853e7d0cb0d10dade05e9af600e45d43ba3575be55af6e6b6880764` |
 | `schemas/sqlite.sql` | `schema` | `application/sql` | 1806 | `06f86b7a09530e703af32bee99b699fe79638fbd4c955927add3c668acffb9eb` |
 | `schemas/structured_regression_evidence_v3.schema.json` | `schema` | `application/schema+json` | 3803 | `85adadb8bf315257b687b7d1efdeaee0bdfc7f9a1a01638a4fd69cce8b301dfe` |
 | `schemas/system_gate_evaluation_v3.schema.json` | `schema` | `application/schema+json` | 2582 | `6461e5e01c23361cd41ef0afc763eae4a8de982e02063b67763de347bdec521b` |

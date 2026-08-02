@@ -10,6 +10,7 @@ from .gate_service_v3 import (
     AuthenticatedGateServiceV3Error,
     AuthenticatedGateSessionService,
     AuthenticatedPreparedGateResult,
+    GatePreparationRecoveryRequiredError,
     GatePreparationRequest,
     GateSessionReplayError,
     GateSessionWriter,
@@ -250,7 +251,7 @@ class DurableRetrievalPreparationService:
                     "TBM_DURABLE_RETRIEVAL_REPLAY_LOOKUP_FAILED",
                     "durable retrieval replay lookup failed",
                 ) from error
-            if existing is not None:
+            if existing is not None and existing.status != "created":
                 return self._recover_exact_replay(
                     context,
                     request,
@@ -304,6 +305,14 @@ class DurableRetrievalPreparationService:
                 request,
                 error.session,
             )
+        except GatePreparationRecoveryRequiredError as error:
+            if error.session.status == "prepared":
+                return self._recover_exact_replay(
+                    context,
+                    request,
+                    error.session,
+                )
+            raise
 
     def _recover_exact_replay(
         self,
@@ -311,6 +320,9 @@ class DurableRetrievalPreparationService:
         request: DurableRetrievalPreparationRequest,
         session: GateSession,
     ) -> AuthenticatedPreparedGateResult[PreparedRetrievalEvidence]:
+        current = self._load_replay_session(session.session_id)
+        if current != session:
+            raise GateSessionReplayError(current)
         if (
             session.status != "prepared"
             or session.request_fingerprint != request.request_fingerprint
@@ -353,12 +365,30 @@ class DurableRetrievalPreparationService:
                 "TBM_DURABLE_RETRIEVAL_REPLAY_INVALID",
                 "durable retrieval replay could not be verified",
             ) from replay_error
+        current = self._load_replay_session(session.session_id)
+        if current != session:
+            raise GateSessionReplayError(current)
         return AuthenticatedPreparedGateResult(
             authorization=decision,
             scope=scope,
             session=session,
             value=evidence,
         )
+
+    def _load_replay_session(self, session_id: str) -> GateSession:
+        try:
+            session = self.session_authority.get(session_id)
+        except Exception:
+            raise DurableRetrievalPreparationV3Error(
+                "TBM_DURABLE_RETRIEVAL_REPLAY_LOOKUP_FAILED",
+                "durable retrieval replay session lookup failed",
+            ) from None
+        if type(session) is not GateSession or session.session_id != session_id:
+            raise DurableRetrievalPreparationV3Error(
+                "TBM_DURABLE_RETRIEVAL_REPLAY_LOOKUP_FAILED",
+                "durable retrieval replay session receipt is invalid",
+            )
+        return session
 
     @staticmethod
     def _verify_store_receipt(

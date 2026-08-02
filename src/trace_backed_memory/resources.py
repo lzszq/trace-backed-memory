@@ -762,6 +762,11 @@ _RESOURCE_SPECS: tuple[
         "application/sql",
     ),
     (
+        "schemas/sqlite-v3-gate-session-timestamp-hotfix.sql",
+        "schema",
+        "application/sql",
+    ),
+    (
         "schemas/sqlite-v3-gate-session.sql",
         "schema",
         "application/sql",

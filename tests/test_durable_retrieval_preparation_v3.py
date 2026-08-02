@@ -97,6 +97,31 @@ def _durable_service(
     )
 
 
+class _AdvanceSessionOnSnapshotLoad:
+    def __init__(self, authority, sessions, prepared) -> None:
+        self._authority = authority
+        self._sessions = sessions
+        self._prepared = prepared
+        self._advanced = False
+
+    def store_bundle(self, *args, **kwargs):
+        return self._authority.store_bundle(*args, **kwargs)
+
+    def load_snapshot(self, snapshot_id):
+        snapshot = self._authority.load_snapshot(snapshot_id)
+        if not self._advanced:
+            self._advanced = True
+            self._sessions.transition(
+                self._prepared.session_id,
+                "awaiting_decision",
+                expected_version=self._prepared.version,
+            )
+        return snapshot
+
+    def load_evaluation(self, evaluation_id):
+        return self._authority.load_evaluation(evaluation_id)
+
+
 def test_durable_retrieval_preparation_attaches_exact_evidence_with_one_authorization():
     registry = _registry(permissions=("memory:retrieve",))
     authorization, decisions = _retrieval_authorization(registry)
@@ -185,6 +210,128 @@ def test_durable_retrieval_exact_replay_does_not_repeat_discovery_or_evidence():
             "created",
             "prepared",
         ]
+    finally:
+        decisions.close()
+        evidence.close()
+        sessions.close()
+        connection.close()
+
+
+def test_durable_retrieval_exact_replay_rejects_concurrent_head_change():
+    registry = _registry(permissions=("memory:retrieve",))
+    authorization, decisions = _retrieval_authorization(registry)
+    connection, sessions, evidence = _sqlite_authorities()
+    candidate = _candidate("memory_durable_replay_race")
+    discovery = _Discovery(
+        _result(
+            records=(_record(candidate),),
+            index_versions=_indexes(
+                "metadata",
+                "lexical",
+                "semantic",
+                "git_graph",
+            ),
+        )
+    )
+    source = _Source((candidate,))
+    request = _durable_request()
+    context = _context(registry)
+    try:
+        first = _durable_service(
+            authorization,
+            sessions,
+            evidence,
+            discovery,
+            source,
+        ).prepare(context, request)
+        racing = _AdvanceSessionOnSnapshotLoad(
+            evidence,
+            sessions,
+            first.session,
+        )
+
+        with pytest.raises(tbm.GateSessionReplayError) as captured:
+            _durable_service(
+                authorization,
+                sessions,
+                racing,
+                discovery,
+                source,
+            ).prepare(context, request)
+
+        assert captured.value.session.status == "awaiting_decision"
+        assert discovery.calls == 1
+    finally:
+        decisions.close()
+        evidence.close()
+        sessions.close()
+        connection.close()
+
+
+def test_durable_retrieval_resumes_created_session_after_interruption():
+    registry = _registry(permissions=("memory:retrieve",))
+    authorization, decisions = _retrieval_authorization(registry)
+    connection, sessions, evidence = _sqlite_authorities()
+    candidate = _candidate("memory_durable_created_resume")
+    discovery = _Discovery(
+        _result(
+            records=(_record(candidate),),
+            index_versions=_indexes(
+                "metadata",
+                "lexical",
+                "semantic",
+                "git_graph",
+            ),
+        )
+    )
+    request = _durable_request()
+    context = _context(registry)
+    gate_request = request.gate_request()
+
+    def create_only(scope):
+        return sessions.create_or_get(
+            session_id="gate_session_interrupted_created",
+            tenant_id=scope.tenant_id,
+            repository_id=scope.repository_id,
+            principal_id=scope.principal_id,
+            agent_client_id=scope.agent_client_id,
+            trace_id=gate_request.trace_id,
+            run_id=gate_request.run_id,
+            request_fingerprint=gate_request.request_fingerprint,
+            idempotency_key=gate_request.idempotency_key,
+            expires_in_seconds=gate_request.expires_in_seconds,
+        )
+
+    try:
+        interrupted = authorization.authorize_retrieval(
+            context,
+            create_only,
+        ).value.session
+        assert interrupted.status == "created"
+
+        resumed = _durable_service(
+            authorization,
+            sessions,
+            evidence,
+            discovery,
+            _Source((candidate,)),
+            session_ids=iter(("gate_session_unused_after_interruption",)),
+        ).prepare(context, request)
+
+        assert resumed.session.status == "prepared"
+        assert resumed.session.session_id == interrupted.session_id
+        assert [
+            item.status for item in sessions.history(interrupted.session_id)
+        ] == ["created", "prepared"]
+        assert resumed.value.snapshot.authorization_event_id == (
+            resumed.scope.authorization_event_id
+        )
+        assert discovery.calls == 1
+        assert len(
+            decisions.list_decisions(
+                registry.authorization_policy.policy_sha256
+            )
+        ) == 2
     finally:
         decisions.close()
         evidence.close()

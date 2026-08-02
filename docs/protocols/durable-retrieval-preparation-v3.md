@@ -38,6 +38,12 @@ For a new idempotency key, the service:
    `DurablePreparedGateEvidenceVerifier`; and
 7. lets the Gate service CAS-publish and read back `PREPARED`.
 
+An interrupted exact `CREATED` session is resumable but not replay-complete.
+The retry performs fresh authorization, reuses the same durable session, and
+runs preparation again. Any evidence committed before the interruption remains
+immutable; the `PREPARED` transition binds only the newly authorized,
+read-back-verified pair. A `PREPARED` session is replay-complete.
+
 Exact replay returns the existing durable session without repeating
 authorization-side discovery, revision reads, evidence generation, or evidence
 writes. The durable authorities first perform a scope-local idempotency lookup;
@@ -62,6 +68,13 @@ while the session is canceled. When the SQLite or PostgreSQL GateSession and
 Gate evidence repositories deliberately share one caller-owned connection, an
 outer caller transaction may roll back both authorities together; this is an
 explicit deployment choice, not an automatic service guarantee.
+
+A process interruption differs from an ordinary compensated failure. On the
+next request an exact `CREATED` head is resumed after fresh authorization; an
+exact `PREPARED` head is replayed without new authorization-side discovery or
+evidence writes. Neither path rewrites previously committed provenance.
+Replay reads the GateSession head before and after evidence verification and
+fails closed if a concurrent Semantic Gate transition advances it.
 
 The opt-in [durable Semantic Gate service](durable-semantic-gate-v3.md) now
 continues this exact evidence through `AWAITING_DECISION` to `DECIDED`.

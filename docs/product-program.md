@@ -1323,6 +1323,8 @@ Track:
   and fail closed on any main/temp table, index, automatic-index, trigger, or
   version drift. Keep migration staging outside the bundle and preserve the
   active SQLite v1 transport boundary.
+  This Phase 74 baseline predates the event-ledger component; the current
+  runtime contract is the documented 16-component bundle.
 - Publish the immutable `tbm.gate-session.v3` domain contract, explicit
   lifecycle transition graph, optimistic revision checks, lease/expiry
   invariants, bounded strict JSON parser, and packaged Schema/example. Keep
@@ -1870,9 +1872,25 @@ event-first cutover remain outstanding. The SQLite local daemon now also has a
 real child-process `SIGKILL`/reopen sweep after acknowledged `PREPARED`,
 `DECIDED`, `FINALIZED`, `EXECUTING`, and `COMPLETED` commits. Each restart
 requires exact command replay, and the final ledger is reducer-checked against
-the durable GateSession row without duplicate logical transitions. Fine-grained
-auth/`CREATED`/evidence/provider/replay-retention and outbox pre/post-ack crash
-failpoints remain open, so the complete crash matrix is not yet delivered.
+the durable GateSession row without duplicate logical transitions. Additional
+SQLite subprocess probes now kill after authorization, `CREATED`, or Gate
+evidence commits; inside uncommitted replay and completion/outbox transactions;
+and after a completion consumer returns but before acknowledgement durability.
+Recovery preserves orphan evidence, publishes one logical lifecycle/effect
+event, keeps reducers equal to projections, and treats the last boundary as
+bounded at-least-once delivery. Provider-call receipts and unknown-result
+reconciliation, a hard-kill compatibility retained-bundle boundary, durable
+compensation, acknowledgement-committed response loss, PostgreSQL equivalents,
+and the complete cross-transport crash matrix remain open.
+
+The same durable lifecycle now produces an identical GateSession event
+type/version/SHA sequence and final reducer projection digest through the
+Python facade, synchronous and asynchronous Python HTTP SDKs, trusted-local MCP
+tool boundary, and TypeScript HTTP SDK under Bun. This is session-stream parity
+evidence, not full cross-stream or STDIO transport conformance. The SQLite
+bundle also atomically repairs the exact legacy variable-precision GateSession
+timestamp trigger on reopen; unrelated drift fails closed. Neither increment
+promotes a new atom while the broader F2 gates remain incomplete.
 
 - **F0 — Architecture freeze (delivered):** ADR-0006, canonical event contract
   and registry, ledger ports, and a guard against new independent authorities.
@@ -1887,10 +1905,14 @@ failpoints remain open, so the complete crash matrix is not yet delivered.
   implemented as transactional migration increments; ledger-backed replay
   export is selected by explicit durable runtimes. Outcome/attribution and
   local completion-effect projections through dead letter are delivered.
-  A local-daemon hard-restart sweep covers five acknowledged lifecycle commits,
-  but the finer transaction/effect failpoints remain open. Provider receipt/
-  reconciliation, durable compensation, full transport parity, and the complete
-  crash matrix remain open.
+  A local-daemon hard-restart sweep covers five acknowledged lifecycle commits;
+  finer SQLite transaction/effect probes cover authorization through evidence,
+  replay/completion rollback, and receipt-before-ack redelivery. GateSession
+  session-stream parity now covers the Python facade, HTTP sync/async SDKs,
+  trusted-local MCP tool boundary, and TypeScript HTTP SDK. Provider
+  receipt/reconciliation, durable compensation, full cross-stream/STDIO
+  transport parity, PostgreSQL equivalents, and the complete crash matrix
+  remain open.
 - **F3 — Trace, Git, and effect evidence:** ordered Trace/Git observations,
   Git-graph projection, external-effect receipts, Codex hooks, and governed
   retention/crypto-erasure.
@@ -1905,9 +1927,10 @@ failpoints remain open, so the complete crash matrix is not yet delivered.
   PostgreSQL tenant isolation, Review Console, GitHub PR Check, observability,
   backup/DR, security governance, and stable-release qualification.
 
-The first fifteen dependency-ordered foundations are now delivered as
-candidate work: F0-01 through F0-05, F1-01 through F1-06, GateSession event
-adapter/reducer, replay exporter reducer, and outcome/effect reducers. New
+The first fifteen dependency-ordered foundations are delivered and promoted
+into the committed 182/490 baseline: F0-01 through F0-05, F1-01 through F1-06,
+GateSession event adapter/reducer, replay exporter reducer, and outcome/effect
+reducers. New
 standalone authorities, protocol families, and SQL components remain frozen
 except for documented security/corruption fixes or ledger, reducer, and
 migration blockers while the remaining cutover gates are completed.

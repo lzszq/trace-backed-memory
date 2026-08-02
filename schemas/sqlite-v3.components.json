@@ -3,9 +3,9 @@
   "bundle_contract_version": "tbm.sqlite-bundle.v3",
   "bundle_resource": "schemas/sqlite-v3.sql",
   "schema_version": 1,
-  "component_set_sha256": "sha256:3b845f08d52c83705b55cb369758db23a344d9324a006d6541cae554bf921381",
+  "component_set_sha256": "sha256:323d537feef043b0dff54194f419f8b177096fbfe8f72c1f7e66ca5dd98ce42b",
   "catalog_sha256": "sha256:0a86379bdf0ddc8db146e410297d5b2d05e418b2983f02a4c9845a8e3c61273b",
-  "bundle_sha256": "sha256:c9a5fd98d9bb8d5cf79ed846e67dcb237202bdd63a761bc2c5761096c44c7c3e",
+  "bundle_sha256": "sha256:a5cea1f10853e7d0cb0d10dade05e9af600e45d43ba3575be55af6e6b6880764",
   "components": [
     {
       "component_id": "entity-registry",
@@ -61,7 +61,7 @@
       "metadata_table": "trace_backed_memory_v3_gate_session_schema",
       "schema_version": 1,
       "contract_version": "tbm.gate-session.v3",
-      "sha256": "sha256:61ed2a0284f548d63e88b69d4eb86c46113d7f592579c88a9b6868e9bc4e4c4d"
+      "sha256": "sha256:7bd38fe5edbc9b85829ab6f9223f8e79032161f59b4a7b27b6c6b2917f49e470"
     },
     {
       "component_id": "gate-evidence",

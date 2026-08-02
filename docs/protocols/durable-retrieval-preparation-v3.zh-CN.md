@@ -33,6 +33,11 @@ decision。
    两条记录；以及
 7. 由 Gate service 通过 CAS 发布并读回 `PREPARED`。
 
+中断的精确 `CREATED` session 可恢复，但不算 replay-complete。retry 会重新授权，
+复用同一 durable session，并重新执行 preparation。中断前已提交的 evidence 保持不可变；
+`PREPARED` transition 只绑定重新授权并完成读回核验的记录对。`PREPARED` session
+才是 replay-complete。
+
 精确 replay 会返回已有 durable session，不会重复 authorization-side discovery、
 revision read、evidence generation 或 evidence write。
 durable authority 会先执行 scope-local idempotency lookup；随后 service 重新加载
@@ -53,6 +58,12 @@ service 执行带版本检查的 `CREATED -> CANCELED` 补偿。并发或异常 
 GateSession 与 Gate evidence repository 明确共享同一个 caller-owned connection，
 调用方外层 transaction 可以一起回滚两个 authority；这是显式部署选择，不是服务
 自动保证。
+
+进程中断不同于普通的已补偿 failure。下一次请求会在重新授权后恢复精确 `CREATED`
+head；精确 `PREPARED` head 则直接 replay，不新增 authorization-side discovery 或
+evidence write。两条路径都不会改写已经提交的 provenance。
+replay 会在 evidence verification 前后分别读取 GateSession head；如果并发 Semantic
+Gate transition 已使它前进，则 fail closed。
 
 opt-in [durable Semantic Gate 服务](durable-semantic-gate-v3.zh-CN.md) 现在会让
 这些精确 evidence 经 `AWAITING_DECISION` 继续推进到 `DECIDED`。opt-in

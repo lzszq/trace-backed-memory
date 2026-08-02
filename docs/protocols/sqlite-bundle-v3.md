@@ -21,11 +21,11 @@ It is not yet the sole source for every authority or projection.
 
 ## Install and verification
 
-`install_sqlite_v3_bundle()` applies one outer `BEGIN IMMEDIATE` transaction on
-one caller-supplied connection. The deterministic order preserves revision
-before publication, Gate evidence before Semantic Gate, and GateSession before
-outcome and completion outbox. It can install beside the active SQLite v1
-tables without changing them.
+For a new database, `install_sqlite_v3_bundle()` applies one outer
+`BEGIN IMMEDIATE` transaction on one caller-supplied connection. The
+deterministic order preserves revision before publication, Gate evidence before
+Semantic Gate, and GateSession before outcome and completion outbox. It can
+install beside the active SQLite v1 tables without changing them.
 
 The bundle records:
 
@@ -55,6 +55,27 @@ runtime = DurableRuntimeFactory(dependencies).open_sqlite(
 
 Reopen an installed database with `initialize=False`. Initialization requires
 an idle connection; an installation error rolls back the bundle transaction.
+
+## GateSession timestamp compatibility repair
+
+The separately packaged
+`schemas/sqlite-v3-gate-session-timestamp-hotfix.sql` is compatibility-repair
+input, not a seventeenth bundle component. The public
+`apply_sqlite_v3_gate_session_timestamp_hotfix()` boundary requires an idle
+connection and either the exact current bundle or the one supported legacy
+component set. The legacy path verifies the exact bundle metadata, catalog,
+GateSession schema, and variable-precision timestamp trigger after acquiring a
+`BEGIN IMMEDIATE` lock. It then replaces the trigger, updates component-set
+metadata, verifies the current 16-component bundle, and commits. Any failed
+precondition, replacement, read-back, or bundle verification rolls back the
+transaction. The current path is an idempotent verify-only operation.
+
+`install_sqlite_v3_bundle()` invokes this repair automatically when it finds an
+existing bundle metadata table. Operators should call the Python boundary,
+not execute the packaged SQL directly, because exact source-schema verification
+is part of the application boundary. Unrelated schema drift fails closed and
+is never overwritten. There is no in-place downgrade; restore a pre-upgrade
+backup if operational rollback is required.
 
 ## Authoring
 

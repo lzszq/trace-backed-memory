@@ -6,7 +6,7 @@
 -- component: memory-revision schemas/sqlite-v3-memory-revision.sql sha256:dd547af778f4510c8660f3283bb41f1932c94bd774062d9cc3c2d118bc5f1155
 -- component: memory-publication schemas/sqlite-v3-memory-publication.sql sha256:26660f544f420bfb3e8be197193023a024f3bf199e03eb43e924cf1401205249
 -- component: managed-index schemas/sqlite-v3-managed-index.sql sha256:cb9a8670265cb4dfab36408807a34f75a3a617c82506dda0479b9dfbda06f147
--- component: gate-session schemas/sqlite-v3-gate-session.sql sha256:61ed2a0284f548d63e88b69d4eb86c46113d7f592579c88a9b6868e9bc4e4c4d
+-- component: gate-session schemas/sqlite-v3-gate-session.sql sha256:7bd38fe5edbc9b85829ab6f9223f8e79032161f59b4a7b27b6c6b2917f49e470
 -- component: gate-evidence schemas/sqlite-v3-gate-evidence.sql sha256:d882427fa6397e7f651077cbcb1b86fc7c91b3a74eb13f6878ade498defe0ee2
 -- component: semantic-gate schemas/sqlite-v3-semantic-gate.sql sha256:d036177c6c0d96af676460b80074068049871a6dd0a333a17c6d2328bb203896
 -- component: semantic-gate-artifacts schemas/sqlite-v3-semantic-gate-artifacts.sql sha256:074223a8e8dd6df6c0bb158f12638afff038b1f6e83a63831efe7e0743e3f28f
@@ -51,7 +51,7 @@ INSERT INTO trace_backed_memory_v3_bundle_schema (
     catalog_sha256
 ) VALUES (
     1, 1, 'tbm.sqlite-bundle.v3',
-    'sha256:3b845f08d52c83705b55cb369758db23a344d9324a006d6541cae554bf921381',
+    'sha256:323d537feef043b0dff54194f419f8b177096fbfe8f72c1f7e66ca5dd98ce42b',
     'sha256:0a86379bdf0ddc8db146e410297d5b2d05e418b2983f02a4c9845a8e3c61273b'
 );
 
@@ -1419,7 +1419,51 @@ WHEN
             WHERE previous.session_id = NEW.session_id
               AND previous.version = NEW.version - 1
               AND head.current_version = previous.version
-              AND previous.updated_at < NEW.updated_at
+              AND (
+                  (
+                      length(previous.updated_at) = 20
+                      AND substr(previous.updated_at, 20, 1) = 'Z'
+                  )
+                  OR (
+                      length(previous.updated_at) = 27
+                      AND substr(previous.updated_at, 20, 1) = '.'
+                      AND substr(previous.updated_at, 21, 6)
+                          NOT GLOB '*[^0-9]*'
+                      AND substr(previous.updated_at, 27, 1) = 'Z'
+                  )
+              )
+              AND (
+                  (
+                      length(NEW.updated_at) = 20
+                      AND substr(NEW.updated_at, 20, 1) = 'Z'
+                  )
+                  OR (
+                      length(NEW.updated_at) = 27
+                      AND substr(NEW.updated_at, 20, 1) = '.'
+                      AND substr(NEW.updated_at, 21, 6)
+                          NOT GLOB '*[^0-9]*'
+                      AND substr(NEW.updated_at, 27, 1) = 'Z'
+                  )
+              )
+              AND (
+                  substr(previous.updated_at, 1, 19)
+                      < substr(NEW.updated_at, 1, 19)
+                  OR (
+                      substr(previous.updated_at, 1, 19)
+                          = substr(NEW.updated_at, 1, 19)
+                      AND CASE
+                          WHEN length(previous.updated_at) = 20 THEN 0
+                          ELSE CAST(
+                              substr(previous.updated_at, 21, 6) AS INTEGER
+                          )
+                      END < CASE
+                          WHEN length(NEW.updated_at) = 20 THEN 0
+                          ELSE CAST(
+                              substr(NEW.updated_at, 21, 6) AS INTEGER
+                          )
+                      END
+                  )
+              )
               AND previous.expires_at = NEW.expires_at
               AND (
                   (previous.status = 'created'

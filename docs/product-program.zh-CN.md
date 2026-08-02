@@ -537,6 +537,8 @@ increment 不会自动成为 active 用户路径。
   immutable bundle/component metadata，并对任何 main/temp table、index、
   automatic index、trigger 或 version drift fail closed。migration staging
   保持在 bundle 之外，active SQLite v1 transport 边界不变。
+  该 Phase 74 基线早于 event-ledger component；当前 runtime 契约是已记录的
+  16-component bundle。
 - 发布不可变的 `tbm.gate-session.v3` 领域契约、显式生命周期转换图、乐观
   revision 检查、lease/expiry 不变量、有界严格 JSON parser，以及打包
   Schema/示例。领域契约保持 persistence-neutral；opt-in repository 不会自动
@@ -981,8 +983,22 @@ compensation、Memory/index/audit/metrics reducer、migration、完整 lifecycle
 `SIGKILL`/reopen sweep：分别在已确认的 `PREPARED`、`DECIDED`、`FINALIZED`、
 `EXECUTING` 与 `COMPLETED` commit 后硬杀并重启；每次重启都要求精确 command replay，
 最终 ledger 还会通过 reducer 与 durable GateSession row 做 parity 核验，且不得出现重复
-逻辑 transition。更细粒度的 auth/`CREATED`/evidence/provider/replay-retention，以及
-outbox ack 前后 crash failpoint 仍未完成，因此完整 crash matrix 尚未交付。
+逻辑 transition。新增 SQLite 子进程 probe 会分别在 authorization、`CREATED` 或 Gate
+evidence commit 后硬杀，也会在未提交 replay 与 completion/outbox transaction 内硬杀，
+以及在 completion consumer 返回但 acknowledgement 尚未 durable 时硬杀。恢复会保留
+orphan evidence、只发布一个逻辑 lifecycle/effect event、保持 reducer 与 projection
+一致，并把最后一个边界明确为有界 at-least-once delivery。provider-call receipt 与
+unknown-result reconciliation、compatibility retained-bundle 的 hard-kill 边界、durable
+compensation、acknowledgement 已提交但 response 丢失、PostgreSQL 对等测试及完整
+cross-transport crash matrix 仍未完成。
+
+同一 durable lifecycle 现在会经 Python facade、Python HTTP 同步/异步 SDK、
+trusted-local MCP tool boundary 与 Bun 下的 TypeScript HTTP SDK 产生完全相同的
+GateSession event type/version/SHA sequence 和最终 reducer projection digest。这是
+session-stream parity 证据，不是完整 cross-stream 或 STDIO transport conformance。
+SQLite bundle 在 reopen 时还会原子修复精确 legacy variable-precision GateSession
+timestamp trigger；无关 drift 会 fail closed。在更大的 F2 gate 完成前，这两项增量都
+不提升新 atom。
 
 - **F0 — 架构冻结（已交付）：** ADR-0006、canonical event contract/registry、
   ledger port，以及禁止新增独立 authority 的 guard。
@@ -995,9 +1011,12 @@ outbox ack 前后 crash failpoint 仍未完成，因此完整 crash matrix 尚�
   与 final decision/injection event/reducer 已作为 transactional migration 增量实现；
   显式 durable runtime 已选择 ledger-backed replay export。outcome/attribution 与本地
   completion-effect projection 已交付到 dead letter。local-daemon hard-restart sweep 已
-  覆盖五个 acknowledged lifecycle commit，但更细的 transaction/effect failpoint 仍未完成。
-  provider receipt/reconciliation、durable compensation、完整 transport parity 与完整
-  crash matrix 仍未完成。
+  覆盖五个 acknowledged lifecycle commit；更细的 SQLite transaction/effect probe 已覆盖
+  authorization 至 evidence、replay/completion rollback 与 receipt-before-ack redelivery。
+  GateSession session-stream parity 已覆盖 Python facade、HTTP sync/async SDK、
+  trusted-local MCP tool boundary 与 TypeScript HTTP SDK。provider
+  receipt/reconciliation、durable compensation、完整 cross-stream/STDIO transport
+  parity、PostgreSQL 对等测试与完整 crash matrix 仍未完成。
 - **F3 — Trace、Git 与 effect evidence：** 有序 Trace/Git observation、Git-graph
   projection、external-effect receipt、Codex hook 与受治理 retention/crypto-erasure。
 - **F4 — 受治理 memory projection：** failure extraction、structured evidence、
@@ -1009,8 +1028,9 @@ outbox ack 前后 crash failpoint 仍未完成，因此完整 crash matrix 尚�
   tenant isolation、Review Console、GitHub PR Check、observability、backup/DR、
   security governance 与 stable-release qualification。
 
-前十五项依赖有序基础现已作为候选工作交付：F0-01 至 F0-05、F1-01 至 F1-06、
-GateSession event adapter/reducer、replay exporter reducer，以及 outcome/effect reducer。
+前十五项依赖有序基础现已交付并提升到正式 182/490 基线：F0-01 至 F0-05、
+F1-01 至 F1-06、GateSession event adapter/reducer、replay exporter reducer，以及
+outcome/effect reducer。
 在其余 cutover gate 完成前，仍冻结新增 standalone authority、protocol family 与 SQL
 component；只有已记录的 security/corruption 修复，或 ledger、reducer、migration blocker
 可以例外。

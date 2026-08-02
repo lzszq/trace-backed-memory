@@ -336,7 +336,7 @@ class AuthenticatedGateSessionService:
                 "TBM_GATE_SERVICE_SESSION_CREATE_FAILED",
                 "durable gate session could not be created",
             ) from error
-        if not receipt.inserted:
+        if not receipt.inserted and session.status != "created":
             raise GateSessionReplayError(session)
 
         try:
@@ -396,6 +396,11 @@ class AuthenticatedGateSessionService:
                     or session.version != 1
                     or session.session_id != proposed_session_id
                 )
+            )
+            or (
+                not inserted
+                and session.status == "created"
+                and session.version != 1
             )
         ):
             raise AuthenticatedGateServiceV3Error(

@@ -35,6 +35,14 @@ For a fresh decided session, the service:
    transaction; and
 9. rechecks the retained result and current authorization.
 
+An idempotent retry may present an expected revision exactly one below the
+current `DECIDED` revision only when durable history proves that the sole
+intervening revision is a still-live lease renewal preserving every decided
+field. The retained claim's trusted `updated_at` is the bundle timestamp, so
+concurrent duplicates and crash retries rebuild the same content-addressed
+UsageDecision, injection, and manifest. Any other stale revision, missing
+history, expired lease, or non-monotonic renewal fails closed.
+
 System Gate blocks remain monotonic because the complete Semantic Gate chain is
 verified before any render, and UsageDecision separately retains every
 deterministic block reason and rule.
@@ -76,6 +84,12 @@ it raises `DurableFinalizationRecoveryRequiredError` with the retained
 UsageDecision and InjectionArtifact when available. It never deletes immutable
 evidence or creates a new final decision silently.
 
+Compatibility recovery after a committed bundle write uses the same retained
+lease revision and therefore reconstructs the byte-identical bundle before
+retrying CAS. It does not mint a new timestamp or leave a second divergent
+manifest. Event-first recovery likewise keeps the committed lease revision and
+rebuilds the same bundle after the failed transaction has rolled back.
+
 ## Transaction boundary
 
 Explicit durable SQLite/PostgreSQL runtimes enable the replay repository's
@@ -85,6 +99,12 @@ rendered-injection events, writes the GateSession/replay projections, and
 performs exact read-back. Any event, transition, projection, or read-back
 failure rolls back all finalization writes. The lease renewal committed by the
 earlier claim is intentionally not rolled back.
+
+A SQLite subprocess `SIGKILL` after the replay-manifest insert but before
+transaction commit demonstrates that the replay rows, finalization events, and
+session projection roll back together. Reopen observes only the earlier live
+lease claim; retry reconstructs the same bundle and publishes one logical
+finalization.
 
 PostgreSQL preserves the fixed order `event-ledger schema/global lock → replay
 schema validation → GateSession transition/session-head locks`. A caller-owned

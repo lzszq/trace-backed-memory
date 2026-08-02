@@ -323,12 +323,7 @@ class DurableFinalizationService:
                 "TBM_DURABLE_FINALIZATION_STATUS_INVALID",
                 "GateSession is not decided or finalized",
             )
-        if session.version != request.expected_session_version:
-            raise DurableFinalizationV3Error(
-                "TBM_DURABLE_FINALIZATION_SESSION_CHANGED",
-                "GateSession does not match the expected revision",
-            )
-        claimed = self._claim_decision_lease(session, request.lease_seconds)
+        claimed = self._claim_or_recover_decision_lease(session, request)
         verified = self._load_verified_decision(claimed)
         self._verify_authorization_event(
             verified.snapshot.authorization_event_id,
@@ -348,7 +343,7 @@ class DurableFinalizationService:
             rendered.candidates,
             policy,
         )
-        created_at = self._trusted_time()
+        created_at = claimed.updated_at
         bundle = self._build_bundle(
             claimed,
             verified,
@@ -931,6 +926,88 @@ class DurableFinalizationService:
                 "GateSession authority returned an invalid lease receipt",
             )
         return claimed
+
+    def _claim_or_recover_decision_lease(
+        self,
+        session: GateSession,
+        request: DurableFinalizationRequest,
+    ) -> GateSession:
+        if session.version == request.expected_session_version:
+            try:
+                return self._claim_decision_lease(
+                    session,
+                    request.lease_seconds,
+                )
+            except DurableFinalizationV3Error as error:
+                if error.code != "TBM_DURABLE_FINALIZATION_SESSION_CHANGED":
+                    raise
+                try:
+                    current = self._load_session(session.session_id)
+                except DurableFinalizationV3Error:
+                    raise error from None
+                if current == session:
+                    raise error
+                return self._claim_or_recover_decision_lease(
+                    current,
+                    request,
+                )
+        if session.version != request.expected_session_version + 1:
+            raise DurableFinalizationV3Error(
+                "TBM_DURABLE_FINALIZATION_SESSION_CHANGED",
+                "GateSession does not match the expected revision",
+            )
+        history_reader = getattr(self._session_writer, "history", None)
+        if not callable(history_reader):
+            raise DurableFinalizationV3Error(
+                "TBM_DURABLE_FINALIZATION_SESSION_CHANGED",
+                "GateSession does not match the expected revision",
+            )
+        try:
+            history = history_reader(session.session_id)
+        except Exception:
+            raise DurableFinalizationV3Error(
+                "TBM_DURABLE_FINALIZATION_SESSION_CHANGED",
+                "GateSession does not match the expected revision",
+            ) from None
+        if (
+            type(history) is not tuple
+            or len(history) < 2
+            or history[-1] != session
+            or type(history[-2]) is not GateSession
+        ):
+            raise DurableFinalizationV3Error(
+                "TBM_DURABLE_FINALIZATION_SESSION_CHANGED",
+                "GateSession does not match the expected revision",
+            )
+        previous = history[-2]
+        now = parse_rfc3339(self._trusted_time())
+        if (
+            previous.version != request.expected_session_version
+            or previous.status != "decided"
+            or session.status != "decided"
+            or previous.lease_expires_at is None
+            or session.lease_expires_at is None
+            or session.lease_expires_at == previous.lease_expires_at
+            or parse_rfc3339(session.updated_at)
+            <= parse_rfc3339(previous.updated_at)
+            or parse_rfc3339(session.lease_expires_at)
+            <= parse_rfc3339(previous.lease_expires_at)
+            or now < parse_rfc3339(session.updated_at)
+            or now >= parse_rfc3339(session.lease_expires_at)
+            or now >= parse_rfc3339(session.expires_at)
+            or replace(
+                session,
+                version=previous.version,
+                updated_at=previous.updated_at,
+                lease_expires_at=previous.lease_expires_at,
+            )
+            != previous
+        ):
+            raise DurableFinalizationV3Error(
+                "TBM_DURABLE_FINALIZATION_SESSION_CHANGED",
+                "GateSession does not match the expected revision",
+            )
+        return session
 
     def _publish_finalized(
         self,

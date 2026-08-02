@@ -39,3 +39,14 @@ slice。机器可读契约保留上一批已提升 atom ID 与证据路径。当
 新增的 local-daemon 子进程 hard-restart 测试覆盖已确认的 `PREPARED`、`DECIDED`、
 `FINALIZED`、`EXECUTING` 与 `COMPLETED` commit，并要求精确重试和最终 reducer parity。
 这只是 F2 crash matrix 的部分证据，不是已完成 atom，因此 182/490 保持不变。
+
+新增 SQLite `SIGKILL` probe 覆盖已提交 authorization、`CREATED` 与 Gate-evidence
+边界、finalization replay 和 completion/outbox transaction 内回滚，以及 consumer
+返回但 ack 尚未 durable 时的 lease reclaim 与 at-least-once redelivery。精确
+`CREATED` 恢复会重新授权且不改写 orphan evidence；finalization 会重建唯一确定的
+claim-time bundle。provider receipt/reconciliation、其余 crash cell、PostgreSQL
+parity、完整 cross-stream/STDIO transport parity 与 durable compensation 仍未完成。
+GateSession session-stream event/projection parity 现已覆盖 Python facade、Python
+HTTP sync/async SDK、trusted-local MCP tool boundary 与 TypeScript HTTP SDK；精确
+legacy SQLite timestamp trigger 也会在 reopen 时原子修复。这些仍只是新增证据与
+corruption repair，没有提升 atom；正式与候选进度均保持 182/490（37.14%）。

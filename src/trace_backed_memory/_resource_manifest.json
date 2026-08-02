@@ -1280,13 +1280,22 @@
       "sha256": "d882427fa6397e7f651077cbcb1b86fc7c91b3a74eb13f6878ade498defe0ee2"
     },
     {
+      "name": "schemas/sqlite-v3-gate-session-timestamp-hotfix.sql",
+      "kind": "schema",
+      "media_type": "application/sql",
+      "source": "schemas/sqlite-v3-gate-session-timestamp-hotfix.sql",
+      "installed": "src/trace_backed_memory/_resources/schemas/sqlite-v3-gate-session-timestamp-hotfix.sql",
+      "size_bytes": 6113,
+      "sha256": "f2bb61103ca5dcdc66585794b4b8b8663b9132a0582e2aad95f864bcd24413fe"
+    },
+    {
       "name": "schemas/sqlite-v3-gate-session.sql",
       "kind": "schema",
       "media_type": "application/sql",
       "source": "schemas/sqlite-v3-gate-session.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/sqlite-v3-gate-session.sql",
-      "size_bytes": 7564,
-      "sha256": "61ed2a0284f548d63e88b69d4eb86c46113d7f592579c88a9b6868e9bc4e4c4d"
+      "size_bytes": 9358,
+      "sha256": "7bd38fe5edbc9b85829ab6f9223f8e79032161f59b4a7b27b6c6b2917f49e470"
     },
     {
       "name": "schemas/sqlite-v3-managed-index.sql",
@@ -1376,7 +1385,7 @@
       "source": "schemas/sqlite-v3.components.json",
       "installed": "src/trace_backed_memory/_resources/schemas/sqlite-v3.components.json",
       "size_bytes": 6028,
-      "sha256": "116fcbebc17523317d217c4b602d4753201e172bf6938b113c8dd57bf9fd7b31"
+      "sha256": "e54c33a6b26927b2cc2738fe426ab5903f4f6d093f7e20c2bf0439f62c9d7e05"
     },
     {
       "name": "schemas/sqlite-v3.sql",
@@ -1384,8 +1393,8 @@
       "media_type": "application/sql",
       "source": "schemas/sqlite-v3.sql",
       "installed": "src/trace_backed_memory/_resources/schemas/sqlite-v3.sql",
-      "size_bytes": 136750,
-      "sha256": "c9a5fd98d9bb8d5cf79ed846e67dcb237202bdd63a761bc2c5761096c44c7c3e"
+      "size_bytes": 138544,
+      "sha256": "a5cea1f10853e7d0cb0d10dade05e9af600e45d43ba3575be55af6e6b6880764"
     },
     {
       "name": "schemas/sqlite.sql",

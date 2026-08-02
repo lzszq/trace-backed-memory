@@ -34,8 +34,15 @@ from tests.test_retrieval_preparation_v3 import (
 
 
 class _Clock:
-    def __init__(self) -> None:
-        self._next = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
+    def __init__(self, start: datetime | None = None) -> None:
+        self._next = start or datetime(
+            2026,
+            7,
+            30,
+            1,
+            0,
+            tzinfo=timezone.utc,
+        )
 
     def __call__(self) -> str:
         value = self._next
@@ -63,6 +70,7 @@ class _Stack:
         *,
         session_writer: object | None = None,
         policy_loader=None,
+        clock=None,
     ) -> tbm.DurableFinalizationService:
         return tbm.DurableFinalizationService(
             authorization_service=self.authorization,
@@ -72,7 +80,8 @@ class _Stack:
             revision_source=self.source,
             policy_loader=policy_loader or (lambda: self.policy),
             replay_authority=self.replay,
-            clock=_Clock(),
+            clock=clock
+            or _Clock(datetime(2026, 7, 30, 1, 5, tzinfo=timezone.utc)),
         )
 
     def close(self) -> None:
@@ -94,8 +103,32 @@ class _FailingFinalizedTransition:
     def renew_lease(self, *args, **kwargs) -> tbm.GateSession:
         return self._sessions.renew_lease(*args, **kwargs)
 
+    def history(self, session_id: str) -> tuple[tbm.GateSession, ...]:
+        return self._sessions.history(session_id)
+
     def transition(self, *args, **kwargs) -> tbm.GateSession:
         raise RuntimeError("private finalization write failure")
+
+
+class _ConcurrentDecisionLeaseClaim:
+    def __init__(self, sessions: tbm.SQLiteGateSessionRepository) -> None:
+        self._sessions = sessions
+        self._claimed = False
+
+    def get(self, session_id: str) -> tbm.GateSession:
+        return self._sessions.get(session_id)
+
+    def renew_lease(self, *args, **kwargs) -> tbm.GateSession:
+        if not self._claimed:
+            self._claimed = True
+            self._sessions.renew_lease(*args, **kwargs)
+        return self._sessions.renew_lease(*args, **kwargs)
+
+    def history(self, session_id: str) -> tuple[tbm.GateSession, ...]:
+        return self._sessions.history(session_id)
+
+    def transition(self, *args, **kwargs) -> tbm.GateSession:
+        return self._sessions.transition(*args, **kwargs)
 
 
 def _stack(
@@ -394,6 +427,27 @@ def test_durable_finalization_fails_closed_on_stale_head_before_replay_write() -
         stack.close()
 
 
+def test_durable_finalization_rejects_non_lease_stale_revision() -> None:
+    stack = _stack()
+    try:
+        stale = replace(
+            _request(stack),
+            expected_session_version=stack.decided.version - 1,
+        )
+        with pytest.raises(tbm.DurableFinalizationV3Error) as captured:
+            stack.finalizer().finalize(
+                stack.context,
+                stack.scope,
+                stale,
+            )
+        assert captured.value.code == (
+            "TBM_DURABLE_FINALIZATION_SESSION_CHANGED"
+        )
+        assert stack.sessions.get(stack.decided.session_id) == stack.decided
+    finally:
+        stack.close()
+
+
 def test_durable_finalization_retains_bundle_for_explicit_recovery() -> None:
     stack = _stack()
     writer = _FailingFinalizedTransition(stack.sessions)
@@ -415,6 +469,101 @@ def test_durable_finalization_retains_bundle_for_explicit_recovery() -> None:
             stack.replay.load_injection(error.injection.artifact.artifact_id)[0]
             == error.injection
         )
+    finally:
+        stack.close()
+
+
+def test_durable_finalization_rebuilds_exact_retained_bundle_after_claim_crash(
+) -> None:
+    stack = _stack()
+    writer = _FailingFinalizedTransition(stack.sessions)
+    request = _request(stack)
+    try:
+        with pytest.raises(
+            tbm.DurableFinalizationRecoveryRequiredError
+        ) as captured:
+            stack.finalizer(session_writer=writer).finalize(
+                stack.context,
+                stack.scope,
+                request,
+            )
+        retained_usage = captured.value.usage_decision
+        retained_injection = captured.value.injection
+        assert retained_usage is not None
+        assert retained_injection is not None
+        claimed = stack.sessions.get(stack.decided.session_id)
+        assert claimed.status == "decided"
+        assert claimed.version == stack.decided.version + 1
+        artifact_count = stack.connection.execute(
+            "SELECT COUNT(*) FROM v3_replay_artifacts"
+        ).fetchone()
+
+        recovered = stack.finalizer(
+            clock=_Clock(
+                datetime(2026, 7, 30, 1, 6, tzinfo=timezone.utc)
+            )
+        ).finalize(
+            stack.context,
+            stack.scope,
+            request,
+        )
+
+        assert recovered.session.status == "finalized"
+        assert recovered.usage_decision == retained_usage
+        assert recovered.injection == retained_injection
+        assert stack.connection.execute(
+            "SELECT COUNT(*) FROM v3_replay_artifacts"
+        ).fetchone() == artifact_count
+    finally:
+        stack.close()
+
+
+def test_durable_finalization_recovers_concurrent_duplicate_lease_claim(
+) -> None:
+    stack = _stack()
+    try:
+        result = stack.finalizer(
+            session_writer=_ConcurrentDecisionLeaseClaim(stack.sessions)
+        ).finalize(
+            stack.context,
+            stack.scope,
+            _request(stack),
+        )
+
+        assert result.session.status == "finalized"
+        assert [
+            session.status for session in stack.sessions.history(
+                stack.decided.session_id
+            )
+        ][-3:] == ["decided", "decided", "finalized"]
+    finally:
+        stack.close()
+
+
+def test_durable_finalization_rejects_expired_lease_only_recovery() -> None:
+    stack = _stack()
+    request = _request(stack)
+    try:
+        claimed = stack.sessions.renew_lease(
+            stack.decided.session_id,
+            expected_version=stack.decided.version,
+            lease_seconds=1_800,
+        )
+        with pytest.raises(tbm.DurableFinalizationV3Error) as captured:
+            stack.finalizer(
+                clock=lambda: "2026-07-30T03:00:00Z"
+            ).finalize(
+                stack.context,
+                stack.scope,
+                request,
+            )
+        assert captured.value.code == (
+            "TBM_DURABLE_FINALIZATION_SESSION_CHANGED"
+        )
+        assert stack.sessions.get(claimed.session_id) == claimed
+        assert stack.connection.execute(
+            "SELECT COUNT(*) FROM v3_replay_artifacts"
+        ).fetchone() == (0,)
     finally:
         stack.close()
 
@@ -519,5 +668,34 @@ def test_event_first_finalization_rolls_back_events_and_session_on_projection_fa
         assert stack.connection.execute(
             "SELECT COUNT(*) FROM v3_replay_artifacts"
         ).fetchone() == (0,)
+
+        monkeypatch.undo()
+        with stack.sessions.bind_event_context(
+            trusted
+        ), stack.replay.bind_event_context(trusted):
+            recovered = stack.finalizer().finalize(
+                stack.context,
+                stack.scope,
+                _request(stack),
+            )
+        assert recovered.session.status == "finalized"
+        assert recovered.replayed is False
+        ledger = tbm.SQLiteEventLedgerV1(
+            stack.connection,
+            _event_access(stack),
+        )
+        try:
+            recovered_types = tuple(
+                event.event_type for event in ledger.read_global().events
+            )
+        finally:
+            ledger.close()
+        assert recovered_types.count(
+            tbm.GATE_SESSION_LEASE_RENEWED_EVENT
+        ) == event_types.count(tbm.GATE_SESSION_LEASE_RENEWED_EVENT)
+        assert recovered_types.count(
+            tbm.USAGE_DECISION_FINALIZED_EVENT
+        ) == 1
+        assert recovered_types.count(tbm.INJECTION_RENDERED_EVENT) == 1
     finally:
         stack.close()

@@ -52,6 +52,16 @@ _RESOURCE_SPECS: tuple[
     ...,
 ] = (
     (
+        "examples/active_policy_bundle_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/active_policy_event_type_registry_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/agent_cancel_request.example.json",
         "example",
         "application/json",
@@ -107,6 +117,11 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     (
+        "examples/artifact_retention_event_type_registry_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/audit_event_v3.example.json",
         "example",
         "application/json",
@@ -137,6 +152,11 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     (
+        "examples/effect_receipt_type_registry_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/entity_registry_v3.example.json",
         "example",
         "application/json",
@@ -157,12 +177,27 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     (
+        "examples/failure_case_event_type_registry_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/fix_evidence_v3.example.json",
         "example",
         "application/json",
     ),
     (
+        "examples/gate_session_event_type_registry_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/gate_session_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/git_observation_type_registry_v1.example.json",
         "example",
         "application/json",
     ),
@@ -178,6 +213,11 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "examples/managed_index_bundle_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/memory_catalog_event_type_registry_v1.example.json",
         "example",
         "application/json",
     ),
@@ -217,6 +257,21 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     (
+        "examples/outcome_effect_event_type_registry_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/outcome_evaluation_context_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/outcome_harm_event_type_registry_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/project_policy.example.json",
         "example",
         "application/json",
@@ -233,6 +288,16 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "examples/replay_bundle_export_v3.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/retrieval_index_event_type_registry_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
+        "examples/retrieval_index_manifest_v1.example.json",
         "example",
         "application/json",
     ),
@@ -292,6 +357,11 @@ _RESOURCE_SPECS: tuple[
         "application/json",
     ),
     (
+        "examples/trace_event_type_registry_v1.example.json",
+        "example",
+        "application/json",
+    ),
+    (
         "examples/usage_decision_v3.example.json",
         "example",
         "application/json",
@@ -305,6 +375,16 @@ _RESOURCE_SPECS: tuple[
         "memory/lessons.example.yaml",
         "memory",
         "application/yaml",
+    ),
+    (
+        "schemas/active_policy_bundle_v1.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/active_policy_event_payload_registry_v1.schema.json",
+        "schema",
+        "application/schema+json",
     ),
     (
         "schemas/agent-http-v1.openapi.json",
@@ -367,6 +447,11 @@ _RESOURCE_SPECS: tuple[
         "application/schema+json",
     ),
     (
+        "schemas/artifact_retention_event_payload_registry_v1.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
         "schemas/audit_event_v3.schema.json",
         "schema",
         "application/schema+json",
@@ -397,6 +482,11 @@ _RESOURCE_SPECS: tuple[
         "application/schema+json",
     ),
     (
+        "schemas/effect_receipt_payload_registry_v1.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
         "schemas/entity_registry_v3.schema.json",
         "schema",
         "application/schema+json",
@@ -422,12 +512,27 @@ _RESOURCE_SPECS: tuple[
         "application/schema+json",
     ),
     (
+        "schemas/failure_case_event_payload_registry_v1.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
         "schemas/fix_evidence_v3.schema.json",
         "schema",
         "application/schema+json",
     ),
     (
+        "schemas/gate_session_event_payload_registry_v1.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
         "schemas/gate_session_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/git_observation_payload_registry_v1.schema.json",
         "schema",
         "application/schema+json",
     ),
@@ -443,6 +548,11 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/managed_index_bundle_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/memory_catalog_event_payload_registry_v1.schema.json",
         "schema",
         "application/schema+json",
     ),
@@ -483,6 +593,21 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/outcome_attribution_v3.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/outcome_effect_event_payload_registry_v1.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/outcome_evaluation_context_v1.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/outcome_harm_event_payload_registry_v1.schema.json",
         "schema",
         "application/schema+json",
     ),
@@ -687,6 +812,16 @@ _RESOURCE_SPECS: tuple[
         "application/schema+json",
     ),
     (
+        "schemas/retrieval_index_event_payload_registry_v1.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/retrieval_index_manifest_v1.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
         "schemas/retrieval_policy_v3.schema.json",
         "schema",
         "application/schema+json",
@@ -838,6 +973,11 @@ _RESOURCE_SPECS: tuple[
     ),
     (
         "schemas/trace.schema.json",
+        "schema",
+        "application/schema+json",
+    ),
+    (
+        "schemas/trace_event_payload_registry_v1.schema.json",
         "schema",
         "application/schema+json",
     ),

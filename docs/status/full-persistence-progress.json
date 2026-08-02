@@ -1,0 +1,416 @@
+{
+  "ledger_version": "tbm.full-persistence-progress.v1",
+  "status_date": "2026-08-02",
+  "source_plan": {
+    "name": "trace-backed-memory-final-full-persistence-execution-plan-2026-07-31.md",
+    "sha256": "248d9a4e95d3cb955fc6f9c29ebc0f8c44f8902a1fb3482d5e749ea1e00ec164",
+    "release_train": "F0-F6",
+    "work_package_count": 47,
+    "fixed_total_points": 345
+  },
+  "scoring": {
+    "rule": "Each explicitly listed deliverable, API, requirement, or acceptance condition in one F0-F6 work package is one fixed point. Repeated requirements are owned by one primary package and are not double-counted.",
+    "architectural_qualifier_rule": "When a package requires event-first, reducer-native, active, durable, shared-service, or production wiring, a legacy or opt-in contract with similar fields earns no point unless that qualifier is satisfied.",
+    "done_rule": "A point is complete only when implementation and its required tests, documentation, persistence parity, or operational evidence are present.",
+    "rotation_rule": "After the same acceptance item remains incomplete through two consecutive completion attempts, record the evidence and blocker, leave its points incomplete, and work on another independent item before returning.",
+    "denominator_change_rule": "The 345-point denominator is immutable for this plan digest. A different denominator requires a new ledger version and a new source-plan digest; historical reports remain unchanged."
+  },
+  "baseline": {
+    "commit": "52c38ef590b73e3ca0308e926a485177a0183f2a",
+    "completed_points": 117,
+    "total_points": 345,
+    "completed_percent": "33.91"
+  },
+  "current": {
+    "completed_points": 223,
+    "total_points": 345,
+    "completed_percent": "64.64"
+  },
+  "stages": [
+    {
+      "id": "F0",
+      "name": "Full Persistence architecture freeze",
+      "completed_points": 51,
+      "total_points": 51,
+      "work_packages": [
+        {"id": "F0-01", "status": "done", "completed_points": 12, "total_points": 12},
+        {"id": "F0-02", "status": "done", "completed_points": 15, "total_points": 15},
+        {"id": "F0-03", "status": "done", "completed_points": 9, "total_points": 9},
+        {"id": "F0-04", "status": "done", "completed_points": 12, "total_points": 12},
+        {"id": "F0-05", "status": "done", "completed_points": 3, "total_points": 3}
+      ]
+    },
+    {
+      "id": "F1",
+      "name": "Ledger backends and reducer runtime",
+      "completed_points": 57,
+      "total_points": 57,
+      "work_packages": [
+        {"id": "F1-01", "status": "done", "completed_points": 14, "total_points": 14},
+        {"id": "F1-02", "status": "done", "completed_points": 9, "total_points": 9},
+        {"id": "F1-03", "status": "done", "completed_points": 7, "total_points": 7},
+        {"id": "F1-04", "status": "done", "completed_points": 14, "total_points": 14},
+        {"id": "F1-05", "status": "done", "completed_points": 7, "total_points": 7},
+        {"id": "F1-06", "status": "done", "completed_points": 6, "total_points": 6}
+      ]
+    },
+    {
+      "id": "F2",
+      "name": "Gate runtime event-first cutover",
+      "completed_points": 50,
+      "total_points": 55,
+      "work_packages": [
+        {
+          "id": "F2-01",
+          "status": "done",
+          "completed_points": 10,
+          "total_points": 10,
+          "acceptance_evidence": [
+            "src/trace_backed_memory/gate_session_event_v1.py",
+            "src/trace_backed_memory/sqlite_gate_session_v3.py",
+            "src/trace_backed_memory/postgres_gate_session_v3.py",
+            "src/trace_backed_memory/durable_runtime_v3.py",
+            "tests/test_gate_session_event_v1.py",
+            "tests/test_durable_runtime_v3.py"
+          ]
+        },
+        {
+          "id": "F2-02",
+          "status": "done",
+          "completed_points": 8,
+          "total_points": 8,
+          "acceptance_evidence": [
+            "src/trace_backed_memory/gate_session_event_v1.py",
+            "tests/test_gate_session_event_v1.py",
+            "tests/test_durable_runtime_v3.py",
+            "docs/protocols/gate-session-events-v1.md",
+            "docs/protocols/gate-session-events-v1.zh-CN.md"
+          ]
+        },
+        {
+          "id": "F2-03",
+          "status": "not_started",
+          "completed_points": 0,
+          "total_points": 5,
+          "rotation_state": "paused_after_two_incomplete_attempts",
+          "uncredited_evidence": [
+            "src/trace_backed_memory/gate_evidence_event_v1.py",
+            "src/trace_backed_memory/durable_runtime_v3.py",
+            "tests/test_durable_runtime_v3.py"
+          ],
+          "remaining_acceptance": [
+            "failed-to-succeeded Semantic attempt chain integration"
+          ],
+          "closed_but_uncredited_acceptance": [
+            "same-transaction Semantic attempt event rollback on SQLite and PostgreSQL"
+          ]
+        },
+        {
+          "id": "F2-04",
+          "status": "done",
+          "completed_points": 2,
+          "total_points": 2,
+          "acceptance_evidence": [
+            "src/trace_backed_memory/gate_evidence_event_v1.py",
+            "tests/test_durable_runtime_v3.py",
+            "docs/protocols/gate-evidence-events-v1.md",
+            "docs/protocols/gate-evidence-events-v1.zh-CN.md"
+          ]
+        },
+        {
+          "id": "F2-05",
+          "status": "done",
+          "completed_points": 6,
+          "total_points": 6,
+          "acceptance_evidence": [
+            "src/trace_backed_memory/outcome_effect_event_v1.py",
+            "tests/test_outcome_effect_event_v1.py",
+            "schemas/outcome_effect_event_payload_registry_v1.schema.json",
+            "examples/outcome_effect_event_type_registry_v1.example.json",
+            "docs/protocols/outcome-effect-events-v1.md",
+            "docs/protocols/outcome-effect-events-v1.zh-CN.md"
+          ],
+          "independent_audit": "6/6 complete; runtime selection is credited separately to F2-06 and F2-07"
+        },
+        {
+          "id": "F2-06",
+          "status": "done",
+          "completed_points": 3,
+          "total_points": 3,
+          "acceptance_evidence": [
+            "src/trace_backed_memory/durable_runtime_v3.py",
+            "src/trace_backed_memory/daemon_entry.py",
+            "src/trace_backed_memory/outcome_effect_event_v1.py",
+            "src/trace_backed_memory/sqlite_outcome_v3.py",
+            "src/trace_backed_memory/sqlite_completion_outbox_v3.py",
+            "tests/test_durable_runtime_v3.py",
+            "tests/test_daemon_entry.py",
+            "tests/test_local_daemon_v3.py",
+            "docs/protocols/outcome-effect-events-v1.md",
+            "docs/protocols/outcome-effect-events-v1.zh-CN.md"
+          ],
+          "independent_audit": "3/3 complete: tbmd local validates before writes, appends and synchronously rebuilds critical views in one SQLite command transaction, and returns only after commit; standalone transport selection is credited separately to F2-07"
+        },
+        {
+          "id": "F2-07",
+          "status": "done",
+          "completed_points": 6,
+          "total_points": 6,
+          "acceptance_evidence": [
+            "src/trace_backed_memory/durable_http_entry.py",
+            "src/trace_backed_memory/durable_mcp_entry.py",
+            "tests/durable_event_first_support.py",
+            "tests/test_durable_transport_event_first.py",
+            "tests/typescript_durable_sdk_server.py",
+            "tests/fixtures/durable_event_first_projection_v1.json",
+            "packages/typescript-sdk/tests/durable-client.test.mjs",
+            "docs/protocols/durable-http-v1.md",
+            "docs/protocols/durable-mcp-v1.md"
+          ],
+          "independent_audit": "6/6 complete: raw HTTP, MCP, Python sync, Python async, and TypeScript reproduce one canonical SQLite event sequence and projection digest without changing tbm.durable-agent-wire.v1",
+          "remaining_profile_qualification": "The standalone PostgreSQL command coordinator and Outcome/Effect projection have not made the equivalent event-first cutover; the fixed F2-07 plan acceptance list contains no separate PostgreSQL point."
+        },
+        {
+          "id": "F2-08",
+          "status": "done",
+          "completed_points": 15,
+          "total_points": 15,
+          "acceptance_evidence": [
+            "tests/durable_crash_matrix_child.py",
+            "tests/test_durable_crash_matrix.py",
+            "tests/durable_event_first_support.py",
+            "src/trace_backed_memory/durable_runtime_v3.py",
+            "docs/protocols/durable-crash-matrix-v1.md",
+            "docs/protocols/durable-crash-matrix-v1.zh-CN.md"
+          ],
+          "independent_audit": "15/15 complete: all 11 commit points are hard-killed in pre-commit and post-commit/pre-response modes; every managed table rolls back exactly before commit, while committed event/session/reducer state replays exactly after response loss",
+          "remaining_profile_qualification": "The standalone PostgreSQL command coordinator, Outcome/Effect projection, and equivalent crash matrix remain an F2 exit-gate caveat; F2-03 remains 0/5."
+        }
+      ]
+    },
+    {
+      "id": "F3",
+      "name": "Full Trace, Git, and effect evidence",
+      "completed_points": 47,
+      "total_points": 52,
+      "work_packages": [
+        {
+          "id": "F3-01",
+          "status": "done",
+          "completed_points": 8,
+          "total_points": 8,
+          "acceptance_evidence": [
+            "src/trace_backed_memory/trace_event_v1.py",
+            "tests/test_trace_event_v1.py",
+            "schemas/trace_event_payload_registry_v1.schema.json",
+            "examples/trace_event_type_registry_v1.example.json",
+            "docs/protocols/trace-event-v1.md",
+            "docs/protocols/trace-event-v1.zh-CN.md"
+          ],
+          "independent_audit": "8/8 complete after closing and negatively testing exact subagent causation binding: contiguous sequence, sealed event type, exact timestamp, descriptor-only artifact references, tool correlation, explicit permission result, exact parent/subagent provenance, and bounded atomic/idempotent ledger append",
+          "remaining_profile_qualification": "Retention completion and the F3 exit gate remain uncredited; the compatibility Trace aggregate and default transports have not cut over."
+        },
+        {
+          "id": "F3-02",
+          "status": "done",
+          "completed_points": 10,
+          "total_points": 10,
+          "credited_requirements": [
+            "checkout observation",
+            "ref observation",
+            "compatible commit observation capture",
+            "protected exact diff observation",
+            "compatible ancestry observation capture",
+            "object availability observation",
+            "shallow state observation",
+            "preserved compatibility return types",
+            "new runtime generates and atomically appends all seven events",
+            "persisted runner and algorithm versions"
+          ],
+          "acceptance_evidence": [
+            "src/trace_backed_memory/git_observation_v1.py",
+            "src/trace_backed_memory/capture.py",
+            "tests/test_git_observation_v1.py",
+            "schemas/git_observation_payload_registry_v1.schema.json",
+            "examples/git_observation_type_registry_v1.example.json",
+            "docs/protocols/git-observation-v1.md",
+            "docs/protocols/git-observation-v1.zh-CN.md"
+          ],
+          "independent_audit": "10/10 complete after fresh security re-audit: exact protected diff descriptors are independently verified, restricted Artifacts promote event classification, the whole default detailed path disables lazy fetch, idempotency binds global position, missing objects remain unknown, compatibility APIs are unchanged, and all seven observations append as one atomic ledger batch",
+          "remaining_profile_qualification": "Git graph reduction/confidence is owned by F3-03 and is not credited here; the separate Codex adapter does not select this Git observation protocol."
+        },
+        {
+          "id": "F3-03",
+          "status": "done",
+          "completed_points": 6,
+          "total_points": 6,
+          "credited_requirements": [
+            "deterministic commit graph",
+            "explicit relation confidence",
+            "exact last observation and validation time",
+            "missing and unknown object projection",
+            "exact source/fix/verification relationships",
+            "sorted fail-closed PR source anchors"
+          ],
+          "acceptance_evidence": [
+            "src/trace_backed_memory/git_graph_reducer_v1.py",
+            "tests/test_git_graph_reducer_v1.py",
+            "docs/protocols/git-graph-reducer-v1.md",
+            "docs/protocols/git-graph-reducer-v1.zh-CN.md"
+          ],
+          "independent_audit": "6/6 complete after command-binding security re-audit: complete capture commands are reconstructed and digest-verified; fixed reducer selection, persistent known-ancestry conflict detection, missing/shallow unknown semantics, exact evidence chains, and PR anchor ancestry binding all fail closed",
+          "remaining_profile_qualification": "This storage-neutral read model remains opt-in and is not an active persisted projection; retention/crypto-erasure completion and the F3 exit gate remain uncredited."
+        },
+        {
+          "id": "F3-04",
+          "status": "done",
+          "completed_points": 8,
+          "total_points": 8,
+          "credited_requirements": [
+            "immutable external effect request and exact input Artifact",
+            "trusted access-bound authorization event",
+            "monotonic bounded provider attempts",
+            "exact provider request ID binding",
+            "exact receipt Artifact and terminal success linkage",
+            "explicit unknown result with evidenced reconciliation",
+            "bounded retry and terminal dead-letter behavior",
+            "distinct separately authorized compensation child effect"
+          ],
+          "acceptance_evidence": [
+            "src/trace_backed_memory/effect_receipt_v1.py",
+            "tests/test_effect_receipt_v1.py",
+            "schemas/effect_receipt_payload_registry_v1.schema.json",
+            "examples/effect_receipt_type_registry_v1.example.json",
+            "docs/protocols/effect-receipt-v1.md",
+            "docs/protocols/effect-receipt-v1.zh-CN.md"
+          ],
+          "independent_audit": "8/8 complete after fresh security re-audit: immutable-intent idempotency is deterministic, authorization and provider attempts are exact, receipt bytes remain Artifact-bound, unknown results require reconciliation evidence and cannot invent provider IDs, retries are bounded, and compensation is a separately authorized child effect",
+          "remaining_profile_qualification": "The protocol remains opt-in and storage-neutral; default transports and the legacy completion outbox do not select it. Complete replay detects cross-effect provider-request conflicts, while an active atomic uniqueness projection or authority remains a future integration boundary rather than an F3-04 protocol point."
+        },
+        {
+          "id": "F3-05",
+          "status": "done",
+          "completed_points": 12,
+          "total_points": 12,
+          "credited_requirements": [
+            "SessionStart mapping",
+            "UserPromptSubmit mapping",
+            "PreToolUse mapping",
+            "PermissionRequest mapping",
+            "PostToolUse mapping",
+            "SubagentStart mapping",
+            "SubagentStop mapping",
+            "PreCompact mapping",
+            "Stop mapping",
+            "SessionEnd mapping",
+            "diff update mapping",
+            "final response mapping"
+          ],
+          "acceptance_evidence": [
+            "src/trace_backed_memory/codex_ingestion_v1.py",
+            "tests/test_codex_ingestion_v1.py",
+            "docs/protocols/codex-ingestion-v1.md",
+            "docs/protocols/codex-ingestion-v1.zh-CN.md",
+            "docs/integrations/codex.md",
+            "docs/integrations/codex.zh-CN.md"
+          ],
+          "independent_audit": "12/12 complete after official Codex 0.146 compatibility and security review: real Hook PermissionRequest frames without tool_use_id resolve only one exact active invocation; current App Server envelopes, item lifecycles, approvals, collaboration items, and subagent activity map fail closed; permission decisions bind exact raw requests; source time is bounded; protected bytes remain descriptor-only; transcript parsing is forbidden; and the TraceEvent batch is atomic and idempotent.",
+          "remaining_profile_qualification": "The adapter remains opt-in and is not automatic hook registration or a default Agent/MCP/HTTP/SDK source. Artifact capture precedes later lifecycle/ledger validation, so a rejected batch can leave protected non-fact orphan evidence for retention. F3-06 and the F3 exit gate remain uncredited."
+        },
+        {
+          "id": "F3-06",
+          "status": "partial",
+          "completed_points": 3,
+          "total_points": 8,
+          "credited_requirements": ["artifact classification", "retention policy", "legal hold"]
+        }
+      ]
+    },
+    {
+      "id": "F4",
+      "name": "Engineering Memory reducers",
+      "completed_points": 16,
+      "total_points": 35,
+      "work_packages": [
+        {
+          "id": "F4-01",
+          "status": "partial",
+          "completed_points": 2,
+          "total_points": 4,
+          "credited_requirements": ["failure-case extractor proposals", "extractor output remains an unverified candidate"]
+        },
+        {"id": "F4-02", "status": "not_started", "completed_points": 0, "total_points": 2},
+        {"id": "F4-03", "status": "not_started", "completed_points": 0, "total_points": 8},
+        {"id": "F4-04", "status": "not_started", "completed_points": 0, "total_points": 2},
+        {
+          "id": "F4-05",
+          "status": "done",
+          "completed_points": 8,
+          "total_points": 8,
+          "credited_requirements": [
+            "trust tier",
+            "task mode",
+            "ancestry depth",
+            "classification",
+            "eval leakage",
+            "candidate budget",
+            "renderer",
+            "Semantic Gate requirement"
+          ]
+        },
+        {
+          "id": "F4-06",
+          "status": "done",
+          "completed_points": 6,
+          "total_points": 6,
+          "credited_requirements": [
+            "metadata index",
+            "lexical index",
+            "semantic index",
+            "evidence graph index",
+            "Git graph index",
+            "index manifest with source event watermark"
+          ]
+        },
+        {"id": "F4-07", "status": "not_started", "completed_points": 0, "total_points": 5}
+      ]
+    },
+    {
+      "id": "F5",
+      "name": "Legacy migration and default cutover",
+      "completed_points": 2,
+      "total_points": 25,
+      "work_packages": [
+        {"id": "F5-01", "status": "not_started", "completed_points": 0, "total_points": 5},
+        {"id": "F5-02", "status": "not_started", "completed_points": 0, "total_points": 8},
+        {"id": "F5-03", "status": "not_started", "completed_points": 0, "total_points": 1},
+        {"id": "F5-04", "status": "not_started", "completed_points": 0, "total_points": 4},
+        {"id": "F5-05", "status": "not_started", "completed_points": 0, "total_points": 3},
+        {
+          "id": "F5-06",
+          "status": "partial",
+          "completed_points": 2,
+          "total_points": 4,
+          "credited_requirements": ["Store and snapshot compatibility reads", "compatibility completion and migration paths retained"]
+        }
+      ]
+    },
+    {
+      "id": "F6",
+      "name": "Shared service, control plane, and stable release",
+      "completed_points": 0,
+      "total_points": 70,
+      "work_packages": [
+        {"id": "F6-01", "status": "not_started", "completed_points": 0, "total_points": 8},
+        {"id": "F6-02", "status": "not_started", "completed_points": 0, "total_points": 6},
+        {"id": "F6-03", "status": "not_started", "completed_points": 0, "total_points": 7},
+        {"id": "F6-04", "status": "not_started", "completed_points": 0, "total_points": 8},
+        {"id": "F6-05", "status": "not_started", "completed_points": 0, "total_points": 5},
+        {"id": "F6-06", "status": "not_started", "completed_points": 0, "total_points": 8},
+        {"id": "F6-07", "status": "not_started", "completed_points": 0, "total_points": 9},
+        {"id": "F6-08", "status": "not_started", "completed_points": 0, "total_points": 10},
+        {"id": "F6-09", "status": "not_started", "completed_points": 0, "total_points": 9}
+      ]
+    }
+  ]
+}

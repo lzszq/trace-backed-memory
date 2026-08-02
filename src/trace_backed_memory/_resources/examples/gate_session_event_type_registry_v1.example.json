@@ -1,0 +1,3297 @@
+{
+  "registry_version": "tbm.event-registry.v1",
+  "registry_sha256": "sha256:20fdaba2a8a5fae88fd317a9835ed9a8987114d7b2a1e37c58c4d1dfe67e4064",
+  "event_types": [
+    {
+      "event_type": "tbm.gate_session.awaiting_decision",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.awaiting_decision.v1",
+      "payload_schema_sha256": "sha256:2f972bc9901c92cec47256520df0bf23fc62001b4049c9fafa784dd6c9dcad17",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "awaiting_decision"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.baseline_imported",
+      "event_version": 1,
+      "event_kind": "observation",
+      "payload_schema": "tbm.gate_session.baseline_imported.v1",
+      "payload_schema_sha256": "sha256:198dece6f23254ea82942b9917014ed9cf92e2315aa537e581f6762d30cfe768",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "baseline_imported"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.canceled",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.canceled.v1",
+      "payload_schema_sha256": "sha256:24ce14831ca21725b798ab865f11369904ef951818d3ab1fad39970315223897",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "canceled"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.completed",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.completed.v1",
+      "payload_schema_sha256": "sha256:aafb9d56c28849a48a3fbf6df5f74ead50f38c575696316f7768d4ee7d0ffaa7",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "completed"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.created",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.created.v1",
+      "payload_schema_sha256": "sha256:209fa3c5e6551d4049d665dedcb20a8700ed876d8c9a6ad22f9d7d0dac1d6809",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "created"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.execution_abandoned",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.execution_abandoned.v1",
+      "payload_schema_sha256": "sha256:228e83a3149b685ea241925603075d4c5adc6668474f78e37ea0c2cd13c933de",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "execution_abandoned"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.execution_started",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.execution_started.v1",
+      "payload_schema_sha256": "sha256:e25ed21bbf3df1d59957e1816f92205d6f3610fd9cce7701ddd82d812a98c4be",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "execution_started"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.expired",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.expired.v1",
+      "payload_schema_sha256": "sha256:bde250ecae7d3c789d60ea112cfebe795e68e9d3e6c0649054d1fc9133a047e0",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "expired"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.lease_renewed",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.lease_renewed.v1",
+      "payload_schema_sha256": "sha256:160eda605623b1f8cd348790392b4c2495ff5b4a6b5639f4d44693c5fc42cbd9",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "lease_renewed"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.prepared",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.prepared.v1",
+      "payload_schema_sha256": "sha256:b3f183e40d12cdc9b4465820a64cce52e85652e2fbac0c635753a307b0f877df",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "prepared"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.semantic_gate_decided",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.semantic_gate_decided.v1",
+      "payload_schema_sha256": "sha256:3719b52054e3c3acb2904d1496a2cc57ffb8151f6165393d06bd2c2d8a1c3884",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "semantic_gate_decided"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "event_type": "tbm.gate_session.usage_decision_finalized",
+      "event_version": 1,
+      "event_kind": "domain",
+      "payload_schema": "tbm.gate_session.usage_decision_finalized.v1",
+      "payload_schema_sha256": "sha256:641e988da49052a1b5078453f8748022af6965363f732759e0ba0bc95203a9d5",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition",
+          "previous_session_sha256",
+          "session_sha256",
+          "session"
+        ],
+        "properties": {
+          "transition": {
+            "const": "usage_decision_finalized"
+          },
+          "previous_session_sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            ]
+          },
+          "session_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contract_version",
+              "session_id",
+              "tenant_id",
+              "repository_id",
+              "principal_id",
+              "agent_client_id",
+              "trace_id",
+              "run_id",
+              "request_fingerprint",
+              "idempotency_key",
+              "status",
+              "version",
+              "created_at",
+              "updated_at",
+              "expires_at",
+              "lease_expires_at",
+              "retrieval_snapshot_id",
+              "system_gate_evaluation_id",
+              "semantic_gate_attempt_ids",
+              "decision_id",
+              "final_memory_revision_ids",
+              "injection_artifact_id",
+              "usage_decision_id",
+              "run_outcome_id",
+              "terminal_reason"
+            ],
+            "properties": {
+              "contract_version": {
+                "const": "tbm.gate-session.v3"
+              },
+              "session_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "tenant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "repository_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "principal_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "agent_client_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "trace_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "request_fingerprint": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "idempotency_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "status": {
+                "enum": [
+                  "created",
+                  "prepared",
+                  "awaiting_decision",
+                  "decided",
+                  "finalized",
+                  "executing",
+                  "completed",
+                  "canceled",
+                  "expired",
+                  "abandoned"
+                ]
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "created_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "updated_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "expires_at": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "lease_expires_at": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                ]
+              },
+              "retrieval_snapshot_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "system_gate_evaluation_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "semantic_gate_attempt_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 100
+              },
+              "decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "final_memory_revision_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "minItems": 0,
+                "uniqueItems": true,
+                "maxItems": 50
+              },
+              "injection_artifact_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "usage_decision_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "run_outcome_id": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                ]
+              },
+              "terminal_reason": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upcasters": [],
+  "compatibility": [
+    {
+      "event_type": "tbm.gate_session.awaiting_decision",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.baseline_imported",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.canceled",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.completed",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.created",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.execution_abandoned",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.execution_started",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.expired",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.lease_renewed",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.prepared",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.semantic_gate_decided",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    },
+    {
+      "event_type": "tbm.gate_session.usage_decision_finalized",
+      "source_version": 1,
+      "target_version": 1,
+      "compatibility": "native"
+    }
+  ]
+}

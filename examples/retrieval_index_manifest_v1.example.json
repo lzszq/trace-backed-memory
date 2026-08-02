@@ -1,0 +1,54 @@
+{
+  "build_sha256": "sha256:bfbd852d4c8094d6b15ab5bb1b30085b7730d7c5ef2d37c12b44597d9efbe9e4",
+  "bundle_id": "managed_index_bundle_sha256_5b5540b1ebbe2a1f133c434b759e08622b52d0fb58eaac625f461d011d90eeb4",
+  "contract_version": "tbm.retrieval-index-manifest.v1",
+  "embedding_model_id": "v1",
+  "embedding_provider_id": "reference_embeddings",
+  "environment_id": "environment_001",
+  "git_graph_version": "v3_4098d98eb0941f95900207764f33e12aad82fd8f9f9f4f8ff3370e48e0f36ab3",
+  "index_versions": [
+    {
+      "content_sha256": "sha256:1c8997c0542aa0a87d0c99ff7aa1cd3db7b6ec0c4b367c0aa2ddfc0d8efa1fd5",
+      "index_id": "managed_metadata_f98513f91ae69751fd86b146",
+      "index_kind": "metadata",
+      "index_version": "v3_1c8997c0542aa0a87d0c99ff7aa1cd3db7b6ec0c4b367c0aa2ddfc0d8efa1fd5"
+    },
+    {
+      "content_sha256": "sha256:f8a019b1dedb0a6353882515ee337194aa9d117b40590877acbae93d9dbdfa9b",
+      "index_id": "managed_lexical_f98513f91ae69751fd86b146",
+      "index_kind": "lexical",
+      "index_version": "v3_f8a019b1dedb0a6353882515ee337194aa9d117b40590877acbae93d9dbdfa9b"
+    },
+    {
+      "content_sha256": "sha256:fb320b7533740836a4999376e8a30eb8a7f09049a922b39c6efc9fe584cb81a9",
+      "index_id": "managed_semantic_f98513f91ae69751fd86b146",
+      "index_kind": "semantic",
+      "index_version": "v3_fb320b7533740836a4999376e8a30eb8a7f09049a922b39c6efc9fe584cb81a9"
+    },
+    {
+      "content_sha256": "sha256:c4e4689ad6b1296f22aa70923b49d4320cbfc8055c59e3b98bf6ad719d8a5449",
+      "index_id": "managed_evidence_graph_f98513f91ae69751fd86b146",
+      "index_kind": "evidence_graph",
+      "index_version": "v3_c4e4689ad6b1296f22aa70923b49d4320cbfc8055c59e3b98bf6ad719d8a5449"
+    },
+    {
+      "content_sha256": "sha256:4098d98eb0941f95900207764f33e12aad82fd8f9f9f4f8ff3370e48e0f36ab3",
+      "index_id": "managed_git_graph_f98513f91ae69751fd86b146",
+      "index_kind": "git_graph",
+      "index_version": "v3_4098d98eb0941f95900207764f33e12aad82fd8f9f9f4f8ff3370e48e0f36ab3"
+    }
+  ],
+  "lexical_tokenizer_id": "tbm.unicode-token-bigram",
+  "lexical_tokenizer_version": "v1",
+  "manifest_id": "retrieval_index_manifest_sha256_240e79b576c1a06910304ee7b9bdd2867bc0ed60efe18f773a6381bbca31c23f",
+  "memory_revision_ids": [],
+  "organization_id": "organization_001",
+  "repository_id": "repository_001",
+  "retriever_id": "reference_retriever",
+  "retriever_version": "v1",
+  "source_catalog_sha256": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "source_event_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_event_watermark": 42,
+  "stale_status": "fresh",
+  "tenant_id": "tenant_001"
+}

@@ -39,8 +39,13 @@ refuses unexpected managed objects or external dependencies.
 ## Retention boundary
 
 `retain_until` denies reads after the trusted timestamp unless `legal_hold` is
-true. The immutable authorities do not yet perform physical purge,
-redaction, key destruction, or legal-hold release. Operators must retain the
-external key lifecycle and storage policy. Object-storage parity, KMS/provider
-authentication, signed attestation, active MemoryRevision writes, GateSession
-linkage, and runtime injection remain outstanding.
+true. The immutable authorities themselves do not perform physical purge,
+redaction, key destruction, or legal-hold release. The opt-in
+[Artifact retention protocol v1](artifact-retention-v1.md) composes a separate
+trusted legal-hold/KMS boundary around those immutable rows: it records a
+protected manifest, advances the current managed-index head, verifies external
+key-destruction receipts, and appends an `erased` tombstone overlay. It never
+deletes or mutates the ciphertext authority and is not selected by default
+runtime profiles. Object-storage parity, product KMS configuration,
+legal-hold release, active MemoryRevision writes, GateSession linkage, and
+runtime injection remain outstanding.

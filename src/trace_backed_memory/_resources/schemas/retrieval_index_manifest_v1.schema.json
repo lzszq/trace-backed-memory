@@ -1,0 +1,239 @@
+{
+  "$id": "https://trace-backed-memory.dev/schemas/retrieval_index_manifest_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "build_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "bundle_id": {
+      "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "tbm.retrieval-index-manifest.v1"
+    },
+    "embedding_model_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "embedding_provider_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "environment_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "git_graph_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "index_versions": {
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "index_kind": {
+                "const": "metadata"
+              }
+            },
+            "required": [
+              "index_kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "index_kind": {
+                "const": "lexical"
+              }
+            },
+            "required": [
+              "index_kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "index_kind": {
+                "const": "semantic"
+              }
+            },
+            "required": [
+              "index_kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "index_kind": {
+                "const": "evidence_graph"
+              }
+            },
+            "required": [
+              "index_kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "index_kind": {
+                "const": "git_graph"
+              }
+            },
+            "required": [
+              "index_kind"
+            ]
+          },
+          "maxContains": 1,
+          "minContains": 1
+        }
+      ],
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "content_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "index_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "index_kind": {
+            "enum": [
+              "metadata",
+              "lexical",
+              "semantic",
+              "evidence_graph",
+              "git_graph"
+            ]
+          },
+          "index_version": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "index_kind",
+          "index_id",
+          "index_version",
+          "content_sha256"
+        ],
+        "type": "object"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "lexical_tokenizer_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "lexical_tokenizer_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "manifest_id": {
+      "pattern": "^retrieval_index_manifest_sha256_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "memory_revision_ids": {
+      "items": {
+        "pattern": "^memory_revision_sha256_[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "maxItems": 1000,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "organization_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "repository_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "retriever_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "retriever_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "source_catalog_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "source_event_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "source_event_watermark": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "stale_status": {
+      "const": "fresh"
+    },
+    "tenant_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "manifest_id",
+    "contract_version",
+    "organization_id",
+    "tenant_id",
+    "repository_id",
+    "environment_id",
+    "bundle_id",
+    "retriever_id",
+    "retriever_version",
+    "index_versions",
+    "source_event_watermark",
+    "source_event_sha256",
+    "source_catalog_sha256",
+    "memory_revision_ids",
+    "embedding_provider_id",
+    "embedding_model_id",
+    "lexical_tokenizer_id",
+    "lexical_tokenizer_version",
+    "git_graph_version",
+    "build_sha256",
+    "stale_status"
+  ],
+  "title": "Trace-backed Memory retrieval index manifest v1",
+  "type": "object"
+}

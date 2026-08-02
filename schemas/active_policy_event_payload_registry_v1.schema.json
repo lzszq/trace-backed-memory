@@ -1,0 +1,106 @@
+{
+  "$comment": "Generated from the sealed active-policy event registry; exact stored authorization records remain authoritative during replay.",
+  "$id": "https://trace-backed-memory.dev/schemas/active_policy_event_payload_registry_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.policy.bundle_activated"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "policy_bundle_id": {
+              "pattern": "^active_policy_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.policy.bundle_activated"
+            }
+          },
+          "required": [
+            "policy_bundle_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.policy.bundle_activated.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.policy.bundle_registered"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "policy_bundle_id": {
+              "pattern": "^active_policy_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.policy.bundle_registered"
+            }
+          },
+          "required": [
+            "policy_bundle_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.policy.bundle_registered.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "Trace-backed Memory active-policy event payloads v1"
+}

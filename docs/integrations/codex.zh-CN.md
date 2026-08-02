@@ -2,7 +2,7 @@
 
 [English](codex.md) | **简体中文**
 
-仓库现在提供五层边界清晰的 Codex 接口：
+仓库现在提供六层边界清晰的 Codex 接口：
 
 1. 根目录与嵌套 `AGENTS.md` 映射不变量、验证、Schema 和适配器边界。
 2. 仓库本地技能分别指导维护者与运行时调用方。
@@ -11,6 +11,8 @@
 4. 默认 `tbm-mcp` 以长驻本地 STDIO MCP server 暴露同一套兼容生命周期。
 5. 显式 `tbm-mcp --profile durable-v3` 暴露可跨重启续接的 durable Agent
    生命周期，并把可信 identity 保留在 tool JSON 之外。
+6. `tbm.codex-ingestion.v1` 提供 opt-in 的结构化 Hook/App Server event capture，
+   把它们转换成有序 TraceEvent evidence，但不选择默认 transport。
 
 ## 贡献者使用
 
@@ -119,6 +121,26 @@ activation、原始 Store、snapshot 或 migration 工具。
 STDIO 输入采用 strict JSON，每帧拒绝重复 key 和非有限数字，并限制为
 8 MiB、100,000 个 JSON nodes、depth 100；工具请求模型拒绝未知字段。
 Agent-facing failure 使用有界 `tbm.agent.v1` error envelope。
+
+## Opt-in Hook 与 App Server evidence
+
+只应在 owner 控制且能认证本地 Codex 来源的 adapter 内使用
+[Codex 摄取协议](../protocols/codex-ingestion-v1.zh-CN.md)。它把计划中的 12 个 session、
+prompt、tool、permission、subagent、compaction、stop、diff 与 final-response 事实映射成
+有序 TraceEvent draft。可信 binding 固定 Trace、run、lineage 与允许的 Hook session/App
+Server thread；来源 JSON 不能选择 scope 或 ledger authorization。
+
+每个被接受的原始帧都会作为精确受保护 Artifact 保留，event ledger 只接收其 descriptor。
+adapter 会拒绝 transcript-only 事实源、畸形或超限 JSON、不匹配的 lifecycle transition、
+有歧义的 Hook permission、未绑定 active item 的 App Server approval，以及不可信 clock
+drift。permission result 绑定精确 approval frame，但绝不会授权 append。
+
+这是 Python integration boundary，不是自动 Hook registration 或 App Server process manager。
+默认兼容和 durable MCP/HTTP/SDK profile 都不会调用它。后续 lifecycle 或 ledger 校验拒绝
+event batch 时，一个合法受保护 Artifact 可能作为 orphan evidence 留存；它不是 Trace 事实，
+仍受配置的 retention policy 管理。可信 operator 可以把该 descriptor 解析为 opt-in
+[Artifact retention 协调器](../protocols/artifact-retention-v1.zh-CN.md)的显式 target；
+capture rejection 本身绝不授权擦除。
 
 ## 可跨重启的 durable profile
 

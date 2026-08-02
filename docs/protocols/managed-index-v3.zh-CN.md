@@ -79,6 +79,11 @@ bundle 是不可变的精确 UTF-8 byte。每个 tenant/repository/environment �
 陈旧 expected head、内容冲突、catalog drift、禁用 trigger、function body
 变更与读回不一致都失败关闭。
 
+`purge_managed_index_revisions()` 会构造不含指定 candidate、也不含任何 retained candidate
+未使用 evidence edge 的不可变 successor，并在保留 Git history 的同时重算全部 catalog/index
+digest。Artifact retention 协调器可以通过 CAS 把该 successor 发布为 current head；旧 bundle
+仍可作为历史加载，但绝不是当前 retrieval 的 authorization source。
+
 PostgreSQL 安装继续与当前 schema version 2 隔离并存。rollback 会先验证
 精确 relation、column、constraint、function、function body、trigger、ACL
 及 active-schema 前置条件，再删除显式枚举的对象。

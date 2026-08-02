@@ -32,6 +32,10 @@ from .completion_outbox_v3 import (
 )
 from .contracts_v3 import V3ContractError
 from .gate_completion_v3 import GateCompletionRequest, GateCompletionResult
+from .outcome_effect_event_v1 import (
+    EffectDeliveryEventSink,
+    OutcomeEffectViews,
+)
 from .resources import PackagedResourceError, read_packaged_resource
 from .sqlite_gate_session_v3 import SQLiteGateSessionRepository
 from .sqlite_outcome_v3 import (
@@ -385,6 +389,7 @@ class SQLiteCompletionOutboxV3Repository:
         self._lock = RLock()
         self._closed = False
         self._savepoint_number = 0
+        self._delivery_event_sink: EffectDeliveryEventSink | None = None
         self._connection_identity = id(connection)
         try:
             if not self._connection.in_transaction:
@@ -502,6 +507,59 @@ class SQLiteCompletionOutboxV3Repository:
         """Return the exact GateSession authority used by atomic completion."""
 
         return self.outcomes.gate_sessions
+
+    @_synchronized
+    def bind_delivery_event_sink(
+        self,
+        sink: EffectDeliveryEventSink,
+    ) -> None:
+        """Bind the event-first sink invoked before delivery projections."""
+
+        self._require_open()
+        if not callable(getattr(sink, "append_delivery", None)):
+            raise ValueError("delivery event sink is invalid")
+        if (
+            self._delivery_event_sink is not None
+            and self._delivery_event_sink is not sink
+        ):
+            raise SQLiteCompletionOutboxV3ConflictError(
+                "TBM_SQLITE_COMPLETION_OUTBOX_EVENT_SINK_BOUND",
+                "completion outbox delivery event sink is already bound",
+            )
+        self._delivery_event_sink = sink
+
+    def _project_delivery(
+        self,
+        event: CompletionOutboxEvent,
+        previous: CompletionOutboxDelivery,
+        current: CompletionOutboxDelivery,
+    ) -> None:
+        sink = self._delivery_event_sink
+        if sink is None:
+            return
+        views = sink.append_delivery(event, previous, current)
+        history = (
+            None
+            if type(views) is not OutcomeEffectViews
+            else views.delivery_history.get(event.event_id)
+        )
+        queue_item = (
+            None
+            if type(views) is not OutcomeEffectViews
+            else views.effect_queue.get(event.event_id)
+        )
+        if (
+            history is None
+            or not history
+            or history[-1] != current
+            or queue_item is None
+            or queue_item.get("delivery_revision_id")
+            != current.delivery_revision_id
+        ):
+            raise SQLiteCompletionOutboxV3PersistenceError(
+                "TBM_SQLITE_COMPLETION_OUTBOX_EVENT_PROJECTION",
+                "delivery event projection did not reproduce current state",
+            )
 
     def _require_open(self) -> None:
         if self._closed:
@@ -1113,11 +1171,13 @@ class SQLiteCompletionOutboxV3Repository:
                         for delivery in claimed
                     )
                     with self._allow_mutation():
-                        for previous, current in zip(
+                        for event, previous, current in zip(
+                            events,
                             due,
                             claimed,
                             strict=True,
                         ):
+                            self._project_delivery(event, previous, current)
                             self._append_delivery(cursor, previous, current)
                     retained = tuple(
                         self._select_current_delivery(
@@ -1229,6 +1289,8 @@ class SQLiteCompletionOutboxV3Repository:
                         )
                     now = self._trusted_now(not_before=current.updated_at)
                     updated = operation(current, now)
+                    event = self._select_event(cursor, event_id)
+                    self._project_delivery(event, current, updated)
                     with self._allow_mutation():
                         self._append_delivery(cursor, current, updated)
                     retained = self._select_current_delivery(

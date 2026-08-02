@@ -1,0 +1,424 @@
+{
+  "$defs": {
+    "retrieval_policy": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "ancestry_bypass_reason": {
+                "type": "string"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "ancestry_mode": {
+                "const": "required"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "ancestry_bypass_reason": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "allowed_classifications": {
+          "items": {
+            "enum": [
+              "public",
+              "internal",
+              "confidential",
+              "restricted"
+            ]
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "ancestry_bypass_reason": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "\\S",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ancestry_mode": {
+          "enum": [
+            "required",
+            "disabled"
+          ]
+        },
+        "block_eval_leaking": {
+          "const": true
+        },
+        "contract_version": {
+          "const": "tbm.retrieval-policy.v3"
+        },
+        "minimum_fused_score": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "mode_memory_rules": {
+          "allOf": [
+            {
+              "contains": {
+                "properties": {
+                  "task_mode": {
+                    "const": "planning"
+                  }
+                },
+                "required": [
+                  "task_mode"
+                ],
+                "type": "object"
+              },
+              "maxContains": 1,
+              "minContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "task_mode": {
+                    "const": "repair"
+                  }
+                },
+                "required": [
+                  "task_mode"
+                ],
+                "type": "object"
+              },
+              "maxContains": 1,
+              "minContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "task_mode": {
+                    "const": "debug"
+                  }
+                },
+                "required": [
+                  "task_mode"
+                ],
+                "type": "object"
+              },
+              "maxContains": 1,
+              "minContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "task_mode": {
+                    "const": "eval"
+                  }
+                },
+                "required": [
+                  "task_mode"
+                ],
+                "type": "object"
+              },
+              "maxContains": 1,
+              "minContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "task_mode": {
+                    "const": "production"
+                  }
+                },
+                "required": [
+                  "task_mode"
+                ],
+                "type": "object"
+              },
+              "maxContains": 1,
+              "minContains": 1
+            }
+          ],
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "allowed_memory_types": {
+                "items": {
+                  "enum": [
+                    "procedural",
+                    "semantic",
+                    "episodic",
+                    "policy"
+                  ]
+                },
+                "maxItems": 4,
+                "minItems": 1,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "task_mode": {
+                "enum": [
+                  "planning",
+                  "repair",
+                  "debug",
+                  "eval",
+                  "production"
+                ]
+              }
+            },
+            "required": [
+              "task_mode",
+              "allowed_memory_types"
+            ],
+            "type": "object"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "payload_budget_bytes": {
+          "maximum": 16777216,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^retrieval_policy_sha256_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "policy_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "stage_weights": {
+          "additionalProperties": false,
+          "properties": {
+            "evidence_graph": {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "lexical": {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "metadata": {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            },
+            "semantic": {
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "type": "number"
+            }
+          },
+          "required": [
+            "metadata",
+            "lexical",
+            "semantic",
+            "evidence_graph"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "contract_version",
+        "policy_id",
+        "policy_version",
+        "allowed_classifications",
+        "mode_memory_rules",
+        "ancestry_mode",
+        "ancestry_bypass_reason",
+        "stage_weights",
+        "minimum_fused_score",
+        "payload_budget_bytes",
+        "block_eval_leaking"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://trace-backed-memory.dev/schemas/active_policy_bundle_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidate_budget": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "tbm.candidate-budget.v1"
+        },
+        "discovery_max_candidates": {
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "injection_max_memories": {
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "payload_budget_bytes": {
+          "maximum": 16777216,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "semantic_gate_max_candidates": {
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "system_gate_max_candidates": {
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "contract_version",
+        "discovery_max_candidates",
+        "system_gate_max_candidates",
+        "semantic_gate_max_candidates",
+        "injection_max_memories",
+        "payload_budget_bytes"
+      ],
+      "type": "object"
+    },
+    "contract_version": {
+      "const": "tbm.active-policy-bundle.v1"
+    },
+    "policy_bundle_id": {
+      "pattern": "^active_policy_sha256_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "renderer_policy": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_modes": {
+          "const": [
+            "none",
+            "short_summary",
+            "full_case_summary"
+          ]
+        },
+        "contract_version": {
+          "const": "tbm.renderer-policy.v1"
+        },
+        "full_item_max_chars": {
+          "maximum": 2000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_memories": {
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "media_type": {
+          "const": "application/json"
+        },
+        "output_format": {
+          "const": "canonical-json-data-envelope"
+        },
+        "renderer_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "renderer_policy_id": {
+          "pattern": "^renderer_policy_sha256_[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "renderer_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "snippet_max_chars": {
+          "maximum": 12000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "snippet_max_utf8_bytes": {
+          "maximum": 48000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "summary_item_max_chars": {
+          "maximum": 500,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "renderer_policy_id",
+        "contract_version",
+        "renderer_id",
+        "renderer_version",
+        "allowed_modes",
+        "summary_item_max_chars",
+        "full_item_max_chars",
+        "max_memories",
+        "snippet_max_chars",
+        "snippet_max_utf8_bytes",
+        "output_format",
+        "media_type"
+      ],
+      "type": "object"
+    },
+    "retrieval_policy": {
+      "$ref": "#/$defs/retrieval_policy"
+    },
+    "semantic_gate_required": {
+      "const": true
+    },
+    "trust_tier_policy": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_legacy_unstructured": {
+          "const": false
+        },
+        "contract_version": {
+          "const": "tbm.trust-tier-policy.v1"
+        },
+        "minimum_trust_tier": {
+          "enum": [
+            "reviewed",
+            "regression_verified",
+            "causally_verified"
+          ]
+        },
+        "require_active_revision": {
+          "const": true
+        }
+      },
+      "required": [
+        "contract_version",
+        "minimum_trust_tier",
+        "require_active_revision",
+        "allow_legacy_unstructured"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "contract_version",
+    "policy_bundle_id",
+    "retrieval_policy",
+    "trust_tier_policy",
+    "candidate_budget",
+    "renderer_policy",
+    "semantic_gate_required"
+  ],
+  "title": "Trace-backed Memory active policy bundle v1",
+  "type": "object"
+}

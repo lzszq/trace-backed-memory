@@ -2,7 +2,7 @@
 
 **English** | [简体中文](codex.zh-CN.md)
 
-This repository provides five explicit Codex-facing layers:
+This repository provides six explicit Codex-facing layers:
 
 1. Root and nested `AGENTS.md` files map invariants, verification, schemas, and
    adapter boundaries.
@@ -14,6 +14,9 @@ This repository provides five explicit Codex-facing layers:
    long-running local STDIO MCP server.
 5. Explicit `tbm-mcp --profile durable-v3` exposes the restart-resumable
    durable Agent lifecycle while keeping trusted identities outside tool JSON.
+6. `tbm.codex-ingestion.v1` provides opt-in structured Hook/App Server event
+   capture into ordered TraceEvent evidence without selecting a default
+   transport.
 
 ## Contributor use
 
@@ -132,6 +135,31 @@ STDIO input is strict, duplicate-key rejecting, finite-number checked, and
 bounded to 8 MiB, 100,000 JSON nodes, and depth 100 per frame. Tool request
 models reject unknown fields. Agent-facing failures use bounded
 `tbm.agent.v1` error envelopes.
+
+## Opt-in Hook and App Server evidence
+
+Use the [Codex ingestion protocol](../protocols/codex-ingestion-v1.md) only in
+an owner-controlled adapter that authenticates the local Codex source. It maps
+the 12 planned session, prompt, tool, permission, subagent, compaction, stop,
+diff, and final-response facts into ordered TraceEvent drafts. A trusted
+binding fixes Trace, run, lineage, and allowed Hook session/App Server thread;
+source JSON cannot select scope or ledger authorization.
+
+Every accepted raw frame is retained as an exact protected Artifact and only
+its descriptor enters the event ledger. The adapter rejects transcript-only
+fact sources, malformed or oversized JSON, unmatched lifecycle transitions,
+ambiguous Hook permissions, App Server approvals that do not bind an active
+item, and untrusted clock drift. A permission result binds the exact approval
+frame but never authorizes the append.
+
+This is a Python integration boundary, not automatic Hook registration or an
+App Server process manager. The default compatibility and durable MCP/HTTP/SDK
+profiles do not invoke it. A valid protected Artifact may remain as orphan
+evidence if later lifecycle or ledger validation rejects its event batch; it is
+not a Trace fact and remains subject to the configured retention policy. A
+trusted operator may resolve that descriptor as an explicit target of the
+opt-in [Artifact retention coordinator](../protocols/artifact-retention-v1.md);
+capture rejection alone never authorizes erasure.
 
 ## Restart-safe durable profile
 

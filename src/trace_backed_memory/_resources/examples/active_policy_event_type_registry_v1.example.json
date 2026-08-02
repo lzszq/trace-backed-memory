@@ -1,0 +1,91 @@
+{
+  "compatibility": [
+    {
+      "compatibility": "native",
+      "event_type": "tbm.policy.bundle_activated",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.policy.bundle_registered",
+      "source_version": 1,
+      "target_version": 1
+    }
+  ],
+  "event_types": [
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.policy.bundle_activated",
+      "event_version": 1,
+      "payload_schema": "tbm.policy.bundle_activated.v1",
+      "payload_schema_sha256": "sha256:bfe3e8e4bc9ea370007b797cdfeae029578a6fb441e2a908abe8266dadf26c29",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "policy_bundle_id": {
+            "pattern": "^active_policy_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.policy.bundle_activated"
+          }
+        },
+        "required": [
+          "policy_bundle_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.policy.bundle_registered",
+      "event_version": 1,
+      "payload_schema": "tbm.policy.bundle_registered.v1",
+      "payload_schema_sha256": "sha256:ae62ba3e14c79efa14b5226795e42379c8d67204ab5e133aef8c23ceb38be7be",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "policy_bundle_id": {
+            "pattern": "^active_policy_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.policy.bundle_registered"
+          }
+        },
+        "required": [
+          "policy_bundle_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "registry_sha256": "sha256:0d3bdfe94e7b1cc1084c47c037f2cd05724d68682746dc3d2accca55947c2624",
+  "registry_version": "tbm.event-registry.v1",
+  "upcasters": []
+}

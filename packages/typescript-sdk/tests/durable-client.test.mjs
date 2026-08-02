@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { platform } from "node:os";
 import { createInterface } from "node:readline";
@@ -21,6 +21,15 @@ const ROOT = new URL("../../../", import.meta.url);
 const fixture = JSON.parse(
   await readFile(
     new URL("tests/fixtures/durable_client_lifecycle.json", ROOT),
+    "utf8",
+  ),
+);
+const eventFirstGolden = JSON.parse(
+  await readFile(
+    new URL(
+      "tests/fixtures/durable_event_first_projection_v1.json",
+      ROOT,
+    ),
     "utf8",
   ),
 );
@@ -109,13 +118,16 @@ async function withDurablePythonServer(callback) {
   });
   const lines = createInterface({ input: child.stdout });
   let operationFailed = false;
+  let operationError;
+  let configuration;
+  let result;
   try {
-    const configuration = await readDurableServerConfiguration(
+    configuration = await readDurableServerConfiguration(
       child,
       lines,
       () => stderr,
     );
-    return await callback(
+    result = await callback(
       new DurableAgentHTTPClient({
         baseUrl: configuration.base_url,
         token: configuration.token,
@@ -123,7 +135,7 @@ async function withDurablePythonServer(callback) {
     );
   } catch (error) {
     operationFailed = true;
-    throw error;
+    operationError = error;
   } finally {
     lines.close();
     if (child.stdin.writable && !child.stdin.destroyed) {
@@ -135,10 +147,24 @@ async function withDurablePythonServer(callback) {
       assert.equal(code, 0, stderr);
     }
   }
+  let projectionReport;
+  if (configuration?.report_path !== undefined) {
+    try {
+      projectionReport = JSON.parse(
+        await readFile(configuration.report_path, "utf8"),
+      );
+    } finally {
+      await rm(configuration.report_path, { force: true });
+    }
+  }
+  if (operationError !== undefined) {
+    throw operationError;
+  }
+  return { result, projectionReport };
 }
 
 test("durable client negotiates and completes a real Python lifecycle", async () => {
-  await withDurablePythonServer(async (client) => {
+  const { projectionReport } = await withDurablePythonServer(async (client) => {
     const capabilities = await client.negotiate();
     assert.equal(capabilities.protocol_version, DURABLE_AGENT_PROTOCOL_VERSION);
     assert.equal(capabilities.transport_profile, DURABLE_HTTP_PROFILE);
@@ -203,6 +229,7 @@ test("durable client negotiates and completes a real Python lifecycle", async ()
     assert.equal(replay.result.content_exposed, true);
     assert.ok(replay.result.bundle.artifacts.length > 0);
   });
+  assert.deepEqual(projectionReport, eventFirstGolden);
 });
 
 test("durable cancellation is exact and caller identity never enters JSON", async () => {

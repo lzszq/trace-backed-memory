@@ -1,0 +1,177 @@
+{
+  "compatibility": [
+    {
+      "compatibility": "native",
+      "event_type": "tbm.index.activated",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.index.build_completed",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.index.build_requested",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.index.marked_stale",
+      "source_version": 1,
+      "target_version": 1
+    }
+  ],
+  "event_types": [
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.index.activated",
+      "event_version": 1,
+      "payload_schema": "tbm.index.activated.v1",
+      "payload_schema_sha256": "sha256:13c0c7d8bb74178a246ec81fb8383c22e9fbf9c695d5d9f7f736ab6757da3e09",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "record_json": {
+            "maxLength": 524288,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.index.activated"
+          },
+          "subject_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.index.build_completed",
+      "event_version": 1,
+      "payload_schema": "tbm.index.build_completed.v1",
+      "payload_schema_sha256": "sha256:4b739229b1d82d22ee83c28bc38094d197ba9f533a1df86f701ec8546b69d3a4",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "record_json": {
+            "maxLength": 524288,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.index.build_completed"
+          },
+          "subject_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.index.build_requested",
+      "event_version": 1,
+      "payload_schema": "tbm.index.build_requested.v1",
+      "payload_schema_sha256": "sha256:94dfaf45745072c7370d85e8c98787674a0ad7cfcbebd3bf89bb90cc1b32aa5f",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "record_json": {
+            "maxLength": 524288,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.index.build_requested"
+          },
+          "subject_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.index.marked_stale",
+      "event_version": 1,
+      "payload_schema": "tbm.index.marked_stale.v1",
+      "payload_schema_sha256": "sha256:d00a478fca8b7dc2b3b121dc98b2a7422a44593f174b0f56f80fe9a1b2597bff",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "record_json": {
+            "maxLength": 524288,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.index.marked_stale"
+          },
+          "subject_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "registry_sha256": "sha256:b752fa2f685ad51a25112fa66525041f04c5286b054d657801cfcc576ffaec84",
+  "registry_version": "tbm.event-registry.v1",
+  "upcasters": []
+}

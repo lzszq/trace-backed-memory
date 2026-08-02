@@ -563,6 +563,7 @@ def _run_local(args: argparse.Namespace) -> int:
             initialize=args.initialize,
             expose_injection_content=args.expose_injection_content,
             expose_replay_content=args.expose_replay_content,
+            event_first_commands=True,
             check_same_thread=False,
         )
         try:

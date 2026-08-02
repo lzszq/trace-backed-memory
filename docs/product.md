@@ -79,8 +79,8 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 授权契约准备 | 与存储实现无关的 canonical repository、精确 alias、principal/client、role binding 与关联 decision v3 契约；显式 durable HTTP profile 通过服务端持有的 context 执行授权，兼容 adapter 尚未执行 |
 | 结构化证据准备 | content-addressed FixEvidence 与 regression evidence 绑定精确 case、source Trace、source/fix/verification commit、artifact、独立 reviewer/verifier 与 attestation provenance；严格 MemoryRevision preflight 校验跨记录关系，active v2 record 尚不使用它们 |
 | 不可变 revision publication | 内容派生 proposal 与独立 approval/activation event 绑定精确 artifact、evidence、authorization、actor、scope 与 lineage；隔离 SQLite/PostgreSQL authority 持久化 canonical provenance，通过调用方 boundary 验证 attestation，并以 CAS 锁定 durable target head；已授权 ActivatedRevision source 会通过 SQLite/PostgreSQL Artifact authority 为未来 v3 retrieval 重新核验当前 head、publication provenance、结构化 evidence 与加密内容；active-v2 projection 和 retrieval integration 仍待完成 |
-| 可回放检索准备 | 内容寻址 policy 与可选 authenticated preparation kernel 先授权，再读取已核验 activated revision，过滤 classification/applicability/eval leakage/Git ancestry，对分数做确定性融合，并生成配对 RetrievalSnapshot/System Gate evidence，最后复查 head/policy；opt-in immutable 五视图托管索引 bundle 通过精确 SQLite/PostgreSQL scope-head CAS 提供内容寻址 metadata/lexical/semantic/evidence/Git discovery；durable 组合服务会创建已授权 GateSession、保存并核验精确 evidence 记录对，再通过 CAS 发布 `PREPARED`；生产分片/worker 与默认兼容路径 cutover 仍待完成 |
-| 可回放门禁准备 | 内容派生 System Gate evaluation 与 Semantic Gate attempt 绑定确定性 rule 结果及 provider/model provenance，并强制模型只能缩小；精确 prompt/response binding 核验角色 digest，SQLite/PostgreSQL authority 原子保存 public/internal 字节，共享服务认证 provider registration、持有可信计时与 retry parent，并要求精确读回；opt-in session 组合现会推进 `PREPARED -> AWAITING_DECISION -> DECIDED`、记录完整 attempt chain，并在不重复 provider 调用的情况下恢复已保存 success；opt-in finalization 组合现在会复查授权/head/policy、确定性渲染最终允许集合、保留精确 UsageDecision 与完整 replay bundle，并通过 CAS 发布 `FINALIZED`；active policy emission 仍待完成 |
+| 可回放检索准备 | 内容寻址 policy 与可选 authenticated preparation kernel 先授权，再读取已核验 activated revision，过滤 classification/applicability/eval leakage/Git ancestry，对分数做确定性融合，并生成配对 RetrievalSnapshot/System Gate evidence，最后复查 head/policy；opt-in immutable 五视图托管索引 bundle 通过精确 SQLite/PostgreSQL scope-head CAS 提供内容寻址 metadata/lexical/semantic/evidence/Git discovery，opt-in event reducer 则把五个 version 绑定到 source watermark 与只读 active/stale selector；durable 组合服务会创建已授权 GateSession、保存并核验精确 evidence 记录对，再通过 CAS 发布 `PREPARED`；生产分片/worker 与默认兼容路径 cutover 仍待完成 |
+| 可回放门禁准备 | 内容派生 System Gate evaluation 与 Semantic Gate attempt 绑定确定性 rule 结果及 provider/model provenance，并强制模型只能缩小；精确 prompt/response binding 核验角色 digest，SQLite/PostgreSQL authority 原子保存 public/internal 字节，共享服务认证 provider registration、持有可信计时与 retry parent，并要求精确读回；opt-in session 组合现会推进 `PREPARED -> AWAITING_DECISION -> DECIDED`、记录完整 attempt chain，并在不重复 provider 调用的情况下恢复已保存 success；opt-in finalization 组合现在会复查授权/head/policy、确定性渲染最终允许集合、保留精确 UsageDecision 与完整 replay bundle，并通过 CAS 发布 `FINALIZED`；opt-in active-policy emission 已提供，默认消费仍待完成 |
 | 持久化执行与完成准备 | authenticated execution 组合会在 `FINALIZED` → `EXECUTING` 前核验已保留 injection，支持精确 revision 的 lease resume 与 abandonment，认证已注册 outcome evaluator，并组合 opt-in SQLite 或隔离 PostgreSQL authority，原子绑定一份 content-addressed RunOutcome、`COMPLETED`、一条 immutable completion event 与 append-only leased retry/dead-letter delivery chain；显式 durable transport 已暴露该生命周期，`tbmd local` 会运行有界 SQLite recovery/outbox page，shared-service worker 仍待完成 |
 | 分发资源 | [`resources/manifest.json`](../resources/manifest.json) 驱动严格、byte-identical 的 Schema/OpenAPI/SQL/迁移/taxonomy/example allowlist、runtime 声明、package data、metadata 与生成索引 |
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类；bounded local document ingestion 对本地 JSON/YAML 先限额再校验，并以 all-or-nothing 方式导入 |
@@ -101,7 +101,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 5. Harness 执行并评估任务。
 6. `complete_memory_run()` 或 `complete_memory_runs()` 原子写入 Trace 与 decision outcome；本地 snapshot 运维也可用 `tbm complete` 或 `tbm complete-batch` 提交显式实测结果。
 
-普通同步调用方可以用 `run_memory_execution()` 把第 2-6 步收敛为一次调用；LLM 与 harness 仍由调用方 callback 提供，Store 继续拥有门控、linkage 和原子完成。不需要直接管理底层 Store 生命周期的应用可以使用 `LocalAgentMemory`，由它同时负责 Trace 注册、Repository 同步、稳定错误与 callback 恢复 ID。可选的默认 `tbm-mcp` 命令只通过有界本地 STDIO 暴露这套 runtime 生命周期，把 provenance 固定到配置的 checkout root，并在检索前捕获完整 Git ancestry。SQLite/PostgreSQL 同步持久阶段；该兼容 profile 的 pending request 仍为进程内状态。与持久化实现无关的 `tbm.gate-session.v3` 契约已经定义目标 lifecycle、revision、lease 与 expiry 语义，opt-in、side-by-side SQLite 与隔离 PostgreSQL repository 已能持久化其 immutable revision；授权 v3 契约定义 retrieval 前的 policy boundary，opt-in 隔离 SQLite 与 PostgreSQL authority 能核验精确 policy/request/decision 三元组并持久记录 immutable decision。`AuthenticatedRetrievalService` 提供共享顺序 kernel：匹配可信 identity record、持久化并重新加载 decision、复查 registry 轮换与 environment binding，之后才调用 retrieval。`AuthenticatedGateSessionService` 随后在 preparation 前 durable create/read-back scoped session、阻止重复 retrieval、要求可信 retrieval/System-Gate evidence，并通过 CAS 与显式补偿发布 `PREPARED`。opt-in SQLite/PostgreSQL Gate evidence authority 会原子保存并读回每个精确内容寻址记录对，共享 verifier 再把它绑定到已授权 session 与 identity scope。`DurableRetrievalPreparationService` 会在同一授权 scope 下组合这些 opt-in 边界：先创建 session，不记录第二条 authorization decision 地完成 retrieval preparation，保存并核验记录对，再发布 `PREPARED`。`AuthenticatedSemanticGateSessionService` 随后会核验 durable evidence 与完整 immutable attempt chain，在 provider 工作前发布 `AWAITING_DECISION`，并仅在 attempt/artifact 精确读回后发布 `DECIDED`；failed attempt 保持显式可重试，已保存 success 可在不再次调用 provider 的情况下恢复。authority 分离时保持有序恢复；同一数据库的 repository 可以共享 caller-owned 外层 transaction。`GateSessionRecoveryWorker` 执行有界 due scan，只 expire graph 合法且 session 已到期的 prepared/awaiting head，并把 graph-blocked 或并发状态交给显式 recovery。默认 Agent/MCP profile 尚未使用这些 kernel；可选本地 MCP `--auth-*` profile 会使用 authenticated retrieval kernel 与 SQLite authorization authority，而显式 durable HTTP 与可信本地 MCP profile 会选择完整 durable facade。opt-in `DurableFinalizationService` 现在会复查授权/head/policy、保留完整 replay bundle，并以 SQLite/PostgreSQL caller-transaction 对等性通过 CAS 发布 `FINALIZED`。带 peer authentication 的共享服务 transport、受保护内容加密、持久 transition-event linkage、默认 adapter cutover、CLI durable 选择与 shared-service MCP 仍未交付。需要暂停、人工重试或独立生命周期控制的高级调用方继续直接使用底层方法。
+普通同步调用方可以用 `run_memory_execution()` 把第 2-6 步收敛为一次调用；LLM 与 harness 仍由调用方 callback 提供，Store 继续拥有门控、linkage 和原子完成。不需要直接管理底层 Store 生命周期的应用可以使用 `LocalAgentMemory`，由它同时负责 Trace 注册、Repository 同步、稳定错误与 callback 恢复 ID。可选的默认 `tbm-mcp` 命令只通过有界本地 STDIO 暴露这套 runtime 生命周期，把 provenance 固定到配置的 checkout root，并在检索前捕获完整 Git ancestry。SQLite/PostgreSQL 同步持久阶段；该兼容 profile 的 pending request 仍为进程内状态。与持久化实现无关的 `tbm.gate-session.v3` 契约已经定义目标 lifecycle、revision、lease 与 expiry 语义，opt-in、side-by-side SQLite 与隔离 PostgreSQL repository 已能持久化其 immutable revision；授权 v3 契约定义 retrieval 前的 policy boundary，opt-in 隔离 SQLite 与 PostgreSQL authority 能核验精确 policy/request/decision 三元组并持久记录 immutable decision。`AuthenticatedRetrievalService` 提供共享顺序 kernel：匹配可信 identity record、持久化并重新加载 decision、复查 registry 轮换与 environment binding，之后才调用 retrieval。`AuthenticatedGateSessionService` 随后在 preparation 前 durable create/read-back scoped session、阻止重复 retrieval、要求可信 retrieval/System-Gate evidence，并通过 CAS 与显式补偿发布 `PREPARED`。opt-in SQLite/PostgreSQL Gate evidence authority 会原子保存并读回每个精确内容寻址记录对，共享 verifier 再把它绑定到已授权 session 与 identity scope。`DurableRetrievalPreparationService` 会在同一授权 scope 下组合这些 opt-in 边界：先创建 session，不记录第二条 authorization decision 地完成 retrieval preparation，保存并核验记录对，再发布 `PREPARED`。`AuthenticatedSemanticGateSessionService` 随后会核验 durable evidence 与完整 immutable attempt chain，在 provider 工作前发布 `AWAITING_DECISION`，并仅在 attempt/artifact 精确读回后发布 `DECIDED`；failed attempt 保持显式可重试，已保存 success 可在不再次调用 provider 的情况下恢复。authority 分离时保持有序恢复；同一数据库的 repository 可以共享 caller-owned 外层 transaction。`GateSessionRecoveryWorker` 执行有界 due scan，只 expire graph 合法且 session 已到期的 prepared/awaiting head，并把 graph-blocked 或并发状态交给显式 recovery。默认 Agent/MCP profile 尚未使用这些 kernel；可选本地 MCP `--auth-*` profile 会使用 authenticated retrieval kernel 与 SQLite authorization authority，而显式 durable HTTP 与可信本地 MCP profile 会选择完整 durable facade。opt-in `DurableFinalizationService` 现在会复查授权/head/policy、保留完整 replay bundle，并以 SQLite/PostgreSQL caller-transaction 对等性通过 CAS 发布 `FINALIZED`。显式 durable SQLite/PostgreSQL runtime 现在会把每个 GateSession revision 追加到 canonical event ledger，并在同一事务中同步重建、比较现有 current-state projection。带 peer authentication 的共享服务 transport、受保护内容加密、持久 transition-authorization-event linkage、默认 adapter cutover、CLI durable 选择与 shared-service MCP 仍未交付。需要暂停、人工重试或独立生命周期控制的高级调用方继续直接使用底层方法。
 
 默认本地 loopback HTTP adapter、同步/异步 Python client 与 Node.js TypeScript SDK
 现在会通过默认 MCP 同一套严格 dispatcher 暴露 active version-2 lifecycle。它们的
@@ -115,7 +115,7 @@ transition authorization event，不是指缺少执行状态转换。opt-in
 `DurableExecutionService` 会核验同一份已保留 injection，要求当前有效的
 `gate_session:transition` 授权，通过 CAS 发布 `EXECUTING`，支持显式
 resume/abandonment，认证 outcome evaluator，并组合原子 outcome/completion-outbox
-发布。transport authentication、受保护内容加密、持久 transition-event linkage、
+发布。transport authentication、受保护内容加密、持久 transition-authorization-event linkage、
 shared-service MCP 与其他 active adapter 仍待完成。
 
 `AuthenticatedDurableAgentMemory` 现在会在一个 adapter-neutral facade 后面组合
@@ -240,19 +240,123 @@ subscription 的存储中立 ledger 应用端口。仓库守卫还会把每个�
 SQLite/PostgreSQL 持久化模块登记为 ledger、replaceable projection、compatibility
 migration 或 bundle coordinator，并拒绝未登记 authority。F1 现已增加 opt-in SQLite
 与隔离 PostgreSQL event-ledger 后端，覆盖精确 Artifact descriptor、原子 append/replay、
-integrity/catalog 校验、backup/rollback 和跨后端一致性。lifecycle composition、
-cutover 与 active transport path 尚未选择它们。F1
+integrity/catalog 校验、backup/rollback 和跨后端一致性。F2 现已从 GateSession
+event adapter 开始：显式 durable SQLite/PostgreSQL 组合会为 GateSession revision
+选择 ledger，并把既有 revision row 保持为同步核验的 projection。Finalized 显式
+durable 路径还会保留只含 descriptor 的 Gate evidence event，并能从这些事件与 Artifact
+bytes 重建现有 `tbm.replay-export.v3`，其 digest 与 replay authority 相同。failed/retry
+Gate evidence crash matrix 与兼容 lifecycle 尚未 cut over。F2-05 还交付 ledger-ready
+RunOutcome/OutcomeAttribution event，以及 Outcome、EffectQueue、delivery history、
+dead-letter 与 compensation 的六个确定性 reducer。它们精确复现现有 completion-outbox
+历史，但不声称 exactly-once 或 provider receipt。F2-06 已在 `tbmd local` 选择该路径；
+F2-07 已让独立 SQLite durable HTTP/MCP 选择它，
+并让原始 HTTP、MCP、Python 同步/异步与 TypeScript 核对同一份事件和 projection
+golden。F2-08 会在全部 11 个 SQLite 命令 commit 点分别于 commit 前以及 commit 后/
+response 前 hard-kill，证明重开后全部表精确 rollback 或已提交 event/projection 精确
+replay。独立 PostgreSQL 的 Outcome/Effect 命令与 crash-matrix parity、F2-03 的
+failed-to-succeeded Semantic-attempt integration 以及 F2 exit gate 仍未完成。F1
 现在还交付 opt-in `tbm.reducer.v1` runtime：versioned descriptor 与 sealed registry、
 有界 canonical state、双执行 determinism 检查、typed-event/upcaster consumption、
 checkpoint/resume、poison evidence、shadow comparison、CAS activation、append-only
 rollback、SQLite/PostgreSQL checkpoint parity，以及显式 metadata-only `tbmd ledger` /
 `tbmd projection` operator 命令。同一 golden projection digest 会在 Windows/Linux 的
-Python 3.11-3.13 上核验。这些命令只操作显式选择的 event ledger，不会让当前 Gate 或
-Memory lifecycle 选择它。详见
+Python 3.11-3.13 上核验。这些命令只操作显式选择的 event ledger；显式 durable
+runtime 还会选择领域 `gate-session-current` reducer，但 Memory 与其余 lifecycle view
+尚未选择它。详见
 [规范事件 v1](protocols/event-v1.zh-CN.md)、
 [Event Type Registry v1](protocols/event-registry-v1.zh-CN.md) 与
 [Event Ledger Port v1](protocols/event-ledger-port-v1.zh-CN.md)，以及
-[Reducer 与 Projection Runtime v1](protocols/reducer-v1.zh-CN.md)。
+[Reducer 与 Projection Runtime v1](protocols/reducer-v1.zh-CN.md)和
+[GateSession 生命周期事件 v1](protocols/gate-session-events-v1.zh-CN.md)，以及
+[Gate evidence 事件与 ledger replay export v1](protocols/gate-evidence-events-v1.zh-CN.md)，以及
+[Outcome 与 Effect 事件 v1](protocols/outcome-effect-events-v1.zh-CN.md)，以及
+[Durable SQLite hard-kill 崩溃矩阵 v1](protocols/durable-crash-matrix-v1.zh-CN.md)。
+
+F3-01 现在已在现有 canonical ledger port 上交付 opt-in 有序 TraceEvent 协议。sealed
+12-type registry 与有界 batch adapter 覆盖精确 sequence/time、仅含 descriptor 的
+artifact、tool/permission evidence 与 parent/subagent provenance。它不会替换兼容
+Trace aggregate；Codex/App Server ingestion 由 F3-05 独立提供。详见
+[有序 TraceEvent 协议 v1](protocols/trace-event-v1.zh-CN.md)。
+
+F3-02 现在已交付包含七个 sealed 观察点的 opt-in Git Observation 协议：checkout、ref、
+commit、受保护的精确 diff、ancestry、object availability 与 shallow state。兼容 capture
+签名和返回类型保持不变；显式 runtime 保存 runner/algorithm version、保留缺失对象的
+unknown 语义，并将七个 event 作为一个原子 batch 追加。详见
+[Git Observation 协议 v1](protocols/git-observation-v1.zh-CN.md)。
+
+F3-03 现在交付 opt-in、确定性的 Git graph reducer。它可以重建 commit node、parent/ancestry
+relation、显式 missing object、observation provenance 与 validation time、经独立验证的
+source/fix/verification edge，以及 fail-closed PR source anchor。shallow 或不可用 object 会让
+有效 ancestry 保持 `unknown`；confidence 只是可解释 evidence quality，不是 authorization 或
+ranking。默认 transport 尚未选择该 reducer。详见
+[Git Graph Reducer 与 Projection v1](protocols/git-graph-reducer-v1.zh-CN.md)。
+
+F3-04 现在交付 opt-in `tbm.effect-receipt.v1` 协议。外部 effect 具有不可变 request 与
+authorization link、单调 provider attempt、精确 provider-request 绑定、receipt Artifact、
+显式 unknown result 与 reconciliation、有界 retry/dead-letter 行为，以及独立授权的
+compensation child effect。未知远端结果绝不会被静默当作 failure 或直接 retry。Legacy
+completion outbox 与默认 transport 尚未选择本协议。详见
+[外部 Effect Receipt 协议 v1](protocols/effect-receipt-v1.zh-CN.md)。
+
+F3-05 现在交付 opt-in `tbm.codex-ingestion.v1` adapter，用于结构化 Codex Hook 与
+App Server evidence。它映射计划中的全部 12 个 lifecycle fact，绑定可信 Trace/run/lineage
+scope，把精确原始帧保存在受保护 Artifact 中、ledger 只记录 descriptor，并通过有序
+TraceEvent ledger adapter 原子追加。transcript-only 事实源、不匹配的 tool/subagent lifecycle、
+有歧义的 permission、错误 approval digest 与不可信 clock drift 都会 fail closed。它不安装
+Hook，也不改变默认 Agent/MCP/HTTP/SDK 选择。详见
+[Codex 摄取协议 v1](protocols/codex-ingestion-v1.zh-CN.md)。
+
+F3-06 现在交付 opt-in 的受治理 Artifact retention/crypto-erasure 协调器。它保存受保护、
+content-addressed redaction manifest，在 effect 前记录 intent，
+通过不可变 successor CAS 推进当前 managed-index head，为每个 key 绑定一个精确 legal-hold
+authorization 与 KMS request，独立核验精确 receipt Artifact，并原子记录 replay-partial、
+cryptographic-erasure 与 tombstone fact。unknown provider 结果使用非变更 reconciliation，
+绝不 blind retry destruction。旧 Artifact/index/replay row 保持不可变；默认 transport 不选择
+该 API。最后一次 index-head 读取与终态 ledger append 之间仍需 durable publication fence
+关闭跨存储竞态，因此 F3-06 与 F3 exit qualification 仍在进行中。详见
+[Artifact retention 协议 v1](protocols/artifact-retention-v1.zh-CN.md)。
+
+F4-01/F4-02 现在已有进行中的 FailureCase event 协议。Extractor proposal 绑定精确
+TraceEvent chain 与受保护 Artifact descriptor，但始终保持 candidate。只有独立 review、
+精确 FixEvidence 与 passing StructuredRegressionEvidence 才能让确定性 projection 获得新
+Memory 资格。Legacy regression boolean 保持 `legacy_unstructured` 且不具备资格。
+Draft replacement 仍可在替换 evidence payload 时保留内部 producer capability，因此
+F4-01/F4-02 安全验收、F4-07 与默认 cutover 都仍待完成。详见
+[FailureCase 事件协议 v1](protocols/failure-case-events-v1.zh-CN.md)。
+
+F4-03/F4-04 现在已有 opt-in MemoryCatalog event 协议和正式 durable retrieval
+source。精确 review、evidence、stored publication、authorization、actor、partition、
+trusted-verifier 与 activation-event provenance 会通过同一有界 SQLite/PostgreSQL
+ledger 路径重建确定性的 ActivatedMemoryHead。Legacy Lesson 仅通过显式且不具备
+资格的 compatibility projection 暴露。默认 Store/transport cutover 仍属于 F5。
+跨页 rebuild 与 classification-filter fail-closed 验收仍未关闭，因此 F4-03/F4-04
+目前仍不计分。
+详见 [MemoryCatalog 事件协议 v1](protocols/memory-catalog-events-v1.zh-CN.md)。
+
+F4-05 现在已有通过独立验收的 opt-in active-policy event/reducer 实现。它把精确
+retrieval policy 与 trust tier、task mode、ancestry、classification、eval leakage、
+candidate budget、内容寻址 renderer limit 和 mandatory Semantic Gate 声明绑定在
+一起。全局授权的 registration/activation event 通过共用 SQLite/PostgreSQL ledger
+路径重建单个 partition head。默认消费以及尚未完成的 catalog trust-tier/renderer
+enforcement 仍属于后续工作。详见
+[Active policy 事件 v1](protocols/active-policy-events-v1.zh-CN.md)。
+
+F4-06 现在已有通过独立验收的 opt-in retrieval-index event/reducer 实现。其
+manifest 把既有确定性 metadata、lexical、semantic、evidence-graph、Git-graph
+index 绑定到精确 source event watermark、source catalog、memory revision、
+provider/tokenizer version 与不可变 managed-index bundle。经授权的 build/
+completion、独立 activation 与 stale event 通过共用 SQLite/PostgreSQL
+EventLedgerPort 路径重建单个 partition head。只读 selection adapter 会拒绝 stale
+head，并在 discovery 前核对精确 bundle；默认选择仍属于后续工作。详见
+[Retrieval index 事件 v1](protocols/retrieval-index-events-v1.zh-CN.md)。
+
+F4-07 现在已有等待独立验收的 opt-in outcome/harm event reducer。精确 repository
+授权的 evaluation context 把既有 RunOutcome 与 OutcomeAttribution 事件绑定到 usage、
+replay、retrieval、injection、memory 与显式 cohort 证据。projection 保持 observation
+非因果语义，只有 verified causal provenance 才能生成 harm signal，并且只输出
+recommendation、不修改 MemoryCatalog。SQLite/PostgreSQL 复用既有 EventLedgerPort，
+默认选择仍属于 F5。详见
+[Outcome 与 harm 事件 v1](protocols/outcome-harm-events-v1.zh-CN.md)。
 
 Phase 71 强化可信提升与运行时边界：Failure Case 只能来自 `fail`/`error` Trace，verify 前必须具备 reviewer、root cause 与 review timestamp，dirty source 不能激活 Lesson；LLM response 限制为 64 KiB、1,000 nodes、depth 20，reason 最多 2,000 字符；所有未被 LLM 选中的系统候选都会进入 blocked 审计，超过 50 项时确定性保留前 50 项并记录其余项；`short_summary` 与 `full_case_summary` 使用不同 renderer，关键词检索支持 Unicode。
 

@@ -337,6 +337,7 @@ def test_durable_mcp_open_runtime_profiles(
     )
     try:
         assert runtime.dispatcher.capabilities()["storage_mode"] == "sqlite"
+        assert runtime.event_first_commands is True
     finally:
         runtime.close()
 

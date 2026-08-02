@@ -11,6 +11,7 @@ import sqlite3
 from threading import RLock
 from typing import NoReturn, ParamSpec, TypeVar
 
+from .gate_evidence_event_v1 import SemanticGateAttemptEventSink
 from .gate_evaluation_v3 import SemanticGateAttempt
 from .resources import PackagedResourceError, read_packaged_resource
 from .semantic_gate_artifact_v3 import (
@@ -262,6 +263,20 @@ class SQLiteSemanticGateArtifactV3Repository:
         self._lock = RLock()
         self._closed = False
         self._savepoint_number = 0
+        self._attempt_event_sink: SemanticGateAttemptEventSink | None = None
+
+    @_synchronized
+    def bind_attempt_event_sink(
+        self,
+        sink: SemanticGateAttemptEventSink,
+    ) -> None:
+        """Bind the one same-transaction event sink for retained attempts."""
+
+        if not callable(getattr(sink, "append_semantic_attempt", None)):
+            raise TypeError("attempt event sink is invalid")
+        if self._attempt_event_sink is not None and self._attempt_event_sink is not sink:
+            raise ValueError("attempt event sink is already bound")
+        self._attempt_event_sink = sink
 
     @classmethod
     def connect(
@@ -679,6 +694,17 @@ class SQLiteSemanticGateArtifactV3Repository:
                         raise SQLiteSemanticGateArtifactV3PersistenceError(
                             "Semantic Gate artifact read-back does not match"
                         )
+                if loaded_prompt is None:  # pragma: no cover - guarded above
+                    raise AssertionError("stored prompt disappeared after read-back")
+                retained_bundle = StoredSemanticGateAttemptArtifacts(
+                    attempt,
+                    loaded_prompt,
+                    loaded_response,
+                )
+                if self._attempt_event_sink is not None:
+                    self._attempt_event_sink.append_semantic_attempt(
+                        retained_bundle
+                    )
             return SQLiteSemanticGateArtifactV3StoreResult(
                 attempt=attempt_result,
                 prompt_artifact_inserted=prompt_artifact_inserted,

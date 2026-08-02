@@ -1,0 +1,585 @@
+{
+  "compatibility": [
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.counterexample_recorded",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.fix_evidence_recorded",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.regression_evidence_recorded",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.relationship_recorded",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.revision_activated",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.revision_approved",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.revision_obsoleted",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.revision_proposed",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.revision_rejected",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.revision_reviewed",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.revision_superseded",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.memory.revision_suspended",
+      "source_version": 1,
+      "target_version": 1
+    }
+  ],
+  "event_types": [
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.counterexample_recorded",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.counterexample_recorded.v1",
+      "payload_schema_sha256": "sha256:6fc15c217cb638e47efe373af99d79de318aaceb8abd33e318f381e0c1872ab8",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.counterexample_recorded"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.fix_evidence_recorded",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.fix_evidence_recorded.v1",
+      "payload_schema_sha256": "sha256:09e8c34a8c30498d5c9cca59847ccf97cbaf4620efe49d384cff0fc5257d5869",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.fix_evidence_recorded"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.regression_evidence_recorded",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.regression_evidence_recorded.v1",
+      "payload_schema_sha256": "sha256:98753d694addcc4baf4e7819d0f42296b814bc2a30cde73ca38fc2645c214ddf",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.regression_evidence_recorded"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.relationship_recorded",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.relationship_recorded.v1",
+      "payload_schema_sha256": "sha256:2ccc9febd4a2c5df296a3955e265208780e06ddbef4e797ffd995ea565bc0acd",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.relationship_recorded"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.revision_activated",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.revision_activated.v1",
+      "payload_schema_sha256": "sha256:65405d86ac281e570d505e010f9d17c0eb755cda1e75a4879bc4352712728a03",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.revision_activated"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.revision_approved",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.revision_approved.v1",
+      "payload_schema_sha256": "sha256:85b0033a5f5c06b913f4c4869e2fba4e04e2bf738cf744789905217424a1ac0a",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.revision_approved"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.revision_obsoleted",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.revision_obsoleted.v1",
+      "payload_schema_sha256": "sha256:d884173138bcf3827b8a67435d8a6780f640bf05e6d376b1021bc24e38ba8ef3",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.revision_obsoleted"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.revision_proposed",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.revision_proposed.v1",
+      "payload_schema_sha256": "sha256:2c1cad7e185b1d84e47587ad5834f4cc01f3832dcaec751ab3d4e8f40c9d9463",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.revision_proposed"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.revision_rejected",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.revision_rejected.v1",
+      "payload_schema_sha256": "sha256:7cc0f292ec2bcbf9b7ea705638165fdca7fbb1348e9b348259d7dd42d18f4a83",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.revision_rejected"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.revision_reviewed",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.revision_reviewed.v1",
+      "payload_schema_sha256": "sha256:2cfa379a562f9cdc7ba369f46a51e858393a635d232eeeebecbde20e2868afb7",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.revision_reviewed"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.revision_superseded",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.revision_superseded.v1",
+      "payload_schema_sha256": "sha256:799f587f9f535560afa58e33e080288f581600c849af0a14d9b49dcae855c9c5",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.revision_superseded"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.memory.revision_suspended",
+      "event_version": 1,
+      "payload_schema": "tbm.memory.revision_suspended.v1",
+      "payload_schema_sha256": "sha256:6068cdc6960e041fd30b77caa0af119c4746e0f0d62062f4baa6c134848d5b81",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "record_json": {
+            "maxLength": 262144,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.memory.revision_suspended"
+          },
+          "revision_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "revision_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "registry_sha256": "sha256:3b268b9b4046d04761e0000bda384707856f6d9c4ef07c0d1a5720a2991c3d26",
+  "registry_version": "tbm.event-registry.v1",
+  "upcasters": []
+}

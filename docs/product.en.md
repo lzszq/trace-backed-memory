@@ -81,8 +81,8 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Authorization contract preparation | Storage-neutral canonical repository, exact alias, principal/client, role-binding, and linked-decision v3 contracts plus opt-in isolated SQLite/PostgreSQL immutable authorities; the explicit durable HTTP profile enforces them through server-owned contexts, while compatibility adapters do not |
 | Structured evidence preparation | Content-addressed FixEvidence and regression evidence bind the exact case, source Trace, source/fix/verification commits, artifacts, independent reviewers/verifiers, and attestation provenance; strict MemoryRevision preflight verifies their cross-record linkage, while active v2 records do not use them |
 | Immutable revision publication | Content-derived proposals and separate approval/activation events bind exact artifact, evidence, authorization, actors, scope, and lineage; isolated SQLite/PostgreSQL authorities persist canonical provenance, validate attestations through a caller boundary, and CAS-lock the durable target head; an authorized ActivatedRevision source revalidates the current head, publication provenance, structured evidence, and encrypted content through SQLite/PostgreSQL Artifact authorities for future v3 retrieval; active-v2 projection and retrieval integration remain outstanding |
-| Replayable retrieval preparation | Content-addressed policy and optional authenticated preparation kernel authorize first, load verified activated revisions, filter classification/applicability/eval leakage/Git ancestry, deterministically fuse scores, and emit paired RetrievalSnapshot/System Gate evidence with final head/policy rechecks; an opt-in immutable five-view managed index bundle supplies content-addressed metadata/lexical/semantic/evidence/Git discovery through exact SQLite/PostgreSQL scope-head CAS; a durable composition service creates the authorized GateSession, stores and verifies the exact evidence pair, and CAS-publishes `PREPARED`; production sharding/workers and default compatibility cutover remain outstanding |
-| Replayable gate preparation | Content-derived System Gate evaluations and Semantic Gate attempts bind deterministic rule outcomes and provider/model provenance while enforcing that a model can only narrow; exact prompt/response bindings verify role digests, SQLite/PostgreSQL authorities atomically retain public/internal bytes, and one shared service authenticates the provider registration, owns trusted timing and retry parents, and requires exact read-back; an opt-in session composition now advances `PREPARED -> AWAITING_DECISION -> DECIDED`, records the complete attempt chain, and recovers retained success without repeating the provider call; an opt-in finalization composition now rechecks authorization/head/policy, deterministically renders the final allowed set, retains the exact UsageDecision plus complete replay bundle, and CAS-publishes `FINALIZED`; active policy emission remains outstanding |
+| Replayable retrieval preparation | Content-addressed policy and optional authenticated preparation kernel authorize first, load verified activated revisions, filter classification/applicability/eval leakage/Git ancestry, deterministically fuse scores, and emit paired RetrievalSnapshot/System Gate evidence with final head/policy rechecks; an opt-in immutable five-view managed index bundle supplies content-addressed metadata/lexical/semantic/evidence/Git discovery through exact SQLite/PostgreSQL scope-head CAS, while an opt-in event reducer binds those five versions to a source watermark and read-only active/stale selector; a durable composition service creates the authorized GateSession, stores and verifies the exact evidence pair, and CAS-publishes `PREPARED`; production sharding/workers and default compatibility cutover remain outstanding |
+| Replayable gate preparation | Content-derived System Gate evaluations and Semantic Gate attempts bind deterministic rule outcomes and provider/model provenance while enforcing that a model can only narrow; exact prompt/response bindings verify role digests, SQLite/PostgreSQL authorities atomically retain public/internal bytes, and one shared service authenticates the provider registration, owns trusted timing and retry parents, and requires exact read-back; an opt-in session composition now advances `PREPARED -> AWAITING_DECISION -> DECIDED`, records the complete attempt chain, and recovers retained success without repeating the provider call; an opt-in finalization composition now rechecks authorization/head/policy, deterministically renders the final allowed set, retains the exact UsageDecision plus complete replay bundle, and CAS-publishes `FINALIZED`; opt-in active-policy emission is available, while default consumption remains outstanding |
 | Durable execution and completion preparation | An authenticated execution composition verifies the retained injection before `FINALIZED` → `EXECUTING`, supports exact-version lease resume and abandonment, authenticates a registered outcome evaluator, and composes opt-in SQLite or isolated PostgreSQL authorities that atomically bind one content-addressed RunOutcome to `COMPLETED` plus one immutable completion event and append-only leased retry/dead-letter delivery chain; explicit durable transports expose this lifecycle, and `tbmd local` operates bounded SQLite recovery/outbox pages, while shared-service workers remain outstanding |
 | Distribution resources | [`resources/manifest.json`](../resources/manifest.json) drives the strict byte-identical packaged Schema/OpenAPI/SQL/migration/taxonomy/example allowlist, runtime declaration, package data, metadata, and generated index |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
@@ -103,7 +103,7 @@ All caller-owned JSON is checked for duplicate object keys before conversion to 
 5. The harness executes and evaluates the task.
 6. `complete_memory_run()` or `complete_memory_runs()` atomically writes the Trace and decision outcome. Snapshot operators can submit measured results with `tbm complete` or `tbm complete-batch`.
 
-Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Applications that do not need the lower-level Store lifecycle can use `LocalAgentMemory`, which also owns Trace registration, repository synchronization, stable errors, and callback recovery IDs. The optional default `tbm-mcp` command exposes only this runtime lifecycle over bounded local STDIO, fixes provenance to a configured checkout root, and captures complete Git ancestry before retrieval. SQLite and PostgreSQL synchronize durable phases; pending requests in that compatibility profile remain process-local. The `tbm.gate-session.v3` contract defines the target lifecycle, revision, lease, and expiry semantics, with opt-in side-by-side SQLite and isolated PostgreSQL repositories for immutable revisions. The authorization-v3 contract defines the pre-retrieval policy boundary; opt-in isolated SQLite and PostgreSQL authorities verify exact policy/request/decision triples and durably record immutable decisions. `AuthenticatedRetrievalService` provides the shared ordering kernel that matches trusted identity records, persists and reloads the decision, rechecks registry rotation and environment binding, and only then calls retrieval. `AuthenticatedGateSessionService` then durably creates and reads back a scoped session before preparation, suppresses duplicate retrieval, requires trusted retrieval/System-Gate evidence, and CAS-publishes `PREPARED` with explicit compensation. The opt-in SQLite/PostgreSQL Gate evidence authorities atomically store and reload each exact content-addressed pair, while the shared verifier binds it to the authorized session and identity scope. `DurableRetrievalPreparationService` composes these opt-in boundaries under one authorization scope: it creates the session first, prepares retrieval without a second authorization decision, stores and verifies the pair, and then publishes `PREPARED`. `AuthenticatedSemanticGateSessionService` then verifies that durable evidence and the complete immutable attempt chain, publishes `AWAITING_DECISION` before provider work, and publishes `DECIDED` only after exact attempt/artifact read-back; failed attempts remain explicitly retryable and a retained success is recoverable without another provider call. Separate authorities retain ordered recovery; same-database repositories may share a caller-owned outer transaction. `GateSessionRecoveryWorker` performs bounded due scans, expires only legally session-expired prepared/awaiting heads, and reports graph-blocked or concurrent state for explicit recovery. The default agent/MCP profile does not use these kernels; the opt-in local MCP `--auth-*` profile uses the authenticated retrieval kernel and SQLite authorization authority, while explicit durable HTTP and trusted-local MCP profiles select the complete durable facade. The opt-in `DurableFinalizationService` now rechecks authorization/head/policy, retains the complete replay bundle, and CAS-publishes `FINALIZED` with SQLite/PostgreSQL caller-transaction parity. `DurableExecutionService` then verifies that exact retained injection, authorizes and CAS-publishes `EXECUTING`, supports explicit resume/abandonment, authenticates the outcome evaluator, and composes atomic outcome/completion-outbox publication. Peer-authenticated shared-service transport, protected-content encryption, durable transition-event linkage, default adapter cutover, CLI durable selection, and shared-service MCP remain outstanding. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
+Synchronous callers may use `run_memory_execution()` to combine steps 2 through 6 while still supplying their own LLM and harness callbacks. Applications that do not need the lower-level Store lifecycle can use `LocalAgentMemory`, which also owns Trace registration, repository synchronization, stable errors, and callback recovery IDs. The optional default `tbm-mcp` command exposes only this runtime lifecycle over bounded local STDIO, fixes provenance to a configured checkout root, and captures complete Git ancestry before retrieval. SQLite and PostgreSQL synchronize durable phases; pending requests in that compatibility profile remain process-local. The `tbm.gate-session.v3` contract defines the target lifecycle, revision, lease, and expiry semantics, with opt-in side-by-side SQLite and isolated PostgreSQL repositories for immutable revisions. The authorization-v3 contract defines the pre-retrieval policy boundary; opt-in isolated SQLite and PostgreSQL authorities verify exact policy/request/decision triples and durably record immutable decisions. `AuthenticatedRetrievalService` provides the shared ordering kernel that matches trusted identity records, persists and reloads the decision, rechecks registry rotation and environment binding, and only then calls retrieval. `AuthenticatedGateSessionService` then durably creates and reads back a scoped session before preparation, suppresses duplicate retrieval, requires trusted retrieval/System-Gate evidence, and CAS-publishes `PREPARED` with explicit compensation. The opt-in SQLite/PostgreSQL Gate evidence authorities atomically store and reload each exact content-addressed pair, while the shared verifier binds it to the authorized session and identity scope. `DurableRetrievalPreparationService` composes these opt-in boundaries under one authorization scope: it creates the session first, prepares retrieval without a second authorization decision, stores and verifies the pair, and then publishes `PREPARED`. `AuthenticatedSemanticGateSessionService` then verifies that durable evidence and the complete immutable attempt chain, publishes `AWAITING_DECISION` before provider work, and publishes `DECIDED` only after exact attempt/artifact read-back; failed attempts remain explicitly retryable and a retained success is recoverable without another provider call. Separate authorities retain ordered recovery; same-database repositories may share a caller-owned outer transaction. `GateSessionRecoveryWorker` performs bounded due scans, expires only legally session-expired prepared/awaiting heads, and reports graph-blocked or concurrent state for explicit recovery. The default agent/MCP profile does not use these kernels; the opt-in local MCP `--auth-*` profile uses the authenticated retrieval kernel and SQLite authorization authority, while explicit durable HTTP and trusted-local MCP profiles select the complete durable facade. The opt-in `DurableFinalizationService` now rechecks authorization/head/policy, retains the complete replay bundle, and CAS-publishes `FINALIZED` with SQLite/PostgreSQL caller-transaction parity. `DurableExecutionService` then verifies that exact retained injection, authorizes and CAS-publishes `EXECUTING`, supports explicit resume/abandonment, authenticates the outcome evaluator, and composes atomic outcome/completion-outbox publication. Explicit durable SQLite/PostgreSQL runtimes now append each GateSession revision to the canonical event ledger and synchronously rebuild and compare the existing current-state projection in the same transaction. Peer-authenticated shared-service transport, protected-content encryption, durable transition-authorization-event linkage, default adapter cutover, CLI durable selection, and shared-service MCP remain outstanding. Advanced callers retain the lower-level methods when they need pauses, manual retries, or separately owned lifecycle policy.
 
 The default local loopback HTTP adapter, synchronous/asynchronous Python
 clients, and Node.js TypeScript SDK expose the active version-2 lifecycle
@@ -243,8 +243,25 @@ a ledger, replaceable projection, compatibility migration, or bundle
 coordinator and rejects unregistered authorities. F1 now adds opt-in SQLite and
 isolated PostgreSQL event-ledger backends with exact Artifact descriptors,
 atomic append/replay, integrity/catalog verification, backup/rollback, and
-cross-backend conformance. No lifecycle composition, cutover, or active
-transport path selects them yet. F1 now also
+cross-backend conformance. F2 has now started with the GateSession event
+adapter: explicit durable SQLite/PostgreSQL composition selects the ledger for
+GateSession revisions and keeps the existing revision rows as synchronously
+verified projections. The finalized explicit durable path additionally retains
+descriptor-only Gate evidence events and can rebuild the existing
+`tbm.replay-export.v3` from those events plus Artifact bytes with the same
+digest as the replay authority. The failed/retry Gate evidence crash matrix,
+and the compatibility lifecycle have not cut over. F2-05 additionally delivers
+ledger-ready RunOutcome/OutcomeAttribution events plus six deterministic
+Outcome, EffectQueue, delivery-history, dead-letter, and compensation reducers.
+They reproduce the existing completion-outbox history without claiming
+exactly-once delivery or provider receipts. F2-06 selects this path in
+`tbmd local`; F2-07 selects it for standalone SQLite durable HTTP/MCP and
+checks raw HTTP, MCP, Python sync/async, and TypeScript against one event and
+projection golden. F2-08 hard-kills all 11 SQLite command commit points both
+before commit and after commit/before response, proving exact all-table rollback
+or exact committed event/projection replay after reopen. Standalone PostgreSQL
+Outcome/Effect command and crash-matrix parity, F2-03's failed-to-succeeded
+Semantic-attempt integration, and the F2 exit gate are still open. F1 also
 delivers the opt-in `tbm.reducer.v1` runtime: versioned descriptors and sealed
 registries, bounded canonical state, double-execution determinism checks,
 typed-event/upcaster consumption, checkpoint/resume, poison evidence, shadow
@@ -252,11 +269,122 @@ comparison, CAS activation, append-only rollback, SQLite/PostgreSQL checkpoint
 parity, and explicit metadata-only `tbmd ledger` / `tbmd projection` operator
 commands. A single golden projection digest is checked on Python 3.11-3.13 on
 Windows and Linux. These commands operate on an explicitly selected event
-ledger; they do not select it for the current Gate or Memory lifecycle. See
+ledger. The explicit durable runtime additionally selects the domain
+`gate-session-current` reducer, but no Memory or remaining lifecycle view does.
+See
 [Canonical Event v1](protocols/event-v1.md),
 [Event Type Registry v1](protocols/event-registry-v1.md), and
 [Event Ledger Port v1](protocols/event-ledger-port-v1.md), and
-[Reducer and Projection Runtime v1](protocols/reducer-v1.md).
+[Reducer and Projection Runtime v1](protocols/reducer-v1.md), and
+[GateSession lifecycle events v1](protocols/gate-session-events-v1.md), and
+[Gate evidence events and ledger replay export v1](protocols/gate-evidence-events-v1.md), and
+[Outcome and Effect events v1](protocols/outcome-effect-events-v1.md), and
+[Durable SQLite hard-kill crash matrix v1](protocols/durable-crash-matrix-v1.md).
+
+F3-01 now delivers an opt-in ordered TraceEvent protocol over the existing
+canonical ledger port. Its sealed 12-type registry and bounded batch adapter
+cover exact sequence/time, descriptor-only artifacts, tool and permission
+evidence, and parent/subagent provenance. It does not replace the compatibility
+Trace aggregate; Codex/App Server ingestion is supplied separately by F3-05.
+See
+[Ordered TraceEvent protocol v1](protocols/trace-event-v1.md).
+
+F3-02 now delivers an opt-in Git observation protocol with seven sealed points:
+checkout, ref, commit, protected exact diff, ancestry, object availability, and
+shallow state. Compatibility capture signatures and return types remain
+unchanged; the explicit runtime records runner/algorithm versions, preserves
+missing-object uncertainty, and atomically appends all seven events. See
+[Git observation protocol v1](protocols/git-observation-v1.md).
+
+F3-03 now delivers an opt-in deterministic Git graph reducer. It rebuilds
+commit nodes, parent/ancestry relations, explicit missing objects, observation
+provenance and validation time, independently verified source/fix/verification
+edges, and fail-closed PR source anchors. Shallow or unavailable objects keep
+effective ancestry `unknown`; confidence is explanatory evidence quality, not
+authorization or ranking. The reducer is not selected by default transports.
+See [Git graph reducer and projection v1](protocols/git-graph-reducer-v1.md).
+
+F3-04 now delivers the opt-in `tbm.effect-receipt.v1` protocol. External
+effects have immutable request and authorization links, monotonic provider
+attempts, exact provider-request bindings, receipt Artifacts, explicit unknown
+results and reconciliation, bounded retry/dead-letter behavior, and distinct
+authorized compensation child effects. Unknown remote results are never
+silently treated as failure or retried. This protocol is not selected by the
+legacy completion outbox or default transports. See
+[External Effect Receipt protocol v1](protocols/effect-receipt-v1.md).
+
+F3-05 now delivers the opt-in `tbm.codex-ingestion.v1` adapter for structured
+Codex Hook and App Server evidence. It maps all 12 planned lifecycle facts,
+binds trusted Trace/run/lineage scope, retains exact raw frames as protected
+Artifacts, records only descriptors, and atomically appends through the ordered
+TraceEvent ledger adapter. Transcript-only fact sources, unmatched tool or
+subagent lifecycles, ambiguous permissions, wrong approval digests, and
+untrusted clock drift fail closed. It does not install hooks or change default
+Agent/MCP/HTTP/SDK selection. See
+[Codex ingestion protocol v1](protocols/codex-ingestion-v1.md).
+
+F3-06 now delivers the opt-in governed Artifact retention/crypto-erasure
+coordinator. It stores a protected
+content-addressed redaction manifest, records intent before effects, advances
+the current managed-index head with an immutable successor CAS, binds one exact
+legal-hold authorization and KMS request per key, independently verifies exact
+receipt Artifacts, and atomically records replay-partial, cryptographic-erasure,
+and tombstone facts. Unknown provider outcomes use non-mutating reconciliation,
+never blind destruction retry. Old Artifact/index/replay rows remain immutable;
+default transports do not select this API. A durable publication fence is
+still required to close the cross-store race between the final index-head read
+and terminal ledger append, so F3-06 and the F3 exit qualification remain in
+progress. See
+[Artifact retention protocol v1](protocols/artifact-retention-v1.md).
+
+F4-01/F4-02 now have an in-progress FailureCase event protocol. Extractor
+proposals bind an exact TraceEvent chain and protected Artifact descriptors but
+remain candidates. Only independent review plus exact FixEvidence and passing
+StructuredRegressionEvidence can make the deterministic projection eligible
+for new Memory. Legacy regression booleans remain `legacy_unstructured` and
+ineligible. Draft replacement can still preserve the internal producer
+capability while changing evidence payloads, so F4-01/F4-02 security acceptance,
+F4-07 and default cutover remain outstanding. See
+[FailureCase events protocol v1](protocols/failure-case-events-v1.md).
+
+F4-03/F4-04 now have an opt-in MemoryCatalog event protocol and formal durable
+retrieval source. Exact review, evidence, stored publication, authorization,
+actor, partition, trusted-verifier, and activation-event provenance rebuild a
+deterministic ActivatedMemoryHead through the same bounded SQLite/PostgreSQL
+ledger path. Legacy Lesson data is exposed only as an explicitly ineligible
+compatibility projection. Default Store/transport cutover is still F5 work.
+Cross-page rebuild and classification-filter fail-closed acceptance remain
+open, so F4-03/F4-04 are not yet credited.
+See [MemoryCatalog events protocol v1](protocols/memory-catalog-events-v1.md).
+
+F4-05 now has an accepted opt-in active-policy event/reducer implementation.
+It binds the exact retrieval policy with trust tier,
+task mode, ancestry, classification, eval leakage, candidate budgets,
+content-addressed renderer limits, and a mandatory Semantic Gate declaration.
+Globally authorized registration/activation events rebuild one partition head
+through the shared SQLite/PostgreSQL ledger path. Default consumption and the
+unfinished catalog trust-tier/renderer enforcement remain later work. See
+[Active policy events v1](protocols/active-policy-events-v1.md).
+
+F4-06 now has an independently accepted opt-in retrieval-index event/reducer
+implementation. Its manifest binds the existing deterministic
+metadata, lexical, semantic, evidence-graph, and Git-graph indexes to the exact
+source event watermark, source catalog, memory revisions, provider/tokenizer
+versions, and immutable managed-index bundle. Authorized build/completion,
+independent activation, and stale events rebuild one partition head over the
+shared SQLite/PostgreSQL EventLedgerPort path. A read-only selection adapter
+rejects stale heads and verifies the exact bundle before discovery; default
+selection remains later work. See
+[Retrieval index events v1](protocols/retrieval-index-events-v1.md).
+
+F4-07 now has an opt-in outcome/harm event reducer awaiting independent
+acceptance. Exact repository-authorized evaluation contexts bind retained
+RunOutcome and OutcomeAttribution events to usage, replay, retrieval, injection,
+memory, and explicit cohort evidence. The projection keeps observations
+non-causal, requires verified causal provenance for harm signals, and emits
+recommendations without mutating MemoryCatalog. SQLite and PostgreSQL share the
+existing EventLedgerPort, and default selection remains F5 work. See
+[Outcome and harm events v1](protocols/outcome-harm-events-v1.md).
 
 The implemented hardening includes:
 
@@ -340,8 +468,8 @@ The project remains Alpha. Its API is systematic and tested, but long-term backw
   atomically retains the complete component bundle, and links it to
   `FINALIZED`; the durable facade authorizes session-bound replay reads, and
   explicit durable HTTP/MCP plus Python/TypeScript clients expose them only
-  under startup content policy. Active-v2 usage-log projection, protected
-  retention/encryption, and shared-service transport remain outstanding.
+  under startup content policy. Active-v2 usage-log projection, product-selected
+  protected retention/encryption, and shared-service transport remain outstanding.
 - The opt-in SQLite and PostgreSQL audit ledgers persist immutable parent-linked AuditEvents
   and atomically pairs RecoveryAction evidence with its matching event. It is
   not an authorization boundary or an atomic Store/GateSession recovery

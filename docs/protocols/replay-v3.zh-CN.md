@@ -50,6 +50,11 @@ constructor）必须证明所引用 GateSession 已 finalized，且 revision 是
 component 及 injection artifact ID。`legacy_partial` 是唯一允许的不完整状态，且
 必须精确列出值为 null 的 component；它只是明确的迁移事实，不允许声称可精确重放。
 
+runtime crypto-erasure 不会把 `complete` manifest 改写为 `legacy_partial`。opt-in
+Artifact retention 协调器会另行追加 content-addressed `ReplayPartialMarker` sidecar，
+绑定精确 erased Artifact ID 与新增的不可用 component。选择该 sidecar 的 consumer 必须
+拒绝 exact replay；既有 replay repository row 保持不可变。`legacy_partial` 仍仅供迁移。
+
 manifest 对除 `manifest_sha256` 外的所有字段计算规范 self-hash。injection artifact
 ID 必须从 injection component 摘要派生。规范外部契约为
 `schemas/decision_replay_manifest_v3.schema.json`，打包示例为

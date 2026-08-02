@@ -1,0 +1,4424 @@
+{
+  "$comment": "Generated from the sealed effect receipt registry. Runtime transition, authorization, provider-request, receipt, and artifact checks remain authoritative.",
+  "$id": "https://trace-backed-memory.invalid/schemas/effect_receipt_payload_registry_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.authorized"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "authorized"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.authorized.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.compensated"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "compensated"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.compensated.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.compensation_requested"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "compensation_requested"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.compensation-requested.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.dead_lettered"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "dead_lettered"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.dead-lettered.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.failed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "failed"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.failed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.provider_request_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "provider_request_recorded"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.provider-request-recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.receipt_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "receipt_recorded"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.receipt-recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.requested"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "requested"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.requested.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.result_unknown"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "result_unknown"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.result-unknown.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.retry_scheduled"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "retry_scheduled"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.retry-scheduled.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.started"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "started"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.started.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.succeeded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "attempt_number": {
+              "oneOf": [
+                {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "canonical_request_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract": {
+              "additionalProperties": false,
+              "properties": {
+                "authorization_event_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "compensation_supported": {
+                  "type": "boolean"
+                },
+                "effect_id": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                "effect_type": {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                "idempotency_key_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "input_artifact_sha256": {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "max_attempts": {
+                  "maximum": 16,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "requested_by_event_id": {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "effect_id",
+                "effect_type",
+                "idempotency_key_sha256",
+                "requested_by_event_id",
+                "input_artifact_id",
+                "input_artifact_sha256",
+                "authorization_event_id",
+                "compensation_supported",
+                "max_attempts"
+              ],
+              "type": "object"
+            },
+            "effect_id": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "failure_code": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "failure_phase": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "pre_send",
+                    "provider_rejected",
+                    "reconciled_absent"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "occurred_at": {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "parent_effect_id": {
+              "oneOf": [
+                {
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_id": {
+              "oneOf": [
+                {
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parent_success_event_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "point": {
+              "const": "succeeded"
+            },
+            "protocol_version": {
+              "const": "tbm.effect-receipt.v1"
+            },
+            "provider": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "adapter_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "adapter_version": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+                      "type": "string"
+                    },
+                    "provider_id": {
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                      "type": "string"
+                    },
+                    "registration_sha256": {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "provider_id",
+                    "registration_sha256",
+                    "adapter_id",
+                    "adapter_version"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[\\x21-\\x7e]{1,256}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_artifact_id": {
+              "oneOf": [
+                {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reconciliation_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "result_sha256": {
+              "oneOf": [
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retryable": {
+              "oneOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sequence": {
+              "maximum": 96,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "unknown_reason": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "acknowledgement_uncertain",
+                    "process_interrupted",
+                    "response_lost",
+                    "timeout"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "protocol_version",
+            "point",
+            "effect_id",
+            "sequence",
+            "occurred_at",
+            "contract",
+            "attempt_number",
+            "attempt_id",
+            "provider",
+            "provider_request_id",
+            "canonical_request_sha256",
+            "receipt_artifact_id",
+            "receipt_sha256",
+            "result_sha256",
+            "unknown_reason",
+            "failure_phase",
+            "failure_code",
+            "retryable",
+            "retry_at",
+            "reconciliation_artifact_id",
+            "reconciliation_sha256",
+            "parent_effect_id",
+            "parent_success_event_id",
+            "parent_success_event_sha256",
+            "parent_receipt_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.succeeded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "Trace-backed Memory external effect receipt payloads v1"
+}

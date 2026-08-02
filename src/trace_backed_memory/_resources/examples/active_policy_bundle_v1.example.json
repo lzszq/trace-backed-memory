@@ -1,0 +1,96 @@
+{
+  "candidate_budget": {
+    "contract_version": "tbm.candidate-budget.v1",
+    "discovery_max_candidates": 1000,
+    "injection_max_memories": 20,
+    "payload_budget_bytes": 8192,
+    "semantic_gate_max_candidates": 50,
+    "system_gate_max_candidates": 100
+  },
+  "contract_version": "tbm.active-policy-bundle.v1",
+  "policy_bundle_id": "active_policy_sha256_a197ca6c2a62400e365b842cb5a0b4eff45eb65d8daee77ea9a60bd46acd8139",
+  "renderer_policy": {
+    "allowed_modes": [
+      "none",
+      "short_summary",
+      "full_case_summary"
+    ],
+    "contract_version": "tbm.renderer-policy.v1",
+    "full_item_max_chars": 2000,
+    "max_memories": 20,
+    "media_type": "application/json",
+    "output_format": "canonical-json-data-envelope",
+    "renderer_id": "tbm.structured-memory-json",
+    "renderer_policy_id": "renderer_policy_sha256_54de2ece63ec0bafe481eb1c819a121e84fe3737d90c58f82b6c30412def25d2",
+    "renderer_version": "v1",
+    "snippet_max_chars": 12000,
+    "snippet_max_utf8_bytes": 48000,
+    "summary_item_max_chars": 500
+  },
+  "retrieval_policy": {
+    "allowed_classifications": [
+      "public",
+      "internal"
+    ],
+    "ancestry_bypass_reason": null,
+    "ancestry_mode": "required",
+    "block_eval_leaking": true,
+    "contract_version": "tbm.retrieval-policy.v3",
+    "minimum_fused_score": 0.25,
+    "mode_memory_rules": [
+      {
+        "allowed_memory_types": [
+          "semantic",
+          "policy"
+        ],
+        "task_mode": "planning"
+      },
+      {
+        "allowed_memory_types": [
+          "procedural",
+          "semantic",
+          "policy"
+        ],
+        "task_mode": "repair"
+      },
+      {
+        "allowed_memory_types": [
+          "procedural",
+          "episodic",
+          "policy"
+        ],
+        "task_mode": "debug"
+      },
+      {
+        "allowed_memory_types": [
+          "procedural",
+          "semantic"
+        ],
+        "task_mode": "eval"
+      },
+      {
+        "allowed_memory_types": [
+          "procedural",
+          "policy"
+        ],
+        "task_mode": "production"
+      }
+    ],
+    "payload_budget_bytes": 8192,
+    "policy_id": "retrieval_policy_sha256_5e6f1e59576ddee4380bbfe2c8aeb178b13a5ebe45ff99b60d365c769effded0",
+    "policy_version": "retrieval_policy_001",
+    "stage_weights": {
+      "evidence_graph": 0.3,
+      "lexical": 0.2,
+      "metadata": 0.1,
+      "semantic": 0.4
+    }
+  },
+  "semantic_gate_required": true,
+  "trust_tier_policy": {
+    "allow_legacy_unstructured": false,
+    "contract_version": "tbm.trust-tier-policy.v1",
+    "minimum_trust_tier": "regression_verified",
+    "require_active_revision": true
+  }
+}

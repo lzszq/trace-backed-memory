@@ -1,0 +1,58 @@
+{
+  "$comment": "Generated from the sealed context-event registry. Outcome source events retain the outcome/effect v1 registry contract.",
+  "$id": "https://trace-backed-memory.dev/schemas/outcome_harm_event_payload_registry_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.outcome.evaluation_context_bound"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "record_json": {
+              "maxLength": 524288,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.outcome.evaluation_context_bound"
+            },
+            "subject_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "subject_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.outcome.evaluation_context_bound.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "Trace-backed Memory outcome harm event payloads v1"
+}

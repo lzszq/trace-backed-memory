@@ -1847,8 +1847,147 @@ SQLite/PostgreSQL retain exact checkpoints and projection-head history in their
 event-ledger schemas. Explicit `tbmd ledger` and `tbmd projection` commands
 verify, inspect, rebuild, compare, activate, and roll back an operator-selected
 SQLite ledger. One committed golden digest is checked on Python 3.11-3.13 on
-Windows and Linux. GateSession/Memory/index/outbox reducers, migration,
-lifecycle integration, and event-first cutover remain outstanding.
+Windows and Linux. F2-01/F2-02 now add the GateSession lifecycle event adapter
+and exact current-state reducer to explicit durable SQLite/PostgreSQL runtime
+transactions. F2-04 now also rebuilds the existing `tbm.replay-export.v3` from
+finalized Gate evidence events plus referenced Artifact bytes; SQLite and
+PostgreSQL tests require the canonical JSON and export digest to equal the
+current replay-authority path. F2-03 remains uncredited until its failed/retry
+and rollback acceptance matrix is closed. F2-05 now supplies ledger-ready
+RunOutcome/OutcomeAttribution adapters and six deterministic projections for
+Outcome, EffectQueue, delivery history, dead-letter, and explicit compensation;
+exact completion-outbox histories rebuild without promoting at-least-once
+delivery to exactly-once. Memory/index/audit/metrics reducers, migration,
+and compatibility cutover remain outstanding.
+F2-06 now selects the event-first command coordinator and Outcome/Effect
+projector in `tbmd local`: validation, append, synchronous critical rebuild,
+response construction, and commit share one SQLite transaction, with explicit
+rollback coverage. F2-07 now selects the same coordinator for standalone
+SQLite durable HTTP/MCP and proves raw HTTP, MCP, Python sync/async, and
+TypeScript against one committed event-sequence and projection-digest golden
+without changing the public wire contract. F2-08 now hard-kills each of the 11
+SQLite command commit points before commit and after commit/before response;
+reopen checks prove exact all-table rollback or exact committed event/projection
+replay and exclude lost acknowledged events, duplicate logical transitions,
+inexact recovery, and unknown partial state. Standalone PostgreSQL command,
+Outcome/Effect, and crash-matrix parity remains outstanding, as does F2-03's
+failed-to-succeeded Semantic-attempt integration.
+F3-01 now delivers the opt-in ordered TraceEvent protocol: a sealed 12-type
+registry binds contiguous sequence, exact timestamp, descriptor-only Artifact
+references, tool correlation, explicit permission results, and parent/subagent
+lineage, while a bounded adapter appends at most 100 events atomically through
+the existing ledger port. It does not change the compatibility Trace aggregate
+or itself implement the separately delivered F3-05 Codex/App Server adapter.
+
+F3-02 now delivers the opt-in Git observation protocol: a sealed seven-type
+registry covers checkout, ref, commit, protected exact diff, ancestry, object
+availability, and shallow state. The original metadata and ancestry capture
+signatures, command path, and return types remain compatible; explicit detailed
+capture persists runner/algorithm versions, maps unavailable objects to
+`unknown`, and appends all seven observations as one atomic ledger batch. Git
+graph reduction is delivered separately by F3-03; Codex/App Server hook
+selection is delivered separately by F3-05.
+
+F3-03 now delivers the opt-in `tbm.git-graph.v1` deterministic reducer and
+immutable projection. It covers the six fixed outputs: commit graph, explicit
+relation confidence, latest observation/validation evidence, missing objects,
+exact source→fix→verification relationships, and sorted fail-closed PR source
+anchors. Full/present same-capture evidence is required for known ancestry;
+unknown is never converted to false. The reducer adds no database schema and is
+not selected by default transports.
+
+F3-04 now delivers the opt-in `tbm.effect-receipt.v1` external-effect
+lifecycle. A sealed twelve-type registry and deterministic reducer cover the
+immutable request, access-bound authorization, monotonic attempts, trusted
+provider registration and request IDs, exact receipt Artifacts, explicit
+unknown/reconciliation states, bounded retry/dead-letter, and a separately
+authorized compensation child effect. Provider calls remain outside the
+database transaction, and neither the completion outbox nor default
+transports select this protocol.
+
+F3-05 now delivers the opt-in `tbm.codex-ingestion.v1` adapter. Structured
+Codex Hook and App Server frames map to all twelve ordered TraceEvent facts;
+trusted binding fixes Trace/run/lineage and source session, while exact raw
+bytes stay in protected Artifacts and only descriptors enter the ledger.
+Transcript-only sources, wrong scope, ambiguous or mismatched tool/permission
+transitions, invalid source time, and incomplete lifecycle history fail closed.
+Permission decisions bind exact approval-frame bytes. The adapter does not
+install hooks or change default Agent/MCP/HTTP/SDK selection; valid captured
+Artifacts that outlive a later rejected batch remain non-fact orphan evidence
+under retention policy.
+
+F3-06 now delivers the opt-in governed Artifact retention and crypto-erasure
+coordinator. A protected content-addressed redaction manifest binds exact
+targets, retention/legal-hold state, key-reference closure, immutable
+managed-index predecessor/successor, and complete-replay impacts. Intent is
+durable before index or KMS effects; recovery handles an already-published
+index successor and reconciles an ambiguous provider request without blind
+destruction retry. Exact independently verified receipts precede the atomic
+replay-partial, cryptographically-erased, and tombstone event batch. Old
+Artifact/index/replay rows remain immutable, default transports do not select
+the coordinator, and `legacy_partial` remains migration-only. A cross-store
+race between the final managed-index head read and terminal ledger append still
+needs a durable publication fence; F3-06 and the F3 exit qualification remain
+in progress until that race is closed.
+
+F4-01 and F4-02 have an in-progress `tbm.failure-case-event.v1` protocol.
+Extractor proposals bind an exact ordered TraceEvent chain, protected proposal
+Artifact descriptors, and extractor/configuration identity while remaining
+unverified candidates. Independent review plus exact FixEvidence and passing
+StructuredRegressionEvidence are required before the deterministic projection
+becomes eligible for new Memory. Failed regression evidence stays unverified
+and may be followed by a passing attempt. Legacy `regression_passed=true` is
+always projected as `legacy_unstructured` and is never eligible for new Memory.
+The compatibility FailureCase model and default runtime profiles are unchanged.
+Security acceptance remains open because draft replacement can preserve the
+internal producer capability while changing evidence payloads; F4-01/F4-02
+therefore remain outstanding.
+
+F4-03/F4-04 now have an opt-in `tbm.memory-catalog-event.v1` implementation.
+The sealed lifecycle registry and deterministic reducer preserve exact review,
+fix/regression evidence, stored approval/activation, authorization, actor,
+partition, trusted-verifier, and activation-event provenance. A shared bounded
+EventLedgerPort append/rebuild path has focused SQLite and PostgreSQL coverage,
+and `EventActivatedMemoryHeadSource` verifies the event-rebuilt head around the
+existing exact publication/evidence/Artifact source. Legacy Lessons have only
+an explicitly ineligible compatibility projection. F4-07 and F5
+default Store/transport cutover remain outstanding; the open F4-01/F4-02
+producer is not accepted as this catalog's upstream source.
+Cross-page global rebuild currently repeats its boundary event, and rebuild
+access that excludes `internal` can silently create an empty partial snapshot;
+F4-03/F4-04 remain uncredited until these acceptance blockers close.
+
+F4-05 now has an independently accepted opt-in
+`tbm.active-policy-event.v1` implementation. Its content-addressed bundle covers all eight policy
+dimensions, while exact globally authorized registration/activation events
+produce one deterministic partition head. The shared EventLedgerPort
+append/rebuild path has focused SQLite and PostgreSQL coverage, embeds the
+existing retrieval policy rather than reproducing it, and exposes an explicit
+policy-provider surface. Default selection and downstream trust-tier,
+renderer, and Semantic Gate consumption are not claimed.
+
+F4-06 now has an independently accepted opt-in
+`tbm.retrieval-index-event.v1` implementation. It reuses the existing deterministic five-index bundle
+and binds all metadata, lexical, semantic, evidence-graph, and Git-graph
+versions to one content-addressed manifest with an exact source event
+watermark. Repository-authorized request/completion, independently authorized
+activation, and stale events rebuild a partition head over the same bounded
+SQLite/PostgreSQL EventLedgerPort path. The reducer configuration binds trusted
+attestation verifiers and embedding provider/model pairs. A read-only adapter
+verifies the selected immutable bundle and rechecks the head; direct publish,
+stale selection, incomplete classification views, predecessor rollback, and
+watermark rollback fail closed. No new SQL authority or default selection is
+claimed.
+
+F4-07 now has an opt-in `tbm.outcome-harm-event.v1` implementation awaiting
+independent acceptance. It consumes the existing RunOutcome and
+OutcomeAttribution events and adds one exact, `memory:verify`-authorized
+evaluation-context event. The deterministic projection separates evaluated
+from unevaluated runs, keeps observed association distinct from verified
+causality, requires explicit experiment cohorts, derives thresholded harmful-
+memory signals, and emits recommendation-only suspension records. SQLite and
+PostgreSQL share the existing EventLedgerPort; no new SQL authority or default
+cutover is claimed.
 
 - **F0 — Architecture freeze (delivered):** ADR-0006, canonical event contract
   and registry, ledger ports, and a guard against new independent authorities.
@@ -1856,15 +1995,18 @@ lifecycle integration, and event-first cutover remain outstanding.
   SQLite/PostgreSQL event ledgers, Artifact references, versioned reducer
   runtime, projection operator CLI, and six-cell cross-platform determinism
   verification are delivered; no active product lifecycle selects them.
-- **F2 — Durable lifecycle event-first cutover:** GateSession, retrieval/Gates,
+- **F2 — Durable lifecycle event-first cutover (in progress):** GateSession, retrieval/Gates,
   replay, outcome/effect projections, `tbmd`, HTTP, MCP, and SDKs use the same
   event-first composition and crash matrix.
-- **F3 — Trace, Git, and effect evidence:** ordered Trace/Git observations,
+- **F3 — Trace, Git, and effect evidence (in progress):** ordered Trace/Git observations,
   Git-graph projection, external-effect receipts, Codex hooks, and governed
-  retention/crypto-erasure.
-- **F4 — Governed memory projections:** failure extraction, structured evidence,
-  MemoryRevision publication, ActivatedRevision retrieval, policy/index, and
-  outcome projections are reducer-native.
+  retention/crypto-erasure; F3-06 still needs a durable index publication fence.
+- **F4 — Governed memory projections (in progress):** failure extraction and
+  structured evidence have a reducer-native candidate protocol; opt-in
+  MemoryRevision lifecycle, ActivatedMemoryHead, active-policy, and retrieval-
+  index and outcome/harm projections are implemented; producer acceptance,
+  catalog acceptance, outcome/harm independent acceptance, and default cutover
+  remain.
 - **F5 — Migration and cutover:** import compatibility and durable-v3 sources,
   verify and shadow-compare rebuilt state, select the ledger by default, freeze
   old writes, and retain a read-only rollback window.
@@ -1872,8 +2014,23 @@ lifecycle integration, and event-first cutover remain outstanding.
   PostgreSQL tenant isolation, Review Console, GitHub PR Check, observability,
   backup/DR, security governance, and stable-release qualification.
 
-The first fifteen PRs are fixed in dependency order: F0-01 through F0-05,
-F1-01 through F1-06, GateSession event adapter/reducer, replay exporter reducer,
-and outcome/effect reducers. Until those foundations land, new standalone
+The first fifteen delivery packages are fixed in dependency order: F0-01
+through F0-05, F1-01 through F1-06, GateSession event adapter/reducer, replay
+exporter reducer, and outcome/effect reducers. The GateSession lifecycle unit
+and the ledger replay exporter are delivered; the Gate evidence reducer unit
+remains incomplete under its negative-test acceptance matrix. The outcome/effect
+reducer unit and the `tbmd local` F2-06 runtime cutover are delivered;
+the standalone SQLite durable transport/SDK F2-07 cutover and the SQLite
+hard-kill F2-08 crash matrix are delivered, while F2-03, PostgreSQL parity, and
+the F2 exit gate still must land before stage cutover. The ordered TraceEvent
+F3-01 through F3-05 units are delivered; F3-06 and the F3 exit qualification
+remain incomplete. F4-01/F4-02 have an in-progress reducer-native FailureCase
+protocol whose draft-producer acceptance remains open. F4-03/F4-04 have an
+opt-in event-rebuilt MemoryCatalog and formal durable retrieval source; F4-05
+has an accepted opt-in active-policy reducer; F4-06 has an independently
+accepted opt-in retrieval-index reducer; F4-07
+has an opt-in reducer awaiting independent acceptance; default cutover remains
+open. Until the remaining foundations
+land, new standalone
 authorities, protocol families, and SQL components are frozen except for
 documented security/corruption fixes or ledger, reducer, and migration blockers.

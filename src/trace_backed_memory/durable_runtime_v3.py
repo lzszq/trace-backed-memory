@@ -38,6 +38,12 @@ from .durable_semantic_gate_v3 import (
     AuthenticatedSemanticGateSessionService,
 )
 from .gate_service_v3 import AuthenticatedGateSessionService
+from .gate_evidence_event_v1 import GateEvidenceEventLedgerProjector
+from .gate_session_event_v1 import (
+    GateSessionEventLedgerProjector,
+    RegistryGateSessionLedgerAccessResolver,
+)
+from .gate_session_v3 import GateSession
 from .gate_worker_v3 import (
     GateSessionRecoveryResult,
     GateSessionRecoveryWorker,
@@ -48,11 +54,14 @@ from .postgres_completion_outbox_v3 import (
     PostgresCompletionOutboxV3Repository,
 )
 from .postgres_gate_evidence_v3 import PostgresGateEvidenceV3Repository
+from .postgres_event_ledger_v1 import PostgresEventLedgerV1
 from .postgres_replay_v3 import PostgresReplayV3Repository
 from .postgres_semantic_gate_artifact_v3 import (
     PostgresSemanticGateArtifactV3Repository,
 )
 from .retrieval_policy_v3 import RetrievalPolicyBundle
+from .ledger_port_v1 import LedgerAccessContext
+from .outcome_effect_event_v1 import OutcomeEffectEventLedgerProjector
 from .retrieval_preparation_v3 import (
     ActivatedRevisionRetrievalSource,
     AuthenticatedRetrievalPreparationService,
@@ -69,6 +78,7 @@ from .sqlite_completion_outbox_v3 import (
     SQLiteCompletionOutboxV3Repository,
 )
 from .sqlite_gate_evidence_v3 import SQLiteGateEvidenceV3Repository
+from .sqlite_event_ledger_v1 import SQLiteEventLedgerV1
 from .sqlite_replay_v3 import SQLiteReplayV3Repository
 from .sqlite_semantic_gate_artifact_v3 import (
     SQLiteSemanticGateArtifactV3Repository,
@@ -82,9 +92,7 @@ from .sqlite_bundle_v3 import (
 
 
 DURABLE_RUNTIME_CONTRACT_VERSION = "tbm.durable-runtime.v3"
-DURABLE_SQLITE_RUNTIME_SCHEMA_RESOURCES = (
-    SQLITE_V3_BUNDLE_RESOURCE,
-)
+DURABLE_SQLITE_RUNTIME_SCHEMA_RESOURCES = (SQLITE_V3_BUNDLE_RESOURCE,)
 _POSTGRES_SCHEMA_CATALOG = (
     ("trace_backed_memory_v3_authorization", "tbm.authorization.v3"),
     ("trace_backed_memory_v3_gate_session", "tbm.gate-session.v3"),
@@ -102,6 +110,10 @@ _POSTGRES_SCHEMA_CATALOG = (
     (
         "trace_backed_memory_v3_completion_outbox",
         "tbm.completion-outbox.v3",
+    ),
+    (
+        "trace_backed_memory_v3_event_ledger",
+        "tbm.event-ledger-port.v1",
     ),
 )
 
@@ -127,17 +139,19 @@ class DurableRuntimeDependencies:
     evaluator_authenticator: OutcomeEvaluatorAuthenticator
     repository_id_resolver: RepositoryIdResolver
     clock: Callable[[], str] = utc_timestamp
-    authorization_request_id_factory: Callable[[], str] = (
-        lambda: f"authorization_request_{secrets.token_hex(16)}"
+    authorization_request_id_factory: Callable[[], str] = lambda: (
+        f"authorization_request_{secrets.token_hex(16)}"
     )
-    session_id_factory: Callable[[], str] = (
-        lambda: f"gate_session_{secrets.token_hex(16)}"
+    session_id_factory: Callable[[], str] = lambda: (
+        f"gate_session_{secrets.token_hex(16)}"
     )
     retrieval_evaluator_id: str = "system_gate"
     retrieval_evaluator_version: str = "v1"
     completion_consumer: (
-        Callable[[CompletionOutboxEvent], CompletionOutboxConsumerReceipt]
-        | None
+        Callable[[CompletionOutboxEvent], CompletionOutboxConsumerReceipt] | None
+    ) = None
+    event_access_context_resolver: (
+        Callable[[GateSession], LedgerAccessContext] | None
     ) = None
 
     def __post_init__(self) -> None:
@@ -160,21 +174,19 @@ class DurableRuntimeDependencies:
         ):
             raise TypeError("revision_source is invalid")
         if type(self.semantic_provider) is not TrustedSemanticProvider:
+            raise TypeError("semantic_provider must be TrustedSemanticProvider")
+        if type(self.semantic_configuration) is not SemanticGateServiceConfiguration:
             raise TypeError(
-                "semantic_provider must be TrustedSemanticProvider"
-            )
-        if (
-            type(self.semantic_configuration)
-            is not SemanticGateServiceConfiguration
-        ):
-            raise TypeError(
-                "semantic_configuration must be "
-                "SemanticGateServiceConfiguration"
+                "semantic_configuration must be SemanticGateServiceConfiguration"
             )
         if self.completion_consumer is not None and not callable(
             self.completion_consumer
         ):
             raise TypeError("completion_consumer must be callable")
+        if self.event_access_context_resolver is not None and not callable(
+            self.event_access_context_resolver
+        ):
+            raise TypeError("event_access_context_resolver must be callable")
         for value in (
             self.retrieval_evaluator_id,
             self.retrieval_evaluator_version,
@@ -185,9 +197,7 @@ class DurableRuntimeDependencies:
                 or value.strip() != value
                 or len(value) > 128
             ):
-                raise ValueError(
-                    "retrieval evaluator identifiers must be bounded"
-                )
+                raise ValueError("retrieval evaluator identifiers must be bounded")
 
 
 class _RuntimeLock(Protocol):
@@ -219,6 +229,121 @@ class _RuntimeOperationGuard:
         self._lock.release()
 
 
+class _SQLiteEventFirstCommandGuard:
+    """Serialize one local command and commit only after its response is built."""
+
+    def __init__(
+        self,
+        connection: sqlite3.Connection,
+        lock: _RuntimeLock,
+        require_open: Callable[[], None],
+        invalidate_connection: Callable[[], None],
+    ) -> None:
+        self._connection = connection
+        self._lock = lock
+        self._require_open = require_open
+        self._invalidate_connection = invalidate_connection
+
+    def _rollback_or_invalidate(
+        self,
+        primary_error: BaseException,
+        *,
+        context: str,
+    ) -> None:
+        for _attempt in range(2):
+            try:
+                self._connection.rollback()
+                return
+            except BaseException as cleanup_error:
+                primary_error.add_note(
+                    f"failed to roll back {context}: {cleanup_error}"
+                )
+        try:
+            self._invalidate_connection()
+        except BaseException as invalidate_error:
+            primary_error.add_note(
+                "failed to invalidate unusable event-first SQLite "
+                f"connection: {invalidate_error}"
+            )
+
+    def __enter__(self) -> None:
+        self._lock.acquire()
+        try:
+            self._require_open()
+            if self._connection.in_transaction:
+                _runtime_failed(
+                    "TBM_DURABLE_RUNTIME_SQLITE_COMMAND_TRANSACTION_ACTIVE",
+                    "event-first command requires an idle SQLite connection",
+                )
+            self._connection.execute("BEGIN IMMEDIATE")
+        except DurableRuntimeV3Error:
+            self._lock.release()
+            raise
+        except BaseException as error:
+            try:
+                active = self._connection.in_transaction
+            except BaseException:
+                active = True
+            if active:
+                self._rollback_or_invalidate(
+                    error,
+                    context="a failed event-first command begin",
+                )
+            self._lock.release()
+            if isinstance(error, Exception):
+                raise DurableRuntimeV3Error(
+                    "TBM_DURABLE_RUNTIME_SQLITE_COMMAND_BEGIN_FAILED",
+                    "event-first command transaction could not be started",
+                ) from error
+            raise
+
+    def __exit__(
+        self,
+        error_type: object,
+        error: object,
+        traceback: object,
+    ) -> None:
+        try:
+            if error_type is None:
+                try:
+                    self._connection.commit()
+                except BaseException as commit_error:
+                    self._rollback_or_invalidate(
+                        commit_error,
+                        context="an event-first command after commit failure",
+                    )
+                    if isinstance(commit_error, Exception):
+                        raise DurableRuntimeV3Error(
+                            "TBM_DURABLE_RUNTIME_SQLITE_COMMAND_COMMIT_FAILED",
+                            "event-first command could not be committed",
+                        ) from commit_error
+                    raise
+            else:
+                try:
+                    self._connection.rollback()
+                except BaseException as rollback_error:
+                    if isinstance(error, BaseException):
+                        error.add_note(
+                            "initial event-first command rollback failed: "
+                            f"{rollback_error}"
+                        )
+                        self._rollback_or_invalidate(
+                            error,
+                            context="an event-first command",
+                        )
+                    else:  # pragma: no cover - context protocol supplies it
+                        self._rollback_or_invalidate(
+                            rollback_error,
+                            context="an event-first command",
+                        )
+                        raise DurableRuntimeV3Error(
+                            "TBM_DURABLE_RUNTIME_SQLITE_COMMAND_ROLLBACK_FAILED",
+                            "event-first command could not be rolled back",
+                        ) from rollback_error
+        finally:
+            self._lock.release()
+
+
 class DurableSQLiteRuntime:
     """One coherent SQLite authority graph for the durable Agent facade.
 
@@ -234,6 +359,7 @@ class DurableSQLiteRuntime:
         owns_connection: bool = False,
         expose_injection_content: bool = False,
         expose_replay_content: bool = False,
+        event_first_commands: bool = False,
     ) -> None:
         if not isinstance(connection, sqlite3.Connection):
             raise TypeError("connection must be sqlite3.Connection")
@@ -241,11 +367,15 @@ class DurableSQLiteRuntime:
             raise TypeError("dependencies must be DurableRuntimeDependencies")
         if type(owns_connection) is not bool:
             raise TypeError("owns_connection must be a boolean")
+        if type(event_first_commands) is not bool:
+            raise TypeError("event_first_commands must be a boolean")
         self._connection = connection
         self._owns_connection = owns_connection
         self._dependencies = dependencies
         self._operation_lock = RLock()
         self._closed = False
+        self._connection_failed = False
+        self.event_first_commands = event_first_commands
         self._operation_guard = _RuntimeOperationGuard(
             self._operation_lock,
             self._require_open,
@@ -259,22 +389,16 @@ class DurableSQLiteRuntime:
                     "TBM_DURABLE_RUNTIME_SQLITE_FOREIGN_KEYS",
                     "durable SQLite runtime requires foreign keys",
                 )
-            if connection.execute("PRAGMA recursive_triggers").fetchone() != (
-                1,
-            ):
+            if connection.execute("PRAGMA recursive_triggers").fetchone() != (1,):
                 _runtime_failed(
                     "TBM_DURABLE_RUNTIME_SQLITE_RECURSIVE_TRIGGERS",
                     "durable SQLite runtime requires recursive triggers",
                 )
             verify_sqlite_v3_bundle(connection)
-            self.authorization_repository = SQLiteAuthorizationV3Repository(
+            self.authorization_repository = SQLiteAuthorizationV3Repository(connection)
+            self.evidence_repository = SQLiteGateEvidenceV3Repository(connection)
+            self.semantic_repository = SQLiteSemanticGateArtifactV3Repository(
                 connection
-            )
-            self.evidence_repository = SQLiteGateEvidenceV3Repository(
-                connection
-            )
-            self.semantic_repository = (
-                SQLiteSemanticGateArtifactV3Repository(connection)
             )
             self.replay_repository = SQLiteReplayV3Repository(connection)
             self.outbox_repository = SQLiteCompletionOutboxV3Repository(
@@ -282,14 +406,65 @@ class DurableSQLiteRuntime:
                 clock=dependencies.clock,
             )
             self.sessions = self.outbox_repository.gate_sessions
+            access_resolver = (
+                dependencies.event_access_context_resolver
+                or RegistryGateSessionLedgerAccessResolver(
+                    dependencies.registry_provider
+                )
+            )
+            self.outcome_effect_event_projector = None
+            if event_first_commands:
+                self.outcome_effect_event_projector = (
+                    OutcomeEffectEventLedgerProjector(
+                        ledger_factory=lambda access: SQLiteEventLedgerV1(
+                            connection,
+                            access,
+                        ),
+                        access_resolver=access_resolver,
+                        session_reader=self.sessions,
+                        outcome_reader=self.outbox_repository.outcomes,
+                        delivery_reader=self.outbox_repository,
+                    )
+                )
+                self.outbox_repository.outcomes.bind_completion_event_sink(
+                    self.outcome_effect_event_projector
+                )
+                self.outbox_repository.bind_delivery_event_sink(
+                    self.outcome_effect_event_projector
+                )
+            self.gate_evidence_event_projector = (
+                GateEvidenceEventLedgerProjector(
+                    ledger_factory=lambda access: SQLiteEventLedgerV1(
+                        connection,
+                        access,
+                    ),
+                    access_resolver=access_resolver,
+                    session_reader=self.sessions,
+                    evidence_reader=self.evidence_repository,
+                    semantic_reader=self.semantic_repository,
+                    artifact_repository=self.replay_repository,
+                )
+            )
+            self.semantic_repository.bind_attempt_event_sink(
+                self.gate_evidence_event_projector
+            )
+            self.gate_session_event_projector = GateSessionEventLedgerProjector(
+                ledger_factory=lambda access: SQLiteEventLedgerV1(
+                    connection,
+                access,
+                ),
+                access_resolver=access_resolver,
+                transition_companion_sink=(
+                    self.gate_evidence_event_projector
+                ),
+            )
+            self.sessions.bind_revision_event_sink(self.gate_session_event_projector)
 
             self.authorization_service = AuthenticatedRetrievalService(
                 registry_provider=dependencies.registry_provider,
                 decision_writer=self.authorization_repository,
                 clock=dependencies.clock,
-                request_id_factory=(
-                    dependencies.authorization_request_id_factory
-                ),
+                request_id_factory=(dependencies.authorization_request_id_factory),
             )
             retrieval = AuthenticatedRetrievalPreparationService(
                 authorization_service=self.authorization_service,
@@ -361,6 +536,16 @@ class DurableSQLiteRuntime:
             self.agent = AuthenticatedDurableAgentMemory(
                 service_bundle=self.service_bundle
             )
+            command_guard = (
+                _SQLiteEventFirstCommandGuard(
+                    connection,
+                    self._operation_lock,
+                    self._require_open,
+                    self._invalidate_connection,
+                )
+                if event_first_commands
+                else self._operation_guard
+            )
             self.dispatcher = DurableAgentProtocolDispatcher(
                 DurableAgentWireConfiguration(
                     "sqlite",
@@ -368,15 +553,11 @@ class DurableSQLiteRuntime:
                     expose_replay_content=expose_replay_content,
                 ),
                 self.agent,
-                repository_id_resolver=(
-                    dependencies.repository_id_resolver
-                ),
+                repository_id_resolver=(dependencies.repository_id_resolver),
                 evaluator_resolver=dependencies.evaluator_authenticator,
-                operation_lock=self._operation_guard,
+                operation_lock=command_guard,
             )
-            self.gate_recovery_worker = GateSessionRecoveryWorker(
-                self.sessions
-            )
+            self.gate_recovery_worker = GateSessionRecoveryWorker(self.sessions)
             self.outbox_worker = (
                 None
                 if dependencies.completion_consumer is None
@@ -410,6 +591,7 @@ class DurableSQLiteRuntime:
         initialize: bool = False,
         expose_injection_content: bool = False,
         expose_replay_content: bool = False,
+        event_first_commands: bool = False,
         **kwargs: object,
     ) -> DurableSQLiteRuntime:
         if type(initialize) is not bool:
@@ -442,6 +624,7 @@ class DurableSQLiteRuntime:
                 owns_connection=True,
                 expose_injection_content=expose_injection_content,
                 expose_replay_content=expose_replay_content,
+                event_first_commands=event_first_commands,
             )
         except Exception:
             connection.close()
@@ -485,6 +668,15 @@ class DurableSQLiteRuntime:
                 "TBM_DURABLE_RUNTIME_CLOSED",
                 "durable SQLite runtime is closed",
             )
+        if self._connection_failed:
+            raise DurableRuntimeV3Error(
+                "TBM_DURABLE_RUNTIME_SQLITE_CONNECTION_UNUSABLE",
+                "durable SQLite runtime connection is unusable",
+            )
+
+    def _invalidate_connection(self) -> None:
+        self._connection_failed = True
+        self._connection.close()
 
     def close(self) -> None:
         with self._operation_lock:
@@ -556,28 +748,55 @@ class DurablePostgresRuntime:
         )
         try:
             _verify_postgres_schema_catalog(connection)
-            self.authorization_repository = (
-                PostgresAuthorizationV3Repository(connection)
-            )
-            self.evidence_repository = PostgresGateEvidenceV3Repository(
+            self.authorization_repository = PostgresAuthorizationV3Repository(
                 connection
             )
-            self.semantic_repository = (
-                PostgresSemanticGateArtifactV3Repository(connection)
+            self.evidence_repository = PostgresGateEvidenceV3Repository(connection)
+            self.semantic_repository = PostgresSemanticGateArtifactV3Repository(
+                connection
             )
             self.replay_repository = PostgresReplayV3Repository(connection)
-            self.outbox_repository = (
-                PostgresCompletionOutboxV3Repository(connection)
-            )
+            self.outbox_repository = PostgresCompletionOutboxV3Repository(connection)
             self.sessions = self.outbox_repository.gate_sessions
+            access_resolver = (
+                dependencies.event_access_context_resolver
+                or RegistryGateSessionLedgerAccessResolver(
+                    dependencies.registry_provider
+                )
+            )
+            self.gate_evidence_event_projector = (
+                GateEvidenceEventLedgerProjector(
+                    ledger_factory=lambda access: PostgresEventLedgerV1(
+                        connection,
+                        access,
+                    ),
+                    access_resolver=access_resolver,
+                    session_reader=self.sessions,
+                    evidence_reader=self.evidence_repository,
+                    semantic_reader=self.semantic_repository,
+                    artifact_repository=self.replay_repository,
+                )
+            )
+            self.semantic_repository.bind_attempt_event_sink(
+                self.gate_evidence_event_projector
+            )
+            self.gate_session_event_projector = GateSessionEventLedgerProjector(
+                ledger_factory=lambda access: PostgresEventLedgerV1(
+                    connection,
+                    access,
+                ),
+                access_resolver=access_resolver,
+                transition_companion_sink=(
+                    self.gate_evidence_event_projector
+                ),
+            )
+            self.sessions.bind_revision_event_sink(self.gate_session_event_projector)
 
             self.authorization_service = AuthenticatedRetrievalService(
                 registry_provider=dependencies.registry_provider,
                 decision_writer=self.authorization_repository,
                 clock=dependencies.clock,
-                request_id_factory=(
-                    dependencies.authorization_request_id_factory
-                ),
+                request_id_factory=(dependencies.authorization_request_id_factory),
             )
             retrieval = AuthenticatedRetrievalPreparationService(
                 authorization_service=self.authorization_service,
@@ -656,15 +875,11 @@ class DurablePostgresRuntime:
                     expose_replay_content=expose_replay_content,
                 ),
                 self.agent,
-                repository_id_resolver=(
-                    dependencies.repository_id_resolver
-                ),
+                repository_id_resolver=(dependencies.repository_id_resolver),
                 evaluator_resolver=dependencies.evaluator_authenticator,
                 operation_lock=self._operation_guard,
             )
-            self.gate_recovery_worker = GateSessionRecoveryWorker(
-                self.sessions
-            )
+            self.gate_recovery_worker = GateSessionRecoveryWorker(self.sessions)
             self.outbox_worker = (
                 None
                 if dependencies.completion_consumer is None
@@ -805,9 +1020,7 @@ class DurableRuntimeFactory:
 
     def __post_init__(self) -> None:
         if type(self.dependencies) is not DurableRuntimeDependencies:
-            raise TypeError(
-                "dependencies must be DurableRuntimeDependencies"
-            )
+            raise TypeError("dependencies must be DurableRuntimeDependencies")
 
     def open_sqlite(
         self,
@@ -816,6 +1029,7 @@ class DurableRuntimeFactory:
         initialize: bool = False,
         expose_injection_content: bool = False,
         expose_replay_content: bool = False,
+        event_first_commands: bool = False,
         **kwargs: object,
     ) -> DurableSQLiteRuntime:
         return DurableSQLiteRuntime.connect(
@@ -824,6 +1038,7 @@ class DurableRuntimeFactory:
             initialize=initialize,
             expose_injection_content=expose_injection_content,
             expose_replay_content=expose_replay_content,
+            event_first_commands=event_first_commands,
             **kwargs,
         )
 
@@ -833,12 +1048,14 @@ class DurableRuntimeFactory:
         *,
         expose_injection_content: bool = False,
         expose_replay_content: bool = False,
+        event_first_commands: bool = False,
     ) -> DurableSQLiteRuntime:
         return DurableSQLiteRuntime(
             connection,
             self.dependencies,
             expose_injection_content=expose_injection_content,
             expose_replay_content=expose_replay_content,
+            event_first_commands=event_first_commands,
         )
 
     def open_postgres(
@@ -879,10 +1096,7 @@ def _runtime_failed(code: str, message: str) -> NoReturn:
 def _verify_postgres_schema_catalog(connection: object) -> None:
     info = getattr(connection, "info", None)
     initial_status = getattr(info, "transaction_status", None)
-    was_idle = (
-        initial_status == 0
-        or getattr(initial_status, "name", None) == "IDLE"
-    )
+    was_idle = initial_status == 0 or getattr(initial_status, "name", None) == "IDLE"
     try:
         with connection.cursor() as cursor:
             for schema, contract in _POSTGRES_SCHEMA_CATALOG:
@@ -910,8 +1124,7 @@ def _verify_postgres_schema_catalog(connection: object) -> None:
             None,
         )
         if was_idle and not (
-            current_status == 0
-            or getattr(current_status, "name", None) == "IDLE"
+            current_status == 0 or getattr(current_status, "name", None) == "IDLE"
         ):
             try:
                 connection.rollback()

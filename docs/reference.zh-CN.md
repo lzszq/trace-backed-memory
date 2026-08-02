@@ -1054,6 +1054,105 @@ request = store.prepare_memory(
 
 单次捕获最多提交 1,000 个 anchor，并在去重与启动 Git 命令前检查。默认子进程使用 30 秒超时、二进制管道和 UTF-8 replacement 解码，stdout/stderr 各最多保留 64 KiB。证据仅存在于 request，不写入快照或 PostgreSQL。
 
+### Git Observation event capture
+
+上述兼容函数保持不变。opt-in F3 runtime 可使用 `capture_trace_metadata_detailed()` 与
+`capture_commit_ancestry_detailed()`，同时取得相同兼容值和 typed observation draft。前者
+要求可信 `diff_artifact_writer`；后者先检查精确 object availability，再产生 ancestry
+status。`capture_and_append_git_observations()` 组合两次 capture，并将 checkout/ref/
+commit/diff/shallow/object-availability/ancestry event 作为一个 ledger batch 提交。每个
+event 都保存 runner、algorithm 与 Git version。missing 或 indeterminate object 只产生
+`unknown`，绝不伪造 false ancestry。详见
+[Git Observation 协议 v1](protocols/git-observation-v1.zh-CN.md)。
+
+### Git graph replay
+
+`reduce_git_graph_events(events, access=..., fix_evidence=...,
+regression_evidence=..., pr_case_provenance=...)` 会确定性重建 opt-in
+`tbm.git-graph.v1` projection。它校验完整 typed stream 与可信 read partition，保留最新精确
+observation cursor，生成 commit/parent/ancestry/missing-object view，并且只连接 exact immutable
+FixEvidence/StructuredRegressionEvidence chain。PR anchor 仍是排序后的 source
+`FailureCase.commit_sha`；fix 与 verification commit 保持独立 relationship provenance。缺失
+relation、shallow state 与不可用 object 都会让 anchor 显式保持 `unknown`。
+
+只有每个 relation 都具有 `locally_observed` confidence 时，
+`pr_anchor_commit_ancestry_evidence(projection)` 才会将 anchor 转换为兼容
+`CommitAncestryEvidence`；否则抛出稳定的 fail-closed error。两个 API 都不会授予权限或改变默认
+runtime。详见[Git Graph Reducer 与 Projection v1](protocols/git-graph-reducer-v1.zh-CN.md)。
+
+### Codex Hook 与 App Server 摄取
+
+`capture_codex_hook_event()`、`capture_codex_app_server_notification()` 与
+`capture_codex_app_server_permission()` 解析一个有界结构化 source frame，并返回
+`CodexSourceRecord`；对刻意忽略的稳定 message 返回 `None`。调用方提供可信 receive time 与
+Artifact writer，writer 返回的 descriptor 必须绑定精确受保护输入 bytes。Permission capture
+还要求已完成的 `TracePermissionResult`，其 `request_sha256` 必须是精确 frame digest。
+
+`CodexIngestionBinding` 在 source JSON 之外固定 Trace、run、lineage、Hook session 与 App
+Server thread。`build_codex_ingestion_trace_drafts()` 校验完整 prior event history，以及
+session、tool、permission、subagent 与 source-Artifact lifecycle。
+`append_codex_ingestion_batch()` 把得到的 1 至 100 个 event batch 委托给 access-bound
+TraceEvent ledger port；`codex_ingestion_projection()` 重建有界 lifecycle view。
+
+这些函数保持 opt-in，只接受由 capture 函数创建的可信进程内 record；它们不是不可信 wire
+或 authorization API，默认 transport 均不会调用。详见
+[Codex 摄取协议 v1](protocols/codex-ingestion-v1.zh-CN.md)。
+
+### 外部 effect receipt replay
+
+`EffectContract` 描述一个不可变外部 effect intent，包括 content-hashed idempotency
+key、input Artifact digest、可信 authorization event、compensation capability 与有界
+attempt budget。`TrustedEffectProvider` 保存服务端选择的 provider registration。
+
+使用 typed `build_effect_*_draft()` factory 和 `build_effect_receipt_batch()` 创建
+request、authorization、attempt、provider-request、receipt、unknown-result、
+retry/dead-letter 与 compensation event。`append_effect_receipt_batch()` 使用
+access-bound `EventLedgerPort`，重新读取有界 stream 历史、原子追加并核验精确 ledger
+receipt。`reduce_effect_receipt_events()` 与 `effect_projection()` 重建 immutable
+lifecycle，并对 contract drift、unknown-result 盲重试、provider-request 重绑定、receipt
+mismatch 或无效 compensation fail closed。Package root 保留旧的
+`build_effect_requested_draft()` compatibility export；F3-04 request factory 在 root
+以 `build_effect_receipt_requested_draft()` 暴露。
+
+默认 transport 尚未选择这个 opt-in API。详见
+[外部 Effect Receipt 协议 v1](protocols/effect-receipt-v1.zh-CN.md)。
+
+### 受治理 Artifact retention 与擦除
+
+`RetentionErasureCoordinator.plan(request)` 把精确加密 target、key-reference closure、当前
+retention/legal-hold 状态、managed-index head 与 complete-replay impact 解析为不可变
+`RedactionManifest`。`submit(manifest)` 保存受保护 manifest、记录 intent、发布不可变 index
+successor、取得 hold-epoch destruction authorization，并且只调用一次可信 KMS。
+`recover(operation_id)` 从 ledger fact 续接；authorization 已记录后，只使用 provider 的
+非变更 reconciliation operation。
+
+`RetentionProjection` 在不含内容 bytes 的前提下公开有界 lifecycle。
+`purge_managed_index_revisions()` 构造 content-addressed successor，且不修改旧 bundle。
+`replay_partial_marker_for_manifest()` 与 `require_replay_not_erased()` 提供 runtime-erasure
+sidecar 边界，绝不重新解释仅供迁移的 `legacy_partial`。精确 receipt 与 manifest bytes 留在
+受保护 Artifact 中；event 只包含 descriptor 与 digest。
+
+该存储中立 API 要求可信 adapter object，默认 Agent/MCP/HTTP/SDK profile 不选择它。详见
+[Artifact retention 协议 v1](protocols/artifact-retention-v1.zh-CN.md)。
+
+### FailureCase event projection
+
+`build_failure_case_extractor_proposal(trace_events, ...)` 校验一条精确有序
+TraceEvent stream，并生成绑定 event hash、Trace/run identity、source Artifact ID、
+proposal Artifact descriptor 与 extractor configuration 的 content-addressed candidate。
+`build_failure_case_proposal_draft`、`build_failure_case_review_draft`、
+`build_failure_case_fix_evidence_draft` 与
+`build_failure_case_regression_evidence_draft` 构造 native event sequence。
+
+`reduce_failure_case_events(events)` 返回不可变 `FailureCaseProjection`。只有独立
+accepted review、精确 FixEvidence 与匹配且 passing 的 StructuredRegressionEvidence
+齐备后，`eligible_for_new_memory` 才为 true。
+`build_legacy_failure_case_import_draft()` 把 legacy regression boolean 映射为
+`legacy_unstructured`，并始终保持不具备资格。Sealed registry 与生成的 dispatch Schema
+分别通过 `build_failure_case_event_registry()` 与
+`dumps_failure_case_event_payload_dispatch_schema()` 提供。详见
+[FailureCase 事件协议 v1](protocols/failure-case-events-v1.zh-CN.md)。
+
 ## 端点感知 PR 报告
 
 PR 改变 trace-backed 元数据值时，使用不可变 `PRChangeSet`。每项为 `(field_name, old_value, new_value)`，只支持 `prompt_version`、`prompt_family`、`tool`、`tool_schema_version`、`model` 和 `eval_suite`。`new_value` 必须与变更后 `MemoryContext` 精确相等，包括 `None`。
@@ -1464,6 +1563,9 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
+|   |-- gate_session_event_v1.py
+|   |-- gate_evidence_event_v1.py
+|   |-- trace_event_v1.py
 |   |-- gate_evaluation_v3.py
 |   |-- lifecycle.py
 |   |-- locking.py
@@ -1508,6 +1610,8 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py
     |-- test_gate_session_v3.py
+    |-- test_gate_session_event_v1.py
+    |-- test_trace_event_v1.py
     |-- test_gate_evaluation_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py

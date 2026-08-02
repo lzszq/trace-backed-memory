@@ -1,0 +1,51 @@
+{
+  "compatibility": [
+    {
+      "compatibility": "native",
+      "event_type": "tbm.outcome.evaluation_context_bound",
+      "source_version": 1,
+      "target_version": 1
+    }
+  ],
+  "event_types": [
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.outcome.evaluation_context_bound",
+      "event_version": 1,
+      "payload_schema": "tbm.outcome.evaluation_context_bound.v1",
+      "payload_schema_sha256": "sha256:0f3fd48a4d55181b3f601ddcccd0c0685bd242cccdbbdec98b6ecfd633dc4974",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "record_json": {
+            "maxLength": 524288,
+            "minLength": 2,
+            "type": "string"
+          },
+          "record_sha256": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "record_type": {
+            "const": "tbm.outcome.evaluation_context_bound"
+          },
+          "subject_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_id",
+          "record_type",
+          "record_sha256",
+          "record_json"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "registry_sha256": "sha256:b6a5006eb5f523953b7582c27067a6f7dee2d5aac99f72c86543af4698bf041d",
+  "registry_version": "tbm.event-registry.v1",
+  "upcasters": []
+}

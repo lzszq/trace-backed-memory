@@ -1,0 +1,116 @@
+{
+  "gate_session_projection_sha256": "sha256:13ab91e2958d509f771a2b2bd00e571ff9d157808e58c078ecb543b874d1e744",
+  "projection_sha256": "sha256:aa4ec61d2b9e84f7badc19857451b3468f5fbeda15954aac18f8711187dd747e",
+  "report_version": "tbm.durable-event-first-conformance.v1",
+  "session_id": "gate_session_runtime_0001",
+  "streams": {
+    "gate_evidence": [
+      {
+        "event_sha256": "sha256:aa6985b800b48f5f05fdf7815a46570a04793ce9cbcc905419ee35f7b898e079",
+        "event_type": "tbm.gate_evidence.retrieval_snapshot_recorded",
+        "global_position": 2,
+        "stream_version": 1
+      },
+      {
+        "event_sha256": "sha256:fc771db6158682b2b75222ed6e0444265a90f82eb3f38341c94d19b910e24b68",
+        "event_type": "tbm.gate_evidence.system_gate_evaluated",
+        "global_position": 3,
+        "stream_version": 2
+      },
+      {
+        "event_sha256": "sha256:26258e07bbd8da7e125c5dbae4db5be65ec10e71b539c9e6d47a457372a4ee68",
+        "event_type": "tbm.gate_evidence.semantic_gate_attempt_recorded",
+        "global_position": 7,
+        "stream_version": 3
+      },
+      {
+        "event_sha256": "sha256:6bd0421e46c71a9f933de32d9d9e451b5047039068524652a5198c4057fdc03a",
+        "event_type": "tbm.gate_evidence.usage_decision_recorded",
+        "global_position": 10,
+        "stream_version": 4
+      },
+      {
+        "event_sha256": "sha256:22156561a69a60b2a17e687c2e91482d8d0022f29ed7571a80934f0571dc9536",
+        "event_type": "tbm.gate_evidence.injection_artifact_recorded",
+        "global_position": 11,
+        "stream_version": 5
+      }
+    ],
+    "gate_session": [
+      {
+        "event_sha256": "sha256:9afabef3b43adfe758ebbd8373d50dc890de315b863dd77352a1859313cbc4c4",
+        "event_type": "tbm.gate_session.created",
+        "global_position": 1,
+        "stream_version": 1
+      },
+      {
+        "event_sha256": "sha256:3df08fe6148d961124e21143d4c6f2c8f2877eee3f41cc0b353534c60e97b452",
+        "event_type": "tbm.gate_session.prepared",
+        "global_position": 4,
+        "stream_version": 2
+      },
+      {
+        "event_sha256": "sha256:009502f6a629e9343c6f4afb34d9a53ef143ba50dd83cafbdf79ab03029cfeaa",
+        "event_type": "tbm.gate_session.awaiting_decision",
+        "global_position": 5,
+        "stream_version": 3
+      },
+      {
+        "event_sha256": "sha256:2041b72bb5c8e7ff7ccf1ecb076c26b2110f98f10de090ef8d5ec4d0f39b79d6",
+        "event_type": "tbm.gate_session.lease_renewed",
+        "global_position": 6,
+        "stream_version": 4
+      },
+      {
+        "event_sha256": "sha256:b4e324f737edfc0e4404d9a869693f25d19a573906de508e3a75a834a18e2d48",
+        "event_type": "tbm.gate_session.semantic_gate_decided",
+        "global_position": 8,
+        "stream_version": 5
+      },
+      {
+        "event_sha256": "sha256:54204d2f897cc09bdf5ec82dec176a5ea64c09f682d2c206d894bbb2227e51f0",
+        "event_type": "tbm.gate_session.lease_renewed",
+        "global_position": 9,
+        "stream_version": 6
+      },
+      {
+        "event_sha256": "sha256:48b282813c95c8408adf926757ccf9a4b3dd295443221321f012ec7c3810e127",
+        "event_type": "tbm.gate_session.usage_decision_finalized",
+        "global_position": 12,
+        "stream_version": 7
+      },
+      {
+        "event_sha256": "sha256:1dc4da955e7dcee5fa3470314ba0cfc729ee196b3b42da794c509ce6617fbaeb",
+        "event_type": "tbm.gate_session.execution_started",
+        "global_position": 13,
+        "stream_version": 8
+      },
+      {
+        "event_sha256": "sha256:b87a3c26e467940edcc01ac5d8575d4c5d8295c3539d194fae350d0473cc68e1",
+        "event_type": "tbm.gate_session.lease_renewed",
+        "global_position": 14,
+        "stream_version": 9
+      },
+      {
+        "event_sha256": "sha256:61d9ef3ceb39034989b8f7350f292d166134ce181788791b8728efd537d880f5",
+        "event_type": "tbm.gate_session.completed",
+        "global_position": 17,
+        "stream_version": 10
+      }
+    ],
+    "outcome_effect": [
+      {
+        "event_sha256": "sha256:ff986cb946d3ac7e78277134350309e9d4502f2d2848f01cb4cbf97d87d2440b",
+        "event_type": "tbm.execution.run_outcome_recorded",
+        "global_position": 15,
+        "stream_version": 1
+      },
+      {
+        "event_sha256": "sha256:6617e24071123b70e1601b673abd1186fe6d7da2ab0032433c54118c5438be91",
+        "event_type": "tbm.effect.requested",
+        "global_position": 16,
+        "stream_version": 2
+      }
+    ]
+  }
+}

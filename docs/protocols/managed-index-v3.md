@@ -87,6 +87,13 @@ environment advances by compare-and-swap. Exact publication replay is
 idempotent. Stale expected heads, content conflicts, catalog drift, disabled
 triggers, function-body changes, and read-back mismatches fail closed.
 
+`purge_managed_index_revisions()` constructs an immutable successor without
+the named candidates and without evidence edges no retained candidate uses. It
+recomputes every catalog/index digest while preserving Git history. The
+Artifact retention coordinator may CAS-publish that successor as the current
+head; the prior bundle remains loadable history and is never an authorization
+source for current retrieval.
+
 The PostgreSQL install remains isolated beside active schema version 2. Its
 rollback verifies the exact relations, columns, constraints, functions,
 function bodies, triggers, ACLs, and active-schema precondition before

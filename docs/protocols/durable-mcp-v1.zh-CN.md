@@ -69,6 +69,15 @@ content 默认隐藏。`--expose-injection-content` 启用精确 runtime snippet
 `--expose-replay-content` 进一步启用已保留 replay bytes，因此要求同时启用
 injection 暴露。
 
+选择 `--sqlite` 时，独立进程会打开 durable HTTP 与 `tbmd local` 使用的同一套
+event-first 命令协调器。修改操作会在同一个 SQLite 命令事务内追加规范生命周期
+事件并同步重建关键投影，之后才返回未改变的 MCP result。MCP tool 会与原始 HTTP、
+Python 同步/异步和 TypeScript 共同核对同一份事件序列与 projection digest golden。
+
+该切换不会改变 tool name、request schema、annotation 或 result envelope。
+`--postgres-env` 路径仍使用现有 authority graph；PostgreSQL 的 Outcome/Effect
+event-first 命令切换尚未完成，不得从 SQLite 结果推断其已经完成。
+
 ## Runtime-only tools
 
 该 profile 仅暴露：

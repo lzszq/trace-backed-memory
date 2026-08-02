@@ -1952,6 +1952,123 @@ persisted to PostgreSQL, and it does not replace either gate. PR callers use
 `pr_report_commit_anchors(context)`, capture against the same context commit,
 and pass that same evidence object to `pr_memory_report()`.
 
+### Git observation event capture
+
+The compatibility functions above remain unchanged. Opt-in F3 runtimes may use
+`capture_trace_metadata_detailed()` and `capture_commit_ancestry_detailed()` to
+obtain the same compatibility values plus typed observation drafts. The former
+requires a trusted `diff_artifact_writer`; the latter checks exact object
+availability before emitting an ancestry status. `capture_and_append_git_observations()`
+combines both captures and commits checkout/ref/commit/diff/shallow/object-
+availability/ancestry events as one ledger batch. Every event retains runner,
+algorithm, and Git versions. Missing or indeterminate objects produce
+`unknown`, never a false ancestry claim. See
+[Git observation protocol v1](protocols/git-observation-v1.md).
+
+### Git graph replay
+
+`reduce_git_graph_events(events, access=..., fix_evidence=...,
+regression_evidence=..., pr_case_provenance=...)` deterministically rebuilds the
+opt-in `tbm.git-graph.v1` projection. It verifies the complete typed stream and
+trusted read partition, retains the latest exact observation cursor, produces
+commit/parent/ancestry/missing-object views, and joins only exact immutable
+FixEvidence/StructuredRegressionEvidence chains. PR anchors remain sorted
+source `FailureCase.commit_sha` values; fix and verification commits remain
+separate relationship provenance. Missing relations, shallow state, and
+unavailable objects leave anchors explicitly `unknown`.
+
+`pr_anchor_commit_ancestry_evidence(projection)` converts those anchors to the
+compatibility `CommitAncestryEvidence` shape only when every relation has
+`locally_observed` confidence. It otherwise raises a stable fail-closed error.
+Neither API grants authorization or changes the default runtime. See
+[Git graph reducer and projection v1](protocols/git-graph-reducer-v1.md).
+
+### Codex Hook and App Server ingestion
+
+`capture_codex_hook_event()`, `capture_codex_app_server_notification()`, and
+`capture_codex_app_server_permission()` parse one bounded structured source
+frame and return a `CodexSourceRecord` or `None` for a deliberately ignored
+stable message. The caller supplies trusted receive time and an Artifact writer
+whose descriptor must bind the exact protected input bytes. Permission capture
+also requires a completed `TracePermissionResult` whose `request_sha256` is the
+exact frame digest.
+
+`CodexIngestionBinding` fixes Trace, run, lineage, Hook session, and App Server
+thread outside source JSON. `build_codex_ingestion_trace_drafts()` validates a
+complete prior event history and the session, tool, permission, subagent, and
+source-Artifact lifecycle. `append_codex_ingestion_batch()` delegates the
+resulting 1-100 event batch to the access-bound TraceEvent ledger port;
+`codex_ingestion_projection()` reconstructs the bounded lifecycle view.
+
+These functions are opt-in and expect trusted in-process records created by
+the capture functions; they are not an untrusted wire or authorization API and
+no default transport invokes them. See
+[Codex ingestion protocol v1](protocols/codex-ingestion-v1.md).
+
+### External effect receipt replay
+
+`EffectContract` describes one immutable external effect intent, including its
+content-hashed idempotency key, input Artifact digest, trusted authorization
+event, compensation capability, and bounded attempt budget.
+`TrustedEffectProvider` carries the service-selected provider registration.
+
+Use the typed `build_effect_*_draft()` factories and
+`build_effect_receipt_batch()` to create request, authorization, attempt,
+provider-request, receipt, unknown-result, retry/dead-letter, and compensation
+events. `append_effect_receipt_batch()` uses an access-bound
+`EventLedgerPort`, reloads bounded stream history, atomically appends, and
+verifies the exact ledger receipt. `reduce_effect_receipt_events()` and
+`effect_projection()` reconstruct the immutable lifecycle and fail closed on
+contract drift, unknown-result blind retry, provider-request rebinding, receipt
+mismatch, or invalid compensation. The package root keeps the older
+`build_effect_requested_draft()` compatibility export; the F3-04 request
+factory is exposed there as `build_effect_receipt_requested_draft()`.
+
+This opt-in API is not selected by default transports. See
+[External Effect Receipt protocol v1](protocols/effect-receipt-v1.md).
+
+### Governed Artifact retention and erasure
+
+`RetentionErasureCoordinator.plan(request)` resolves exact encrypted targets,
+key-reference closure, current retention/legal-hold state, managed-index head,
+and complete-replay impacts into an immutable `RedactionManifest`.
+`submit(manifest)` stores the protected manifest, records intent, publishes an
+immutable index successor, acquires a hold-epoch destruction authorization,
+and calls the trusted KMS once. `recover(operation_id)` resumes from ledger
+facts and uses only the provider's non-mutating reconciliation operation after
+authorization has been recorded.
+
+`RetentionProjection` exposes the bounded lifecycle without content bytes.
+`purge_managed_index_revisions()` constructs the content-addressed successor
+without mutating the prior bundle. `replay_partial_marker_for_manifest()` and
+`require_replay_not_erased()` expose the runtime-erasure sidecar boundary;
+they never reinterpret migration-only `legacy_partial`. Exact receipt and
+manifest bytes remain protected Artifacts, while events contain only
+descriptors and digests.
+
+This storage-neutral API requires trusted adapter objects and is not selected
+by default Agent/MCP/HTTP/SDK profiles. See
+[Artifact retention protocol v1](protocols/artifact-retention-v1.md).
+
+### FailureCase event projection
+
+`build_failure_case_extractor_proposal(trace_events, ...)` verifies one exact
+ordered TraceEvent stream and produces a content-addressed candidate bound to
+its event hashes, Trace/run identity, source Artifact IDs, proposal Artifact
+descriptors, and extractor configuration. `build_failure_case_proposal_draft`,
+`build_failure_case_review_draft`, `build_failure_case_fix_evidence_draft`, and
+`build_failure_case_regression_evidence_draft` create the native event sequence.
+
+`reduce_failure_case_events(events)` returns an immutable
+`FailureCaseProjection`. `eligible_for_new_memory` is true only after an
+independent accepted review, exact FixEvidence, and matching passing
+StructuredRegressionEvidence. `build_legacy_failure_case_import_draft()` maps
+a legacy regression boolean to `legacy_unstructured` and always keeps it
+ineligible. The sealed registry and generated dispatch Schema are available
+through `build_failure_case_event_registry()` and
+`dumps_failure_case_event_payload_dispatch_schema()`. See
+[FailureCase events protocol v1](protocols/failure-case-events-v1.md).
+
 ## Endpoint-aware PR reports
 
 Use an immutable `PRChangeSet` when a PR changes trace-backed metadata values.
@@ -2646,6 +2763,9 @@ Key current paths are shown below; historical design-plan files are omitted.
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
+|   |-- gate_session_event_v1.py
+|   |-- gate_evidence_event_v1.py
+|   |-- trace_event_v1.py
 |   |-- gate_evaluation_v3.py
 |   |-- lifecycle.py
 |   |-- locking.py
@@ -2690,6 +2810,8 @@ Key current paths are shown below; historical design-plan files are omitted.
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py
     |-- test_gate_session_v3.py
+    |-- test_gate_session_event_v1.py
+    |-- test_trace_event_v1.py
     |-- test_gate_evaluation_v3.py
     |-- test_mcp_server.py
     |-- test_migration_v3.py

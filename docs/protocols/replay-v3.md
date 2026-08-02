@@ -59,6 +59,13 @@ manifest must bind every component and its injection artifact ID.
 exactly the components whose values are null. It is an explicit migration
 fact, not permission to claim exact replay.
 
+Runtime crypto-erasure does not rewrite a `complete` manifest into
+`legacy_partial`. The opt-in Artifact retention coordinator instead appends a
+content-addressed `ReplayPartialMarker` sidecar that binds the exact erased
+Artifact IDs and newly unavailable components. Consumers that select this
+sidecar must reject exact replay; existing replay repository rows remain
+immutable. `legacy_partial` remains migration-only.
+
 The manifest has a canonical self-hash over every field except
 `manifest_sha256`. The injection artifact ID must be derived from the
 injection component digest. The canonical external contract is

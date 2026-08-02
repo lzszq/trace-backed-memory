@@ -16,6 +16,7 @@ from ._timestamps import (
     parse_rfc3339,
 )
 from .contracts_v3 import V3ContractError
+from .gate_session_event_v1 import GateSessionRevisionEventSink
 from .gate_session_v3 import (
     GATE_SESSION_CONTRACT_VERSION,
     GATE_SESSION_MAX_LEASE_SECONDS,
@@ -35,9 +36,7 @@ from .resources import PackagedResourceError, read_packaged_resource
 
 SQLITE_GATE_SESSION_SCHEMA_VERSION = 1
 _SCHEMA_RESOURCE = "schemas/sqlite-v3-gate-session.sql"
-_MISSING_SCHEMA_MESSAGE = (
-    "SQLite GateSession v3 schema is missing or incomplete"
-)
+_MISSING_SCHEMA_MESSAGE = "SQLite GateSession v3 schema is missing or incomplete"
 _SCHEMA_OBJECT_NAMES = (
     "gate_session_heads",
     "gate_session_heads_identity_immutable",
@@ -144,9 +143,7 @@ def _read_schema_definitions(
                 "TBM_SQLITE_GATE_SESSION_SCHEMA",
                 "SQLite GateSession schema definition has an invalid shape",
             )
-        definitions.append(
-            (row[0], row[1], row[2], _normalized_schema_sql(row[3]))
-        )
+        definitions.append((row[0], row[1], row[2], _normalized_schema_sql(row[3])))
     cursor.execute(
         "SELECT name FROM sqlite_master "
         "WHERE sql IS NOT NULL AND ("
@@ -156,9 +153,7 @@ def _read_schema_definitions(
         "'gate_session_revisions'"
         ") "
         "OR name = 'trace_backed_memory_v3_gate_session_schema'"
-        ") AND name NOT IN ("
-        + placeholders
-        + ") ORDER BY name",
+        ") AND name NOT IN (" + placeholders + ") ORDER BY name",
         _SCHEMA_OBJECT_NAMES,
     )
     unexpected = cursor.fetchone()
@@ -218,6 +213,7 @@ class SQLiteGateSessionRepository:
         self._owns_connection = owns_connection
         self._clock = clock
         self._allow_direct_completion = allow_direct_completion
+        self._revision_event_sink: GateSessionRevisionEventSink | None = None
         self._lock = RLock()
         self._closed = False
         self._savepoint_number = 0
@@ -225,9 +221,7 @@ class SQLiteGateSessionRepository:
             if not self._connection.in_transaction:
                 self._connection.execute("PRAGMA foreign_keys = ON")
                 self._connection.execute("PRAGMA recursive_triggers = ON")
-            foreign_keys = self._connection.execute(
-                "PRAGMA foreign_keys"
-            ).fetchone()
+            foreign_keys = self._connection.execute("PRAGMA foreign_keys").fetchone()
             recursive_triggers = self._connection.execute(
                 "PRAGMA recursive_triggers"
             ).fetchone()
@@ -281,6 +275,26 @@ class SQLiteGateSessionRepository:
             ) from error
         return cls(connection, owns_connection=True, clock=clock)
 
+    @_synchronized
+    def bind_revision_event_sink(
+        self,
+        sink: GateSessionRevisionEventSink,
+    ) -> None:
+        """Bind the one event-first sink used before every projection write."""
+
+        self._require_open()
+        if not callable(getattr(sink, "append_and_reduce", None)):
+            raise ValueError("revision event sink is invalid")
+        if (
+            self._revision_event_sink is not None
+            and self._revision_event_sink is not sink
+        ):
+            raise SQLiteGateSessionConflictError(
+                "TBM_SQLITE_GATE_SESSION_EVENT_SINK_BOUND",
+                "GateSession revision event sink is already bound",
+            )
+        self._revision_event_sink = sink
+
     def _require_open(self) -> None:
         if self._closed:
             raise SQLiteGateSessionPersistenceError(
@@ -314,8 +328,7 @@ class SQLiteGateSessionRepository:
             self._connection.close()
         except BaseException as close_error:
             primary_error.add_note(
-                "failed to close unusable SQLite GateSession connection: "
-                f"{close_error}"
+                f"failed to close unusable SQLite GateSession connection: {close_error}"
             )
 
     @contextmanager
@@ -329,12 +342,8 @@ class SQLiteGateSessionRepository:
                 yield
             except BaseException as error:
                 try:
-                    self._connection.execute(
-                        f"ROLLBACK TO SAVEPOINT {savepoint}"
-                    )
-                    self._connection.execute(
-                        f"RELEASE SAVEPOINT {savepoint}"
-                    )
+                    self._connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                    self._connection.execute(f"RELEASE SAVEPOINT {savepoint}")
                 except BaseException as cleanup_error:
                     error.add_note(
                         "failed to clean up SQLite GateSession savepoint "
@@ -347,17 +356,11 @@ class SQLiteGateSessionRepository:
                 raise
             else:
                 try:
-                    self._connection.execute(
-                        f"RELEASE SAVEPOINT {savepoint}"
-                    )
+                    self._connection.execute(f"RELEASE SAVEPOINT {savepoint}")
                 except BaseException as error:
                     try:
-                        self._connection.execute(
-                            f"ROLLBACK TO SAVEPOINT {savepoint}"
-                        )
-                        self._connection.execute(
-                            f"RELEASE SAVEPOINT {savepoint}"
-                        )
+                        self._connection.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                        self._connection.execute(f"RELEASE SAVEPOINT {savepoint}")
                     except BaseException as cleanup_error:
                         error.add_note(
                             "failed to clean up unreleased SQLite "
@@ -365,9 +368,7 @@ class SQLiteGateSessionRepository:
                         )
                         self._rollback_connection_or_close(
                             error,
-                            context=(
-                                "the outer SQLite GateSession transaction"
-                            ),
+                            context=("the outer SQLite GateSession transaction"),
                         )
                     raise
             return
@@ -424,9 +425,7 @@ class SQLiteGateSessionRepository:
                 "SQLite GateSession schema metadata does not match "
                 "the supported contract",
             )
-        if _read_schema_definitions(
-            cursor
-        ) != _canonical_schema_definitions():
+        if _read_schema_definitions(cursor) != _canonical_schema_definitions():
             raise SQLiteGateSessionSchemaError(
                 "TBM_SQLITE_GATE_SESSION_SCHEMA",
                 "SQLite GateSession schema definitions do not match "
@@ -452,17 +451,13 @@ class SQLiteGateSessionRepository:
                 "trusted GateSession clock moved backwards",
             )
         if parsed_now == parsed_previous:
-            return aware_datetime_to_rfc3339(
-                parsed_previous + timedelta(seconds=1)
-            )
+            return aware_datetime_to_rfc3339(parsed_previous + timedelta(seconds=1))
         return now
 
     @staticmethod
     def _deadline(now: str, seconds: int, *, maximum: int) -> str:
         if type(seconds) is not int or seconds < 1 or seconds > maximum:
-            raise ValueError(
-                f"seconds must be an integer from 1 through {maximum}"
-            )
+            raise ValueError(f"seconds must be an integer from 1 through {maximum}")
         return aware_datetime_to_rfc3339(
             parse_rfc3339(now) + timedelta(seconds=seconds)
         )
@@ -549,6 +544,21 @@ class SQLiteGateSessionRepository:
             ") VALUES (?, ?, ?, ?, ?, ?, ?)",
             SQLiteGateSessionRepository._revision_row(session),
         )
+
+    def _project_revision(
+        self,
+        current: GateSession | None,
+        next_session: GateSession,
+    ) -> None:
+        sink = self._revision_event_sink
+        if sink is None:
+            return
+        rebuilt = sink.append_and_reduce(current, next_session)
+        if type(rebuilt) is not GateSession or rebuilt != next_session:
+            raise SQLiteGateSessionPersistenceError(
+                "TBM_SQLITE_GATE_SESSION_EVENT_PROJECTION",
+                "GateSession event projection did not match the revision",
+            )
 
     @staticmethod
     def _select_current(
@@ -667,8 +677,7 @@ class SQLiteGateSessionRepository:
                             inserted=False,
                         )
                     cursor.execute(
-                        "SELECT 1 FROM gate_session_heads "
-                        "WHERE session_id = ?",
+                        "SELECT 1 FROM gate_session_heads WHERE session_id = ?",
                         (session_id,),
                     )
                     if cursor.fetchone() is not None:
@@ -676,6 +685,7 @@ class SQLiteGateSessionRepository:
                             "TBM_SQLITE_GATE_SESSION_ID_CONFLICT",
                             "session_id is already bound to another request",
                         )
+                    self._project_revision(None, proposed)
                     cursor.execute(
                         "INSERT INTO gate_session_heads ("
                         "session_id, tenant_id, repository_id, principal_id, "
@@ -804,9 +814,7 @@ class SQLiteGateSessionRepository:
                             "TBM_SQLITE_GATE_SESSION_NOT_FOUND",
                             "GateSession was not found",
                         )
-                    return tuple(
-                        self._session_from_joined_row(row) for row in rows
-                    )
+                    return tuple(self._session_from_joined_row(row) for row in rows)
         except (
             SQLiteGateSessionNotFoundError,
             SQLiteGateSessionSchemaError,
@@ -867,16 +875,10 @@ class SQLiteGateSessionRepository:
                         updated_at=now,
                         lease_expires_at=lease_expires_at,
                         retrieval_snapshot_id=retrieval_snapshot_id,
-                        system_gate_evaluation_id=(
-                            system_gate_evaluation_id
-                        ),
-                        semantic_gate_attempt_ids=(
-                            semantic_gate_attempt_ids
-                        ),
+                        system_gate_evaluation_id=(system_gate_evaluation_id),
+                        semantic_gate_attempt_ids=(semantic_gate_attempt_ids),
                         decision_id=decision_id,
-                        final_memory_revision_ids=(
-                            final_memory_revision_ids
-                        ),
+                        final_memory_revision_ids=(final_memory_revision_ids),
                         injection_artifact_id=injection_artifact_id,
                         usage_decision_id=usage_decision_id,
                         run_outcome_id=run_outcome_id,
@@ -960,22 +962,22 @@ class SQLiteGateSessionRepository:
                 "TBM_SQLITE_GATE_SESSION_EXPIRED",
                 "GateSession expiry has passed",
             )
-        if (
-            current.lease_expires_at is not None
-            and parsed_now >= parse_rfc3339(current.lease_expires_at)
+        if current.lease_expires_at is not None and parsed_now >= parse_rfc3339(
+            current.lease_expires_at
         ):
             raise SQLiteGateSessionConflictError(
                 "TBM_SQLITE_GATE_SESSION_LEASE_EXPIRED",
                 "GateSession lease has expired",
             )
 
-    @staticmethod
     def _append_revision(
+        self,
         cursor: sqlite3.Cursor,
         current: GateSession,
         next_session: GateSession,
         expected_version: int,
     ) -> None:
+        self._project_revision(current, next_session)
         SQLiteGateSessionRepository._insert_revision(cursor, next_session)
         cursor.execute(
             "UPDATE gate_session_heads SET current_version = ? "
@@ -989,8 +991,7 @@ class SQLiteGateSessionRepository:
         if cursor.rowcount != 1:
             raise GateSessionContractError(
                 "TBM_GATE_SESSION_STALE_VERSION",
-                "expected_version does not match the current session "
-                "revision",
+                "expected_version does not match the current session revision",
             )
 
     @_synchronized
@@ -1026,8 +1027,7 @@ class SQLiteGateSessionRepository:
                         (now, now, limit),
                     )
                     return tuple(
-                        self._session_from_joined_row(row)
-                        for row in cursor.fetchall()
+                        self._session_from_joined_row(row) for row in cursor.fetchall()
                     )
         except SQLiteGateSessionSchemaError:
             raise

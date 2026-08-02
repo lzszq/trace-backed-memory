@@ -1,0 +1,1552 @@
+{
+  "$comment": "Generated from the sealed Outcome/Effect tbm.event-registry.v1 catalog. The runtime registry remains the authoritative validator.",
+  "$id": "https://trace-backed-memory.dev/schemas/outcome_effect_event_payload_registry_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.compensated"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_count": {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "available_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensates_effect_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensation_supported": {
+              "type": "boolean"
+            },
+            "delivery_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_revision_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_version": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              ]
+            },
+            "effect_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "effect_type": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "error_code": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lease_expires_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lifecycle_status": {
+              "enum": [
+                "ready",
+                "leased",
+                "retry",
+                "succeeded",
+                "dead_letter",
+                "compensation_requested",
+                "compensated"
+              ]
+            },
+            "outbox_event_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "session_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "worker_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "session_id",
+            "effect_id",
+            "effect_type",
+            "lifecycle_status",
+            "delivery_version",
+            "delivery_revision_id",
+            "attempt_count",
+            "available_at",
+            "worker_id",
+            "lease_expires_at",
+            "receipt_sha256",
+            "error_code",
+            "compensation_supported",
+            "compensates_effect_id",
+            "outbox_event_json",
+            "delivery_json",
+            "record_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.compensated.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.compensation_requested"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_count": {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "available_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensates_effect_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensation_supported": {
+              "type": "boolean"
+            },
+            "delivery_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_revision_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_version": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              ]
+            },
+            "effect_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "effect_type": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "error_code": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lease_expires_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lifecycle_status": {
+              "enum": [
+                "ready",
+                "leased",
+                "retry",
+                "succeeded",
+                "dead_letter",
+                "compensation_requested",
+                "compensated"
+              ]
+            },
+            "outbox_event_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "session_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "worker_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "session_id",
+            "effect_id",
+            "effect_type",
+            "lifecycle_status",
+            "delivery_version",
+            "delivery_revision_id",
+            "attempt_count",
+            "available_at",
+            "worker_id",
+            "lease_expires_at",
+            "receipt_sha256",
+            "error_code",
+            "compensation_supported",
+            "compensates_effect_id",
+            "outbox_event_json",
+            "delivery_json",
+            "record_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.compensation_requested.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.dead_lettered"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_count": {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "available_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensates_effect_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensation_supported": {
+              "type": "boolean"
+            },
+            "delivery_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_revision_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_version": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              ]
+            },
+            "effect_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "effect_type": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "error_code": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lease_expires_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lifecycle_status": {
+              "enum": [
+                "ready",
+                "leased",
+                "retry",
+                "succeeded",
+                "dead_letter",
+                "compensation_requested",
+                "compensated"
+              ]
+            },
+            "outbox_event_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "session_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "worker_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "session_id",
+            "effect_id",
+            "effect_type",
+            "lifecycle_status",
+            "delivery_version",
+            "delivery_revision_id",
+            "attempt_count",
+            "available_at",
+            "worker_id",
+            "lease_expires_at",
+            "receipt_sha256",
+            "error_code",
+            "compensation_supported",
+            "compensates_effect_id",
+            "outbox_event_json",
+            "delivery_json",
+            "record_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.dead_lettered.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.requested"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_count": {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "available_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensates_effect_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensation_supported": {
+              "type": "boolean"
+            },
+            "delivery_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_revision_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_version": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              ]
+            },
+            "effect_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "effect_type": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "error_code": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lease_expires_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lifecycle_status": {
+              "enum": [
+                "ready",
+                "leased",
+                "retry",
+                "succeeded",
+                "dead_letter",
+                "compensation_requested",
+                "compensated"
+              ]
+            },
+            "outbox_event_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "session_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "worker_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "session_id",
+            "effect_id",
+            "effect_type",
+            "lifecycle_status",
+            "delivery_version",
+            "delivery_revision_id",
+            "attempt_count",
+            "available_at",
+            "worker_id",
+            "lease_expires_at",
+            "receipt_sha256",
+            "error_code",
+            "compensation_supported",
+            "compensates_effect_id",
+            "outbox_event_json",
+            "delivery_json",
+            "record_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.requested.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.retry_scheduled"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_count": {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "available_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensates_effect_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensation_supported": {
+              "type": "boolean"
+            },
+            "delivery_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_revision_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_version": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              ]
+            },
+            "effect_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "effect_type": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "error_code": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lease_expires_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lifecycle_status": {
+              "enum": [
+                "ready",
+                "leased",
+                "retry",
+                "succeeded",
+                "dead_letter",
+                "compensation_requested",
+                "compensated"
+              ]
+            },
+            "outbox_event_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "session_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "worker_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "session_id",
+            "effect_id",
+            "effect_type",
+            "lifecycle_status",
+            "delivery_version",
+            "delivery_revision_id",
+            "attempt_count",
+            "available_at",
+            "worker_id",
+            "lease_expires_at",
+            "receipt_sha256",
+            "error_code",
+            "compensation_supported",
+            "compensates_effect_id",
+            "outbox_event_json",
+            "delivery_json",
+            "record_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.retry_scheduled.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.started"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_count": {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "available_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensates_effect_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensation_supported": {
+              "type": "boolean"
+            },
+            "delivery_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_revision_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_version": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              ]
+            },
+            "effect_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "effect_type": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "error_code": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lease_expires_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lifecycle_status": {
+              "enum": [
+                "ready",
+                "leased",
+                "retry",
+                "succeeded",
+                "dead_letter",
+                "compensation_requested",
+                "compensated"
+              ]
+            },
+            "outbox_event_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "session_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "worker_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "session_id",
+            "effect_id",
+            "effect_type",
+            "lifecycle_status",
+            "delivery_version",
+            "delivery_revision_id",
+            "attempt_count",
+            "available_at",
+            "worker_id",
+            "lease_expires_at",
+            "receipt_sha256",
+            "error_code",
+            "compensation_supported",
+            "compensates_effect_id",
+            "outbox_event_json",
+            "delivery_json",
+            "record_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.started.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.effect.succeeded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_count": {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "available_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensates_effect_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "compensation_supported": {
+              "type": "boolean"
+            },
+            "delivery_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_revision_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "delivery_version": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maximum": 2147483647,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              ]
+            },
+            "effect_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "effect_type": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "error_code": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lease_expires_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            },
+            "lifecycle_status": {
+              "enum": [
+                "ready",
+                "leased",
+                "retry",
+                "succeeded",
+                "dead_letter",
+                "compensation_requested",
+                "compensated"
+              ]
+            },
+            "outbox_event_json": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 262144,
+                  "minLength": 2,
+                  "type": "string"
+                }
+              ]
+            },
+            "receipt_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "session_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "worker_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "required": [
+            "session_id",
+            "effect_id",
+            "effect_type",
+            "lifecycle_status",
+            "delivery_version",
+            "delivery_revision_id",
+            "attempt_count",
+            "available_at",
+            "worker_id",
+            "lease_expires_at",
+            "receipt_sha256",
+            "error_code",
+            "compensation_supported",
+            "compensates_effect_id",
+            "outbox_event_json",
+            "delivery_json",
+            "record_sha256"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.succeeded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.execution.outcome_attribution_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attribution_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "claim_strength": {
+              "enum": [
+                "association",
+                "causal"
+              ]
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "recorded_at": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "run_outcome_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "session_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "session_id",
+            "run_outcome_id",
+            "attribution_id",
+            "claim_strength",
+            "recorded_at",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.execution.outcome_attribution_recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.execution.run_outcome_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "run_outcome_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "session_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "session_id",
+            "run_outcome_id",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.execution.run_outcome_recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "Trace-backed Memory Outcome/Effect event payloads v1"
+}

@@ -74,6 +74,18 @@ Content remains hidden by default. `--expose-injection-content` enables the
 exact runtime snippet. `--expose-replay-content` additionally enables retained
 replay bytes and therefore requires injection exposure.
 
+When `--sqlite` is selected, the standalone process opens the same
+event-first command coordinator as durable HTTP and `tbmd local`. Mutations
+append canonical lifecycle events and synchronously rebuild their critical
+projections in one SQLite command transaction before the unchanged MCP result
+is returned. MCP tools are checked against the same event-sequence and
+projection-digest golden as raw HTTP, Python sync/async, and TypeScript.
+
+This does not change tool names, request schemas, annotations, or result
+envelopes. The `--postgres-env` path still uses the existing authority graph;
+equivalent PostgreSQL Outcome/Effect event-first command cutover remains
+outstanding and must not be claimed from the SQLite result.
+
 ## Runtime-only tools
 
 The profile exposes only:

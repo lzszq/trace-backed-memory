@@ -8,6 +8,23 @@ authority；服务器与数据库 runtime 重新打开后仍可继续原 session
 
 `tbm-http` 的默认行为仍为 `compat-v2`，绝不会隐式选择 durable v3。
 
+## Event-first SQLite 边界
+
+独立 SQLite profile 现在会用 `event_first_commands=true` 打开 durable runtime。
+每个修改命令先校验可信输入，再追加规范 GateSession、Gate evidence 与
+Outcome/Effect 事件，同步重建并核对关键投影，构造现有 wire response，最后提交
+同一个 SQLite 外层事务；只有提交后才返回 response。精确 completion 重试不会追加
+重复事件。
+
+原始 HTTP、同步/异步 Python client、MCP 与 TypeScript client 会针对同一份共享
+lifecycle fixture，核对同一个已提交的事件序列与 projection digest golden。该选择
+不会改变任何 `tbm.durable-agent-wire.v1` request、response、route、capability 或
+OpenAPI 形状。
+
+隔离 PostgreSQL profile 仍可通过现有 authority graph 使用，但它的命令协调器和
+Outcome/Effect 投影尚未完成相同的 event-first 切换。不得从 SQLite conformance
+结果推断 PostgreSQL parity 或 Full Persistence 已完成。
+
 ## 安全与身份边界
 
 - 每条 route 都要求来自 `TBM_DURABLE_HTTP_TOKEN` 的 bearer secret。

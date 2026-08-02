@@ -1,0 +1,511 @@
+{
+  "$comment": "Generated from the sealed FailureCase event registry; extractor output remains an unverified candidate.",
+  "$id": "https://trace-backed-memory.dev/schemas/failure_case_event_payload_registry_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.failure_case.extractor_proposed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "candidate_status": {
+              "const": "candidate"
+            },
+            "case_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "extractor_configuration_sha256": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "extractor_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "extractor_version": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "failure_type": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "proposal_artifact_ids": {
+              "items": {
+                "maxLength": 256,
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 64,
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "proposal_id": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "proposed_at": {
+              "maxLength": 40,
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "source_artifact_ids": {
+              "items": {
+                "maxLength": 256,
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 64,
+              "minItems": 0,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "source_event_sha256s": {
+              "items": {
+                "maxLength": 256,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 8192,
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "source_partition_sha256": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "source_run_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "source_trace_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "proposal_id",
+            "case_id",
+            "source_trace_id",
+            "source_run_id",
+            "source_partition_sha256",
+            "source_event_sha256s",
+            "source_artifact_ids",
+            "proposal_artifact_ids",
+            "failure_type",
+            "extractor_id",
+            "extractor_version",
+            "extractor_configuration_sha256",
+            "proposed_at",
+            "candidate_status"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.failure_case.extractor_proposed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.failure_case.fix_evidence_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "artifact_hashes": {
+              "items": {
+                "maxLength": 256,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 64,
+              "minItems": 0,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "attestation_sha256": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "case_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "evidence_id": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "evidence_sha256": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "fix_commit_sha": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "reviewed_at": {
+              "maxLength": 40,
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "reviewer_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "source_commit_sha": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "source_trace_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "submitter_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "case_id",
+            "source_trace_id",
+            "evidence_id",
+            "evidence_sha256",
+            "source_commit_sha",
+            "fix_commit_sha",
+            "submitter_id",
+            "reviewer_id",
+            "reviewed_at",
+            "attestation_sha256",
+            "artifact_hashes"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.failure_case.fix_evidence_recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.failure_case.legacy_imported"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "case_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "eligible_for_new_memory": {
+              "const": false
+            },
+            "evidence_quality": {
+              "enum": [
+                "none",
+                "legacy_unstructured"
+              ]
+            },
+            "failure_type": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "regression_passed": {
+              "type": "boolean"
+            },
+            "source_trace_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "case_id",
+            "source_trace_id",
+            "failure_type",
+            "regression_passed",
+            "evidence_quality",
+            "eligible_for_new_memory"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.failure_case.legacy_imported.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.failure_case.regression_evidence_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "artifact_hashes": {
+              "items": {
+                "maxLength": 256,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 64,
+              "minItems": 0,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "attestation_sha256": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "case_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "evidence_id": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "evidence_sha256": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "fix_commit_sha": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "result": {
+              "enum": [
+                "pass",
+                "fail",
+                "error"
+              ]
+            },
+            "source_commit_sha": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "source_trace_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "submitter_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "verification_commit_sha": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "verification_run_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "verification_trace_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "verified_at": {
+              "maxLength": 40,
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "verifier_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "case_id",
+            "source_trace_id",
+            "evidence_id",
+            "evidence_sha256",
+            "result",
+            "source_commit_sha",
+            "fix_commit_sha",
+            "verification_commit_sha",
+            "verification_trace_id",
+            "verification_run_id",
+            "submitter_id",
+            "verifier_id",
+            "verified_at",
+            "attestation_sha256",
+            "artifact_hashes"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.failure_case.regression_evidence_recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.failure_case.reviewed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attestation_sha256": {
+              "maxLength": 71,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "case_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "decision": {
+              "enum": [
+                "accepted",
+                "rejected"
+              ]
+            },
+            "proposal_id": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "reason_code": {
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            "review_artifact_ids": {
+              "items": {
+                "maxLength": 256,
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 64,
+              "minItems": 0,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "reviewed_at": {
+              "maxLength": 40,
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+              "type": "string"
+            },
+            "reviewer_id": {
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "case_id",
+            "proposal_id",
+            "reviewer_id",
+            "decision",
+            "reason_code",
+            "reviewed_at",
+            "attestation_sha256",
+            "review_artifact_ids"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.failure_case.reviewed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "Trace-backed Memory FailureCase event payloads v1"
+}

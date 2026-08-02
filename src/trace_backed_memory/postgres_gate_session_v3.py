@@ -14,6 +14,7 @@ from ._timestamps import (
     parse_rfc3339,
 )
 from .contracts_v3 import V3ContractError
+from .gate_session_event_v1 import GateSessionRevisionEventSink
 from .gate_session_v3 import (
     GATE_SESSION_CONTRACT_VERSION,
     GATE_SESSION_MAX_BYTES,
@@ -33,9 +34,7 @@ from .resources import PackagedResourceError, read_packaged_resource
 
 
 POSTGRES_GATE_SESSION_SCHEMA_VERSION = 1
-_MISSING_SCHEMA_MESSAGE = (
-    "PostgreSQL GateSession v3 schema is missing or incomplete"
-)
+_MISSING_SCHEMA_MESSAGE = "PostgreSQL GateSession v3 schema is missing or incomplete"
 _SCHEMA = "trace_backed_memory_v3_gate_session"
 _UNDEFINED_OBJECT_SQLSTATES = frozenset({"3F000", "42P01", "42703"})
 _EXPECTED_RELATIONS = frozenset(
@@ -266,9 +265,9 @@ def _synchronized(
 @lru_cache(maxsize=1)
 def _expected_function_bodies() -> dict[str, str]:
     try:
-        source = read_packaged_resource(
-            "schemas/postgres-v3-gate-session.sql"
-        ).decode("utf-8")
+        source = read_packaged_resource("schemas/postgres-v3-gate-session.sql").decode(
+            "utf-8"
+        )
     except (PackagedResourceError, UnicodeError) as error:
         raise PostgresGateSessionSchemaError(
             "TBM_POSTGRES_GATE_SESSION_SCHEMA",
@@ -303,6 +302,7 @@ class PostgresGateSessionRepository:
         self._connection = connection
         self._owns_connection = owns_connection
         self._allow_direct_completion = allow_direct_completion
+        self._revision_event_sink: GateSessionRevisionEventSink | None = None
         self._closed = False
         self._lock = RLock()
 
@@ -326,6 +326,26 @@ class PostgresGateSessionRepository:
             ) from error
         return cls(connection, owns_connection=True)
 
+    @_synchronized
+    def bind_revision_event_sink(
+        self,
+        sink: GateSessionRevisionEventSink,
+    ) -> None:
+        """Bind the one event-first sink used before every projection write."""
+
+        self._require_open()
+        if not callable(getattr(sink, "append_and_reduce", None)):
+            raise ValueError("revision event sink is invalid")
+        if (
+            self._revision_event_sink is not None
+            and self._revision_event_sink is not sink
+        ):
+            raise PostgresGateSessionConflictError(
+                "TBM_POSTGRES_GATE_SESSION_EVENT_SINK_BOUND",
+                "GateSession revision event sink is already bound",
+            )
+        self._revision_event_sink = sink
+
     def _require_open(self) -> None:
         if self._closed or bool(getattr(self._connection, "closed", False)):
             raise PostgresGateSessionPersistenceError(
@@ -336,9 +356,7 @@ class PostgresGateSessionRepository:
     @staticmethod
     def _deadline(now: str, seconds: int, *, maximum: int) -> str:
         if type(seconds) is not int or seconds < 1 or seconds > maximum:
-            raise ValueError(
-                f"seconds must be an integer from 1 through {maximum}"
-            )
+            raise ValueError(f"seconds must be an integer from 1 through {maximum}")
         return aware_datetime_to_rfc3339(
             parse_rfc3339(now) + timedelta(seconds=seconds)
         )
@@ -354,9 +372,7 @@ class PostgresGateSessionRepository:
 
     @classmethod
     def _database_now(cls, cursor: object, *, previous: str | None = None) -> str:
-        cursor.execute(
-            "SELECT pg_catalog.clock_timestamp() AS trusted_now"
-        )
+        cursor.execute("SELECT pg_catalog.clock_timestamp() AS trusted_now")
         rows = cursor.fetchall()
         if (
             len(rows) != 1
@@ -423,8 +439,7 @@ class PostgresGateSessionRepository:
             rows[0].get("active_schema_version") != 2
             or rows[0].get("gate_schema_version")
             != POSTGRES_GATE_SESSION_SCHEMA_VERSION
-            or rows[0].get("contract_version")
-            != GATE_SESSION_CONTRACT_VERSION
+            or rows[0].get("contract_version") != GATE_SESSION_CONTRACT_VERSION
         ):
             raise PostgresGateSessionSchemaError(
                 "TBM_POSTGRES_GATE_SESSION_SCHEMA",
@@ -537,10 +552,7 @@ class PostgresGateSessionRepository:
         if constraints != _EXPECTED_CONSTRAINTS:
             missing = sorted(_EXPECTED_CONSTRAINTS - constraints)
             unexpected = sorted(constraints - _EXPECTED_CONSTRAINTS)
-            detail = (
-                f"constraint missing={missing[:1]} "
-                f"unexpected={unexpected[:1]}"
-            )
+            detail = f"constraint missing={missing[:1]} unexpected={unexpected[:1]}"
             self._schema_drift(detail)
 
         cursor.execute(
@@ -843,15 +855,30 @@ class PostgresGateSessionRepository:
             )
         return cls._session_from_row(rows[0])
 
-    @classmethod
+    def _project_revision(
+        self,
+        current: GateSession | None,
+        next_session: GateSession,
+    ) -> None:
+        sink = self._revision_event_sink
+        if sink is None:
+            return
+        rebuilt = sink.append_and_reduce(current, next_session)
+        if type(rebuilt) is not GateSession or rebuilt != next_session:
+            raise PostgresGateSessionPersistenceError(
+                "TBM_POSTGRES_GATE_SESSION_EVENT_PROJECTION",
+                "GateSession event projection did not match the revision",
+            )
+
     def _append_revision(
-        cls,
+        self,
         cursor: object,
         current: GateSession,
         next_session: GateSession,
         expected_version: int,
     ) -> None:
-        cls._insert_revision(cursor, next_session)
+        self._project_revision(current, next_session)
+        self._insert_revision(cursor, next_session)
         cursor.execute(
             """
             UPDATE trace_backed_memory_v3_gate_session.gate_session_heads
@@ -884,9 +911,8 @@ class PostgresGateSessionRepository:
                 "TBM_POSTGRES_GATE_SESSION_EXPIRED",
                 "GateSession expiry has passed",
             )
-        if (
-            current.lease_expires_at is not None
-            and parsed_now >= parse_rfc3339(current.lease_expires_at)
+        if current.lease_expires_at is not None and parsed_now >= parse_rfc3339(
+            current.lease_expires_at
         ):
             raise PostgresGateSessionConflictError(
                 "TBM_POSTGRES_GATE_SESSION_LEASE_EXPIRED",
@@ -967,6 +993,7 @@ class PostgresGateSessionRepository:
                     )
                     inserted = cursor.fetchone()
                     if inserted is not None:
+                        self._project_revision(None, proposed)
                         self._insert_revision(cursor, proposed)
                         return PostgresGateSessionCreateResult(
                             session=proposed,
@@ -1299,11 +1326,9 @@ class PostgresGateSessionRepository:
                         cursor,
                         previous=current.updated_at,
                     )
-                    if (
-                        current.lease_expires_at is not None
-                        and parse_rfc3339(now)
-                        >= parse_rfc3339(current.lease_expires_at)
-                    ):
+                    if current.lease_expires_at is not None and parse_rfc3339(
+                        now
+                    ) >= parse_rfc3339(current.lease_expires_at):
                         raise PostgresGateSessionConflictError(
                             "TBM_POSTGRES_GATE_SESSION_LEASE_EXPIRED",
                             "GateSession lease has expired",
@@ -1397,8 +1422,7 @@ class PostgresGateSessionRepository:
                         (now, now, limit),
                     )
                     return tuple(
-                        self._session_from_row(row)
-                        for row in cursor.fetchall()
+                        self._session_from_row(row) for row in cursor.fetchall()
                     )
         except (
             PostgresGateSessionPersistenceError,

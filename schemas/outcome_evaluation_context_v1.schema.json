@@ -1,0 +1,216 @@
+{
+  "$id": "https://trace-backed-memory.dev/schemas/outcome_evaluation_context_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "assignment_evidence_sha256": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      ]
+    },
+    "assignment_method": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "enum": [
+            "randomized",
+            "matched_control",
+            "manual"
+          ]
+        }
+      ]
+    },
+    "authorization_event_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "bound_at": {
+      "maxLength": 64,
+      "minLength": 20,
+      "type": "string"
+    },
+    "bound_by": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "bound_via_client_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "cohort_arm": {
+      "enum": [
+        "observational",
+        "with_memory",
+        "without_memory"
+      ]
+    },
+    "cohort_id": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      ]
+    },
+    "context_id": {
+      "pattern": "^outcome_context_sha256_[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "tbm.outcome-evaluation-context.v1"
+    },
+    "environment_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "evaluation_case": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      ]
+    },
+    "evaluation_suite": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      ]
+    },
+    "experiment_id": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      ]
+    },
+    "injection_artifact_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "memory_revision_ids": {
+      "items": {
+        "pattern": "^memory_revision_sha256_[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "organization_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "replay_manifest_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "repository_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "retrieval_snapshot_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "run_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "run_outcome_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "session_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "trace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "usage_decision_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "type": "string"
+    },
+    "usage_decision_sha256": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "context_id",
+    "contract_version",
+    "organization_id",
+    "tenant_id",
+    "repository_id",
+    "environment_id",
+    "run_outcome_id",
+    "session_id",
+    "trace_id",
+    "run_id",
+    "usage_decision_id",
+    "usage_decision_sha256",
+    "replay_manifest_sha256",
+    "retrieval_snapshot_sha256",
+    "injection_artifact_id",
+    "memory_revision_ids",
+    "evaluation_suite",
+    "evaluation_case",
+    "experiment_id",
+    "cohort_id",
+    "cohort_arm",
+    "assignment_method",
+    "assignment_evidence_sha256",
+    "bound_by",
+    "bound_via_client_id",
+    "authorization_event_id",
+    "bound_at"
+  ],
+  "title": "Trace-backed Memory outcome evaluation context v1",
+  "type": "object"
+}

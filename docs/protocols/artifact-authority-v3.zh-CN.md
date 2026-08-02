@@ -31,8 +31,11 @@ rollback 核验同一固定 catalog，并拒绝意外受管对象或外部依赖
 
 ## Retention 边界
 
-超过可信 `retain_until` 后读取会被拒绝，除非 `legal_hold` 为 true。这些不可变
-authority 尚不执行物理清除、redaction、密钥销毁或 legal-hold 解除；operator 仍须
-管理外部密钥生命周期与存储策略。object-storage 对等实现、KMS/provider 认证、签名
-attestation、active MemoryRevision 写入、GateSession linkage 与 runtime injection
-仍待完成。
+超过可信 `retain_until` 后读取会被拒绝，除非 `legal_hold` 为 true。不可变 authority
+本身不执行物理清除、redaction、密钥销毁或 legal-hold 解除。opt-in
+[Artifact retention 协议 v1](artifact-retention-v1.zh-CN.md) 在这些不可变 row 外组合独立的
+可信 legal-hold/KMS 边界：记录受保护 manifest、推进当前 managed-index head、核验外部
+key-destruction receipt，并追加 availability 为 `erased` 的 tombstone overlay。它绝不
+删除或修改 ciphertext authority，也不会被默认 runtime profile 选择。object-storage
+对等实现、产品级 KMS 配置、legal-hold 解除、active MemoryRevision 写入、GateSession
+linkage 与 runtime injection 仍待完成。

@@ -92,6 +92,46 @@ CLI 资源读取输出确定性 JSON。export 默认拒绝现有目标，只在�
 
 `recover-batch` 还必须在 duplicate detection 与快照加载前把 decision ID 和 attribution options 分别限制为 10,000 项。CLI 不提供 opt-out，也不持久化预算。
 
+持久化 timestamp 必须是带显式 `Z` 或数字 UTC offset 的严格 RFC 3339，fractional
+seconds 最多六位。lifecycle API、snapshot import、SQLite、PostgreSQL 与 canonical
+JSON Schema 会拒绝 sub-microsecond precision，不做静默截断。
+
+opt-in 有序 TraceEvent capture 必须使用 typed `tbm.trace-event.v1` adapter，不得把最终
+兼容 Trace aggregate 或不稳定 transcript 当作有序证据。单个 Trace stream 必须使用连续
+sequence 与不倒退的 canonical UTC occurrence timestamp。prompt、tool input/output、
+diff 与 response bytes 应留在 Artifact Authority；event 只保留排序的 content-addressed
+descriptor。tool correlation 必须绑定 invocation digest；permission evidence 必须区分
+显式 allow/deny/unknown decision 与 `null`（未检查）。parent/subagent linkage 只是
+provenance，绝不继承授权。只允许通过 access-bound ledger port 追加 1 至 100 条 event
+的 batch，使整个 batch 原子提交或完全不修改。Codex 摄取 adapter 可以显式选择本协议，
+默认 transport 保持不变。详见[有序 TraceEvent 协议 v1](protocols/trace-event-v1.zh-CN.md)。
+
+opt-in Codex Hook/App Server capture 只接受 owner 控制且已认证的来源，并由可信 runtime
+提供 receive time、固定 Trace/run/lineage binding、ledger access 与受保护 Artifact writer。
+绝不能把 transcript 当作唯一事实源。permission decision 必须绑定精确 approval-frame digest；
+没有 tool ID 的 Hook approval 必须唯一解析，App Server approval 必须匹配 active item。超出
+协议上限的 source clock drift 必须拒绝。调用方必须使用 capture API，不得从 request JSON
+构造 source record。后续 lifecycle 或 ledger 拒绝留下的合法 Artifact 是 orphan evidence，
+不是 Trace 事实，仍受 retention 管理。详见
+[Codex 摄取协议 v1](protocols/codex-ingestion-v1.zh-CN.md)。
+
+opt-in Git Observation capture 必须保持 `capture_trace_metadata()` 与
+`capture_commit_ancestry()` 的兼容 contract。只有在 runner、Artifact、ledger access 与
+clock 都来自可信 runtime 时，才可使用显式 detailed/runtime API。原始 diff bytes 必须经受
+保护的 Artifact 边界写入；event 只保留精确 descriptor/digest/size。必须禁用 external diff
+与 text conversion、设置 `GIT_NO_LAZY_FETCH=1`，并且绝不能把 missing 或 indeterminate
+object 转换为 `not_ancestor`。每个 observation 都要保存 capture runner、algorithm 与 Git
+version。详见[Git Observation 协议 v1](protocols/git-observation-v1.zh-CN.md)。
+
+opt-in Git graph replay 必须把一个完整且 access-bound 的 observation stream 交给
+`reduce_git_graph_events()`；不得重排、拼接或只 replay 后缀，也不得用 repository name match
+代替 authenticated ledger partition。只有同一 capture 同时记录 full repository，且 current 与
+anchor object 都为 present 时，已知 ancestry 才可使用。`unknown`、缺失 relation、missing
+object、shallow state 或 indeterminate availability 一律 fail closed。只有全部 PR source anchor
+都已本地验证后，才可调用 `pr_anchor_commit_ancestry_evidence()`。Fix/regression supplement 必须是
+精确 immutable evidence object，不得使用 caller 自行编写的 commit pair。详见
+[Git Graph Reducer 与 Projection v1](protocols/git-graph-reducer-v1.zh-CN.md)。
+
 ## 快照操作 CLI
 
 本地快照操作使用 `tbm` 或 `python -m trace_backed_memory`。CLI 是 operations adapter，不是新的策略或持久化层；所有 validate、stats、audit、metrics、remediation、completion、recovery 与 lifecycle 规则必须复用 Store。
@@ -564,6 +604,71 @@ completion-outbox authority，原子发布 RunOutcome、`COMPLETED`、event 与�
 delivery。服务返回的 transition authorization event 只表示本次调用核验的授权；
 GateSession v3 尚未在 revision 中持久挂接该 event。
 
+在显式 durable SQLite/PostgreSQL runtime 中，绝不能绕过已经绑定的 GateSession
+revision-event sink。create、transition、lease renewal、recovery、abandonment 与
+completion 都必须追加规范 GateSession lifecycle event、重建完整 current state，并在
+同一事务写入 revision row 前与拟写入 revision 比较。lifecycle event 中的 ledger append
+authorization 用于认证 event adapter，不能替代本次 operation 单独保留的
+`gate_session:transition` decision。适配器启用前的 row 只能通过显式
+`baseline_imported` observation 进入 stream，不能把它描述为重建出的原生历史。详见
+[GateSession 生命周期事件 v1](protocols/gate-session-events-v1.zh-CN.md)。
+
+显式 durable runtime 中也不得绕过 companion Gate evidence event sink。`PREPARED`、
+每次成功或失败的 Semantic attempt 与 `FINALIZED`，都必须在使 authority state 可见的
+同一数据库事务中保留只含 descriptor 的事件及其引用的 Artifact bytes。原始 prompt、
+response、retrieval payload 与 injection bytes 属于 Artifact storage，绝不能进入 event
+payload 或 reducer state。Ledger replay export 必须使用显式 classification allowlist 与
+字节上限，且必须继续使用现有 `tbm.replay-export.v3`；诊断 drift 时应把其 digest 与
+authority export 比较。详见
+[Gate evidence 事件与 ledger replay export v1](protocols/gate-evidence-events-v1.zh-CN.md)。
+
+把 Outcome 与 Effect state 导入 ledger-ready event 时，必须保留精确的
+RunOutcome/OutcomeAttribution 内容 ID 以及每条不可变 completion-outbox delivery
+revision。Delivery 仍按 at-least-once 处理；不得从 `response_sha256` 推断 provider
+receipt 或 exactly-once 完成。Compensation 必须是不同的新 effect，且只能引用显式声明
+支持 compensation 的成功 effect；不得改写原 history，也不得把 `RecoveryAction`
+解释成 effect compensation。详见
+[Outcome 与 Effect 事件 v1](protocols/outcome-effect-events-v1.zh-CN.md)。
+
+新的 opt-in 外部 effect 必须使用 `tbm.effect-receipt.v1`；绝不能把 legacy delivery
+的 `response_sha256` 升级为 provider receipt。Provider 调用前先追加 effect request 与
+可信 authorization link。Provider identity 必须来自服务端组合，每个 provider request
+ID 必须绑定精确 effect、attempt 与 canonical request digest。原始 input 与 receipt
+bytes 只通过受保护 Artifact descriptor 持久化。Timeout、response 丢失、调用中断与
+acknowledgement 不确定都必须保持 `unknown`；完成 reconciliation 之前不得 retry、
+dead-letter 或 compensation。只有已知、可重试 failure 且未超过不可变 attempt budget
+时才能 retry。把 unknown 解析为不存在必须携带 available reconciliation Artifact，且不得
+凭空新增或改变 provider request ID。Compensation 是独立授权的 child effect，必须绑定精确 successful parent
+event 与 receipt，且不得改写 parent history。详见
+[外部 Effect Receipt 协议 v1](protocols/effect-receipt-v1.zh-CN.md)。
+
+只有同时具备 access-bound ledger、当前 managed-index authority、受保护 manifest store、
+完整 target/key resolver、原子 legal-hold guard、可信 KMS registration、独立精确 receipt
+verifier 与可信时钟时，才能使用 opt-in Artifact retention 协调器。index/KMS effect 之前必须
+先记 intent。provider authorization 之后，恢复只能调用非变更 reconciliation，绝不能 blind
+retry destruction。terminal tombstone 必须具有每个精确且已校验的 receipt；旧 index bundle
+或已擦除 ciphertext row 只是历史 evidence，绝不是已授权 retrieval source。详见
+[Artifact retention 协议 v1](protocols/artifact-retention-v1.zh-CN.md)。
+
+在 draft-producer replacement 验收缺口关闭前，不得使用 contract-only FailureCase event
+reducer 授权新 Memory。测试时只能使用完整且已核验 TraceEvent chain 与受保护 proposal
+Artifact。每个 extractor 输出都必须视为 candidate。新 Memory 只有在
+projection 的 `eligible_for_new_memory=true` 时才能消费它；这要求独立 accepted review、
+精确 FixEvidence 与匹配且 passing 的 StructuredRegressionEvidence。绝不能把
+`legacy_unstructured`、legacy regression boolean 或 failed/error regression attempt
+提升为 verified evidence。详见
+[FailureCase 事件协议 v1](protocols/failure-case-events-v1.zh-CN.md)。
+
+显式 SQLite event-first runtime 必须在全部 11 个命令 commit 点保持 hard-kill
+qualification：authorization、`CREATED`、retrieval evidence、`PREPARED`、provider
+call、`DECIDED`、replay retention、`FINALIZED`、`EXECUTING`、outcome 与 outbox。
+commit 前 kill 必须让每个受管表在 row/value 层面与先前已提交快照精确相同；commit 后但
+response 前 kill 必须暴露已提交转换，并允许精确 replay 而不追加重复逻辑转换。故障注入
+只能存在于测试 harness，不得成为公开 wire 或 production hook。commit 前崩溃后 provider
+工作可能重试，outbox delivery 仍是 at-least-once；两者都不构成 exactly-once 声明。
+这项 qualification 不覆盖独立 PostgreSQL composition。详见
+[Durable SQLite hard-kill 崩溃矩阵 v1](protocols/durable-crash-matrix-v1.zh-CN.md)。
+
 ## 已认证 durable Agent 策略
 
 adapter 需要完整 version-3 durable lifecycle 时，只能把
@@ -622,6 +727,16 @@ provider/evaluator credential，服务端必须配置完整 authority graph，�
 public/internal replay read；显式 durable HTTP/MCP、`tbmd local` 与
 Python/TypeScript client 只有在启动 policy 启用 content 时才会暴露。存储仍只支持 public/internal
 plaintext replay profile。
+
+`tbmd local` 必须用 `event_first_commands=true` 打开 SQLite。一个命令只有在外层事务
+完成可信输入校验、domain-event batch 追加、关键投影同步重建与核对、response 构造和
+commit 后才可返回；任一失败都必须回滚完整命令。completion/outbox effect 转换必须先
+追加事件，再写旧投影。不得在调用外部 outbox consumer 期间保持该事务；claim 与
+acknowledgement/failure 是两个短小的原子操作，delivery 语义仍为 at-least-once。独立
+durable HTTP 与 MCP 在打开 SQLite profile 时必须选择同一协调器。原始 HTTP、MCP、
+Python 同步/异步和 TypeScript 必须保留相同的规范事件序列与 projection digest，且
+不得改变公开 wire contract。独立 PostgreSQL profile 尚未继承该 Outcome/Effect
+命令切换，必须继续明确限定其边界。
 
 ## Version-3 结果与归因策略
 
@@ -743,8 +858,9 @@ policy、renderer descriptor、injection artifact 与 complete manifest。sessio
 
 classification metadata 本身不执行安全策略。opt-in SQLite 与隔离 PostgreSQL
 Artifact Authority 会通过调用方 provider 加密所有接受的 classification、授权每次
-读写，并执行读取时 retention/legal hold；它们尚不执行物理清除、redaction 或密钥
-销毁。不得记录内容。
+读写，并执行读取时 retention/legal hold；authority 本身不执行物理清除、redaction 或
+密钥销毁。独立的 opt-in retention 协调器可以核验外部 key destruction 并追加 erased
+tombstone overlay，但不会修改这些 row；默认 profile 不选择它。不得记录内容。
 opt-in SQLite/PostgreSQL replay repository 会逐字节保存接受的内容，
 因此会拒绝 confidential/restricted artifact，直到透明加密 provider 能在加密的同时
 保留精确内容身份。两者校验精确字节与 immutable descriptor linkage，把精确 replay

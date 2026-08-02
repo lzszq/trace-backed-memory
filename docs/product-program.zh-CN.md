@@ -962,29 +962,148 @@ comparison、显式批准的 CAS activation 与 append-only rollback。SQLite/Po
 各自 event-ledger schema 中保留精确 checkpoint 与 projection-head history。显式
 `tbmd ledger` / `tbmd projection` 命令可以针对 operator 选择的 SQLite ledger 执行
 verify、inspect、rebuild、compare、activate 与 rollback。同一 committed golden digest
-会在 Windows/Linux 的 Python 3.11-3.13 上核验。GateSession/Memory/index/outbox reducer、
-migration、lifecycle integration 与 event-first cutover 仍未完成。
+会在 Windows/Linux 的 Python 3.11-3.13 上核验。F2-01/F2-02 现已把 GateSession
+生命周期 event adapter 与精确 current-state reducer 加入显式 durable
+SQLite/PostgreSQL runtime transaction。F2-04 现在还会从 finalized Gate evidence
+事件及其引用的 Artifact bytes 重建现有 `tbm.replay-export.v3`；SQLite/PostgreSQL 测试
+要求规范 JSON 与 export digest 等于当前 replay-authority 路径。F2-03 在 failed/retry
+与 rollback acceptance matrix 关闭前仍不计分。F2-05 现已提供 ledger-ready
+RunOutcome/OutcomeAttribution adapter，以及 Outcome、EffectQueue、delivery history、
+dead-letter 与显式 compensation 的六个确定性投影；它能精确重建 completion outbox
+历史，但不会把 at-least-once 提升为 exactly-once。Memory/index/audit/metrics reducer、
+migration 与兼容路径 cutover 仍未完成。
+F2-06 已让 `tbmd local` 选择 event-first 命令协调器与 Outcome/Effect projector：
+校验、追加、同步关键重建、response 构造与 commit 共享一个 SQLite 事务，并有显式
+rollback 覆盖。F2-07 现在让独立 SQLite durable HTTP/MCP 选择同一协调器，并在不改变
+公开 wire contract 的前提下，让原始 HTTP、MCP、Python 同步/异步与 TypeScript
+共同核对一份已提交的事件序列和 projection-digest golden。F2-08 现在会在 11 个
+SQLite 命令 commit 点分别于 commit 前以及 commit 后/response 前 hard-kill；重开核验
+证明全部表精确 rollback 或已提交 event/projection 的精确 replay，并排除已确认事件丢失、
+重复逻辑转换、不精确恢复与未知部分状态。独立 PostgreSQL 的命令、Outcome/Effect 与
+crash-matrix parity 仍未完成，F2-03 的 failed-to-succeeded Semantic-attempt integration
+也仍待完成。
+F3-01 现在已交付 opt-in 有序 TraceEvent 协议：sealed 12-type registry 会绑定连续
+sequence、精确 timestamp、仅含 descriptor 的 Artifact reference、tool correlation、
+显式 permission result 与 parent/subagent lineage；有界 adapter 会通过现有 ledger port
+原子追加最多 100 条 event。它不改变兼容 Trace aggregate，也不实现 F3-05 Codex/App
+Server adapter；后者由 F3-05 独立交付。
+
+F3-02 现在交付 opt-in Git Observation 协议：sealed 七类型 registry 覆盖 checkout、ref、
+commit、受保护 exact diff、ancestry、object availability 与 shallow state。原 metadata 与
+ancestry capture 的签名、命令路径和返回类型保持兼容；显式 detailed capture 保存
+runner/algorithm version，把不可用 object 映射为 `unknown`，并把七个 observation 作为一个
+原子 ledger batch 追加。Git graph reduction 由 F3-03 单独交付；Codex/App Server hook
+selection 由 F3-05 单独交付。
+
+F3-03 现在交付 opt-in `tbm.git-graph.v1` 确定性 reducer 与 immutable projection，并覆盖六个
+固定输出：commit graph、显式 relation confidence、最新 observation/validation evidence、
+missing object、exact source→fix→verification relationship，以及排序且 fail-closed 的 PR
+source anchor。已知 ancestry 必须具有同一 capture 的 full/present evidence；`unknown` 永远不会
+转换为 false。本 reducer 不新增 database schema，也不会被默认 transport 选择。
+
+F3-04 现在交付 opt-in `tbm.effect-receipt.v1` 外部 effect lifecycle。sealed 十二类型
+registry 与确定性 reducer 覆盖不可变 request、access-bound authorization、单调 attempt、
+可信 provider registration 与 request ID、精确 receipt Artifact、显式
+unknown/reconciliation 状态、有界 retry/dead-letter，以及独立授权的 compensation child
+effect。Provider 调用仍在数据库事务之外，completion outbox 与默认 transport 都尚未选择
+本协议。
+
+F3-05 现在交付 opt-in `tbm.codex-ingestion.v1` adapter。结构化 Codex Hook 与 App Server
+frame 会映射成全部十二个有序 TraceEvent fact；可信 binding 固定 Trace/run/lineage 与 source
+session，精确原始 bytes 留在受保护 Artifact 中，ledger 只接收 descriptor。transcript-only
+来源、错误 scope、有歧义或不匹配的 tool/permission transition、非法 source time 与不完整
+lifecycle history 都会 fail closed。Permission decision 绑定精确 approval-frame bytes。该
+adapter 不安装 Hook，也不改变默认 Agent/MCP/HTTP/SDK 选择；合法捕获 Artifact 若在后续 batch
+拒绝后留存，仍只是受 retention policy 管理的 non-fact orphan evidence。
+
+F3-06 现在交付 opt-in 的受治理 Artifact retention 与 crypto-erasure 协调器。受保护、
+content-addressed redaction manifest 会绑定精确 target、retention/legal-hold 状态、
+key-reference closure、不可变 managed-index predecessor/successor 与 complete-replay impact。
+index/KMS effect 之前先持久化 intent；恢复可以处理已经发布的 index successor，并在不 blind
+retry destruction 的前提下 reconcile 不确定 provider request。精确且经独立核验的 receipt
+位于原子 replay-partial、cryptographically-erased 与 tombstone event batch 之前。旧
+Artifact/index/replay row 保持不可变，默认 transport 不选择协调器，`legacy_partial` 仍仅供
+迁移。最后一次 managed-index head 读取与终态 ledger append 之间仍存在跨存储竞态，必须用
+durable publication fence 关闭；在此之前 F3-06 与 F3 exit qualification 仍在进行中。
+
+F4-01 与 F4-02 已有进行中的 `tbm.failure-case-event.v1` 协议。Extractor
+proposal 绑定精确有序 TraceEvent chain、受保护 proposal Artifact descriptor 以及
+extractor/configuration identity，同时始终保持未验证 candidate。只有独立 accepted review、
+精确 FixEvidence 与 passing StructuredRegressionEvidence 才能让确定性 projection 获得新
+Memory 资格。失败 regression evidence 仍未验证，之后可追加通过 attempt。Legacy
+`regression_passed=true` 一律投影为 `legacy_unstructured`，永远不具备新 Memory 资格。
+兼容 FailureCase 模型与默认 runtime profile 均未改变。安全验收仍未关闭：draft replacement
+可以保留内部 producer capability 并替换 evidence payload；因此 F4-01/F4-02 仍待完成。
+
+F4-03/F4-04 现在已有 opt-in `tbm.memory-catalog-event.v1` 实现。sealed lifecycle
+registry 与确定性 reducer 保留精确 review、fix/regression evidence、stored
+approval/activation、authorization、actor、partition、trusted-verifier 与
+activation-event provenance。共用的有界 EventLedgerPort append/rebuild 路径已有
+SQLite 与 PostgreSQL 聚焦覆盖，`EventActivatedMemoryHeadSource` 会围绕既有精确
+publication/evidence/Artifact source 核验 event-rebuilt head。Legacy Lesson 只有
+显式且不具备资格的 compatibility projection。F4-07 与 F5 默认
+Store/transport cutover 仍待完成；尚未验收的 F4-01/F4-02 producer 不能作为该
+catalog 的上游来源。
+跨页 global rebuild 当前会重复边界事件，排除 `internal` 的 rebuild access 还会
+静默生成空的 partial snapshot；这些验收阻断关闭前，F4-03/F4-04 仍不计分。
+
+F4-05 现在已有通过独立验收的 opt-in `tbm.active-policy-event.v1` 实现。其内容
+寻址 bundle 覆盖全部八个 policy 维度，精确 global authorization 的 registration/
+activation event 会生成单个确定性 partition head。共用 EventLedgerPort append/
+rebuild 路径已有 SQLite 与 PostgreSQL 聚焦覆盖；实现嵌入既有 retrieval policy，
+不会复制它，并提供显式 policy-provider surface。这里不声称默认选择或下游
+trust-tier、renderer、Semantic Gate consumer 已完成。
+
+F4-06 现在已有通过独立验收的 opt-in `tbm.retrieval-index-event.v1` 实现。它复用
+既有确定性五索引 bundle，并把 metadata、lexical、semantic、evidence-graph、
+Git-graph version 全部绑定到带精确 source event watermark 的内容寻址 manifest。
+repository 授权的 request/completion、独立授权的 activation 与 stale event 通过同一
+有界 SQLite/PostgreSQL EventLedgerPort 路径重建 partition head。reducer
+configuration 绑定可信 attestation verifier 与 embedding provider/model pair。
+只读 adapter 会核验所选不可变 bundle 并复查 head；直接 publish、stale selection、
+不完整 classification view、predecessor 回滚与 watermark 回滚全部 fail closed。
+这里不声称新增 SQL authority 或默认 selection。
+
+F4-07 现在已有等待独立验收的 opt-in `tbm.outcome-harm-event.v1` 实现。它消费既有
+RunOutcome 与 OutcomeAttribution 事件，并新增一个精确、经 `memory:verify` 授权的
+evaluation-context 事件。确定性 projection 区分 evaluated/unevaluated run，保持
+observed association 与 verified causality 的边界，要求显式 experiment cohort，
+派生达到阈值的 harmful-memory signal，并输出 recommendation-only suspension record。
+SQLite/PostgreSQL 复用既有 EventLedgerPort；这里不声称新增 SQL authority 或默认
+cutover。
 
 - **F0 — 架构冻结（已交付）：** ADR-0006、canonical event contract/registry、
   ledger port，以及禁止新增独立 authority 的 guard。
 - **F1 — Ledger 与 reducer kernel（opt-in 基础已交付）：** opt-in SQLite/PostgreSQL
   event ledger、Artifact reference、versioned reducer runtime、projection operator CLI
   与六格跨平台 determinism verification 已交付；active 产品 lifecycle 尚未选择它们。
-- **F2 — Durable lifecycle event-first cutover：** GateSession、retrieval/Gate、
+- **F2 — Durable lifecycle event-first cutover（进行中）：** GateSession、retrieval/Gate、
   replay、outcome/effect projection、`tbmd`、HTTP、MCP 与 SDK 使用同一 event-first
   composition 与 crash matrix。
-- **F3 — Trace、Git 与 effect evidence：** 有序 Trace/Git observation、Git-graph
-  projection、external-effect receipt、Codex hook 与受治理 retention/crypto-erasure。
-- **F4 — 受治理 memory projection：** failure extraction、structured evidence、
-  MemoryRevision publication、ActivatedRevision retrieval、policy/index 与 outcome
-  projection 全部 reducer-native。
+- **F3 — Trace、Git 与 effect evidence（进行中）：** 有序 Trace/Git observation、Git-graph
+  projection、external-effect receipt、Codex hook 与受治理 retention/crypto-erasure；
+  F3-06 仍需 durable index publication fence。
+- **F4 — 受治理 memory projection（进行中）：** failure extraction 与 structured evidence
+  已有 reducer-native candidate 协议；opt-in MemoryRevision lifecycle、
+  ActivatedMemoryHead、active-policy、retrieval-index 与 outcome/harm projection 已实现；
+  producer 验收、catalog 验收、outcome/harm 独立验收与默认 cutover 仍待完成。
 - **F5 — 迁移与切换：** 导入 compatibility/durable-v3 source，核验并 shadow compare
   rebuild state，默认选择 ledger，冻结旧写入，并保留 read-only rollback window。
 - **F6 — Shared service 与稳定发布：** authenticated remote transport、PostgreSQL
   tenant isolation、Review Console、GitHub PR Check、observability、backup/DR、
   security governance 与 stable-release qualification。
 
-前十五个 PR 已按依赖固定：F0-01 至 F0-05、F1-01 至 F1-06、GateSession event
-adapter/reducer、replay exporter reducer，以及 outcome/effect reducer。在这些基础落地
-前，冻结新增 standalone authority、protocol family 与 SQL component；只有已记录的
+前十五个交付包已按依赖固定：F0-01 至 F0-05、F1-01 至 F1-06、GateSession event
+adapter/reducer、replay exporter reducer，以及 outcome/effect reducer。GateSession
+生命周期单元与 ledger replay exporter 已交付；Gate evidence reducer 单元在其负向测试
+acceptance matrix 下仍未完成；outcome/effect reducer 单元与 `tbmd local` F2-06 runtime
+cutover 均已交付，独立 SQLite durable transport/SDK 的 F2-07 切换与 SQLite hard-kill
+F2-08 crash matrix 也已交付；F2-03、PostgreSQL parity 与 F2 exit gate 通过后才允许
+stage cutover。F3-01 至 F3-05 单元已交付；F3-06 与 F3 exit qualification 仍未完成。
+F4-01/F4-02 已有进行中的 reducer-native FailureCase 协议，但 draft-producer 验收仍未关闭。
+F4-03/F4-04 已有 opt-in event-rebuilt MemoryCatalog 与正式 durable retrieval source；
+F4-05 已有通过独立验收的 opt-in active-policy reducer；F4-06 已有通过独立验收的
+opt-in retrieval-index reducer；F4-07 已有等待独立验收的 opt-in reducer；默认
+cutover 仍未关闭。在这些基础落地前，冻结新增 standalone authority、
+protocol family 与 SQL component；只有已记录的
 security/corruption 修复，或 ledger、reducer、migration blocker 可以例外。

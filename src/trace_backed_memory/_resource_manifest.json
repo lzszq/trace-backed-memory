@@ -2,6 +2,24 @@
   "manifest_version": "tbm.resource-manifest.v1",
   "resources": [
     {
+      "name": "examples/active_policy_bundle_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/active_policy_bundle_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/active_policy_bundle_v1.example.json",
+      "size_bytes": 2646,
+      "sha256": "d1bd63f57033148bac0d2aebcdd76369b06b8be8082f84f5205ab97919c2cb25"
+    },
+    {
+      "name": "examples/active_policy_event_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/active_policy_event_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/active_policy_event_type_registry_v1.example.json",
+      "size_bytes": 2563,
+      "sha256": "01f056fd1c9973ed4c84a73ac33d54eec96529f6cdd25c7459bf1e4c920437d0"
+    },
+    {
       "name": "examples/agent_cancel_request.example.json",
       "kind": "example",
       "media_type": "application/json",
@@ -101,6 +119,15 @@
       "sha256": "f7844e55c380f21930f00044f8644c5859a680e5b8c3dd793fa9d7dd6b532938"
     },
     {
+      "name": "examples/artifact_retention_event_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/artifact_retention_event_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/artifact_retention_event_type_registry_v1.example.json",
+      "size_bytes": 90705,
+      "sha256": "217ee37375a219dad9e8e2ca230004fa72e11a8620741703e445da03459cdf1c"
+    },
+    {
       "name": "examples/audit_event_v3.example.json",
       "kind": "example",
       "media_type": "application/json",
@@ -155,6 +182,15 @@
       "sha256": "2aa1159ce58751b6776b918acff00b40926f1ecb8c2bdf24b77bad1977ad753a"
     },
     {
+      "name": "examples/effect_receipt_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/effect_receipt_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/effect_receipt_type_registry_v1.example.json",
+      "size_bytes": 118981,
+      "sha256": "db15976576986c3e85b29299b8f1c9ecf03889c626f7abfaac4e527cdf674fc8"
+    },
+    {
       "name": "examples/entity_registry_v3.example.json",
       "kind": "example",
       "media_type": "application/json",
@@ -191,6 +227,15 @@
       "sha256": "c54602f8ce6268c47c9eaed5d66994d46514679e1722fbd3988d1ca292d36569"
     },
     {
+      "name": "examples/failure_case_event_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/failure_case_event_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/failure_case_event_type_registry_v1.example.json",
+      "size_bytes": 14299,
+      "sha256": "b0fee1cd51661770029ff49060c8ff9cc1019d3ac0b0bf49d729b038b07fd6d2"
+    },
+    {
       "name": "examples/fix_evidence_v3.example.json",
       "kind": "example",
       "media_type": "application/json",
@@ -200,6 +245,15 @@
       "sha256": "16f830196cba86a72b933e130e11b3e6188b20ef5363032622129b076715bdb2"
     },
     {
+      "name": "examples/gate_session_event_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/gate_session_event_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/gate_session_event_type_registry_v1.example.json",
+      "size_bytes": 94222,
+      "sha256": "8212138c81418f99c671e8fc87e208b91d5362ed541621a76d8d6d4aea5b4223"
+    },
+    {
       "name": "examples/gate_session_v3.example.json",
       "kind": "example",
       "media_type": "application/json",
@@ -207,6 +261,15 @@
       "installed": "src/trace_backed_memory/_resources/examples/gate_session_v3.example.json",
       "size_bytes": 938,
       "sha256": "6c1615f0083341c08a1c2d78922004d3ce31ce4103adcb7a7b3052200c6f713d"
+    },
+    {
+      "name": "examples/git_observation_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/git_observation_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/git_observation_type_registry_v1.example.json",
+      "size_bytes": 26932,
+      "sha256": "7208a5e2f59017350dbff7215695390fd3225e491249742209110a110097fbc6"
     },
     {
       "name": "examples/injection_artifact_v3.example.json",
@@ -234,6 +297,15 @@
       "installed": "src/trace_backed_memory/_resources/examples/managed_index_bundle_v3.example.json",
       "size_bytes": 3487,
       "sha256": "46df66df36dd86b42ce2b4c1915c26b02f957f92db44dd45b6ab534e92ea49f5"
+    },
+    {
+      "name": "examples/memory_catalog_event_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/memory_catalog_event_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/memory_catalog_event_type_registry_v1.example.json",
+      "size_bytes": 16065,
+      "sha256": "6215c75d9452c5ec7f3172a7a963392af4c3cf16af83a971d3141127c6c3e797"
     },
     {
       "name": "examples/memory_context.example.json",
@@ -299,6 +371,33 @@
       "sha256": "85b17aa957fed40151cecefa5040d8bebadc5b3eb160b6bf8fd5c8a8a0c7cc0b"
     },
     {
+      "name": "examples/outcome_effect_event_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/outcome_effect_event_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/outcome_effect_event_type_registry_v1.example.json",
+      "size_bytes": 36696,
+      "sha256": "f1f3bd05d0fbbed7777d274f77f60ee210fdb06598b2d3070c340894cee4dd8d"
+    },
+    {
+      "name": "examples/outcome_evaluation_context_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/outcome_evaluation_context_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/outcome_evaluation_context_v1.example.json",
+      "size_bytes": 1618,
+      "sha256": "699c9830eee56bf3bd6a45ce72a77e1881997ddbdc6c2451a66dafca17b80497"
+    },
+    {
+      "name": "examples/outcome_harm_event_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/outcome_harm_event_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/outcome_harm_event_type_registry_v1.example.json",
+      "size_bytes": 1406,
+      "sha256": "d143296419b44e42c2a9c85ba3f3f4a2d7b2b3d0dbd77020710e0b8661f09e38"
+    },
+    {
       "name": "examples/project_policy.example.json",
       "kind": "example",
       "media_type": "application/json",
@@ -333,6 +432,24 @@
       "installed": "src/trace_backed_memory/_resources/examples/replay_bundle_export_v3.example.json",
       "size_bytes": 7139,
       "sha256": "d99984035277ba2fb6f12ebe1e26c754fbc9b7c10ffda200bb2d1ef816b6b58a"
+    },
+    {
+      "name": "examples/retrieval_index_event_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/retrieval_index_event_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/retrieval_index_event_type_registry_v1.example.json",
+      "size_bytes": 4773,
+      "sha256": "5b3b2596d2fbe9c25a0b37ce665fa8b54a47da81a96698d1c30a7cdce5925d79"
+    },
+    {
+      "name": "examples/retrieval_index_manifest_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/retrieval_index_manifest_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/retrieval_index_manifest_v1.example.json",
+      "size_bytes": 2691,
+      "sha256": "17cac992e750c5d67b0fc72016308253deeee1887e835655e0584585b69db472"
     },
     {
       "name": "examples/retrieval_policy_v3.example.json",
@@ -434,6 +551,15 @@
       "sha256": "92c572d8b5e473c5f9837cb95bae3cf15357e39b4bf9e0ad8cde82e1bcedec55"
     },
     {
+      "name": "examples/trace_event_type_registry_v1.example.json",
+      "kind": "example",
+      "media_type": "application/json",
+      "source": "examples/trace_event_type_registry_v1.example.json",
+      "installed": "src/trace_backed_memory/_resources/examples/trace_event_type_registry_v1.example.json",
+      "size_bytes": 49359,
+      "sha256": "db51052db5b67456688a86b46e14b525cfeb3758c21847fdc94db125e7467129"
+    },
+    {
       "name": "examples/usage_decision_v3.example.json",
       "kind": "example",
       "media_type": "application/json",
@@ -459,6 +585,24 @@
       "installed": "src/trace_backed_memory/_resources/memory/lessons.example.yaml",
       "size_bytes": 450,
       "sha256": "42bc87a9e84a3fb235e3e2e4aacadd4b878dfa3a1bdb9605735f3a8847089623"
+    },
+    {
+      "name": "schemas/active_policy_bundle_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/active_policy_bundle_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/active_policy_bundle_v1.schema.json",
+      "size_bytes": 10611,
+      "sha256": "182e5be531fbbfa7962f03f9d521054ae675c07f039836686d2366543375fb14"
+    },
+    {
+      "name": "schemas/active_policy_event_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/active_policy_event_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/active_policy_event_payload_registry_v1.schema.json",
+      "size_bytes": 2906,
+      "sha256": "3f2f5cce1270d2ab4a356946e8a353ffc42880e30e8497fb07a1d70e534bd91b"
     },
     {
       "name": "schemas/agent-http-v1.openapi.json",
@@ -569,6 +713,15 @@
       "sha256": "41d95e80840a349b9c06c82738c2e2641a47b332054a58b53c08506256d582f2"
     },
     {
+      "name": "schemas/artifact_retention_event_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/artifact_retention_event_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/artifact_retention_event_payload_registry_v1.schema.json",
+      "size_bytes": 97101,
+      "sha256": "830475e7cb5cbde0b35b55f1b483d3534d3ad0c63b239aecc9e22d09ef92db6a"
+    },
+    {
       "name": "schemas/audit_event_v3.schema.json",
       "kind": "schema",
       "media_type": "application/schema+json",
@@ -623,6 +776,15 @@
       "sha256": "b0f54849c5383910a2df705671ba7ee4a89532a91d457277e8c331dd17a8983d"
     },
     {
+      "name": "schemas/effect_receipt_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/effect_receipt_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/effect_receipt_payload_registry_v1.schema.json",
+      "size_bytes": 127857,
+      "sha256": "b8cb3846be47e34c50163371d41d20ef0bfa0199146a9557aa59833bee86af9c"
+    },
+    {
       "name": "schemas/entity_registry_v3.schema.json",
       "kind": "schema",
       "media_type": "application/schema+json",
@@ -668,6 +830,15 @@
       "sha256": "2097a98f92b0c3e5fb7e57478cb42716be057218a45cd36e446fa1dc2a6826cb"
     },
     {
+      "name": "schemas/failure_case_event_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/failure_case_event_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/failure_case_event_payload_registry_v1.schema.json",
+      "size_bytes": 15336,
+      "sha256": "c1f14ca311e2a792145ec846fb433d06e77ef16d91fd5d82ac7c915051fd9738"
+    },
+    {
       "name": "schemas/fix_evidence_v3.schema.json",
       "kind": "schema",
       "media_type": "application/schema+json",
@@ -677,6 +848,15 @@
       "sha256": "845ae6add90bc9852059179738ef8bfec0969c690165270ca555769c0014b11d"
     },
     {
+      "name": "schemas/gate_session_event_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/gate_session_event_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/gate_session_event_payload_registry_v1.schema.json",
+      "size_bytes": 100922,
+      "sha256": "2692570baf847a4191b7357cad2c4eb8c111e0c6fcb331568d94a831da38a2e2"
+    },
+    {
       "name": "schemas/gate_session_v3.schema.json",
       "kind": "schema",
       "media_type": "application/schema+json",
@@ -684,6 +864,15 @@
       "installed": "src/trace_backed_memory/_resources/schemas/gate_session_v3.schema.json",
       "size_bytes": 12097,
       "sha256": "300e64015764e3141f9cc7afc11709c8329e844aa3e225da520266e58e2e183c"
+    },
+    {
+      "name": "schemas/git_observation_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/git_observation_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/git_observation_payload_registry_v1.schema.json",
+      "size_bytes": 28969,
+      "sha256": "e4bc1990cfd5e00ec0fc3fedfbcbf7adc04570f18e76cbdf45dce3ff692cd1e4"
     },
     {
       "name": "schemas/injection_artifact_v3.schema.json",
@@ -711,6 +900,15 @@
       "installed": "src/trace_backed_memory/_resources/schemas/managed_index_bundle_v3.schema.json",
       "size_bytes": 8828,
       "sha256": "ead30c289a91221730afee253185130d00b65c66fd712770beeb46046c798ce7"
+    },
+    {
+      "name": "schemas/memory_catalog_event_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/memory_catalog_event_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/memory_catalog_event_payload_registry_v1.schema.json",
+      "size_bytes": 17339,
+      "sha256": "164728466a3a42e5b664302b66acb357de8f758b959281e372b35347d9daae7b"
     },
     {
       "name": "schemas/memory_context.schema.json",
@@ -783,6 +981,33 @@
       "installed": "src/trace_backed_memory/_resources/schemas/outcome_attribution_v3.schema.json",
       "size_bytes": 3533,
       "sha256": "fadc675c553d4ee9ef18723af75536902d1e913c7b877d39d90646d8162e34d6"
+    },
+    {
+      "name": "schemas/outcome_effect_event_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/outcome_effect_event_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/outcome_effect_event_payload_registry_v1.schema.json",
+      "size_bytes": 39822,
+      "sha256": "fbb1a4c5db2596483a4fafb09bdc015b46c619391b4438579a69567ae61892fa"
+    },
+    {
+      "name": "schemas/outcome_evaluation_context_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/outcome_evaluation_context_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/outcome_evaluation_context_v1.schema.json",
+      "size_bytes": 4424,
+      "sha256": "040e34898751077e66ee782834f7386e5a3df85251e090653cd199152970958f"
+    },
+    {
+      "name": "schemas/outcome_harm_event_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/outcome_harm_event_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/outcome_harm_event_payload_registry_v1.schema.json",
+      "size_bytes": 1653,
+      "sha256": "7ffb84438eb976f2b4974856cdfe917f8e98ac29d764abb858a806f83a48f69e"
     },
     {
       "name": "schemas/postgres-v1-to-v2.sql",
@@ -1145,6 +1370,24 @@
       "sha256": "154869a5ce586ee8a649943f6c66aad03ee1c4d039a1b01facd651dc3cc0b369"
     },
     {
+      "name": "schemas/retrieval_index_event_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/retrieval_index_event_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/retrieval_index_event_payload_registry_v1.schema.json",
+      "size_bytes": 5311,
+      "sha256": "e780632299b50e756c961f6d0de4726a4a7fde08d80af9be9c64a3f44c04e1b4"
+    },
+    {
+      "name": "schemas/retrieval_index_manifest_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/retrieval_index_manifest_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/retrieval_index_manifest_v1.schema.json",
+      "size_bytes": 5427,
+      "sha256": "99ef41408682b5248ab07144f31d26c2d2d2d87bd2a510028cad4c9ae4405e15"
+    },
+    {
       "name": "schemas/retrieval_policy_v3.schema.json",
       "kind": "schema",
       "media_type": "application/schema+json",
@@ -1422,6 +1665,15 @@
       "installed": "src/trace_backed_memory/_resources/schemas/trace.schema.json",
       "size_bytes": 2408,
       "sha256": "7890000168db271ff28c797004244d43f40b6c7bfd0bdb742333d88321c9fb46"
+    },
+    {
+      "name": "schemas/trace_event_payload_registry_v1.schema.json",
+      "kind": "schema",
+      "media_type": "application/schema+json",
+      "source": "schemas/trace_event_payload_registry_v1.schema.json",
+      "installed": "src/trace_backed_memory/_resources/schemas/trace_event_payload_registry_v1.schema.json",
+      "size_bytes": 52991,
+      "sha256": "abab2b3369a3b98c4b323150df5ad8a52a00c003518b698d787846bab55d9202"
     },
     {
       "name": "schemas/usage_decision_v3.schema.json",

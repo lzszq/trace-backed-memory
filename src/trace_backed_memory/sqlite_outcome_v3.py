@@ -34,6 +34,10 @@ from .outcome_v3 import (
     loads_run_outcome,
     verify_run_outcome,
 )
+from .outcome_effect_event_v1 import (
+    OutcomeCompletionEventSink,
+    OutcomeEffectViews,
+)
 from .resources import PackagedResourceError, read_packaged_resource
 from .sqlite_gate_session_v3 import (
     SQLITE_GATE_SESSION_SCHEMA_VERSION,
@@ -219,6 +223,7 @@ class SQLiteOutcomeV3Repository:
         self._lock = RLock()
         self._closed = False
         self._savepoint_number = 0
+        self._completion_event_sink: OutcomeCompletionEventSink | None = None
         try:
             if not self._connection.in_transaction:
                 self._connection.execute("PRAGMA foreign_keys = ON")
@@ -297,6 +302,41 @@ class SQLiteOutcomeV3Repository:
 
         self._require_open()
         return self._gate_sessions
+
+    @_synchronized
+    def bind_completion_event_sink(
+        self,
+        sink: OutcomeCompletionEventSink,
+    ) -> None:
+        """Bind the event-first sink invoked before completion projections."""
+
+        self._require_open()
+        if not callable(getattr(sink, "append_completion", None)):
+            raise ValueError("completion event sink is invalid")
+        if (
+            self._completion_event_sink is not None
+            and self._completion_event_sink is not sink
+        ):
+            raise SQLiteOutcomeV3ConflictError(
+                "TBM_SQLITE_OUTCOME_EVENT_SINK_BOUND",
+                "RunOutcome completion event sink is already bound",
+            )
+        self._completion_event_sink = sink
+
+    def _project_completion(
+        self,
+        outcome: RunOutcome,
+        session: GateSession,
+    ) -> None:
+        sink = self._completion_event_sink
+        if sink is None:
+            return
+        views = sink.append_completion(outcome, session)
+        if type(views) is not OutcomeEffectViews or views.run_outcome != outcome:
+            raise SQLiteOutcomeV3PersistenceError(
+                "TBM_SQLITE_OUTCOME_EVENT_PROJECTION",
+                "Outcome event projection did not reproduce RunOutcome",
+            )
 
     def _require_open(self) -> None:
         if self._closed:
@@ -618,6 +658,7 @@ class SQLiteOutcomeV3Repository:
                                 "completed GateSession has inconsistent "
                                 "RunOutcome linkage",
                             ) from error
+                        self._project_completion(existing, current)
                         return GateCompletionResult(
                             session=current,
                             outcome=existing,
@@ -664,6 +705,7 @@ class SQLiteOutcomeV3Repository:
                         run_outcome_id=outcome.run_outcome_id,
                     )
                     verify_run_outcome(outcome, completed)
+                    self._project_completion(outcome, completed)
                     self._gate_sessions._append_revision(
                         cursor,
                         current,

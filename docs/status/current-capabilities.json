@@ -1,6 +1,6 @@
 {
   "ledger_version": "tbm.capability-status.v1",
-  "status_date": "2026-08-01",
+  "status_date": "2026-08-02",
   "product_version": "0.1.0",
   "persistence_model": "authority_graph",
   "ledger_protocol": "tbm.event.v1",
@@ -26,6 +26,65 @@
       "id": "core.gated-memory-v2",
       "status": "active",
       "evidence": ["src/trace_backed_memory/store.py", "src/trace_backed_memory/policy.py"]
+    },
+    {
+      "id": "trace.ordered-events-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/trace_event_v1.py",
+        "tests/test_trace_event_v1.py",
+        "schemas/trace_event_payload_registry_v1.schema.json",
+        "examples/trace_event_type_registry_v1.example.json",
+        "docs/protocols/trace-event-v1.md"
+      ]
+    },
+    {
+      "id": "git.observations-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/git_observation_v1.py",
+        "src/trace_backed_memory/capture.py",
+        "tests/test_git_observation_v1.py",
+        "schemas/git_observation_payload_registry_v1.schema.json",
+        "examples/git_observation_type_registry_v1.example.json",
+        "docs/protocols/git-observation-v1.md"
+      ]
+    },
+    {
+      "id": "git.graph-projection-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/git_graph_reducer_v1.py",
+        "src/trace_backed_memory/git_observation_v1.py",
+        "tests/test_git_graph_reducer_v1.py",
+        "docs/protocols/git-graph-reducer-v1.md",
+        "docs/protocols/git-graph-reducer-v1.zh-CN.md"
+      ]
+    },
+    {
+      "id": "effect.receipts-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/effect_receipt_v1.py",
+        "tests/test_effect_receipt_v1.py",
+        "schemas/effect_receipt_payload_registry_v1.schema.json",
+        "examples/effect_receipt_type_registry_v1.example.json",
+        "docs/protocols/effect-receipt-v1.md",
+        "docs/protocols/effect-receipt-v1.zh-CN.md"
+      ]
+    },
+    {
+      "id": "artifact.retention-erasure-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/artifact_retention_event_v1.py",
+        "src/trace_backed_memory/managed_index_v3.py",
+        "tests/test_artifact_retention_event_v1.py",
+        "schemas/artifact_retention_event_payload_registry_v1.schema.json",
+        "examples/artifact_retention_event_type_registry_v1.example.json",
+        "docs/protocols/artifact-retention-v1.md",
+        "docs/protocols/artifact-retention-v1.zh-CN.md"
+      ]
     },
     {
       "id": "compat.agent-v1",
@@ -75,7 +134,25 @@
     {
       "id": "session.gate-session-v3",
       "status": "opt-in",
-      "evidence": ["src/trace_backed_memory/gate_session_v3.py", "src/trace_backed_memory/sqlite_gate_session_v3.py"]
+      "evidence": [
+        "src/trace_backed_memory/gate_session_v3.py",
+        "src/trace_backed_memory/sqlite_gate_session_v3.py",
+        "src/trace_backed_memory/postgres_gate_session_v3.py",
+        "src/trace_backed_memory/gate_session_event_v1.py"
+      ]
+    },
+    {
+      "id": "session.gate-session-events-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/gate_session_event_v1.py",
+        "src/trace_backed_memory/durable_runtime_v3.py",
+        "examples/gate_session_event_type_registry_v1.example.json",
+        "schemas/gate_session_event_payload_registry_v1.schema.json",
+        "tests/test_gate_session_event_v1.py",
+        "tests/test_durable_runtime_v3.py",
+        "docs/protocols/gate-session-events-v1.md"
+      ]
     },
     {
       "id": "agent.durable-lifecycle-v3",
@@ -93,14 +170,84 @@
       "evidence": ["src/trace_backed_memory/evidence_v3.py"]
     },
     {
+      "id": "memory.failure-case-events-v1",
+      "status": "contract-only",
+      "evidence": [
+        "src/trace_backed_memory/failure_case_event_v1.py",
+        "tests/test_failure_case_event_v1.py",
+        "schemas/failure_case_event_payload_registry_v1.schema.json",
+        "examples/failure_case_event_type_registry_v1.example.json",
+        "docs/protocols/failure-case-events-v1.md",
+        "docs/protocols/failure-case-events-v1.zh-CN.md"
+      ]
+    },
+    {
+      "id": "memory.catalog-events-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/memory_catalog_event_v1.py",
+        "tests/test_memory_catalog_event_v1.py",
+        "tests/test_postgres_memory_catalog_event_v1.py",
+        "schemas/memory_catalog_event_payload_registry_v1.schema.json",
+        "examples/memory_catalog_event_type_registry_v1.example.json",
+        "docs/protocols/memory-catalog-events-v1.md",
+        "docs/protocols/memory-catalog-events-v1.zh-CN.md"
+      ]
+    },
+    {
+      "id": "policy.active-bundle-events-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/active_policy_event_v1.py",
+        "tests/test_active_policy_event_v1.py",
+        "tests/test_postgres_active_policy_event_v1.py",
+        "schemas/active_policy_bundle_v1.schema.json",
+        "schemas/active_policy_event_payload_registry_v1.schema.json",
+        "examples/active_policy_bundle_v1.example.json",
+        "examples/active_policy_event_type_registry_v1.example.json",
+        "docs/protocols/active-policy-events-v1.md",
+        "docs/protocols/active-policy-events-v1.zh-CN.md"
+      ]
+    },
+    {
       "id": "memory.revision-publication-v3",
       "status": "opt-in",
       "evidence": ["src/trace_backed_memory/memory_revision_v3.py", "src/trace_backed_memory/memory_publication_v3.py"]
     },
     {
+      "id": "outcome.harm-events-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/outcome_harm_event_v1.py",
+        "tests/test_outcome_harm_event_v1.py",
+        "tests/test_postgres_outcome_harm_event_v1.py",
+        "schemas/outcome_evaluation_context_v1.schema.json",
+        "schemas/outcome_harm_event_payload_registry_v1.schema.json",
+        "examples/outcome_evaluation_context_v1.example.json",
+        "examples/outcome_harm_event_type_registry_v1.example.json",
+        "docs/protocols/outcome-harm-events-v1.md",
+        "docs/protocols/outcome-harm-events-v1.zh-CN.md"
+      ]
+    },
+    {
       "id": "retrieval.activated-revision-v3",
       "status": "opt-in",
       "evidence": ["src/trace_backed_memory/activated_revision_v3.py", "src/trace_backed_memory/retrieval_preparation_v3.py"]
+    },
+    {
+      "id": "retrieval.index-events-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/retrieval_index_event_v1.py",
+        "tests/test_retrieval_index_event_v1.py",
+        "tests/test_postgres_retrieval_index_event_v1.py",
+        "schemas/retrieval_index_manifest_v1.schema.json",
+        "schemas/retrieval_index_event_payload_registry_v1.schema.json",
+        "examples/retrieval_index_manifest_v1.example.json",
+        "examples/retrieval_index_event_type_registry_v1.example.json",
+        "docs/protocols/retrieval-index-events-v1.md",
+        "docs/protocols/retrieval-index-events-v1.zh-CN.md"
+      ]
     },
     {
       "id": "retrieval.managed-index-v3",
@@ -134,17 +281,22 @@
         "src/trace_backed_memory/event_v1.py",
         "src/trace_backed_memory/sqlite_event_ledger_v1.py",
         "src/trace_backed_memory/postgres_event_ledger_v1.py",
+        "src/trace_backed_memory/gate_session_event_v1.py",
         "schemas/event_v1.schema.json",
         "docs/protocols/event-v1.md"
       ]
     },
     {
       "id": "protocol.event-type-registry-v1",
-      "status": "contract-only",
+      "status": "opt-in",
       "evidence": [
         "src/trace_backed_memory/event_registry_v1.py",
+        "src/trace_backed_memory/gate_session_event_v1.py",
         "schemas/event_type_registry_v1.schema.json",
         "schemas/event_payload_registry_v1.schema.json",
+        "schemas/gate_session_event_payload_registry_v1.schema.json",
+        "examples/gate_session_event_type_registry_v1.example.json",
+        "tests/test_gate_session_event_v1.py",
         "docs/protocols/event-registry-v1.md"
       ]
     },
@@ -155,6 +307,7 @@
         "src/trace_backed_memory/ledger_port_v1.py",
         "src/trace_backed_memory/sqlite_event_ledger_v1.py",
         "src/trace_backed_memory/postgres_event_ledger_v1.py",
+        "src/trace_backed_memory/gate_session_event_v1.py",
         "tests/test_ledger_port_v1.py",
         "tests/test_sqlite_event_ledger_v1.py",
         "tests/test_postgres_event_ledger_v1.py",
@@ -195,12 +348,44 @@
         "src/trace_backed_memory/reducer_registry.py",
         "src/trace_backed_memory/projection.py",
         "src/trace_backed_memory/projection_checkpoint.py",
+        "src/trace_backed_memory/gate_session_event_v1.py",
         "src/trace_backed_memory/daemon_entry.py",
         "tests/test_reducer_projection.py",
+        "tests/test_gate_session_event_v1.py",
+        "tests/test_durable_runtime_v3.py",
         "tests/test_sqlite_event_ledger_v1.py",
         "tests/test_postgres_event_ledger_v1.py",
         "tools/verify_projection_determinism.py",
-        "docs/protocols/reducer-v1.md"
+        "docs/protocols/reducer-v1.md",
+        "docs/protocols/gate-session-events-v1.md"
+      ]
+    },
+    {
+      "id": "projection.outcome-effect-v1",
+      "status": "active",
+      "evidence": [
+        "src/trace_backed_memory/outcome_effect_event_v1.py",
+        "src/trace_backed_memory/durable_runtime_v3.py",
+        "src/trace_backed_memory/daemon_entry.py",
+        "tests/test_outcome_effect_event_v1.py",
+        "tests/test_durable_runtime_v3.py",
+        "tests/test_durable_transport_event_first.py",
+        "tests/test_durable_crash_matrix.py",
+        "tests/durable_crash_matrix_child.py",
+        "tests/fixtures/durable_event_first_projection_v1.json",
+        "schemas/outcome_effect_event_payload_registry_v1.schema.json",
+        "docs/protocols/outcome-effect-events-v1.md",
+        "docs/protocols/durable-crash-matrix-v1.md"
+      ]
+    },
+    {
+      "id": "replay.gate-evidence-export-v3",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/gate_evidence_event_v1.py",
+        "src/trace_backed_memory/durable_runtime_v3.py",
+        "tests/test_durable_runtime_v3.py",
+        "docs/protocols/gate-evidence-events-v1.md"
       ]
     },
     {
@@ -210,6 +395,7 @@
         "src/trace_backed_memory/durable_http_entry.py",
         "src/trace_backed_memory/durable_http_server.py",
         "tests/test_durable_http_sdk.py",
+        "tests/test_durable_transport_event_first.py",
         "docs/protocols/durable-http-v1.md"
       ]
     },
@@ -220,6 +406,7 @@
         "src/trace_backed_memory/durable_mcp_entry.py",
         "src/trace_backed_memory/durable_mcp_server.py",
         "tests/test_durable_mcp_server.py",
+        "tests/test_durable_transport_event_first.py",
         "docs/protocols/durable-mcp-v1.md"
       ]
     },
@@ -230,6 +417,8 @@
         "src/trace_backed_memory/durable_sdk.py",
         "packages/typescript-sdk/src/durable-client.ts",
         "tests/test_durable_http_sdk.py",
+        "tests/test_durable_transport_event_first.py",
+        "tests/fixtures/durable_event_first_projection_v1.json",
         "packages/typescript-sdk/tests/durable-client.test.mjs"
       ]
     },
@@ -241,7 +430,10 @@
         "src/trace_backed_memory/local_daemon_v3.py",
         "tests/test_daemon_entry.py",
         "tests/test_local_daemon_v3.py",
-        "docs/protocols/local-daemon-v1.md"
+        "tests/test_durable_crash_matrix.py",
+        "tests/durable_crash_matrix_child.py",
+        "docs/protocols/local-daemon-v1.md",
+        "docs/protocols/durable-crash-matrix-v1.md"
       ]
     },
     {
@@ -256,8 +448,13 @@
     },
     {
       "id": "integration.codex-hooks",
-      "status": "planned",
-      "evidence": ["docs/status/current-capability-matrix.md"]
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/codex_ingestion_v1.py",
+        "tests/test_codex_ingestion_v1.py",
+        "docs/protocols/codex-ingestion-v1.md",
+        "docs/protocols/codex-ingestion-v1.zh-CN.md"
+      ]
     },
     {
       "id": "integration.github-pr-check",

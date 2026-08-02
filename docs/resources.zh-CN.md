@@ -4,10 +4,12 @@
 
 本文件由 `resources/manifest.json` 确定性生成，请勿手工编辑。
 
-当前共有 **159** 份严格 allowlisted resource。
+当前共有 **187** 份严格 allowlisted resource。
 
 | Name | Kind | Media type | Bytes | SHA-256 |
 |---|---|---|---:|---|
+| `examples/active_policy_bundle_v1.example.json` | `example` | `application/json` | 2646 | `d1bd63f57033148bac0d2aebcdd76369b06b8be8082f84f5205ab97919c2cb25` |
+| `examples/active_policy_event_type_registry_v1.example.json` | `example` | `application/json` | 2563 | `01f056fd1c9973ed4c84a73ac33d54eec96529f6cdd25c7459bf1e4c920437d0` |
 | `examples/agent_cancel_request.example.json` | `example` | `application/json` | 70 | `1745644c23cdf4fc67c1c3760b8acbb0631af249f2ed9701b7a6c07064bd7004` |
 | `examples/agent_canceled.example.json` | `example` | `application/json` | 133 | `d2ef74191dcebbcc66d5cae462844d97f4e37cc674f29df4c571e9e7d48b8328` |
 | `examples/agent_capabilities.example.json` | `example` | `application/json` | 962 | `797b7bc460510acdc9f0253da6bc43f109c664d75de744de82f9ea6e473013ab` |
@@ -19,21 +21,27 @@
 | `examples/agent_health.example.json` | `example` | `application/json` | 842 | `b0129b6ab8902db9a10a4f148e40f109edcc7286f63f4c2dde880bdb1b7f768f` |
 | `examples/agent_prepare_request.example.json` | `example` | `application/json` | 296 | `a659e6b8476aab9e473daaa813943c6ef03e7f7fbdf31a95da9f7e03f5c5d2a8` |
 | `examples/agent_prepared.example.json` | `example` | `application/json` | 350 | `f7844e55c380f21930f00044f8644c5859a680e5b8c3dd793fa9d7dd6b532938` |
+| `examples/artifact_retention_event_type_registry_v1.example.json` | `example` | `application/json` | 90705 | `217ee37375a219dad9e8e2ca230004fa72e11a8620741703e445da03459cdf1c` |
 | `examples/audit_event_v3.example.json` | `example` | `application/json` | 830 | `c4d4f776402dc4865fa34941510eda611f5c80d5f50113fd6305735c78b66a53` |
 | `examples/authorization_decision_v3.example.json` | `example` | `application/json` | 703 | `66825b4ab0e2effb2feda9ccb73dd300e7390cda7ff23671abc0d5047d51ea74` |
 | `examples/authorization_policy_v3.example.json` | `example` | `application/json` | 1781 | `e53452309b33050b8ed725fafb09d2aceedc7244f83ef21328d9df2733792727` |
 | `examples/completion_outbox_delivery_v3.example.json` | `example` | `application/json` | 573 | `03e65d33df995a11042ac1455a459556ebc5720f1ad53a06eeb91db00cfe8ddc` |
 | `examples/completion_outbox_event_v3.example.json` | `example` | `application/json` | 662 | `50fd5af2841c2109d8316e79ab042102125036c0fad1e94f6e58ba2647fe5692` |
 | `examples/decision_replay_manifest_v3.example.json` | `example` | `application/json` | 1318 | `2aa1159ce58751b6776b918acff00b40926f1ecb8c2bdf24b77bad1977ad753a` |
+| `examples/effect_receipt_type_registry_v1.example.json` | `example` | `application/json` | 118981 | `db15976576986c3e85b29299b8f1c9ecf03889c626f7abfaac4e527cdf674fc8` |
 | `examples/entity_registry_v3.example.json` | `example` | `application/json` | 2683 | `70eca55470c5e9f3c96d42d011407f01381172d88d6ce46053a7b60ca025d15b` |
 | `examples/event_type_registry_v1.example.json` | `example` | `application/json` | 1273 | `780316b016987574ac481b4bceece8efedf1ad60a7029a9d04d7b5ac4ac15eea` |
 | `examples/event_v1.example.json` | `example` | `application/json` | 2108 | `64064de1fabb9224b8f4fd1be270520d4f123074884d06d94e9fe2367ec5388c` |
 | `examples/failure_case.example.json` | `example` | `application/json` | 596 | `c54602f8ce6268c47c9eaed5d66994d46514679e1722fbd3988d1ca292d36569` |
+| `examples/failure_case_event_type_registry_v1.example.json` | `example` | `application/json` | 14299 | `b0fee1cd51661770029ff49060c8ff9cc1019d3ac0b0bf49d729b038b07fd6d2` |
 | `examples/fix_evidence_v3.example.json` | `example` | `application/json` | 832 | `16f830196cba86a72b933e130e11b3e6188b20ef5363032622129b076715bdb2` |
+| `examples/gate_session_event_type_registry_v1.example.json` | `example` | `application/json` | 94222 | `8212138c81418f99c671e8fc87e208b91d5362ed541621a76d8d6d4aea5b4223` |
 | `examples/gate_session_v3.example.json` | `example` | `application/json` | 938 | `6c1615f0083341c08a1c2d78922004d3ce31ce4103adcb7a7b3052200c6f713d` |
+| `examples/git_observation_type_registry_v1.example.json` | `example` | `application/json` | 26932 | `7208a5e2f59017350dbff7215695390fd3225e491249742209110a110097fbc6` |
 | `examples/injection_artifact_v3.example.json` | `example` | `application/json` | 903 | `33c0ff558cd5cae0acfa83a02447ae569948bf298a8506866e97c85a03c2b356` |
 | `examples/lesson.example.json` | `example` | `application/json` | 495 | `b79860c45636acad31b3720fa7abbf386b6f44ffdecbf28c1f320ad19e9258e1` |
 | `examples/managed_index_bundle_v3.example.json` | `example` | `application/json` | 3487 | `46df66df36dd86b42ce2b4c1915c26b02f957f92db44dd45b6ab534e92ea49f5` |
+| `examples/memory_catalog_event_type_registry_v1.example.json` | `example` | `application/json` | 16065 | `6215c75d9452c5ec7f3172a7a963392af4c3cf16af83a971d3141127c6c3e797` |
 | `examples/memory_context.example.json` | `example` | `application/json` | 198 | `becfbbb7b6bd1a97c98ed0c3ce5d98eee785024d44f7d336af12705a679b7e50` |
 | `examples/memory_decision.example.json` | `example` | `application/json` | 264 | `808d2770e950cea4daee54d76208f2363ee6ac0adbf4959732185abce1d2d3a7` |
 | `examples/memory_revision_activation_v3.example.json` | `example` | `application/json` | 1176 | `9aa2f5c876db08fe1c99f82adc1cca0cf71d86af80b28cc26b5d16038a900712` |
@@ -41,10 +49,15 @@
 | `examples/memory_revision_v3.example.json` | `example` | `application/json` | 1477 | `eb140633b20f2395fa913dab760867d624fa01eb7e92cac88e210d3f6738f08f` |
 | `examples/memory_usage_log.example.json` | `example` | `application/json` | 765 | `d0720d1bd99eb9c2f43852ebc2ae133f1ad3750d2f233610c715dcb45eef6773` |
 | `examples/outcome_attribution_v3.example.json` | `example` | `application/json` | 881 | `85b17aa957fed40151cecefa5040d8bebadc5b3eb160b6bf8fd5c8a8a0c7cc0b` |
+| `examples/outcome_effect_event_type_registry_v1.example.json` | `example` | `application/json` | 36696 | `f1f3bd05d0fbbed7777d274f77f60ee210fdb06598b2d3070c340894cee4dd8d` |
+| `examples/outcome_evaluation_context_v1.example.json` | `example` | `application/json` | 1618 | `699c9830eee56bf3bd6a45ce72a77e1881997ddbdc6c2451a66dafca17b80497` |
+| `examples/outcome_harm_event_type_registry_v1.example.json` | `example` | `application/json` | 1406 | `d143296419b44e42c2a9c85ba3f3f4a2d7b2b3d0dbd77020710e0b8661f09e38` |
 | `examples/project_policy.example.json` | `example` | `application/json` | 333 | `86bca1f9377deb81ac53f213854b7a11b78a0588541671631f21331a66ab7f4d` |
 | `examples/quickstart.py` | `example` | `text/x-python` | 2011 | `d464ca1ebdc7e16347792c68a5f55d6b571ff58b0d16e74402cba1d8284b789d` |
 | `examples/recovery_action_v3.example.json` | `example` | `application/json` | 773 | `2cbce620ba26bb509748f4439ae64ed407c9b76bf61173623b829394a2e995ab` |
 | `examples/replay_bundle_export_v3.example.json` | `example` | `application/json` | 7139 | `d99984035277ba2fb6f12ebe1e26c754fbc9b7c10ffda200bb2d1ef816b6b58a` |
+| `examples/retrieval_index_event_type_registry_v1.example.json` | `example` | `application/json` | 4773 | `5b3b2596d2fbe9c25a0b37ce665fa8b54a47da81a96698d1c30a7cdce5925d79` |
+| `examples/retrieval_index_manifest_v1.example.json` | `example` | `application/json` | 2691 | `17cac992e750c5d67b0fc72016308253deeee1887e835655e0584585b69db472` |
 | `examples/retrieval_policy_v3.example.json` | `example` | `application/json` | 1224 | `70ba149136b17381d0ed11839f527f6cbb2e7512c8a02fc3fd440ffd98405b27` |
 | `examples/retrieval_snapshot_v3.example.json` | `example` | `application/json` | 2067 | `51f288a26727fa001d083448a82cf068bcaa5c7e709240dab66ebf15ab3fa103` |
 | `examples/run_outcome_v3.example.json` | `example` | `application/json` | 724 | `4812bbe88de4bc6471198a71cdb89788a2ee47f65df624ee946e9aac7dfd1087` |
@@ -56,9 +69,12 @@
 | `examples/structured_regression_evidence_v3.example.json` | `example` | `application/json` | 1582 | `75b45539cf7bda17f639ef225fb5134410c51ca1643d9934c114ed6874b0c326` |
 | `examples/system_gate_evaluation_v3.example.json` | `example` | `application/json` | 979 | `4386aff2dba7edd589d80564e82e6e352304f6282f888ff3ff550b50e826b32f` |
 | `examples/trace.example.json` | `example` | `application/json` | 723 | `92c572d8b5e473c5f9837cb95bae3cf15357e39b4bf9e0ad8cde82e1bcedec55` |
+| `examples/trace_event_type_registry_v1.example.json` | `example` | `application/json` | 49359 | `db51052db5b67456688a86b46e14b525cfeb3758c21847fdc94db125e7467129` |
 | `examples/usage_decision_v3.example.json` | `example` | `application/json` | 3079 | `ea27f750f96144d2b49a1d0ae6f35501bca58d49af9321eb5e9c91db426d6924` |
 | `memory/failure_taxonomy.yaml` | `memory` | `application/yaml` | 637 | `5272b79572e19cc57e9eaba2f5a2e72bcd8dfc4972ab2fd4fa455302be3f7c0d` |
 | `memory/lessons.example.yaml` | `memory` | `application/yaml` | 450 | `42bc87a9e84a3fb235e3e2e4aacadd4b878dfa3a1bdb9605735f3a8847089623` |
+| `schemas/active_policy_bundle_v1.schema.json` | `schema` | `application/schema+json` | 10611 | `182e5be531fbbfa7962f03f9d521054ae675c07f039836686d2366543375fb14` |
+| `schemas/active_policy_event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 2906 | `3f2f5cce1270d2ab4a356946e8a353ffc42880e30e8497fb07a1d70e534bd91b` |
 | `schemas/agent-http-v1.openapi.json` | `schema` | `application/vnd.oai.openapi+json;version=3.1` | 11939 | `866f1f4e5ae31eed4fa13414fdf2b85c53375f6e2f1642f9191738bbf80f8d8b` |
 | `schemas/agent_cancel_request.schema.json` | `schema` | `application/schema+json` | 293 | `011e62edd6bc80612b2af74c19b06b5318a00610b376518ee0f4c9c5c71ba1a5` |
 | `schemas/agent_canceled.schema.json` | `schema` | `application/schema+json` | 404 | `0de7c6775c6765c8fe2355dfabfd10d17903554d96fedbb34d296294691ba472` |
@@ -71,22 +87,28 @@
 | `schemas/agent_health.schema.json` | `schema` | `application/schema+json` | 3123 | `6e78c401d2dc0b83b89c18cdf38b2c0662f9e29ff2ff4311226f2403d8622ee5` |
 | `schemas/agent_prepare_request.schema.json` | `schema` | `application/schema+json` | 3385 | `e5be5afc0d5b9b763c7f2f0fbafc18da905c111b1f74cdcc0d42abac85449e0b` |
 | `schemas/agent_prepared.schema.json` | `schema` | `application/schema+json` | 1225 | `41d95e80840a349b9c06c82738c2e2641a47b332054a58b53c08506256d582f2` |
+| `schemas/artifact_retention_event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 97101 | `830475e7cb5cbde0b35b55f1b483d3534d3ad0c63b239aecc9e22d09ef92db6a` |
 | `schemas/audit_event_v3.schema.json` | `schema` | `application/schema+json` | 3946 | `a565df940a421be6f27b119550a9f6f0f7593ef02cca878503dd19398863f138` |
 | `schemas/authorization_decision_v3.schema.json` | `schema` | `application/schema+json` | 3577 | `d80f0a02baedbb477b1bc8e5fa300bbbd09a4ec0d5084414b1abb4e4a20329db` |
 | `schemas/authorization_policy_v3.schema.json` | `schema` | `application/schema+json` | 11748 | `f3bc596e79eb73162136c158e1c1aeb1d963027f7aa1e35bda861f49a848e86a` |
 | `schemas/completion_outbox_delivery_v3.schema.json` | `schema` | `application/schema+json` | 6518 | `5ee6f0723b83b2e7dbeb0a31d9d077ecf2da148eb0f4ee377178df6e62f24f32` |
 | `schemas/completion_outbox_event_v3.schema.json` | `schema` | `application/schema+json` | 2126 | `23441c27f43ae571fb69baf5a39e85ab75371ba7981c03872afe5c1f817172f1` |
 | `schemas/decision_replay_manifest_v3.schema.json` | `schema` | `application/schema+json` | 10496 | `b0f54849c5383910a2df705671ba7ee4a89532a91d457277e8c331dd17a8983d` |
+| `schemas/effect_receipt_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 127857 | `b8cb3846be47e34c50163371d41d20ef0bfa0199146a9557aa59833bee86af9c` |
 | `schemas/entity_registry_v3.schema.json` | `schema` | `application/schema+json` | 3674 | `8b7d51d945c19731d12d0db53d679edfdd2e78e2834dd6a7c6d75a820b3eea2c` |
 | `schemas/event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 1522 | `e782cabd750721f9b6689fa6ea744b3b64a3b81ec471113f456d7f002ec60782` |
 | `schemas/event_type_registry_v1.schema.json` | `schema` | `application/schema+json` | 3359 | `fce6a06581e2fb115f2bd67f940ad306d1f634fb1e41895442cd656a544e4490` |
 | `schemas/event_v1.schema.json` | `schema` | `application/schema+json` | 7227 | `85a39c0a8712eca2a74fb5cbb26ce6029f1615aface324ce7e6e1266c3400765` |
 | `schemas/failure_case.schema.json` | `schema` | `application/schema+json` | 2634 | `2097a98f92b0c3e5fb7e57478cb42716be057218a45cd36e446fa1dc2a6826cb` |
+| `schemas/failure_case_event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 15336 | `c1f14ca311e2a792145ec846fb433d06e77ef16d91fd5d82ac7c915051fd9738` |
 | `schemas/fix_evidence_v3.schema.json` | `schema` | `application/schema+json` | 2530 | `845ae6add90bc9852059179738ef8bfec0969c690165270ca555769c0014b11d` |
+| `schemas/gate_session_event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 100922 | `2692570baf847a4191b7357cad2c4eb8c111e0c6fcb331568d94a831da38a2e2` |
 | `schemas/gate_session_v3.schema.json` | `schema` | `application/schema+json` | 12097 | `300e64015764e3141f9cc7afc11709c8329e844aa3e225da520266e58e2e183c` |
+| `schemas/git_observation_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 28969 | `e4bc1990cfd5e00ec0fc3fedfbcbf7adc04570f18e76cbdf45dce3ff692cd1e4` |
 | `schemas/injection_artifact_v3.schema.json` | `schema` | `application/schema+json` | 3882 | `cde6ec85653cd9b984af587a5f327ac45ef97fa154c121a3e6a24b03e76ed366` |
 | `schemas/lesson.schema.json` | `schema` | `application/schema+json` | 1709 | `458259e23a7cb87db8973dac54a3c5f50712eae0b2f9a9705e6032899d0f6ff5` |
 | `schemas/managed_index_bundle_v3.schema.json` | `schema` | `application/schema+json` | 8828 | `ead30c289a91221730afee253185130d00b65c66fd712770beeb46046c798ce7` |
+| `schemas/memory_catalog_event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 17339 | `164728466a3a42e5b664302b66acb357de8f758b959281e372b35347d9daae7b` |
 | `schemas/memory_context.schema.json` | `schema` | `application/schema+json` | 1708 | `98244e7f1d55c81a7a5eb429cc8298d571ec54f3fcf1ec04ceb3593d05ebd177` |
 | `schemas/memory_decision.schema.json` | `schema` | `application/schema+json` | 1471 | `1809cf4238a338eb2ea723967c2d02364699cb4adb1a88e1790708470159dbe4` |
 | `schemas/memory_revision_activation_v3.schema.json` | `schema` | `application/schema+json` | 4237 | `027377b6daa6882f2d2d77ef9731c628705ca9ece5eb8cebb06fec3f6cf40051` |
@@ -95,6 +117,9 @@
 | `schemas/memory_store_snapshot.schema.json` | `schema` | `application/schema+json` | 907 | `1c72c8949a77dcd2434d54892f5ac18ef31869cc2811277470085ff7a1271b9d` |
 | `schemas/memory_usage_log.schema.json` | `schema` | `application/schema+json` | 3656 | `c2e77548af38c7b5fe26e2cd60f9e1a29a3ee01fb6f58f1f259186357dd4c0f3` |
 | `schemas/outcome_attribution_v3.schema.json` | `schema` | `application/schema+json` | 3533 | `fadc675c553d4ee9ef18723af75536902d1e913c7b877d39d90646d8162e34d6` |
+| `schemas/outcome_effect_event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 39822 | `fbb1a4c5db2596483a4fafb09bdc015b46c619391b4438579a69567ae61892fa` |
+| `schemas/outcome_evaluation_context_v1.schema.json` | `schema` | `application/schema+json` | 4424 | `040e34898751077e66ee782834f7386e5a3df85251e090653cd199152970958f` |
+| `schemas/outcome_harm_event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 1653 | `7ffb84438eb976f2b4974856cdfe917f8e98ac29d764abb858a806f83a48f69e` |
 | `schemas/postgres-v1-to-v2.sql` | `schema` | `application/sql` | 8759 | `519d045ee96eb74e10681acb417ea6eda5579a53ccb43252adf21491887770c9` |
 | `schemas/postgres-v2-lock-order-hotfix.sql` | `schema` | `application/sql` | 1646 | `7deb8deb5c5a2114d82ad91b21ea6ae4c76eb0218a09c39301aa7ef1762d8cb7` |
 | `schemas/postgres-v3-artifact-authority-rollback.sql` | `schema` | `application/sql` | 17174 | `0a0ff671a394caca22aaedfa37672e94cca30c76a6819d7a0d2b543cbe5671bf` |
@@ -135,6 +160,8 @@
 | `schemas/project_policy.schema.json` | `schema` | `application/schema+json` | 1482 | `71cf4ae8bc82aa34d2a2c7027e7920f25840ad1889c8f48fc847ff075050935a` |
 | `schemas/recovery_action_v3.schema.json` | `schema` | `application/schema+json` | 4621 | `988d31d4ac99d6561265ab64cc20cf2d4a9f8b6042fa98969446d8de482bfa0b` |
 | `schemas/replay_bundle_export_v3.schema.json` | `schema` | `application/schema+json` | 3814 | `154869a5ce586ee8a649943f6c66aad03ee1c4d039a1b01facd651dc3cc0b369` |
+| `schemas/retrieval_index_event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 5311 | `e780632299b50e756c961f6d0de4726a4a7fde08d80af9be9c64a3f44c04e1b4` |
+| `schemas/retrieval_index_manifest_v1.schema.json` | `schema` | `application/schema+json` | 5427 | `99ef41408682b5248ab07144f31d26c2d2d2d87bd2a510028cad4c9ae4405e15` |
 | `schemas/retrieval_policy_v3.schema.json` | `schema` | `application/schema+json` | 3824 | `55d75284236de7847f142360246836301419f82d65738161a9870a306e056456` |
 | `schemas/retrieval_snapshot_v3.schema.json` | `schema` | `application/schema+json` | 6120 | `285a68664dc8ebb9cd7d0f504b7790b02436196effd06dbf44b29d4747a1e4b1` |
 | `schemas/run_outcome_v3.schema.json` | `schema` | `application/schema+json` | 3194 | `5ebe85fc6f71c090cf2f85194248acdab7c37ac8a98d5d9c7a50882d1a6d3ff0` |
@@ -166,4 +193,5 @@
 | `schemas/structured_regression_evidence_v3.schema.json` | `schema` | `application/schema+json` | 3803 | `85adadb8bf315257b687b7d1efdeaee0bdfc7f9a1a01638a4fd69cce8b301dfe` |
 | `schemas/system_gate_evaluation_v3.schema.json` | `schema` | `application/schema+json` | 2582 | `6461e5e01c23361cd41ef0afc763eae4a8de982e02063b67763de347bdec521b` |
 | `schemas/trace.schema.json` | `schema` | `application/schema+json` | 2408 | `7890000168db271ff28c797004244d43f40b6c7bfd0bdb742333d88321c9fb46` |
+| `schemas/trace_event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 52991 | `abab2b3369a3b98c4b323150df5ad8a52a00c003518b698d787846bab55d9202` |
 | `schemas/usage_decision_v3.schema.json` | `schema` | `application/schema+json` | 5845 | `66195fcd9468a0bb9c9ef2db4ead4849823a70f4f4acdc520b134cb91b39c14a` |

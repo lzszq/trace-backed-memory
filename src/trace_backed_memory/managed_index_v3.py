@@ -1022,6 +1022,103 @@ def build_managed_index_bundle(
     )
 
 
+def purge_managed_index_revisions(
+    bundle: ManagedIndexBundle,
+    *,
+    memory_revision_ids: tuple[str, ...],
+) -> ManagedIndexBundle:
+    """Build an immutable successor without the named revision candidates.
+
+    The current bundle remains valid history.  Callers publish the returned
+    content-addressed bundle with ``expected_current_bundle_id=bundle.bundle_id``
+    so the repository's existing scope-local CAS selects the new head.
+    """
+
+    if type(bundle) is not ManagedIndexBundle:
+        _invalid("bundle must be exactly ManagedIndexBundle")
+    if (
+        type(memory_revision_ids) is not tuple
+        or not memory_revision_ids
+        or len(memory_revision_ids) > MANAGED_INDEX_MAX_CANDIDATES
+        or any(
+            type(item) is not str or _REVISION_ID_RE.fullmatch(item) is None
+            for item in memory_revision_ids
+        )
+        or memory_revision_ids != tuple(sorted(set(memory_revision_ids)))
+    ):
+        _invalid("memory_revision_ids must be a unique sorted non-empty tuple")
+
+    removed = frozenset(memory_revision_ids)
+    candidates = tuple(
+        item for item in bundle.candidates if item.memory_revision_id not in removed
+    )
+    retained_evidence = {
+        evidence_id for item in candidates for evidence_id in item.evidence_ids
+    }
+    evidence_edges = tuple(
+        item for item in bundle.evidence_edges if item.evidence_id in retained_evidence
+    )
+    dimensions = {
+        len(cast(tuple[float, ...], item.semantic_vector))
+        for item in candidates
+        if item.semantic_vector is not None
+    }
+    semantic_dimension = next(iter(dimensions), 0)
+    source_catalog_sha256 = _source_catalog_sha256(candidates)
+    unsigned_without_versions: dict[str, object] = {
+        "contract_version": bundle.contract_version,
+        "tenant_id": bundle.tenant_id,
+        "repository_id": bundle.repository_id,
+        "environment_id": bundle.environment_id,
+        "retriever_id": bundle.retriever_id,
+        "retriever_version": bundle.retriever_version,
+        "tokenizer_id": bundle.tokenizer_id,
+        "tokenizer_version": bundle.tokenizer_version,
+        "semantic_provider_id": bundle.semantic_provider_id,
+        "semantic_provider_version": bundle.semantic_provider_version,
+        "semantic_metric": bundle.semantic_metric,
+        "semantic_dimension": semantic_dimension,
+        "source_catalog_sha256": source_catalog_sha256,
+        "candidates": [item.to_dict() for item in candidates],
+        "evidence_edges": [item.to_dict() for item in evidence_edges],
+        "git_commits": list(bundle.git_commits),
+        "git_edges": [item.to_dict() for item in bundle.git_edges],
+    }
+    provisional = ManagedIndexBundle.__new__(ManagedIndexBundle)
+    for key, value in unsigned_without_versions.items():
+        object.__setattr__(provisional, key, value)
+    object.__setattr__(provisional, "candidates", candidates)
+    object.__setattr__(provisional, "evidence_edges", evidence_edges)
+    object.__setattr__(provisional, "git_commits", bundle.git_commits)
+    object.__setattr__(provisional, "git_edges", bundle.git_edges)
+    object.__setattr__(provisional, "index_versions", ())
+    versions = _index_versions(cast(ManagedIndexBundle, provisional))
+    unsigned = {
+        **unsigned_without_versions,
+        "index_versions": [item.to_dict() for item in versions],
+    }
+    return ManagedIndexBundle(
+        bundle_id=managed_index_bundle_id(unsigned),
+        tenant_id=bundle.tenant_id,
+        repository_id=bundle.repository_id,
+        environment_id=bundle.environment_id,
+        retriever_id=bundle.retriever_id,
+        retriever_version=bundle.retriever_version,
+        tokenizer_id=bundle.tokenizer_id,
+        tokenizer_version=bundle.tokenizer_version,
+        semantic_provider_id=bundle.semantic_provider_id,
+        semantic_provider_version=bundle.semantic_provider_version,
+        semantic_metric=bundle.semantic_metric,
+        semantic_dimension=semantic_dimension,
+        source_catalog_sha256=source_catalog_sha256,
+        index_versions=versions,
+        candidates=candidates,
+        evidence_edges=evidence_edges,
+        git_commits=bundle.git_commits,
+        git_edges=bundle.git_edges,
+    )
+
+
 def managed_index_bundle_id(payload: Mapping[str, object]) -> str:
     return "managed_index_bundle_sha256_" + canonical_sha256(payload).removeprefix(
         "sha256:"
@@ -1612,4 +1709,5 @@ __all__ = [
     "dumps_managed_index_bundle",
     "loads_managed_index_bundle",
     "managed_index_bundle_id",
+    "purge_managed_index_revisions",
 ]

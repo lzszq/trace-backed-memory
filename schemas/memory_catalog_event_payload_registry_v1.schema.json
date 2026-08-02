@@ -1,0 +1,680 @@
+{
+  "$comment": "Generated from the sealed MemoryCatalog event registry; exact domain record parsers remain authoritative during replay.",
+  "$id": "https://trace-backed-memory.dev/schemas/memory_catalog_event_payload_registry_v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.counterexample_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.counterexample_recorded"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.counterexample_recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.fix_evidence_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.fix_evidence_recorded"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.fix_evidence_recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.regression_evidence_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.regression_evidence_recorded"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.regression_evidence_recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.relationship_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.relationship_recorded"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.relationship_recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.revision_activated"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.revision_activated"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.revision_activated.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.revision_approved"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.revision_approved"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.revision_approved.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.revision_obsoleted"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.revision_obsoleted"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.revision_obsoleted.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.revision_proposed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.revision_proposed"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.revision_proposed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.revision_rejected"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.revision_rejected"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.revision_rejected.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.revision_reviewed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.revision_reviewed"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.revision_reviewed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.revision_superseded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.revision_superseded"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.revision_superseded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.memory.revision_suspended"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "memory_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "record_json": {
+              "maxLength": 262144,
+              "minLength": 2,
+              "type": "string"
+            },
+            "record_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "record_type": {
+              "const": "tbm.memory.revision_suspended"
+            },
+            "revision_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory_id",
+            "revision_id",
+            "record_type",
+            "record_sha256",
+            "record_json"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.memory.revision_suspended.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "Trace-backed Memory MemoryCatalog event payloads v1"
+}

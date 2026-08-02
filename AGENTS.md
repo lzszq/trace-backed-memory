@@ -63,9 +63,23 @@ Start with:
   immutable provenance, and target-scoped activation-head CAS.
 - `artifact_v3.py` / `artifact_service_v3.py`: storage-neutral authenticated
   encrypted Artifact contracts and service boundary.
+- `failure_case_event_v1.py`: opt-in ordered extractor/review/fix/regression
+  event protocol and deterministic FailureCase projection. Extractors remain
+  candidate-only and legacy regression booleans remain unstructured evidence.
+- `memory_catalog_event_v1.py`: opt-in canonical MemoryRevision lifecycle
+  events, exact stored publication provenance, deterministic MemoryCatalog and
+  ActivatedMemoryHead projections, and shared SQLite/PostgreSQL ledger
+  append/rebuild composition; it does not cut over the compatibility Store.
+- `active_policy_event_v1.py`: opt-in content-addressed active retrieval-policy
+  bundle, globally authorized registration/activation events, deterministic
+  active head, and shared SQLite/PostgreSQL EventLedgerPort append/rebuild; it
+  is not selected by default adapters.
 - `sqlite_artifact_v3.py` / `postgres_artifact_v3.py`: opt-in immutable
   encrypted Artifact authorities; the PostgreSQL peer is isolated from active
   schema version 2 and has catalog-checked fail-closed rollback.
+- `artifact_retention_event_v1.py`: opt-in storage-neutral protected-manifest,
+  legal-hold, external KMS receipt, immutable index-successor, replay-partial,
+  crypto-erasure, and tombstone coordinator; not selected by default adapters.
 - `activated_revision_v3.py`: authorized current-head publication/evidence/
   artifact verification for future version-3 retrieval candidates.
 - `retrieval_v3.py`: content-addressed RetrievalSnapshot/Hit and index-version
@@ -80,6 +94,12 @@ Start with:
   read-back, and durable GateSession `PREPARED` CAS; not active Agent/MCP state.
 - `managed_index_v3.py`: bounded immutable metadata/lexical/semantic/
   evidence/Git index bundle plus the concrete authenticated-discovery adapter.
+- `retrieval_index_event_v1.py`: opt-in event-first build/completion/
+  activation/stale reducer, five-index manifest with source watermark, and
+  read-only event-selected managed-index adapter.
+- `outcome_harm_event_v1.py`: opt-in event-first evaluation-context binding and
+  deterministic association/cohort/verified-causal/harm/suspension-advice
+  projection over existing Outcome events; recommendations never mutate heads.
 - `sqlite_managed_index_v3.py` / `postgres_managed_index_v3.py`: opt-in
   exact-byte bundle repositories with scope-local publication-head CAS.
 - `gate_evaluation_v3.py`: immutable deterministic System Gate and monotonic
@@ -153,6 +173,41 @@ Start with:
   ledger with row-lock CAS, exact catalog checks, and fail-closed rollback.
 - `gate_session_v3.py`: persistence-neutral durable-session contract and
   explicit lifecycle transitions; not an active repository.
+- `gate_session_event_v1.py`: strict GateSession lifecycle event registry,
+  deterministic current-state reducer, trusted ledger partition resolver, and
+  same-transaction revision projector selected by explicit durable runtimes;
+  it does not cut over the compatibility lifecycle or other durable views.
+- `gate_evidence_event_v1.py`: descriptor-only retrieval/System/Semantic/final/
+  injection event registry and deterministic views, same-transaction evidence
+  hooks, and an events-plus-Artifact exporter for the existing replay v3 wire
+  contract; aggregate cutover and the complete crash matrix remain pending.
+- `outcome_effect_event_v1.py`: ledger-ready RunOutcome/OutcomeAttribution and
+  Effect lifecycle adapters plus deterministic Outcome, EffectQueue, delivery,
+  dead-letter, and compensation reducers; `tbmd local` selects their
+  same-transaction completion/delivery projector and response-after-commit
+  command coordinator, while standalone durable transports and the
+  provider-receipt protocol remain later phases.
+- `trace_event_v1.py`: opt-in ordered TraceEvent typed registry and bounded
+  ledger adapter with exact timestamps, descriptor-only artifacts, tool/
+  permission correlation, and parent/subagent provenance; compatibility Trace
+  cutover remains later F3 work.
+- `codex_ingestion_v1.py`: opt-in strict Codex Hook/App Server frame capture,
+  protected exact-byte source descriptors, trusted binding, lifecycle
+  projection, and atomic TraceEvent batch adapter; default transports do not
+  select it.
+- `git_observation_v1.py`: opt-in sealed checkout/ref/commit/diff/ancestry/
+  object-availability/shallow observation registry and atomic ledger adapter;
+  detailed capture preserves compatibility return types, protects exact diff
+  bytes behind Artifact descriptors, and records runner/algorithm versions.
+- `git_graph_reducer_v1.py`: opt-in storage-neutral deterministic Git graph
+  reducer and immutable projection with explicit relation confidence,
+  missing-object uncertainty, exact source/fix/verification relationships, and
+  fail-closed PR source anchors; no active transport selects it.
+- `effect_receipt_v1.py`: opt-in storage-neutral external-effect lifecycle with
+  trusted authorization/provider bindings, monotonic attempts, exact receipt
+  Artifacts, explicit unknown/reconciliation, bounded retry/dead-letter, and
+  distinct compensation child effects; legacy outbox/default transports do
+  not select it.
 - `sqlite_gate_session_v3.py`: opt-in side-by-side append-only GateSession
   revisions and CAS heads; not wired to the active Agent/MCP.
 - `postgres_gate_session_v3.py`: opt-in isolated PostgreSQL GateSession
@@ -187,6 +242,12 @@ Start with:
 - Persisted identities and provenance are immutable.
 - Obsolescence and measured outcomes are forward-only.
 - Every runtime injection is linked to a Trace and usage decision.
+- MemoryCatalog replay binds record and envelope partition, actor, lifecycle
+  time, trusted-verifier configuration, and the exact activation event. A
+  compatibility Lesson is never a formal ActivatedMemoryHead.
+- Active policy replay binds the complete eight-dimension bundle, exact global
+  create/approve authorization, independent actors, partition, activation
+  predecessor, trusted verifier, renderer limits, and required Semantic Gate.
 - Scope matching is not authorization; do not present it as tenant security.
 - External JSON is bounded, finite-number checked, and duplicate-key rejecting.
 - Writes remain staged, atomic, and all-or-nothing.

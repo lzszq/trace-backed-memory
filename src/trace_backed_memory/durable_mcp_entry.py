@@ -172,6 +172,7 @@ def _open_runtime(
             initialize=args.initialize,
             expose_injection_content=args.expose_injection_content,
             expose_replay_content=args.expose_replay_content,
+            event_first_commands=True,
             check_same_thread=False,
         )
     if args.initialize:

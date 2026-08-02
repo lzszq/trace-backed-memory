@@ -130,6 +130,53 @@ UTC offset. Fractional seconds may contain at most six digits. Lifecycle APIs,
 snapshot import, SQLite, PostgreSQL, and canonical JSON Schemas reject
 sub-microsecond precision instead of silently truncating it.
 
+For opt-in ordered TraceEvent capture, use the typed
+`tbm.trace-event.v1` adapter rather than treating the final compatibility Trace
+aggregate or an unstable transcript as ordered evidence. One Trace stream must
+use contiguous sequence and nondecreasing canonical UTC occurrence timestamps.
+Store prompt, tool input/output, diff, and response bytes in the Artifact
+Authority and keep only sorted content-addressed descriptors in events. Tool
+correlation requires an invocation digest; permission evidence must distinguish
+an explicit allow/deny/unknown decision from `null` (not checked). Parent/
+subagent linkage is provenance and never authorization inheritance. Append only
+non-empty batches of at most 100 through the access-bound ledger port so the
+whole batch commits atomically or not at all. The Codex ingestion adapter can
+select this protocol explicitly, while default transports remain unchanged. See
+[Ordered TraceEvent protocol v1](protocols/trace-event-v1.md).
+
+For opt-in Codex Hook/App Server capture, accept frames only from an
+owner-controlled authenticated source and supply trusted receive time, fixed
+Trace/run/lineage binding, ledger access, and a protected Artifact writer.
+Never parse a transcript as the sole fact source. Permission decisions must
+bind the exact approval-frame digest; Hook approvals without a tool ID must
+resolve uniquely, and App Server approvals must match an active item. Reject
+source clock drift beyond the protocol bound. Callers must use the capture APIs
+rather than construct source records from request JSON. A valid Artifact left
+after later lifecycle or ledger rejection is orphan evidence, not a Trace fact,
+and remains subject to retention. See
+[Codex ingestion protocol v1](protocols/codex-ingestion-v1.md).
+
+For opt-in Git observation capture, keep `capture_trace_metadata()` and
+`capture_commit_ancestry()` on their compatibility contracts. Use the explicit
+detailed/runtime APIs only with trusted runner, Artifact, ledger-access, and
+clock inputs. Raw diff bytes must be written through the protected Artifact
+boundary; events retain only the exact descriptor/digest/size. Disable external
+diff and text conversion, set `GIT_NO_LAZY_FETCH=1`, and never translate a
+missing or indeterminate object into `not_ancestor`. Persist the capture runner,
+algorithm, and Git versions in every observation. See
+[Git observation protocol v1](protocols/git-observation-v1.md).
+
+For opt-in Git graph replay, pass one complete access-bound observation stream
+to `reduce_git_graph_events()`. Do not reorder, splice, or replay a suffix; do
+not substitute repository-name matching for the authenticated ledger partition.
+Known ancestry is usable only when the same capture records a full repository
+and both current and anchor objects as present. Treat every `unknown`, missing
+relation, missing object, shallow state, or indeterminate availability as
+fail-closed. `pr_anchor_commit_ancestry_evidence()` may be used only after all
+PR source anchors are locally validated. Fix/regression supplements must be the
+exact immutable evidence objects, not caller-authored commit pairs. See
+[Git graph reducer and projection v1](protocols/git-graph-reducer-v1.md).
+
 Use the schema owner or a write-capable repository role. PostgreSQL 12 requires
 table-level `UPDATE`, `DELETE`, or `TRUNCATE` privilege for the explicit
 `SHARE` locks used by load. Inside a caller-owned transaction, successful table
@@ -1446,6 +1493,87 @@ existing completion-outbox authority atomically publishes RunOutcome,
 returned by the service proves what it verified for that call; GateSession v3
 does not yet durably link that event in the revision.
 
+In an explicit durable SQLite/PostgreSQL runtime, never bypass the bound
+GateSession revision-event sink. Creation, transition, lease renewal, recovery,
+abandonment, and completion must append the canonical GateSession lifecycle
+event, rebuild the complete current state, and compare it with the proposed
+revision before the revision row is written in the same transaction. The
+ledger append authorization in that lifecycle event authenticates the event
+adapter; it is not a substitute for the operation's separately retained
+`gate_session:transition` decision. Pre-adapter rows may enter the stream only
+through the explicit `baseline_imported` observation and must not be presented
+as reconstructed native history. See
+[GateSession lifecycle events v1](protocols/gate-session-events-v1.md).
+
+Do not bypass the companion Gate evidence event sink in an explicit durable
+runtime. `PREPARED`, every successful or failed Semantic attempt, and
+`FINALIZED` must retain their descriptor-only events and referenced Artifact
+bytes in the same database transaction as the authority write that makes the
+state visible. Raw prompt, response, retrieval payload, and injection bytes
+belong in Artifact storage, never event payload or reducer state. A ledger
+replay export must use an explicit classification allowlist and byte limit and
+must remain the existing `tbm.replay-export.v3`; compare its digest with the
+authority export when diagnosing drift. See
+[Gate evidence events and ledger replay export v1](protocols/gate-evidence-events-v1.md).
+
+When importing Outcome and Effect state into ledger-ready events, preserve the
+exact RunOutcome/OutcomeAttribution content identifiers and every immutable
+completion-outbox delivery revision. Treat delivery as at-least-once. Do not
+infer a provider receipt or exactly-once completion from `response_sha256`.
+Compensation must be a distinct new effect that references a successful effect
+which explicitly declared compensation support; never rewrite the original
+history or reinterpret `RecoveryAction` as effect compensation. See
+[Outcome and Effect events v1](protocols/outcome-effect-events-v1.md).
+
+For new opt-in external effects, use `tbm.effect-receipt.v1`; never promote a
+legacy delivery `response_sha256` into a provider receipt. Append the effect
+request and trusted authorization link before the provider call. Provider
+identity must come from service composition, and every provider request ID
+must bind the exact effect, attempt, and canonical request digest. Persist raw
+input and receipt bytes only through protected Artifact descriptors. Treat
+timeouts, lost responses, interrupted calls, and uncertain acknowledgements as
+`unknown`: reconcile them before retry, dead-letter, or compensation. Retry
+only known retryable failures within the immutable attempt budget. Resolving
+unknown to absence requires an available reconciliation Artifact and cannot
+invent or change the provider request ID.
+Compensation is a separately authorized child effect and must bind the exact
+successful parent event and receipt without rewriting parent history. See
+[External Effect Receipt protocol v1](protocols/effect-receipt-v1.md).
+
+Use the opt-in Artifact retention coordinator only with an access-bound ledger,
+current managed-index authority, protected manifest store, complete target/key
+resolver, atomic legal-hold guard, trusted KMS registration, independent exact
+receipt verifier, and trusted clock. Record intent before index/KMS effects.
+After provider authorization, recovery may call only non-mutating
+reconciliation and must never blindly retry destruction. A terminal tombstone
+requires every exact verified receipt; an old index bundle or erased ciphertext
+row is historical evidence, never an authorized retrieval source. See
+[Artifact retention protocol v1](protocols/artifact-retention-v1.md).
+
+Do not use the contract-only FailureCase event reducer to authorize new Memory
+until its draft-producer replacement acceptance gap is closed. When testing it,
+use only a complete verified TraceEvent chain and protected proposal Artifacts.
+Treat every extractor
+output as a candidate. A new Memory may consume the projection only when
+`eligible_for_new_memory=true`, which requires an independent accepted review,
+exact FixEvidence, and matching passing StructuredRegressionEvidence. Never
+upgrade `legacy_unstructured`, a legacy regression boolean, or a failed/error
+regression attempt into verified evidence. See
+[FailureCase events protocol v1](protocols/failure-case-events-v1.md).
+
+The explicit SQLite event-first runtime must retain its hard-kill qualification
+at all 11 command commit points: authorization, `CREATED`, retrieval evidence,
+`PREPARED`, provider call, `DECIDED`, replay retention, `FINALIZED`,
+`EXECUTING`, outcome, and outbox. A pre-commit kill must leave every managed
+table byte-for-byte equivalent at the row/value level to the prior committed
+snapshot; a post-commit/pre-response kill must expose the committed transition
+and accept exact replay without appending a duplicate logical transition.
+Fault injection belongs to the test harness and must not become a public wire or
+production hook. Provider work may be retried after a pre-commit crash, and
+outbox delivery remains at-least-once; neither is an exactly-once claim. This
+qualification does not cover the standalone PostgreSQL composition. See
+[Durable SQLite hard-kill crash matrix v1](protocols/durable-crash-matrix-v1.md).
+
 ## Authenticated durable Agent policy
 
 Use `AuthenticatedDurableAgentMemory` as the only shared application facade
@@ -1515,6 +1643,20 @@ tests. The durable facade authorizes public/internal replay reads; explicit
 durable HTTP/MCP, `tbmd local`, and Python/TypeScript clients expose them only
 when startup policy enables content. Public/internal plaintext remains the
 only supported storage profile.
+
+`tbmd local` must open SQLite with `event_first_commands=true`. A command may
+return only after its outer transaction has validated trusted input, appended
+the domain-event batch, synchronously rebuilt and checked critical projections,
+constructed the response, and committed. Any failure rolls back the complete
+command. Completion/outbox effect transitions must append before their legacy
+projection writes. Never keep that transaction open across an external outbox
+consumer call; claim and acknowledgement/failure are separate short atomic
+operations, and the delivery claim remains at-least-once. Standalone durable
+HTTP and MCP must select the same coordinator when their SQLite profile is
+opened. Raw HTTP, MCP, Python sync/async, and TypeScript must retain the same
+canonical event sequence and projection digest without changing the public
+wire contract. The standalone PostgreSQL profile does not yet inherit this
+Outcome/Effect command cutover and must remain explicitly qualified.
 
 ## Version-3 outcome and attribution policy
 
@@ -1654,8 +1796,11 @@ CAS cannot be confirmed, return an explicit recovery-required result.
 Classification metadata is not enforcement. The opt-in SQLite and isolated
 PostgreSQL Artifact authorities encrypt all accepted classes with a
 caller-owned provider, authorize each read/write, and enforce read-time
-retention/legal hold; they do not yet perform physical purge, redaction, or
-key destruction. Avoid logging content. The opt-in SQLite and PostgreSQL
+retention/legal hold; the authorities themselves do not perform physical purge,
+redaction, or key destruction. The separate opt-in retention coordinator may
+verify external key destruction and append an erased tombstone overlay without
+mutating those rows; default profiles do not select it. Avoid logging content.
+The opt-in SQLite and PostgreSQL
 replay repositories store accepted bytes verbatim and therefore reject
 confidential/restricted artifacts until a transparent encryption provider can
 preserve exact content identity. Both verify exact bytes and immutable

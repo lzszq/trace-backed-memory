@@ -1,0 +1,3133 @@
+{
+  "compatibility": [
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.crypto_erasure_authorized",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.crypto_erasure_blocked",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.crypto_erasure_rejected",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.crypto_erasure_requested",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.crypto_erasure_unknown",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.cryptographically_erased",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.index_purged",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.redaction_manifest_recorded",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.replay_partial_marked",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.retention_applied",
+      "source_version": 1,
+      "target_version": 1
+    },
+    {
+      "compatibility": "native",
+      "event_type": "tbm.artifact.tombstoned",
+      "source_version": 1,
+      "target_version": 1
+    }
+  ],
+  "event_types": [
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.crypto_erasure_authorized",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.crypto_erasure_authorized.v1",
+      "payload_schema_sha256": "sha256:e72b0833ce43b50d2134b9ad22473af3f0a3f2916ef80f4323e8ad247b37d819",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "crypto_erasure_authorized",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.crypto_erasure_blocked",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.crypto_erasure_blocked.v1",
+      "payload_schema_sha256": "sha256:df8248839e8e679ea459aaeb11395ebdbef5f9bf3af1c04c0f9122e407b7ee04",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "crypto_erasure_blocked",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.crypto_erasure_rejected",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.crypto_erasure_rejected.v1",
+      "payload_schema_sha256": "sha256:b6ae78319a8ee5d10f5ba35a842cf12f1357373f40234ca4982aacf6fc5f7fa7",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "crypto_erasure_rejected",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.crypto_erasure_requested",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.crypto_erasure_requested.v1",
+      "payload_schema_sha256": "sha256:53d21ac84ba2cb89df2bf53125ec42fb2aa61cf8e6c9f77a533c821bec10cd3a",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "crypto_erasure_requested",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.crypto_erasure_unknown",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.crypto_erasure_unknown.v1",
+      "payload_schema_sha256": "sha256:f26ebee533c57470c997774d4cd59e4bda5b704e2f1096ff69658ab3d72be706",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "crypto_erasure_unknown",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.cryptographically_erased",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.cryptographically_erased.v1",
+      "payload_schema_sha256": "sha256:361bdcb1004b9e5eb5ecfbe71ee317750ac6ce07ab6e7c374fd1be4ea53b27d9",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "cryptographically_erased",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.index_purged",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.index_purged.v1",
+      "payload_schema_sha256": "sha256:b9a21198a39b94beda5e31e8f320ec27cd0dfd4dc54d8b7146fa38c4799ecfa3",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "index_purged",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.redaction_manifest_recorded",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.redaction_manifest_recorded.v1",
+      "payload_schema_sha256": "sha256:76d2b694e0127973fce2e3769c8a024e9bfb25ca66aaf1e032a00d7dd5c510a0",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "redaction_manifest_recorded",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.replay_partial_marked",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.replay_partial_marked.v1",
+      "payload_schema_sha256": "sha256:75c2cf12cdb31c41c3c03f15c1a122fc3c74df68ba4b2c89dbe9182d04a59152",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "replay_partial_marked",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.retention_applied",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.retention_applied.v1",
+      "payload_schema_sha256": "sha256:3bbffbaf175d171cac8a45387898149ac2f88033c9d59af8372118552cbfd81f",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "retention_applied",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "event_kind": "domain",
+      "event_type": "tbm.artifact.tombstoned",
+      "event_version": 1,
+      "payload_schema": "tbm.artifact.tombstoned.v1",
+      "payload_schema_sha256": "sha256:a7c7c589b3719ca20558d285fd99cb3810da9cff8d6002e0d151b94ed6b7d725",
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "artifact_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "destruction_authorization_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_previous_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "index_successor_bundle_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^managed_index_bundle_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_artifact_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "occurred_at": {
+            "maxLength": 64,
+            "minLength": 20,
+            "type": "string"
+          },
+          "operation_id": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^retention_operation_sha256_[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "point": {
+            "const": "tombstoned",
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "provider_attestation_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_id": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_receipt_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_receipt_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_registration_sha256": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_request_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "provider_version": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replay_marker_sha256s": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "retention_snapshot_sha256": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9223372036854775807,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unknown_provider_request_ids": {
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-=]{0,255}$",
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "operation_id",
+          "sequence",
+          "manifest_sha256",
+          "manifest_artifact_id",
+          "point",
+          "occurred_at",
+          "retention_snapshot_sha256",
+          "index_previous_bundle_id",
+          "index_successor_bundle_id",
+          "provider_request_ids",
+          "provider_request_sha256s",
+          "provider_id",
+          "provider_version",
+          "provider_registration_sha256",
+          "provider_attestation_sha256",
+          "destruction_authorization_sha256",
+          "provider_receipt_request_ids",
+          "provider_receipt_request_sha256s",
+          "provider_receipt_sha256s",
+          "replay_marker_sha256s",
+          "unknown_provider_request_ids",
+          "failure_code",
+          "artifact_ids"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "registry_sha256": "sha256:a06d6b4d202cb875c407e13366e459c256eadec471b78a2e0a178432e7ea48b3",
+  "registry_version": "tbm.event-registry.v1",
+  "upcasters": []
+}

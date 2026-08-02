@@ -10,6 +10,26 @@ session after the server and database runtime are reopened.
 The default `tbm-http` behavior remains `compat-v2`. Durable v3 is never
 selected implicitly.
 
+## Event-first SQLite boundary
+
+The standalone SQLite profile now opens the durable runtime with
+`event_first_commands=true`. Every mutating command validates trusted input,
+appends its canonical GateSession, Gate-evidence, and Outcome/Effect events,
+synchronously rebuilds and checks the critical projections, constructs the
+existing wire response, and commits one outer SQLite transaction before the
+response is returned. Exact completion retry appends no duplicate event.
+
+Raw HTTP, synchronous and asynchronous Python clients, MCP, and the TypeScript
+client run one shared lifecycle fixture against one committed event-sequence
+and projection-digest golden. This selection changes no
+`tbm.durable-agent-wire.v1` request, response, route, capability, or OpenAPI
+shape.
+
+The isolated PostgreSQL profile remains available through the existing
+authority graph, but its command coordinator and Outcome/Effect projection
+have not made the equivalent event-first cutover. Do not infer PostgreSQL
+parity or full persistence from the SQLite conformance result.
+
 ## Security and identity boundary
 
 - A bearer secret from `TBM_DURABLE_HTTP_TOKEN` is required for every route.

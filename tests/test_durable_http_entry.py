@@ -227,6 +227,7 @@ def test_durable_http_open_runtime_profiles(
     )
     try:
         assert sqlite_runtime.dispatcher.capabilities()["storage_mode"] == "sqlite"
+        assert sqlite_runtime.event_first_commands is True
     finally:
         sqlite_runtime.close()
 

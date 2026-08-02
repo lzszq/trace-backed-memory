@@ -1,0 +1,31 @@
+{
+  "assignment_evidence_sha256": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+  "assignment_method": "randomized",
+  "authorization_event_id": "authz_sha256_7777777777777777777777777777777777777777777777777777777777777777",
+  "bound_at": "2026-07-29T00:10:32Z",
+  "bound_by": "outcome_reviewer",
+  "bound_via_client_id": "outcome_review_service",
+  "cohort_arm": "with_memory",
+  "cohort_id": "cohort_with_memory_001",
+  "context_id": "outcome_context_sha256_6da5fb989922d20024065badca319dc30bc51c783b669a55394ec65caf610468",
+  "contract_version": "tbm.outcome-evaluation-context.v1",
+  "environment_id": "environment_001",
+  "evaluation_case": "regression_case_001",
+  "evaluation_suite": "regression_suite_001",
+  "experiment_id": "experiment_001",
+  "injection_artifact_id": "injection_artifact_001",
+  "memory_revision_ids": [
+    "memory_revision_sha256_5555555555555555555555555555555555555555555555555555555555555555"
+  ],
+  "organization_id": "organization_001",
+  "replay_manifest_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "repository_id": "repository_001",
+  "retrieval_snapshot_sha256": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "run_id": "run_001",
+  "run_outcome_id": "run_outcome_sha256_1111111111111111111111111111111111111111111111111111111111111111",
+  "session_id": "gate_session_001",
+  "tenant_id": "tenant_001",
+  "trace_id": "trace_001",
+  "usage_decision_id": "usage_decision_001",
+  "usage_decision_sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+}

@@ -96,3 +96,15 @@ lease fencing, shared-service workers, the remaining crash matrix, and remote
 exactly-once remain incomplete. The plan has no explicit safe atom-ID mapping for
 this partial F3 cluster, so no complete F3 effect atom is promoted. Formal and
 candidate progress remain 182/490 (37.14%) with `atom_ids=[]`.
+
+The ordered Trace event protocol now adds one registered observation family,
+strict source/time/Artifact/tool/permission/parent-subagent linkage, and a
+ledger-compatible partition identity/content digest for atomic batches of at
+most 100 contiguous events. Typed preflight plus SQLite continuation and exact
+append/replay are verified, and an exact SQLite/PostgreSQL receipt/page parity
+test is present, but PostgreSQL executables are not
+available locally. Codex Hook/App Server ingestion, Git observations, Trace/Git
+reducers, and default Trace persistence cutover remain incomplete. The fixed
+progress contract contains no auditable F3 atom-ID-to-plan-line map, so this
+protocol evidence is not assigned an invented atom ID. Formal and candidate
+progress therefore remain 182/490 (37.14%) with `atom_ids=[]`.

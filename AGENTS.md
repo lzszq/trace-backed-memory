@@ -140,6 +140,9 @@ Start with:
 - `completion_outbox_worker_v3.py`: storage-neutral bounded at-least-once
   dispatcher with sanitized consumer failures, exact acknowledgement
   read-back, and explicit superseded/recovery-required outcomes.
+- `trace_event_v1.py`: storage-neutral ordered engineering-observation event
+  with exact source time, Artifact-only content linkage, tool/permission/
+  parent/subagent correlation, and ledger-compatible atomic batches.
 - `provider_effect_ledger_v1.py`: storage-neutral provider-effect event-ledger
   service with content-addressed receipts, conservative unknown-result
   recovery, reconciliation-gated retry/dead-letter, one-compensation-per-original

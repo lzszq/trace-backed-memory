@@ -78,3 +78,13 @@ structured result，同 scope 的新 authorization 可以进行对账，且所�
 其余 crash matrix 与 remote exactly-once 仍未完成。计划没有可安全使用的显式 atom-ID
 映射，因此没有完整 F3 effect atom 被提升；正式与候选进度仍为 182/490（37.14%），
 `atom_ids=[]`。
+
+有序 Trace event 协议现已新增一个注册 observation family、严格
+source/time/Artifact/tool/permission/parent-subagent linkage，以及与 ledger 兼容、用于至多
+100 条连续 event 原子批次的 partition identity/content digest。typed preflight、SQLite
+续接与精确 append/replay 已核验，精确 SQLite/PostgreSQL receipt/page parity test 也已存在，
+但本机没有 PostgreSQL executable。
+Codex Hook/App Server ingestion、Git observation、Trace/Git reducer 与默认 Trace
+persistence cutover 仍未完成。固定进度契约没有可审计的 F3 atom-ID→plan-line 映射，因此
+不会为这些协议证据臆造 atom ID；正式与候选进度继续为 182/490（37.14%），
+`atom_ids=[]`。

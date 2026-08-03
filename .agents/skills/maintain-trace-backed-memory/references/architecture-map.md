@@ -44,6 +44,7 @@
 | SQLite replay v3 ledger | `sqlite_replay_v3.py`, `schemas/sqlite-v3-replay.sql` | exact-byte/idempotency/conflict/schema-drift/savepoint/concurrency tests, replay protocol docs |
 | PostgreSQL replay v3 ledger | `postgres_replay_v3.py`, `schemas/postgres-v3-replay*.sql` | exact-byte/idempotency/conflict/schema-drift/savepoint/concurrency/install/rollback tests, replay protocol docs |
 | Callback orchestration | `execution.py` | recovery/error tests |
+| Ordered Trace events v1 | `trace_event_v1.py` | canonical event registry/schema resources, SQLite/PostgreSQL append parity, source/artifact/tool/permission/parent-subagent rejection tests, bilingual protocol docs |
 | SQLite persistence | `sqlite.py`, `schemas/sqlite.sql` | Store conformance, migration docs |
 | PostgreSQL persistence | `postgres.py`, `schemas/postgres*.sql` | integration, concurrency, migration tests |
 | Installed resources | `resources.py`, `pyproject.toml` | `_resources/`, distribution verifier |

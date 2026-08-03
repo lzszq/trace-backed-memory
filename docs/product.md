@@ -302,6 +302,15 @@ contract 的 receipt-backed generic compensation
 exactly-once，也不支持 Semantic provider compensation。因此 ledger 尚未成为唯一 durable 事实源，
 `full_persistence` 继续为 `false`。
 
+第一项 F3 Trace 协议增量现已通过 `TraceEventRecordRef`、
+`build_trace_event_batch()` 与 `append_trace_event_batch()` 提供。一个已注册 observation
+family 会携带精确 Trace/run ordering、规范 source time、仅 Artifact 的内容 linkage、
+tool/permission/parent/subagent correlation，以及至多 100 条 event 原子批次共享的 command
+digest。typed helper 会先复验完整 command 与可信 ledger context；generic
+SQLite/PostgreSQL event ledger 随后无需新 schema 即可精确 append/replay。
+这还不是 Codex Hook/App Server ingestion、Git evidence、Trace reducer/projection 或默认
+Trace-store cutover。
+
 Phase 71 强化可信提升与运行时边界：Failure Case 只能来自 `fail`/`error` Trace，verify 前必须具备 reviewer、root cause 与 review timestamp，dirty source 不能激活 Lesson；LLM response 限制为 64 KiB、1,000 nodes、depth 20，reason 最多 2,000 字符；所有未被 LLM 选中的系统候选都会进入 blocked 审计，超过 50 项时确定性保留前 50 项并记录其余项；`short_summary` 与 `full_case_summary` 使用不同 renderer，关键词检索支持 Unicode。
 
 Phase 72 增加标准库 `SQLiteMemoryRepository`：增量原子同步使用 `BEGIN IMMEDIATE`，caller transaction 使用 savepoint，load 在 Store 重建前执行记录数与 UTF-8 payload 限制。SQLite 使用 schema 版本 1，PostgreSQL 当时仍使用 schema 版本 1；资源总数为 19。

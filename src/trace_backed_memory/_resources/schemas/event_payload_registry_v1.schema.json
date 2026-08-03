@@ -8208,6 +8208,168 @@
       "additionalProperties": false,
       "properties": {
         "event_type": {
+          "const": "tbm.trace.event_recorded"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "artifact_ids": {
+              "items": {
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 128,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "authorization_event_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "batch_first_sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "batch_size": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "causation_event_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "contract_version": {
+              "const": "tbm.trace-event.v1"
+            },
+            "occurred_at": {
+              "maxLength": 64,
+              "minLength": 20,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$",
+              "type": "string"
+            },
+            "parent_trace_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "permission_result": {
+              "enum": [
+                "allowed",
+                "denied",
+                "not_applicable",
+                "pending",
+                "unknown"
+              ]
+            },
+            "run_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "subagent_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tool_correlation_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "trace_event_type": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "trace_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract_version",
+            "trace_id",
+            "run_id",
+            "sequence",
+            "trace_event_type",
+            "occurred_at",
+            "authorization_event_id",
+            "artifact_ids",
+            "tool_correlation_id",
+            "permission_result",
+            "parent_trace_id",
+            "subagent_id",
+            "causation_event_id",
+            "batch_first_sequence",
+            "batch_size"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.trace.event_recorded.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
           "const": "tbm.usage_decision.finalized"
         },
         "event_version": {

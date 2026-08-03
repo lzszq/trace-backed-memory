@@ -919,6 +919,17 @@ adapter、completion-provider integration、自动 background sweep/lease fencin
 service worker、Memory/index/audit/metrics reducer、完整 lifecycle integration、migration 与
 cutover 仍未完成。
 
+第一项 F3 Trace 增量也已作为存储中立协议交付。
+`tbm.trace.event_recorded` 是一个 typed observation family；其 payload 绑定精确
+Trace/run sequence、规范 occurrence time、source record、仅 Artifact 的内容 reference、
+tool correlation、permission result 与 parent/subagent linkage。有界批次会让至多 100 条
+连续 canonical event 共享一个 partition-scoped identity key 与一个 content-bound digest；
+typed append helper 会先复验完整 command 与 ledger access context，再由既有
+SQLite/PostgreSQL event ledger 原子 append。详见
+[有序 Trace Event 协议 v1](protocols/trace-event-v1.zh-CN.md)。该协议增量不代表已经
+交付 Codex Hook/App Server adapter、Git observation、Trace reducer/projection 或
+compatibility Trace cutover。
+
 机器可读的 [`authority-registry.json`](status/authority-registry.json) 会把每个当前
 已登记 SQLite/PostgreSQL 持久化模块分类为 ledger、replaceable projection、compatibility
 migration 或 bundle coordinator。仓库验证会拒绝未登记 module、role 或事实来源。

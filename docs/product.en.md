@@ -316,6 +316,17 @@ open; Semantic provider compensation and remote exactly-once are not claimed.
 The ledger is therefore not yet the sole durable source of truth and
 `full_persistence` remains `false`.
 
+The first F3 Trace protocol increment is now available through
+`TraceEventRecordRef`, `build_trace_event_batch()`, and
+`append_trace_event_batch()`. One registered observation family carries exact
+Trace/run ordering, canonical source time, Artifact-only content linkage,
+tool/permission/parent/subagent correlation, and one shared command digest for
+an atomic batch of at most 100 events. The typed helper verifies the complete
+command and trusted ledger context before the generic SQLite/PostgreSQL event
+ledgers provide exact append and replay without another schema. This is not yet
+Codex Hook/App Server ingestion, Git evidence, a Trace reducer/projection, or a
+default Trace-store cutover.
+
 The implemented hardening includes:
 
 - conservative explicit failure-text classification and duplicate-key rejection;

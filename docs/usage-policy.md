@@ -1723,6 +1723,36 @@ bytes only for a live executing start/resume. An exact completed or abandoned
 start retry returns no snippet. Do not expose the replay repository's raw
 `load_*` methods as an execution API.
 
+## Ordered Trace event policy
+
+Use `TraceEventRecordRef` for ordered engineering observations that must survive
+as canonical evidence. Sequence starts at one per Trace stream and advances by
+exactly one. `occurred_at` and the `EventSource.observed_at` value must use
+canonical UTC RFC 3339. Keep permission evidence explicit; `unknown`, `pending`,
+and `denied` must never be treated as `allowed`. Source identity, evidence
+quality, and both times are trusted-adapter evidence claims; validation binds
+them but does not independently establish their truth.
+
+Prompt, tool, diff, and response bytes belong in an authorized Artifact
+authority. A Trace event payload may repeat sorted Artifact IDs but must not
+embed those bytes, credentials, authorization headers, or secrets. Protected
+Artifact references require an envelope classification at least as restrictive
+as the Artifact and the normal encryption-key descriptor.
+
+Use `build_trace_event_batch()` only for one Trace/run stream, one trusted
+authorization context, contiguous sequence/global positions, and no more than
+`EVENT_LEDGER_MAX_APPEND_BATCH` records. Persist the returned events only with
+`append_trace_event_batch()`, which verifies the full typed command and the
+ledger access context before atomic append. Raw generic-ledger append methods do
+not enforce Trace-specific semantics. On recovery, verify the whole retained
+command with `verify_trace_event_batch()`; parsing individual events does not
+replace batch verification.
+
+The protocol is not a Codex Hook/App Server adapter. Do not parse an unstable
+transcript as the sole fact source, accept repository or authorization identity
+from a hook payload, or claim a Trace projection/default-runtime cutover until
+those separate adapters and reducers are implemented and verified.
+
 ## Fixed runtime budgets
 
 The runtime fails closed at these fixed boundaries:

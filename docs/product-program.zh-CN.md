@@ -1040,9 +1040,10 @@ closed。在更大的 F2 gate 完成前，这两项增量都不提升新 atom。
   compensation，也不声明 remote exactly-once。completion-provider integration、具体 remote-
   provider adapter、自动 sweep/lease fencing、shared-service worker、当前机器尚未运行的
   PostgreSQL crash probe 与完整 crash matrix 仍未完成。
-- **F3 — Trace、Git 与 effect evidence：** 有序 Trace/Git observation、Git-graph
-  projection、external-effect receipt integration（存储中立 event/reducer/ledger 基础已
-  交付）、Codex hook 与受治理 retention/crypto-erasure。
+- **F3 — Trace、Git 与 effect evidence：** 有序 typed Trace event 协议与 ledger-context-
+  bound atomic append helper 已交付，存储中立 external-effect event/reducer/ledger 基础也已交付。
+  可信 Codex Hook/App Server ingestion、Git observation、Trace/Git projection、完整
+  external-effect integration 与受治理 retention/crypto-erasure 仍待完成。
 - **F4 — 受治理 memory projection：** failure extraction、structured evidence、
   MemoryRevision publication、ActivatedRevision retrieval、policy/index 与其余 Memory
   projection 变为 reducer-native；opt-in outcome/effect reducer 已在 F2 交付。

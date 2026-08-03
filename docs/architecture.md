@@ -2176,6 +2176,19 @@ provider adapters, completion-provider integration, automatic background sweep/
 lease fencing, shared-service workers, Memory/index/audit/metrics reducers,
 complete lifecycle integration, migration, and cutover remain open.
 
+The first F3 Trace increment is also delivered as a storage-neutral protocol.
+`tbm.trace.event_recorded` is one typed observation family whose payload binds
+an exact Trace/run sequence, canonical occurrence time, source record,
+Artifact-only content references, tool correlation, permission result, and
+parent/subagent linkage. A bounded batch shares one partition-scoped identity
+key and one content-bound digest across at most 100 contiguous canonical events.
+The typed append helper verifies that complete command and the ledger access
+context before the existing SQLite/PostgreSQL event ledger appends it atomically.
+See
+[Ordered Trace Event Protocol v1](protocols/trace-event-v1.md). No Codex Hook/
+App Server adapter, Git observation, Trace reducer/projection, or compatibility
+Trace cutover is implied by this protocol increment.
+
 The machine-readable
 [`authority-registry.json`](status/authority-registry.json) classifies every
 current registered SQLite/PostgreSQL persistence module as a ledger, replaceable

@@ -169,8 +169,8 @@
       "media_type": "application/json",
       "source": "examples/event_type_registry_v1.example.json",
       "installed": "src/trace_backed_memory/_resources/examples/event_type_registry_v1.example.json",
-      "size_bytes": 124430,
-      "sha256": "5e82bd9a729e3935b0603ac5f7c18d00712fd706fbf5e374dccc4d82bee36e4d"
+      "size_bytes": 126753,
+      "sha256": "5876eb23cb661fba0ddfbc9d47003259db1ca289477f25523cb3c608bc4e91a7"
     },
     {
       "name": "examples/event_v1.example.json",
@@ -637,8 +637,8 @@
       "media_type": "application/schema+json",
       "source": "schemas/event_payload_registry_v1.schema.json",
       "installed": "src/trace_backed_memory/_resources/schemas/event_payload_registry_v1.schema.json",
-      "size_bytes": 274936,
-      "sha256": "c6faa5da5b034682ccfef5ca31d4a19e054487d877397a0f11be192f26864cca"
+      "size_bytes": 279570,
+      "sha256": "0a1c4e1a617567d2a8c2d1e3294dffc98f412d9f442aad7376652590eba6bc0e"
     },
     {
       "name": "schemas/event_type_registry_v1.schema.json",

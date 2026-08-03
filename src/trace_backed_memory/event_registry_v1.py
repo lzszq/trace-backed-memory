@@ -40,6 +40,10 @@ from .semantic_gate_attempt_event_v1 import (
     SEMANTIC_GATE_ATTEMPT_EVENT_TYPES,
     semantic_gate_attempt_event_payload_schema,
 )
+from .trace_event_v1 import (
+    TRACE_EVENT_TYPES,
+    trace_event_payload_schema,
+)
 
 
 EVENT_REGISTRY_PROTOCOL_VERSION = "tbm.event-registry.v1"
@@ -703,6 +707,16 @@ def build_default_event_type_registry() -> EventTypeRegistry:
                 event_kind="domain",
                 payload_schema=f"{event_type}.v1",
                 schema=gate_evidence_event_payload_schema(event_type),
+            )
+        )
+    for event_type in TRACE_EVENT_TYPES:
+        registry.register(
+            EventPayloadRegistration(
+                event_type=event_type,
+                event_version=1,
+                event_kind="observation",
+                payload_schema=f"{event_type}.v1",
+                schema=trace_event_payload_schema(event_type),
             )
         )
     for event_type in SEMANTIC_GATE_ATTEMPT_EVENT_TYPES:

@@ -802,6 +802,31 @@ boundary 读取这份精确保留 bundle。它只会为 live executing start/res
 snippet 字节；completed 或 abandoned 的 exact start retry 不返回 snippet。不得把
 replay repository 的 raw `load_*` 方法暴露成 execution API。
 
+## 有序 Trace event 策略
+
+需要作为 canonical evidence 持久保留的有序工程 observation 应使用
+`TraceEventRecordRef`。每条 Trace stream 的 sequence 从 1 开始且每次只前进 1；
+`occurred_at` 与 `EventSource.observed_at` 必须使用规范 UTC RFC 3339。permission evidence
+必须显式表达；`unknown`、`pending` 与 `denied` 都不得当作 `allowed`。source identity、
+evidence quality 与两个时间都是 trusted-adapter 提交的 evidence 声明；校验会绑定它们，
+但不会独立证明其真实性。
+
+prompt、tool、diff 与 response 字节属于已授权 Artifact authority。Trace event payload
+可以重复已排序 Artifact ID，但不得内嵌这些字节、credential、authorization header 或
+secret。受保护 Artifact reference 要求 envelope classification 不低于 Artifact，并保留正常
+encryption-key descriptor。
+
+`build_trace_event_batch()` 只能用于同一 Trace/run stream、同一 trusted authorization
+context、连续 sequence/global position，且不得超过 `EVENT_LEDGER_MAX_APPEND_BATCH`。
+只能用 `append_trace_event_batch()` 持久化返回的 event；该 helper 会在原子 append 前校验
+完整 typed command 与 ledger access context。raw generic-ledger append 不执行
+Trace-specific 语义校验。恢复时必须用 `verify_trace_event_batch()` 校验完整 retained
+command，逐条 parse 不能代替 batch verification。
+
+该协议不是 Codex Hook/App Server adapter。禁止把不稳定 transcript 当作唯一事实源，
+禁止从 hook payload 接受 repository/authorization identity；在独立 adapter/reducer 落地并
+核验前，也不得声明 Trace projection 或默认 runtime cutover。
+
 ## 固定运行时预算
 
 运行时在以下边界 fail closed：

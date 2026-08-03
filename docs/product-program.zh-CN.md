@@ -1010,7 +1010,7 @@ compatibility retained-bundle 的 hard-kill 边界、shared-service worker 与�
 
 同一 durable lifecycle 现在会经 Python facade、Python HTTP 同步/异步 SDK、真实
 JSON-RPC STDIO MCP 子进程与 Bun 下的 TypeScript HTTP SDK 产生完全相同的 21-event
-global sequence、八条 stream head、canonical event ID/SHA 与全部八个已注册 reducer
+global sequence、八条 stream head、canonical event ID/SHA 与全部九个已注册 reducer
 projection digest。每个 reducer 都会与保留的 authority row 做 parity，ledger head 还会
 从 canonical event 独立重算。这是完整的本地 happy-path cross-stream/STDIO 证据，
 不是完整 F2 cross-transport 或 crash conformance。SQLite bundle 在 reopen 时还会原子
@@ -1042,9 +1042,12 @@ closed。在更大的 F2 gate 完成前，这两项增量都不提升新 atom。
   PostgreSQL crash probe 与完整 crash matrix 仍未完成。
 - **F3 — Trace、Git 与 effect evidence：** 有序 typed Trace event 协议与 ledger-context-
   bound atomic append helper、八种 type 的 Git observation 协议与 capture-compatible Git
-  recorder 已交付，存储中立 external-effect event/reducer/ledger 基础也已交付。可信 Codex
-  Hook/App Server ingestion、自动 Git/diff capture、Trace/Git projection、完整 external-
-  effect integration 与受治理 retention/crypto-erasure 仍待完成。
+  recorder、conservative default-registry Git graph reducer 已交付，存储中立 external-effect
+  event/reducer/ledger 基础也已交付。Git reducer 会保留 pairwise confidence/conflict、missing
+  object、checkout/ref state 与 provenance，但不会臆造 direct-parent、force-push、semantic-
+  role 或 PR-anchor 事实。可信 Codex Hook/App Server ingestion、自动 Git/diff capture、Trace
+  projection、Git evidence join/consumer、完整 external-effect integration 与受治理 retention/
+  crypto-erasure 仍待完成。
 - **F4 — 受治理 memory projection：** failure extraction、structured evidence、
   MemoryRevision publication、ActivatedRevision retrieval、policy/index 与其余 Memory
   projection 变为 reducer-native；opt-in outcome/effect reducer 已在 F2 交付。

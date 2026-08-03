@@ -1795,6 +1795,23 @@ renumber already retained events or mark the incomplete observation complete.
 The default Agent/MCP profile does not configure this recorder and must not
 claim a Git projection or default-runtime cutover.
 
+The opt-in `git-graph` reducer must consume Git events in strict ledger global
+order and one trusted organization/tenant/repository/environment scope. Scope
+matching isolates the projection; it is not authorization. Relation confidence
+is the retained source evidence-quality claim, not an independent attestation.
+If both `ancestor` and `not_ancestor` have been observed for one pair, the
+effective relation is `unknown/conflicted`. A later missing-object observation
+must not be serialized as a false ancestry result.
+
+Version-1 Git observations do not contain direct parent lists, verified
+source/fix/verification roles, PR identities, or enough evidence to classify a
+ref move as force-push. Keep those projection fields empty until an exact,
+authorized evidence join exists. Never feed this projection into applicability
+or PR-risk policy as a boolean ancestry authority without that separate
+consumer contract and fail-closed unknown handling. Adding the reducer rotates
+the default registry digest; use a new rebuild generation instead of resuming a
+checkpoint created under the prior default catalog.
+
 ## Fixed runtime budgets
 
 The runtime fails closed at these fixed boundaries:

@@ -230,6 +230,7 @@ def test_reducer_descriptor_rejects_ambiguous_inputs(
         ({"value": 2**63}, "TBM_REDUCER_STATE_INVALID"),
         ({"value": 0.5}, "TBM_REDUCER_STATE_INVALID"),
         ({"": True}, "TBM_REDUCER_STATE_INVALID"),
+        ({1: "numeric", "value": "mixed"}, "TBM_REDUCER_STATE_INVALID"),
         ({"value": object()}, "TBM_REDUCER_STATE_INVALID"),
         ({"value": "x" * 1_048_576}, "TBM_REDUCER_STATE_LIMIT_EXCEEDED"),
     ],

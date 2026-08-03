@@ -315,8 +315,12 @@ F3 Git 增量新增八种已注册 observation type 与 opt-in
 `GitObservationEventRecorder`。checkout/ref/commit/worktree/diff/ancestry/object-
 availability/shallow evidence 会绑定 version，并由同一 generic SQLite/PostgreSQL ledger
 保留。既有 metadata/ancestry capture function 保持返回类型与默认行为；显式调用方可以在
-capture 时提供 recorder 追加 evidence。自动 Git/diff-Artifact capture、checkout-binding
-authority、Git graph reducer、force-push reconciliation 与默认 Agent/MCP cutover 仍待完成。
+capture 时提供 recorder 追加 evidence。默认 reducer catalog 现在包含 opt-in conservative
+Git graph projection，可重建 commit、checkout/ref、pairwise relation confidence/conflict、
+current missing-object 与 last-observation view；它不会臆造 direct-parent、force-push、
+source/fix/verification 或 PR-anchor 事实。自动 Git/diff-Artifact capture、checkout-binding
+authority、缺失的 evidence join/consumer、force-push reconciliation 与默认 Agent/MCP
+cutover 仍待完成。
 
 Phase 71 强化可信提升与运行时边界：Failure Case 只能来自 `fail`/`error` Trace，verify 前必须具备 reviewer、root cause 与 review timestamp，dirty source 不能激活 Lesson；LLM response 限制为 64 KiB、1,000 nodes、depth 20，reason 最多 2,000 字符；所有未被 LLM 选中的系统候选都会进入 blocked 审计，超过 50 项时确定性保留前 50 项并记录其余项；`short_summary` 与 `full_case_summary` 使用不同 renderer，关键词检索支持 Unicode。
 

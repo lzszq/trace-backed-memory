@@ -2196,9 +2196,14 @@ with exact Git/runner/algorithm versions. `GitObservationEventRecorder` binds a
 trusted ledger context and can be supplied through the new keyword-only capture
 seam while `capture_trace_metadata()` and `capture_commit_ancestry()` preserve
 their original return records and default behavior. Missing-object capture
-remains `unknown`, never false. The default Agent/MCP profile, automatic remote/
-diff Artifact capture, checkout-binding authority, Git graph reducers, force-
-push reconciliation, and cutover remain open. See
+remains `unknown`, never false. The default reducer registry now includes a
+bounded deterministic `git-graph` projection for commit nodes, checkout/ref
+history, pairwise relation confidence/conflicts, current missing objects, and
+last-observation provenance. It deliberately leaves direct-parent edges,
+source/fix/verification roles, and PR anchors empty because version-1 Git
+observations do not carry those facts. The default Agent/MCP profile, automatic
+remote/diff Artifact capture, checkout-binding authority, force-push
+reconciliation, applicability/PR-risk consumers, and cutover remain open. See
 [Git Observation Protocol v1](protocols/git-observation-v1.md).
 
 The machine-readable

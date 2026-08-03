@@ -57,7 +57,7 @@ rebuilds one deterministic claim-time bundle. Post-commit response-loss probes
 now cover `DECIDED`, event-first `FINALIZED`, `EXECUTING`, combined
 completion/outbox, and committed acknowledgement without duplicate replay or
 redelivery. The local happy path also has real JSON-RPC STDIO MCP parity across
-21 global events, eight stream heads, and all eight registered reducer
+21 global events, eight stream heads, and all nine registered reducer
 projections alongside the Python facade, Python HTTP sync/async SDKs, and
 TypeScript HTTP SDK. The configured explicit SQLite runtime now has Semantic
 provider request/attempt/receipt/reconciliation evidence and hard-kill probes
@@ -118,8 +118,22 @@ unknown ancestry into the generic ledger. Focused SQLite append/replay and
 legacy capture compatibility are verified, and PostgreSQL parity coverage is
 present but was skipped locally because PostgreSQL executables are unavailable.
 Raw paths, remote URLs, diff bytes, stdout, and stderr are excluded from event
-payloads. Automatic Git/diff capture, checkout authority, Git reducers and
-projections, force-push reconciliation, Codex Hook/App Server ingestion, and
-default cutover remain incomplete. No complete fixed-plan atom has a safe
+payloads. Automatic Git/diff capture, checkout authority, force-push
+reconciliation, Codex Hook/App Server ingestion, and default cutover remain
+incomplete. No complete fixed-plan atom has a safe
 atom-ID mapping for this increment, so formal and candidate progress remain
 182/490 (37.14%) with `atom_ids=[]`.
+
+The F3 Git graph reducer now consumes all eight typed Git observation events
+through the sealed registry and deterministically rebuilds strict-scope commit
+nodes, checkout/ref history, pairwise ancestry assertion/confidence summaries,
+current missing-object state, and exact last-observation provenance. It keeps
+contradictory ancestry `unknown/conflicted`, uses ledger global order rather
+than wall-clock order, and leaves direct-parent edges, force-push claims,
+source/fix/verification relationships, and PR anchors empty when version-1
+events do not prove them. Default-registry checkpoint rotation, focused
+determinism/contradiction/scope tests, and public operator resolution are
+covered. Active applicability and PR-risk consumers, exact evidence/PR joins,
+automatic capture, and default cutover remain incomplete. The fixed contract
+still has no safe atom-ID mapping for this partial F3 cluster, so formal and
+candidate progress remain 182/490 (37.14%) with `atom_ids=[]`.

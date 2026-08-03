@@ -127,7 +127,13 @@ parity。详见 [Finalization Event v1](finalization-event-v1.zh-CN.md)。默认
 SQLite/PostgreSQL event-first 路径会核验 RunOutcome、OutcomeAttribution、completion
 delivery history 与 dead-letter parity。详见
 [Effect Event v1](effect-event-v1.zh-CN.md)。MemoryCatalog、activated head、retrieval
-index、audit、metrics 与 PR risk 尚未 reducer-native。存储中立 `effect-queue` version 3
+index、audit、metrics 与 PR risk 尚未 reducer-native。默认 registry 现在还包含
+`git-graph`：这个 typed deterministic reducer 会消费全部八种 Git observation，保留 commit/
+checkout/ref summary、pairwise ancestry confidence/conflict、current missing-object state 与
+last-observation provenance，但不会推断 direct parent、force-push、semantic evidence role 或
+PR anchor。projection checkpoint compatibility 会绑定完整 reducer-registry digest，因此使用
+旧 default catalog 创建的 checkpoint 必须进入新的 rebuild generation。存储中立
+`effect-queue` version 3
 现会重建 provider receipt、unknown-result、reconciliation、已保留 retry/dead-letter 与
 receipt-backed generic compensation 状态。配置后的显式 durable transport 会选择 server-owned
 Semantic provider path；reconciliation、owner fencing 与有界 retry/dead-letter 只有在配置对应

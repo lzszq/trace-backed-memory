@@ -935,9 +935,13 @@ checkout、commit、ref、worktree、Artifact-linked diff、ancestry、object av
 shallow-state evidence，并绑定精确 Git/runner/algorithm version。
 `GitObservationEventRecorder` 会绑定 trusted ledger context，并可通过新的 keyword-only
 capture seam 传入；`capture_trace_metadata()` 与 `capture_commit_ancestry()` 仍保留原返回
-record 与默认行为。missing-object capture 保持 `unknown`，绝不转为 false。默认 Agent/MCP
-profile、自动 remote/diff Artifact capture、checkout-binding authority、Git graph reducer、
-force-push reconciliation 与 cutover 仍待完成。详见
+record 与默认行为。missing-object capture 保持 `unknown`，绝不转为 false。默认 reducer
+registry 现在包含有界 deterministic `git-graph` projection，可重建 commit node、checkout/ref
+history、pairwise relation confidence/conflict、current missing object 与 last-observation
+provenance。version-1 Git observation 不携带 direct-parent、source/fix/verification role 或
+PR identity，因此这些字段保持为空。默认 Agent/MCP profile、自动 remote/diff Artifact
+capture、checkout-binding authority、force-push reconciliation、applicability/PR-risk consumer
+与 cutover 仍待完成。详见
 [Git Observation 协议 v1](protocols/git-observation-v1.zh-CN.md)。
 
 机器可读的 [`authority-registry.json`](status/authority-registry.json) 会把每个当前

@@ -145,6 +145,14 @@ explicit SQLite/PostgreSQL event-first paths verify RunOutcome,
 OutcomeAttribution, completion delivery history, and dead-letter parity. See
 [Effect Event v1](effect-event-v1.md). MemoryCatalog, activated heads,
 retrieval indexes, audit, metrics, and PR risk are not yet reducer-native. The
+default registry now also contains `git-graph`, a typed deterministic reducer
+over all eight Git observation types. It preserves commit/checkout/ref
+summaries, pairwise ancestry confidence and conflicts, current missing-object
+state, and last-observation provenance without inferring direct parents,
+force-push, semantic evidence roles, or PR anchors. Because projection
+checkpoint compatibility binds the full reducer-registry digest, this registry
+addition requires a new rebuild generation for checkpoints created by the
+previous default catalog. The
 storage-neutral `effect-queue` version 3 now rebuilds provider receipt,
 unknown-result, reconciliation, retained retry/dead-letter, and receipt-backed
 generic compensation state. Configured explicit durable transports select the

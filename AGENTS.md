@@ -146,6 +146,9 @@ Start with:
 - `git_observation_v1.py`: storage-neutral typed checkout/ref/commit/worktree/
   diff/ancestry/object/shallow evidence, capture-compatible ledger recorder, and
   exact SQLite/PostgreSQL event-ledger replay.
+- `git_graph_reducer_v1.py`: deterministic conservative Git observation
+  projection for commit nodes, checkout/ref state, pairwise relation confidence,
+  missing objects, and explicit non-inference boundaries.
 - `provider_effect_ledger_v1.py`: storage-neutral provider-effect event-ledger
   service with content-addressed receipts, conservative unknown-result
   recovery, reconciliation-gated retry/dead-letter, one-compensation-per-original

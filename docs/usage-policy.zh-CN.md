@@ -861,6 +861,19 @@ terminal，必须进入 operator recovery；禁止重编号已保留 event 或�
 完成。默认 Agent/MCP profile 不配置 recorder，也不得声明 Git projection 或 default-runtime
 cutover。
 
+opt-in `git-graph` reducer 必须按严格 ledger global order，并在单一可信 organization/tenant/
+repository/environment scope 内消费 Git event。scope matching 只隔离 projection，不是
+authorization。relation confidence 是保留的 source evidence-quality 声明，不是独立
+attestation。同一 pair 一旦同时观察到 `ancestor` 与 `not_ancestor`，effective relation 必须
+是 `unknown/conflicted`；后来的 missing-object observation 不能序列化成 false ancestry。
+
+Version-1 Git observation 不包含 direct parent list、已验证 source/fix/verification role、PR
+identity，也没有足够 evidence 把 ref move 分类为 force-push。在存在精确且已授权 evidence
+join 前，这些 projection field 必须保持为空。没有独立 consumer contract 与 fail-closed
+unknown handling 时，禁止把该 projection 当 boolean ancestry authority 接入 applicability 或
+PR-risk policy。新增 reducer 会轮换默认 registry digest；必须使用新 rebuild generation，
+不能 resume 在旧 default catalog 下创建的 checkpoint。
+
 ## 固定运行时预算
 
 运行时在以下边界 fail closed：

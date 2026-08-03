@@ -186,6 +186,17 @@
       ]
     },
     {
+      "id": "projection.git-graph-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/git_graph_reducer_v1.py",
+        "src/trace_backed_memory/reducer_registry.py",
+        "tests/test_git_graph_reducer_v1.py",
+        "docs/protocols/git-observation-v1.md",
+        "docs/protocols/reducer-v1.md"
+      ]
+    },
+    {
       "id": "protocol.event-type-registry-v1",
       "status": "contract-only",
       "evidence": [
@@ -277,10 +288,12 @@
         "src/trace_backed_memory/finalization_reducer_v1.py",
         "src/trace_backed_memory/outcome_reducer_v1.py",
         "src/trace_backed_memory/effect_reducer_v1.py",
+        "src/trace_backed_memory/git_graph_reducer_v1.py",
         "src/trace_backed_memory/daemon_entry.py",
         "tests/test_finalization_event_v1.py",
         "tests/test_outcome_event_v1.py",
         "tests/test_effect_event_v1.py",
+        "tests/test_git_graph_reducer_v1.py",
         "tests/test_ledger_replay_export_v1.py",
         "tests/test_reducer_projection.py",
         "tests/test_sqlite_event_ledger_v1.py",

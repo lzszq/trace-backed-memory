@@ -332,9 +332,14 @@ The F3 Git increment adds eight registered observation types plus an opt-in
 object-availability/shallow evidence is version-bound and retained through the
 same generic SQLite/PostgreSQL ledger. Existing metadata and ancestry capture
 functions preserve their return types and default behavior; explicit callers
-may supply the recorder to append evidence at capture time. Automatic Git and
-diff-Artifact capture, checkout-binding authority, Git graph reducers, force-
-push reconciliation, and default Agent/MCP cutover remain open.
+may supply the recorder to append evidence at capture time. The default reducer
+catalog now includes an opt-in conservative Git graph projection for commit,
+checkout/ref, pairwise relation confidence/conflict, current missing-object,
+and last-observation views. It does not invent direct-parent, force-push,
+source/fix/verification, or PR-anchor facts. Automatic Git and diff-Artifact
+capture, checkout-binding authority, those missing evidence joins and
+consumers, force-push reconciliation, and default Agent/MCP cutover remain
+open.
 
 The implemented hardening includes:
 

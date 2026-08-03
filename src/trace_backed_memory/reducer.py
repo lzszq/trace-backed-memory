@@ -547,12 +547,14 @@ def _copy_state(
         )
     if isinstance(value, Mapping):
         copied: dict[str, object] = {}
-        for key in sorted(value):
+        keys = list(value)
+        for key in keys:
             if type(key) is not str or not key or len(key) > 256:
                 _fail(
                     "TBM_REDUCER_STATE_INVALID",
                     f"{path} contains an invalid object key",
                 )
+        for key in sorted(cast(list[str], keys)):
             copied[key] = _copy_state(
                 value[key],
                 path=f"{path}.{key}",

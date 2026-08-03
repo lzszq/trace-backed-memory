@@ -1906,7 +1906,7 @@ open. PostgreSQL provider crash probes are present but were not executed on this
 machine.
 
 The same durable lifecycle now produces an identical 21-event global sequence,
-eight stream heads, canonical event IDs/SHAs, and all eight registered reducer
+eight stream heads, canonical event IDs/SHAs, and all nine registered reducer
 projection digests through the Python facade, synchronous and asynchronous
 Python HTTP SDKs, a real JSON-RPC STDIO MCP child process, and the TypeScript
 HTTP SDK under Bun. Each reducer is checked against the retained authority rows,
@@ -1947,11 +1947,14 @@ broader F2 gates remain incomplete.
   crash probes, and the complete crash matrix remain open.
 - **F3 — Trace, Git, and effect evidence:** the ordered typed Trace event
   protocol, ledger-context-bound append helper, eight-type Git observation
-  protocol, and capture-compatible Git recorder are delivered, as is the
-  storage-neutral external-effect event/reducer/ledger foundation. Trusted Codex
-  Hook/App Server ingestion, automatic Git/diff capture, Trace/Git projections,
-  complete external-effect integration, and governed retention/crypto-erasure
-  remain.
+  protocol, capture-compatible Git recorder, and conservative default-registry
+  Git graph reducer are delivered, as is the storage-neutral external-effect
+  event/reducer/ledger foundation. The Git reducer retains pairwise confidence,
+  conflicts, missing objects, checkout/ref state, and provenance without
+  inventing direct-parent, force-push, semantic-role, or PR-anchor facts.
+  Trusted Codex Hook/App Server ingestion, automatic Git/diff capture, Trace
+  projection, Git evidence joins/consumers, complete external-effect
+  integration, and governed retention/crypto-erasure remain.
 - **F4 — Governed memory projections:** failure extraction, structured evidence,
   MemoryRevision publication, ActivatedRevision retrieval, policy/index, and
   remaining Memory projections become reducer-native; the opt-in outcome/

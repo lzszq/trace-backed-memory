@@ -49,7 +49,7 @@ claim-time bundle。commit 后 response-loss probe 现覆盖 `DECIDED`、event-f
 `FINALIZED`、`EXECUTING`、组合 completion/outbox 与已提交 acknowledgement，精确
 重试不会重复 replay 或 redelivery。本地 happy path 还通过真实 JSON-RPC STDIO MCP，
 与 Python facade、Python HTTP sync/async SDK 及 TypeScript HTTP SDK 对齐全部 21 个
-global event、八条 stream head 和八个已注册 reducer projection。配置后的显式 SQLite
+global event、八条 stream head 和九个已注册 reducer projection。配置后的显式 SQLite
 runtime 现在已有 Semantic provider request/attempt/receipt/reconciliation evidence，
 以及 provider 边界前后的 hard-kill probe。本批还增加 request-only 原子 claim、服务端证明
 的 provider/policy-bound request、每个 original effect 仅一条 compensation、仅限支持 contract
@@ -96,6 +96,17 @@ partition 与 checkout identity、仅 Artifact 的精确 diff reference，以及
 ancestry 绑定进 generic ledger。聚焦 SQLite append/replay 与既有 capture 兼容性已核验；
 PostgreSQL parity coverage 已存在，但因本机缺少 PostgreSQL executable 而跳过。event
 payload 排除 raw path、remote URL、diff 字节、stdout 与 stderr。自动 Git/diff capture、
-checkout authority、Git reducer/projection、force-push reconciliation、Codex Hook/App
+checkout authority、force-push reconciliation、Codex Hook/App
 Server ingestion 与默认 cutover 仍未完成。本增量没有可安全映射的完整固定计划 atom ID，
 因此正式与候选进度仍为 182/490（37.14%），`atom_ids=[]`。
+
+F3 Git graph reducer 现在会通过 sealed registry 消费全部八种 typed Git observation event，
+并确定性重建 strict-scope commit node、checkout/ref history、pairwise ancestry assertion/
+confidence summary、current missing-object state 与精确 last-observation provenance。它会把
+矛盾 ancestry 保持为 `unknown/conflicted`，按 ledger global order 而不是 wall-clock order
+处理，并在 version-1 event 无法证明时让 direct-parent edge、force-push claim、source/fix/
+verification relationship 与 PR anchor 保持为空。默认 registry checkpoint 轮换、聚焦
+determinism/contradiction/scope test 与 public operator resolution 已覆盖。active
+applicability/PR-risk consumer、精确 evidence/PR join、自动 capture 与默认 cutover 仍未完成。
+固定契约仍没有这个部分 F3 cluster 的安全 atom-ID 映射，因此正式与候选进度保持
+182/490（37.14%），`atom_ids=[]`。

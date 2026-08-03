@@ -120,7 +120,18 @@ or claiming that the logical observation completed.
 
 This increment delivers the typed Git protocol, ledger recorder, strict
 registry schemas, capture compatibility seam, and SQLite/PostgreSQL parity
-tests. The default compatibility Agent/MCP profile does not configure the
-recorder. Automatic Git-version/remote/diff Artifact capture, checkout-binding
-authority, GitGraphReducer/projections, force-push reconciliation, Codex
-Hook/App Server ingestion, and default cutover remain separate work.
+tests. The default reducer registry now also contains the opt-in `git-graph`
+reducer. It rebuilds commit nodes, checkout/ref history, pairwise ancestry
+assertion/confidence summaries, current missing-object state, and exact
+last-observation provenance. Contradictory ancestry remains
+`unknown/conflicted`; pairwise ancestry never becomes a direct-parent edge,
+ref movement never becomes a force-push claim, and absent source/fix/
+verification roles or PR identities remain empty rather than inferred.
+
+Registering the reducer rotates the default reducer-registry digest, so old
+default-registry checkpoints require an explicit new rebuild generation rather
+than unsafe resume. The default compatibility Agent/MCP profile still does not
+configure the recorder. Automatic Git-version/remote/diff Artifact capture,
+checkout-binding authority, force-push reconciliation, source/fix/verification
+joins, PR-anchor ingestion, Codex Hook/App Server ingestion, applicability/
+PR-risk consumers, and default cutover remain separate work.

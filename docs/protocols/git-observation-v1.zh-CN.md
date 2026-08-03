@@ -106,7 +106,14 @@ event，也不能声称该逻辑 observation 已完成。
 ## 当前边界
 
 本增量交付 typed Git 协议、ledger recorder、strict registry schema、capture 兼容 seam 与
-SQLite/PostgreSQL parity test。默认 compatibility Agent/MCP profile 不配置 recorder。
-自动 Git-version/remote/diff Artifact capture、checkout-binding authority、
-GitGraphReducer/projection、force-push reconciliation、Codex Hook/App Server ingestion 与
-默认 cutover 仍属于后续工作。
+SQLite/PostgreSQL parity test。默认 reducer registry 现在还包含 opt-in `git-graph`
+reducer；它会重建 commit node、checkout/ref history、pairwise ancestry assertion/confidence
+summary、current missing-object state 与精确 last-observation provenance。互相矛盾的 ancestry
+保持 `unknown/conflicted`；pairwise ancestry 不会变成 direct-parent edge，ref movement 不会
+变成 force-push claim，缺失的 source/fix/verification role 或 PR identity 保持为空而非推断。
+
+注册该 reducer 会轮换默认 reducer-registry digest，因此旧 default-registry checkpoint 必须
+使用显式新 rebuild generation，不能不安全地 resume。默认 compatibility Agent/MCP profile
+仍不配置 recorder。自动 Git-version/remote/diff Artifact capture、checkout-binding authority、
+force-push reconciliation、source/fix/verification join、PR-anchor ingestion、Codex Hook/App
+Server ingestion、applicability/PR-risk consumer 与默认 cutover 仍属于后续工作。

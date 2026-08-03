@@ -60,7 +60,13 @@ ledger; see [Semantic Gate Attempt Event v1](semantic-gate-attempt-event-v1.md),
 [Ledger Replay Export v1](ledger-replay-export-v1.md). Outcome/attribution and
 local completion-effect events/reducers, including delivery history and
 dead-letter parity, are also delivered. The storage-neutral provider receipt/
-reconciliation event, reducer, and ledger service are delivered; active
-provider callbacks, provider-specific reconciliation, durable compensation,
-and the remaining transport commit points remain open. The product therefore continues to report
+reconciliation event, reducer, and ledger service are delivered. Configured
+explicit durable runtimes also provide the server-owned Semantic provider
+callback, provider/policy binding, stable idempotency, and invocation parity
+across the durable transports. Trusted reconciliation, owner fencing, and
+bounded retry/dead-letter require their corresponding configured dependencies;
+generic compensation is limited to supporting contracts. Concrete remote adapters, completion-provider integration,
+automatic background sweep/lease fencing, shared-service workers, and the
+remaining crash/cutover gates stay open; Semantic provider effects do not claim
+compensation or remote exactly-once. The product therefore continues to report
 `full_persistence=false`.

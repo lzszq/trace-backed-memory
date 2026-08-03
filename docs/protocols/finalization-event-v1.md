@@ -67,7 +67,14 @@ Parity verification compares the rebuilt projection with the transitional
 GateSession and replay authorities. The generic reducer runtime is still not
 the sole active rebuild path. Outcome/attribution and local completion-effect
 reducers now cover delivery history and dead-letter parity. The storage-neutral
-provider receipt/reconciliation foundation is delivered; active provider
-integration, durable compensation, complete transport conformance, and the F2
-crash matrix remain open; the product therefore keeps
-`persistence_model="authority_graph"` and `full_persistence=false`.
+provider receipt/reconciliation foundation and configured server-owned Semantic
+provider effect integration are delivered, including provider/policy binding,
+stable idempotency, and durable-transport invocation parity. Trusted
+reconciliation, owner fencing, and bounded retry/dead-letter require their
+corresponding configured dependencies; generic compensation is limited to
+supporting contracts. Concrete remote adapters,
+completion-provider integration, automatic background sweep/lease fencing,
+shared-service workers, and the remaining F2 crash/cutover matrix stay open;
+Semantic provider effects do not claim compensation or remote exactly-once.
+The product therefore keeps `persistence_model="authority_graph"` and
+`full_persistence=false`.

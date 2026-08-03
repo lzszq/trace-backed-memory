@@ -54,6 +54,11 @@ export 也会从 ledger 派生 metadata；详见
 [Finalization Event v1](finalization-event-v1.zh-CN.md) 与
 [Ledger Replay Export v1](ledger-replay-export-v1.zh-CN.md)。outcome/attribution 与本地
 completion-effect event/reducer（含 delivery history 和 dead-letter parity）也已交付。
-存储中立 provider receipt/reconciliation event、reducer 与 ledger service 已交付；active
-provider callback、provider-specific reconciliation、durable compensation 与其余 transport
-commit point 仍未完成，因此产品继续报告 `full_persistence=false`。
+存储中立 provider receipt/reconciliation event、reducer 与 ledger service 已交付。已配置的
+显式 durable runtime 也提供 server-owned Semantic provider callback、provider/policy 绑定、
+稳定幂等，以及 durable transport 间的调用 parity。可信 reconciliation、owner fencing 与有界
+retry/dead-letter 只有在配置对应依赖时才激活；通用 compensation 只适用于支持它的 contract。
+具体 remote adapter、completion-provider integration、自动后台
+sweep/lease fencing、shared-service worker 与其余 crash/cutover gate 仍未完成；Semantic
+provider effect 不宣称支持 compensation 或 remote exactly-once。因此产品继续报告
+`full_persistence=false`。

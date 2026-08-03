@@ -1866,18 +1866,19 @@ loading exact bytes from the authenticated replay authority. Outcome/
 attribution events and reducers now rebuild exact durable rows, and completion
 outbox operations append local effect request/delivery/dead-letter evidence
 that `effect-queue` verifies with exact history parity. A storage-neutral
-provider transition, `effect-queue` reducer version 2, and authenticated
-generic-ledger service now retain content-addressed attempts, provider request
-IDs, receipts, unknown results, reconciliation, explicit retry scheduling, and
-exact response-loss replay without another authority. Explicit durable runtime
-factories now select a server-owned Semantic provider invoker and trusted
-reconciliation callback when configured. The Semantic receipt binds the full
-structured result, retained effects never repeat provider invocation, and a
-fresh same-scope transition authorization may reconcile the immutable original
-request. Request-only claims, active retry/dead-letter ownership, concrete
-remote-provider adapters, completion-provider integration, durable compensation,
-Memory/index/audit/metrics reducers, migration, complete lifecycle integration,
-and the remaining event-first cutover remain outstanding. The SQLite local daemon now also has a
+provider transition, `effect-queue` reducer version 3, and authenticated
+generic-ledger service now retain provider-bound content-addressed attempts,
+receipts, unknown results, trusted reconciliation, bounded retry/dead-letter,
+and receipt-backed generic compensation without another authority. Explicit
+durable runtime factories add provider/policy-bound requests, atomic request-only
+claims, and cross-transport Semantic invocation parity. Trusted reconciliation,
+server-attested owner fencing, and bounded retry/dead-letter require their
+corresponding configured dependencies. Semantic provider effects do not support
+compensation or claim remote exactly-once. Concrete remote-provider and
+completion-provider adapters, automatic background sweep/lease fencing,
+shared-service workers, Memory/index/audit/metrics reducers, migration, complete
+lifecycle integration, and the remaining event-first cutover remain outstanding.
+The SQLite local daemon now also has a
 real child-process `SIGKILL`/reopen sweep after acknowledged `PREPARED`,
 `DECIDED`, `FINALIZED`, `EXECUTING`, and `COMPLETED` commits. Each restart
 requires exact command replay, and the final ledger is reducer-checked against
@@ -1892,19 +1893,20 @@ GateSession history unchanged; a committed acknowledgement is not redelivered.
 Recovery preserves orphan evidence, publishes one logical lifecycle/effect
 event, keeps reducers equal to projections, and treats only the pre-ack
 boundary as bounded at-least-once delivery. The provider-effect ledger service
-now treats orphan in-flight/submitted work as reconciliation-required and
-allows retry only after an explicit not-found reconciliation. The Semantic
-provider-effect path records request/attempt/submission/receipt evidence, never
-repeats an uncertain or retained invocation, and accepts exact confirmed,
-still-unknown, or not-found reconciliation only for durably unknown/successful
-work. Orphan owner-abandonment evidence, request-only claiming, active retry
-after not-found, dead-letter/compensation ownership, completion-provider
-integration, a hard-kill compatibility retained-bundle boundary, PostgreSQL
-transport/crash equivalents, and the complete cross-transport crash matrix
-remain open.
+now verifies retained provider registration, requires reconciliation after
+unknown, and permits retry only after explicit not-found. The Semantic path
+atomically claims request-only streams, accepts a server-attested exact owner
+fence, binds provider registration and one retry policy digest to the original
+request, revalidates retained retry deadlines, and writes terminal dead-letter
+on exhaustion. Generic compensation is a separate receipt-backed effect stream,
+with at most one compensation per original effect. Completion-provider integration, concrete remote adapters,
+automatic background sweep/lease fencing, a hard-kill compatibility retained-
+bundle boundary, shared-service workers, and the complete crash matrix remain
+open. PostgreSQL provider crash probes are present but were not executed on this
+machine.
 
-The same durable lifecycle now produces an identical 17-event global sequence,
-seven stream heads, canonical event IDs/SHAs, and all eight registered reducer
+The same durable lifecycle now produces an identical 21-event global sequence,
+eight stream heads, canonical event IDs/SHAs, and all eight registered reducer
 projection digests through the Python facade, synchronous and asynchronous
 Python HTTP SDKs, a real JSON-RPC STDIO MCP child process, and the TypeScript
 HTTP SDK under Bun. Each reducer is checked against the retained authority rows,
@@ -1934,12 +1936,15 @@ broader F2 gates remain incomplete.
   response loss from `DECIDED` through acknowledgement. Local happy-path
   cross-stream parity now covers the Python facade, HTTP sync/async SDKs, a real
   STDIO MCP child process, and the TypeScript HTTP SDK. The storage-neutral
-  provider receipt/reconciliation foundation is delivered, and configured
-  explicit runtimes select the Semantic provider invocation/reconciliation
-  seam with complete-result receipt binding. Request-only claims, active
-  retry/dead-letter ownership, completion-provider integration, concrete
-  remote-provider adapters, durable compensation, PostgreSQL transport/crash
-  equivalents, and the complete crash matrix remain open.
+  provider receipt/reconciliation foundation now includes atomic request claims,
+  provider/policy binding, single-compensation enforcement, and cross-transport
+  Semantic invocation parity. Configured dependencies add trusted reconciliation,
+  server-attested owner fencing, and request-bound bounded retry/dead-letter;
+  Semantic provider effects do not support compensation or claim remote
+  exactly-once.
+  Completion-provider integration, concrete remote-provider adapters, automatic
+  sweep/lease fencing, shared-service workers, locally unexecuted PostgreSQL
+  crash probes, and the complete crash matrix remain open.
 - **F3 — Trace, Git, and effect evidence:** ordered Trace/Git observations,
   Git-graph projection, external-effect receipt integration (the storage-
   neutral event/reducer/ledger foundation is delivered), Codex hooks, and

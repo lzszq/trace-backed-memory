@@ -1783,14 +1783,27 @@ keeps a distinct role binding.
 selected by explicit durable runtimes when a trusted Semantic provider invoker
 is configured. It appends the effect request and provider transitions before
 returning a result, and its Semantic receipt digest binds the complete
-structured `SemanticProviderResult`, including the raw response digest. A
-restart never repeats a retained effect; configured trusted reconciliation may
-recover a durably unknown or successful exact result under a fresh same-scope
-transition authorization. Request-only and in-flight/submitted work cannot be
-safely claimed as abandoned and remain recovery-required without mutation.
-Active owner-abandonment evidence, retry/dead-letter claims, compensation,
-completion-provider integration, and concrete remote-provider adapters remain
-outside this seam.
+structured `SemanticProviderResult`, including the raw response digest. The
+immutable request binds the trusted provider registration and retry-policy
+descriptor, while the provider callback receives the stable effect ID as its
+idempotency key. A
+request-only stream is claimed by exactly one atomic `attempt_started` append;
+concurrent losers remain recovery-required and do not call the provider.
+In-flight/submitted work remains recovery-required unless an exact owner actor,
+head, attempt, invocation, and server-owned fence attestation are supplied. That
+attestation records `result_unknown`; a late owner cannot append a direct receipt
+and must be resolved through trusted reconciliation. A trusted `not_found`
+result permits only the request-bound bounded retry policy, whose digest is
+retained in the original effect idempotency key; retained schedules must equal
+the exact policy deadline, and exhaustion appends terminal `dead_lettered`.
+Generic compensation-supported effects use at most one separate effect stream
+per original effect and require an exact provider receipt before
+`EffectCompensated`. These reconciliation, fencing, and retry paths activate
+only when their corresponding trusted dependencies are configured.
+Concrete remote-provider adapters, completion-provider integration, automatic
+background sweep/lease fencing, and shared-service workers remain outside this
+seam; remote exactly-once still depends on provider enforcement of the supplied
+idempotency key.
 `durable_semantic_gate_v3.py` composes that authenticated service with either
 GateSession authority. It verifies the prepared session against the immutable
 snapshot/evaluation/attempt chain, CAS-publishes `AWAITING_DECISION`, invokes
@@ -2139,20 +2152,28 @@ Outcome/attribution and local completion-effect events/reducers now provide
 exact authority parity through delivery history and dead letter. The existing
 effect family additionally carries one strictly discriminated provider
 transition whose content-addressed attempt, invocation, receipt, and
-reconciliation identities rebuild through `effect-queue` reducer version 2.
+reconciliation identities rebuild through `effect-queue` reducer version 3.
 `ProviderEffectLedgerService` uses the authenticated generic ledger port for
-exact append replay and classifies orphan in-flight/submitted work as requiring
-reconciliation. The Semantic adapter does not invoke that reconciliation or
-rewrite the stream until an unknown result or successful receipt is already
-durable; only an explicit not-found result permits a scheduled retry.
+exact append replay, verifies retained provider registration, rejects a receipt
+after `unknown` until trusted reconciliation, enforces a retained retry time and
+one compensation per original effect, and supports receipt-backed generic
+compensation. The Semantic adapter claims a request-only stream atomically and
+binds the provider/policy descriptors. When corresponding dependencies are
+configured, it requires server-attested owner fencing before converting active
+work to unknown and permits a bounded retry or terminal dead-letter only after
+explicit trusted `not_found` reconciliation.
 Both generic SQLite/PostgreSQL ledgers can retain these events without another
 authority or SQL component. Explicit durable SQLite/PostgreSQL runtime factories
-now select server-owned Semantic invocation and a trusted provider-specific
-reconciliation callback when configured. The complete-result digest prevents a
+now select server-owned Semantic invocation. A trusted provider-specific
+reconciliation callback is used only when configured. The complete-result digest prevents a
 reconciler from changing structured Semantic fields while reusing response
-bytes. Request-only safe claims, active retry/dead-letter ownership, concrete
-remote-provider adapters, completion-provider integration, durable
-compensation, PostgreSQL crash parity, Memory/index/audit/metrics reducers,
+bytes. Python facade, synchronous/asynchronous HTTP SDK, trusted-local MCP, and
+TypeScript SDK parity now include the server-owned provider transitions. The
+PostgreSQL hard-crash probe covers before-provider, before-submission,
+after-submission, and after-receipt checkpoints in code, but could not run on the
+current machine because PostgreSQL executables are unavailable. Concrete remote
+provider adapters, completion-provider integration, automatic background sweep/
+lease fencing, shared-service workers, Memory/index/audit/metrics reducers,
 complete lifecycle integration, migration, and cutover remain open.
 
 The machine-readable

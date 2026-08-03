@@ -39,8 +39,9 @@ The current formal baseline is 182/490 (37.14%). It comprises the audited
 finalization/replay, GateSession/Gate-evidence/Semantic events and reducers,
 RunOutcome and OutcomeAttribution projections, and the local EffectQueue
 delivery-history/dead-letter slice. The machine-readable contract retains the
-last promoted atom IDs and evidence paths. There is currently no additional
-uncommitted atom candidate, and durable compensation is not counted.
+last promoted atom IDs and evidence paths. The uncommitted provider-effect
+batch is not mapped to a complete plan atom, so there is currently no additional
+candidate atom and its generic compensation slice is not promoted.
 
 A local-daemon child-process hard-restart test now covers acknowledged
 `PREPARED`, `DECIDED`, `FINALIZED`, `EXECUTING`, and `COMPLETED` commits with
@@ -56,32 +57,42 @@ rebuilds one deterministic claim-time bundle. Post-commit response-loss probes
 now cover `DECIDED`, event-first `FINALIZED`, `EXECUTING`, combined
 completion/outbox, and committed acknowledgement without duplicate replay or
 redelivery. The local happy path also has real JSON-RPC STDIO MCP parity across
-17 global events, seven stream heads, and all eight registered reducer
+21 global events, eight stream heads, and all eight registered reducer
 projections alongside the Python facade, Python HTTP sync/async SDKs, and
 TypeScript HTTP SDK. The configured explicit SQLite runtime now has Semantic
 provider request/attempt/receipt/reconciliation evidence and hard-kill probes
-before and after provider boundaries without repeating the provider invoker.
-Request-only safe claims, active retry/dead-letter/compensation, completion-
-provider integration, PostgreSQL parity, the remaining crash matrix, and
-complete F2 cross-transport conformance remain incomplete. The exact legacy
+before and after provider boundaries. The current batch adds atomic request-only
+claiming, provider/policy-bound requests, one-compensation-per-original
+enforcement, receipt-backed generic compensation for supporting contracts, and
+cross-transport Semantic invocation parity. Configured reconciliation,
+server-attested owner fencing, and bounded retry/dead-letter revalidate their
+exact retained evidence. Semantic provider effects do not support compensation
+or claim remote exactly-once. Completion-provider integration,
+concrete remote adapters, automatic background sweep/lease fencing, shared-
+service workers, the locally unexecuted PostgreSQL crash probes, and the
+remaining crash matrix stay incomplete. The exact legacy
 SQLite timestamp trigger is also repaired atomically on reopen. These are
 additional evidence and a corruption repair only, so formal and candidate
 progress both remain 182/490 (37.14%) with no promoted atom.
 
 The F3 provider-effect foundation includes one strict provider-transition
 event, content-addressed attempt/invocation/receipt/reconciliation identities,
-`effect-queue` reducer version 2, and an authenticated generic-ledger service.
+`effect-queue` reducer version 3, and an authenticated generic-ledger service.
 SQLite verifies exact append replay, receipt mismatch rejection, conservative
-orphan fail-closed behavior, unknown-result recovery, reconciliation-gated
-retry, and post-commit response loss; the same storage-neutral path has a
+orphan fail-closed behavior, request-only atomic claim, exact owner-fence
+attestation, provider-bound recovery, unknown-result reconciliation, retained
+retry timing, bounded retry/dead-letter, receipt-backed generic compensation,
+and post-commit response loss; the same storage-neutral path has a
 PostgreSQL integration test when the
 required executables are available. Configured explicit durable runtimes now
-select server-owned Semantic invocation and a trusted reconciliation callback;
-the receipt binds the complete structured result, fresh same-scope
-authorization can reconcile, and retained effects never repeat provider
-invocation. Orphan owner-abandonment evidence, request-only claims, active
-retry/dead-letter/compensation,
-completion-provider integration, concrete remote-provider adapters,
-PostgreSQL crash parity, and full transport parity remain incomplete, so no
-complete F3 effect atom is promoted. Formal and candidate progress remain
-182/490 (37.14%).
+select server-owned Semantic invocation; when supplied, trusted reconciliation,
+owner-fence verification, and bounded retry/dead-letter validate exact retained
+evidence. The receipt binds the complete structured result, fresh same-scope
+authorization can reconcile, and all configured transports produce the same
+provider-effect sequence. PostgreSQL provider hard-crash tests are present but were skipped on
+this machine because PostgreSQL executables are unavailable. Completion-provider
+integration, concrete remote-provider adapters, automatic background sweep/
+lease fencing, shared-service workers, the remaining crash matrix, and remote
+exactly-once remain incomplete. The plan has no explicit safe atom-ID mapping for
+this partial F3 cluster, so no complete F3 effect atom is promoted. Formal and
+candidate progress remain 182/490 (37.14%) with `atom_ids=[]`.

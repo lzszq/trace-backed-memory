@@ -44,7 +44,7 @@ the immediately preceding failure event.
 One strictly discriminated `ProviderEffectTransitionRef` avoids spending a
 separate registry type on every provider sub-state. Its stages are
 `attempt_started`, `request_submitted`, `result_unknown`, `receipt_recorded`,
-`reconciled`, and `retry_scheduled`. Every transition binds one exact effect,
+`reconciled`, `retry_scheduled`, and `dead_lettered`. Every transition binds one exact effect,
 attempt sequence, content-derived attempt/invocation identity, provider/model/
 endpoint registration, and request digest. Provider request IDs are retained
 only after the authenticated adapter reports them.
@@ -56,46 +56,63 @@ addressed. `confirmed` requires the same exact receipt shape; `still_unknown`
 remains unknown; `not_found` only permits a later explicit retry schedule. An
 unknown or orphaned in-flight/submitted attempt can never silently become a
 retry. A new attempt may start only after the not-found reconciliation and
-retry-scheduled evidence.
+retry-scheduled evidence, and its event time cannot precede the retained
+`retry_at`. Exhausted attempts append terminal `dead_lettered` evidence.
 
 `ProviderEffectLedgerService` appends each transition through the authenticated
 `EventLedgerPort`, retries only stale stream/global positions, and replays an
 exact retained append receipt after response loss. Recovery returns one of
-`start_attempt`, `reconcile`, `schedule_retry`, or `complete`. A restart that
+`start_attempt`, `reconcile`, `schedule_retry`, `dead_letter`, or `complete`. A restart that
 sees only `attempt_started` or `request_submitted` returns `reconcile`, because
 the ledger cannot prove whether the external request ran. That classification
 does not authorize the Semantic adapter to rewrite the attempt: without durable
 owner-abandonment evidence, retained in-flight/submitted work remains recovery-
 required and does not invoke the reconciler. The service binds one server-owned
 `TrustedProviderEffectRegistration` and rejects transitions whose provider/
-model/version/endpoint differ. The application must keep this service behind
-its authenticated provider adapter; the service does not authenticate a remote
-provider from request JSON.
+model/version/endpoint differ, including retained transition history. A direct
+receipt after `result_unknown` is rejected; only trusted confirmed
+reconciliation can turn unknown into success. The service also exposes
+idempotent `request_compensation` and `complete_compensation` operations for
+contracts that declared compensation support. Compensation uses a new stream
+and cannot complete without an exact provider receipt. The application must
+keep this service behind its authenticated provider adapter; the service does
+not authenticate a remote provider from request JSON.
 
 When an explicit durable SQLite or PostgreSQL runtime is configured with a
 trusted Semantic provider invoker, `SemanticProviderEffectService` selects this
 ledger before the provider call. It appends `EffectRequested` and
-`attempt_started` before invocation, then retains submission/unknown/receipt
-evidence. For this Semantic adapter the transition field `response_sha256`
+atomically claims a request-only stream with `attempt_started` before invocation,
+then retains submission/unknown/receipt evidence. Only the inserted claim owner
+calls the provider. The immutable request idempotency key binds the trusted
+provider registration and any retry-policy descriptor, while the callback
+receives the stable effect ID as its provider idempotency key. For this Semantic
+adapter the transition field `response_sha256`
 binds the versioned complete `SemanticProviderResult` descriptor: the raw
 response-byte digest, provider request and decision IDs, allowed/blocked IDs,
 reason, risk, recommended injection, and token counts. Raw response bytes stay
 in the Semantic artifact authority. Changing prompt or provider configuration
 after a crash cannot create a second effect stream or repeat the provider call.
 
-Recovery of any retained attempt never invokes the provider again. A configured
-trusted provider-specific reconciler is used only after `result_unknown` is
-durably recorded, or to confirm an already retained successful receipt; it may
-confirm the exact result, keep the result unknown, or report not found.
-In-flight/submitted and request-only streams cannot safely prove owner
-abandonment and therefore remain recovery-required without mutation. The
-original request authorization remains immutable, while same-scope
+Recovery of active or unknown retained attempts never invokes the provider
+without new evidence. In-flight/submitted work remains recovery-required unless
+a server-owned verifier attests the exact retained owner actor, attempt,
+invocation, and head as fenced. That operation appends only `result_unknown`; a
+late owner receipt must go through reconciliation. A configured trusted
+provider-specific reconciler may confirm the exact result, keep the result
+unknown, or report not found. A retained successful receipt requires exact
+confirmation. Only trusted `not_found` permits the request-bound bounded retry
+policy; its digest is retained in the original effect idempotency key, every
+retained `retry_at` is revalidated against the exact policy deadline, and
+exhaustion appends terminal dead-letter.
+The original request authorization remains immutable, while same-scope
 reconciliation transitions may carry a fresh authorization decision and record
 that decision on every event. Exact append replay of an already retained
 transition still requires that transition's original authorization because the
-receipt binds the complete canonical event. The Semantic adapter does not yet claim orphaned
-work, schedule a retry after `not_found`, own dead-letter or compensation, or
-cover completion-provider effects.
+receipt binds the complete canonical event. The Semantic provider effect itself
+declares compensation unsupported; generic receipt-backed compensation applies
+only to effect contracts that explicitly support it, and the global event CAS
+allows at most one compensation stream per original effect. Completion-provider
+integration remains separate.
 
 ## Event-first persistence
 
@@ -120,7 +137,7 @@ projection-divergent evidence fails closed.
 
 ## EffectQueue projection
 
-The registered `effect-queue` reducer version 2 rebuilds `effect_queue_v1`
+The registered `effect-queue` reducer version 3 rebuilds `effect_queue_v1`
 schema version 2 with states
 `ready`, `leased`, `retry`, `dead_letter`, `succeeded`, and `compensated`. It
 retains compact immutable event metadata, the exact outbox delivery history,
@@ -130,16 +147,17 @@ delivery revisions with the transitional completion-outbox authority.
 
 The same projection now retains provider attempts and transitions, exact
 receipt/reconciliation identities, and provider states `not_started`,
-`in_flight`, `submitted`, `unknown`, `not_found`, `retry_wait`, and `succeeded`.
+`in_flight`, `submitted`, `unknown`, `not_found`, `retry_wait`, `dead_lettered`, and `succeeded`.
 Receipt/request mismatches, non-contiguous reconciliation, retry before a
-not-found result, and changed provider provenance fail closed.
+not-found result or retained `retry_at`, direct receipt after unknown, and
+changed provider provenance fail closed.
 
 The reducer enforces linear streams, terminal-state monotonicity, exact
 failed-before-retry/dead-letter ordering, and the rule that compensation is a
 new causally linked effect stream. The storage-neutral compensation builders,
-parsers, and reducer transitions are available, but the current SQLite and
-PostgreSQL completion repositories do not expose a durable compensation append
-API.
+parsers, and reducer transitions are paired with the generic provider-ledger
+append API. The completion-outbox repositories still do not integrate a
+completion-provider compensation adapter.
 
 ## Trust boundary
 
@@ -156,10 +174,13 @@ embedded in the event.
 
 The storage-neutral provider event/reducer/ledger service is delivered and the
 generic SQLite/PostgreSQL ledgers can retain it without another authority or
-schema component. Explicit durable runtimes now select server-owned Semantic
-provider invocation and the trusted reconciliation boundary when configured;
-no concrete remote-provider reconciliation adapter is bundled. Completion-
-provider integration, request-only claims, active retry/dead-letter ownership,
-durable compensation orchestration, PostgreSQL crash parity, and the complete
-transport/crash matrix remain F3 work. Current adapters remain opt-in and do
+schema component. Configured explicit durable runtimes select server-owned
+Semantic provider invocation; trusted reconciliation, owner fencing, and bounded
+retry/dead-letter activate only when their corresponding dependencies are
+configured. Python facade, synchronous/asynchronous HTTP, trusted-local MCP, and TypeScript
+SDK parity include the provider transitions. No concrete remote-provider
+adapter is bundled. Completion-provider integration, automatic background sweep/
+lease fencing, shared-service workers, and the remaining crash matrix remain F3
+work. PostgreSQL provider crash probes are present but were not executed on this
+machine. Remote exactly-once is not claimed. Current adapters remain opt-in and do
 not change `persistence_model="authority_graph"` or `full_persistence=false`.

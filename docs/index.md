@@ -166,11 +166,17 @@ atomic `RunOutcome + COMPLETED + completion outbox` publication with
 SQLite/PostgreSQL parity. The same transaction appends `EffectRequested`, and
 worker transitions append canonical started/succeeded/failed/retry/dead-letter
 evidence that `effect-queue` rebuilds with exact delivery-history parity.
-A storage-neutral provider transition, `effect-queue` reducer version 2, and
+A storage-neutral provider transition, `effect-queue` reducer version 3, and
 authenticated generic-ledger service now retain content-addressed receipts,
-unknown results, reconciliation, explicit retry scheduling, and exact response-
-loss replay. Active provider callbacks, provider-specific reconciliation,
-durable compensation, managed production indexes, encrypted protected-content
+unknown results, provider-bound reconciliation, bounded retry/dead-letter, and
+receipt-backed generic compensation. Configured explicit durable runtimes add
+atomic request-only claiming, provider/policy binding, and cross-transport
+server-owned Semantic invocation parity; trusted reconciliation, owner fencing,
+and bounded retry/dead-letter require their corresponding configured
+dependencies. Semantic provider effects do not support compensation or claim
+remote exactly-once.
+Concrete remote-provider and completion-provider adapters, automatic background
+sweep/lease fencing, managed production indexes, encrypted protected-content
 finalization, default adapter cutover, CLI durable selection, and shared-service
 transport remain outstanding.
 `AuthenticatedDurableAgentMemory` now composes those opt-in stages behind one

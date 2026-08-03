@@ -42,6 +42,7 @@ from .gate_service_v3 import (
     bind_gate_session_event_context,
 )
 from .gate_session_v3 import GateSession
+from .provider_effect_ledger_v1 import ProviderEffectRecovery
 from .replay_export_v3 import (
     REPLAY_EXPORT_MAX_CONTENT_BYTES,
     ReplayBundleExport,
@@ -57,7 +58,10 @@ from .semantic_gate_service_v3 import (
     SemanticProviderCall,
     SemanticProviderResult,
 )
-from .semantic_provider_effect_v1 import SemanticProviderEffectService
+from .semantic_provider_effect_v1 import (
+    SemanticProviderEffectAbandonmentRequest,
+    SemanticProviderEffectService,
+)
 from .service_v3 import (
     AuthenticatedRetrievalService,
     AuthenticatedServiceContext,
@@ -394,6 +398,33 @@ class AuthenticatedDurableAgentMemory:
             ),
         )
 
+    def abandon_semantic_provider_effect(
+        self,
+        context: AuthenticatedServiceContext,
+        request: SemanticProviderEffectAbandonmentRequest,
+        call: SemanticProviderCall,
+    ) -> ProviderEffectRecovery:
+        if (
+            type(context) is not AuthenticatedServiceContext
+            or type(request) is not SemanticProviderEffectAbandonmentRequest
+            or type(call) is not SemanticProviderCall
+        ):
+            _invalid("durable Agent provider abandonment input is invalid")
+        if self._semantic_provider_effect_factory is None:
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_PROVIDER_EFFECT_UNAVAILABLE",
+                "durable provider effect service is unavailable",
+            )
+        self._recover_retrieval_scope(context, request.session_id)
+        return self._authorize_transition(
+            context,
+            lambda transition_scope: self._abandon_provider_authorized(
+                request,
+                call,
+                transition_scope,
+            ),
+        )
+
     def start(
         self,
         context: AuthenticatedServiceContext,
@@ -615,6 +646,41 @@ class AuthenticatedDurableAgentMemory:
                         f"also failed to close provider effect service: "
                         f"{close_error}"
                     )
+
+    def _abandon_provider_authorized(
+        self,
+        request: SemanticProviderEffectAbandonmentRequest,
+        call: SemanticProviderCall,
+        transition_scope: AuthorizedRetrievalScope,
+    ) -> ProviderEffectRecovery:
+        effect_factory = self._semantic_provider_effect_factory
+        if effect_factory is None:
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_PROVIDER_EFFECT_UNAVAILABLE",
+                "durable provider effect service is unavailable",
+            )
+        effect_service = effect_factory(transition_scope)
+        if type(effect_service) is not SemanticProviderEffectService:
+            raise DurableAgentV3Error(
+                "TBM_DURABLE_AGENT_PROVIDER_EFFECT_INVALID",
+                "semantic provider effect service is invalid",
+            )
+        abandonment_error: BaseException | None = None
+        try:
+            return effect_service.record_owner_abandonment(request, call)
+        except BaseException as error:
+            abandonment_error = error
+            raise
+        finally:
+            try:
+                effect_service.close()
+            except BaseException as close_error:
+                if abandonment_error is None:
+                    raise
+                abandonment_error.add_note(
+                    "also failed to close provider effect service: "
+                    f"{close_error}"
+                )
 
     def _cancel_authorized(
         self,

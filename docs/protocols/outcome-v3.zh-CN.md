@@ -41,9 +41,14 @@ opt-in [SQLite OutcomeAttribution ledger](sqlite-outcome-attribution-v3.zh-CN.md
 replay。typed canonical outcome event 以及 `outcome-current`/
 `outcome-attribution` reducer 会逐字段重建并核验两个 authority。显式 durable execution
 路径会在每次调用时认证 evaluator，并原子发布 RunOutcome、completed session、completion
-outbox 与初始 effect request；worker 会持久化 delivery/dead-letter event。artifact byte
-核验、active provider receipt/reconciliation integration、durable compensation，以及
-default/shared-service cutover 仍未完成；存储中立 provider event/reducer/ledger 基础已交付。
+outbox 与初始 effect request；worker 会持久化 delivery/dead-letter event。存储中立
+provider event/reducer/ledger 基础和已配置的 server-owned Semantic provider effect
+integration 已交付，包括 provider/policy 绑定、稳定幂等，以及 durable transport 的调用
+parity。可信 reconciliation、owner fencing 与有界 retry/dead-letter 只有在配置对应依赖时才
+激活；通用 compensation 只适用于支持它的 contract。artifact byte
+核验、具体 remote adapter、completion-provider integration、自动后台 sweep/lease fencing、
+shared-service worker 与 default cutover 仍未完成；Semantic provider effect 不宣称支持
+compensation 或 remote exactly-once。
 
 规范 Schema：
 

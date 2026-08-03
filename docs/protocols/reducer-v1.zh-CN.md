@@ -127,7 +127,11 @@ parity。详见 [Finalization Event v1](finalization-event-v1.zh-CN.md)。默认
 SQLite/PostgreSQL event-first 路径会核验 RunOutcome、OutcomeAttribution、completion
 delivery history 与 dead-letter parity。详见
 [Effect Event v1](effect-event-v1.zh-CN.md)。MemoryCatalog、activated head、retrieval
-index、audit、metrics 与 PR risk 尚未 reducer-native。存储中立 `effect-queue` version 2
-现会重建 provider receipt、unknown-result、reconciliation 与显式 retry 状态。active
-provider callback、provider-specific reconciliation、durable compensation 与 F2 其余
-cutover gate 仍未关闭，因此这些 opt-in reducer 不会改变 `full_persistence=false`。
+index、audit、metrics 与 PR risk 尚未 reducer-native。存储中立 `effect-queue` version 3
+现会重建 provider receipt、unknown-result、reconciliation、已保留 retry/dead-letter 与
+receipt-backed generic compensation 状态。配置后的显式 durable transport 会选择 server-owned
+Semantic provider path；reconciliation、owner fencing 与有界 retry/dead-letter 只有在配置对应
+依赖时才激活，Semantic provider effect 不支持 compensation。completion-provider integration、
+自动 sweep/lease fencing、shared-
+service worker 与 F2 其余 cutover gate 仍未关闭，因此这些 opt-in reducer 不会改变
+`full_persistence=false`。

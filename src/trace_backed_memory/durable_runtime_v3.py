@@ -74,6 +74,8 @@ from .semantic_gate_service_v3 import (
     TrustedSemanticProvider,
 )
 from .semantic_provider_effect_v1 import (
+    SemanticProviderEffectAbandonmentRequest,
+    SemanticProviderEffectRetryPolicy,
     SemanticProviderEffectService,
     SemanticProviderReconciliationCall,
     SemanticProviderReconciliationResult,
@@ -176,6 +178,12 @@ class DurableRuntimeDependencies:
         ]
         | None
     ) = None
+    semantic_provider_retry_policy: (
+        SemanticProviderEffectRetryPolicy | None
+    ) = None
+    semantic_provider_owner_fence_verifier: (
+        Callable[[SemanticProviderEffectAbandonmentRequest], bool] | None
+    ) = None
     semantic_provider_effect_actor_id: str = (
         "semantic_provider_effect_service"
     )
@@ -223,12 +231,31 @@ class DurableRuntimeDependencies:
             self.semantic_provider_reconciler
         ):
             raise TypeError("semantic_provider_reconciler must be callable")
+        if self.semantic_provider_retry_policy is not None and (
+            type(self.semantic_provider_retry_policy)
+            is not SemanticProviderEffectRetryPolicy
+        ):
+            raise TypeError(
+                "semantic_provider_retry_policy must be "
+                "SemanticProviderEffectRetryPolicy"
+            )
         if (
-            self.semantic_provider_reconciler is not None
+            self.semantic_provider_owner_fence_verifier is not None
+            and not callable(self.semantic_provider_owner_fence_verifier)
+        ):
+            raise TypeError(
+                "semantic_provider_owner_fence_verifier must be callable"
+            )
+        if (
+            (
+                self.semantic_provider_reconciler is not None
+                or self.semantic_provider_retry_policy is not None
+                or self.semantic_provider_owner_fence_verifier is not None
+            )
             and self.semantic_provider_invoker is None
         ):
             raise ValueError(
-                "semantic provider reconciler requires an active invoker"
+                "semantic provider recovery requires an active invoker"
             )
         for value in (
             self.retrieval_evaluator_id,
@@ -466,6 +493,12 @@ class DurableSQLiteRuntime:
                         clock=dependencies.clock,
                         reconcile_provider=(
                             dependencies.semantic_provider_reconciler
+                        ),
+                        retry_policy=(
+                            dependencies.semantic_provider_retry_policy
+                        ),
+                        verify_owner_fence=(
+                            dependencies.semantic_provider_owner_fence_verifier
                         ),
                         owns_ledgers=True,
                     )
@@ -799,6 +832,12 @@ class DurablePostgresRuntime:
                         clock=dependencies.clock,
                         reconcile_provider=(
                             dependencies.semantic_provider_reconciler
+                        ),
+                        retry_policy=(
+                            dependencies.semantic_provider_retry_policy
+                        ),
+                        verify_owner_fence=(
+                            dependencies.semantic_provider_owner_fence_verifier
                         ),
                         owns_ledgers=True,
                     )

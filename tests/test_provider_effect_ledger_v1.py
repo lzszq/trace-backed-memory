@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 
@@ -56,6 +58,15 @@ def _provider() -> TrustedProviderEffectRegistration:
         model_id="model_001",
         model_version="v1",
         endpoint_id="endpoint_001",
+    )
+
+
+def _other_provider() -> TrustedProviderEffectRegistration:
+    return TrustedProviderEffectRegistration(
+        provider_id="provider_002",
+        model_id="model_002",
+        model_version="v2",
+        endpoint_id="endpoint_002",
     )
 
 
@@ -153,6 +164,8 @@ def _seed(ledger, access: LedgerAccessContext) -> None:
 def _transition(
     stage,
     *,
+    effect_id: str = EFFECT_ID,
+    request_sha256: str = DIGEST_A,
     attempt_sequence: int = 1,
     provider_request_id: str | None = None,
     response_sha256: str | None = None,
@@ -161,15 +174,15 @@ def _transition(
     reconciliation_result=None,
     retry_at: str | None = None,
 ) -> ProviderEffectTransitionRef:
-    attempt_id = provider_effect_attempt_id(EFFECT_ID, attempt_sequence)
+    attempt_id = provider_effect_attempt_id(effect_id, attempt_sequence)
     invocation_id = provider_effect_invocation_id(
-        effect_id=EFFECT_ID,
+        effect_id=effect_id,
         attempt_id=attempt_id,
         provider_id="provider_001",
         model_id="model_001",
         model_version="v1",
         endpoint_id="endpoint_001",
-        request_sha256=DIGEST_A,
+        request_sha256=request_sha256,
     )
     receipt_id = (
         None
@@ -193,7 +206,7 @@ def _transition(
         )
     )
     return ProviderEffectTransitionRef(
-        effect_id=EFFECT_ID,
+        effect_id=effect_id,
         attempt_id=attempt_id,
         attempt_sequence=attempt_sequence,
         provider_invocation_id=invocation_id,
@@ -202,7 +215,7 @@ def _transition(
         model_id="model_001",
         model_version="v1",
         endpoint_id="endpoint_001",
-        request_sha256=DIGEST_A,
+        request_sha256=request_sha256,
         provider_request_id=provider_request_id,
         response_sha256=response_sha256,
         provider_receipt_id=receipt_id,
@@ -277,7 +290,7 @@ def test_provider_effect_unknown_requires_reconciliation_before_retry() -> None:
 
         retry = _transition(
             "retry_scheduled",
-            retry_at="2026-08-03T00:02:00Z",
+            retry_at="2026-08-03T00:00:07Z",
         )
         with pytest.raises(ProviderEffectLedgerV1Error) as error:
             _append(service, retry, 4)
@@ -323,6 +336,70 @@ def test_provider_effect_unknown_requires_reconciliation_before_retry() -> None:
         assert ledger.verify_stream(effect_event_stream_id(EFFECT_ID)).valid
 
 
+def test_provider_effect_rejects_early_retry_and_receipt_after_unknown() -> None:
+    with SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(),
+        initialize=True,
+    ) as ledger:
+        _seed(ledger, _access())
+        service = ProviderEffectLedgerService(ledger, _provider())
+        _append(service, _transition("attempt_started"), 1)
+        _append(
+            service,
+            _transition("result_unknown", error_code="response_lost"),
+            2,
+        )
+        late_receipt = _transition(
+            "receipt_recorded",
+            provider_request_id="provider_request_001",
+            response_sha256=DIGEST_B,
+        )
+        with pytest.raises(ProviderEffectLedgerV1Error) as receipt_error:
+            _append(service, late_receipt, 3)
+        assert (
+            receipt_error.value.code
+            == "TBM_PROVIDER_EFFECT_TRANSITION_REJECTED"
+        )
+
+        _append(
+            service,
+            _transition(
+                "reconciled",
+                reconciliation_sequence=1,
+                reconciliation_result="not_found",
+            ),
+            4,
+        )
+        _append(
+            service,
+            _transition(
+                "retry_scheduled",
+                retry_at="2026-08-03T00:01:00Z",
+            ),
+            5,
+        )
+        with pytest.raises(ProviderEffectLedgerV1Error) as retry_error:
+            _append(service, _transition("attempt_started", attempt_sequence=2), 6)
+        assert retry_error.value.code == "TBM_PROVIDER_EFFECT_TRANSITION_REJECTED"
+
+
+def test_provider_effect_recovery_rejects_retained_provider_mismatch() -> None:
+    with SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(),
+        initialize=True,
+    ) as ledger:
+        _seed(ledger, _access())
+        service = ProviderEffectLedgerService(ledger, _provider())
+        _append(service, _transition("attempt_started"), 1)
+
+        mismatched = ProviderEffectLedgerService(ledger, _other_provider())
+        with pytest.raises(ProviderEffectLedgerV1Error) as error:
+            mismatched.recover(EFFECT_ID)
+        assert error.value.code == "TBM_PROVIDER_EFFECT_PROVIDER_MISMATCH"
+
+
 def test_provider_effect_confirmed_reconciliation_retains_exact_receipt() -> None:
     with SQLiteEventLedgerV1.connect(
         ":memory:",
@@ -350,6 +427,232 @@ def test_provider_effect_confirmed_reconciliation_retains_exact_receipt() -> Non
         assert result.recovery.provider_receipt_id == (
             reconciled.provider_receipt_id
         )
+
+
+def test_provider_effect_compensation_requires_receipt_and_is_forward_only() -> None:
+    compensation_id = "effect_provider_compensation_001"
+    with SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(),
+        initialize=True,
+    ) as ledger:
+        _seed(ledger, _access())
+        service = ProviderEffectLedgerService(ledger, _provider())
+        _append(service, _transition("attempt_started"), 1)
+        _append(
+            service,
+            _transition(
+                "receipt_recorded",
+                provider_request_id="provider_request_original_001",
+                response_sha256=DIGEST_B,
+            ),
+            2,
+        )
+        original_events = ledger.read_stream(
+            effect_event_stream_id(EFFECT_ID),
+            limit=100,
+        ).events
+        compensation_contract = EffectContract(
+            effect_id=compensation_id,
+            effect_type="semantic_provider_call_compensation",
+            idempotency_key="semantic-provider-compensation-001",
+            requested_by_event_id=original_events[-1].event_id,
+            input_artifact_sha256=DIGEST_B,
+            authorization_event_id=_access().authorization_decision_id,
+            compensation_supported=False,
+        )
+        compensation = tbm.EffectCompensationRequestedRef(
+            original_effect_id=EFFECT_ID,
+            original_terminal_event_id=original_events[-1].event_id,
+            compensation_effect=compensation_contract,
+        )
+
+        requested = service.request_compensation(
+            compensation,
+            occurred_at="2026-08-03T00:00:03Z",
+        )
+        replay = service.request_compensation(
+            compensation,
+            occurred_at="2026-08-03T00:00:03Z",
+        )
+        assert requested.inserted is True
+        assert replay.inserted is False
+        assert requested.recovery.provider_status == "not_started"
+        conflicting_contract = replace(
+            compensation_contract,
+            effect_id="effect_provider_compensation_002",
+            idempotency_key="semantic-provider-compensation-002",
+        )
+        with pytest.raises(ProviderEffectLedgerV1Error) as conflict:
+            service.request_compensation(
+                tbm.EffectCompensationRequestedRef(
+                    original_effect_id=EFFECT_ID,
+                    original_terminal_event_id=original_events[-1].event_id,
+                    compensation_effect=conflicting_contract,
+                ),
+                occurred_at="2026-08-03T00:00:03Z",
+            )
+        assert conflict.value.code == "TBM_PROVIDER_EFFECT_CONFLICT"
+        with pytest.raises(ProviderEffectLedgerV1Error):
+            service.complete_compensation(
+                compensation_id,
+                occurred_at="2026-08-03T00:00:04Z",
+            )
+
+        started = _transition(
+            "attempt_started",
+            effect_id=compensation_id,
+            request_sha256=DIGEST_B,
+        )
+        service.append_transition(
+            started,
+            occurred_at="2026-08-03T00:00:04Z",
+        )
+        receipt = _transition(
+            "receipt_recorded",
+            effect_id=compensation_id,
+            request_sha256=DIGEST_B,
+            provider_request_id="provider_request_compensation_001",
+            response_sha256=DIGEST_A,
+        )
+        service.append_transition(
+            receipt,
+            occurred_at="2026-08-03T00:00:05Z",
+        )
+        completed = service.complete_compensation(
+            compensation_id,
+            occurred_at="2026-08-03T00:00:06Z",
+        )
+        completed_replay = service.complete_compensation(
+            compensation_id,
+            occurred_at="2026-08-03T00:00:06Z",
+        )
+        assert completed.inserted is True
+        assert completed_replay.inserted is False
+
+        events, state, _ = service._load_effect(compensation_id)
+        assert projected_effect_status(state, EFFECT_ID) == "compensated"
+        assert projected_effect_status(state, compensation_id) == "succeeded"
+        target_events = tuple(
+            event
+            for event in events
+            if event.stream_id == effect_event_stream_id(compensation_id)
+        )
+        assert tuple(event.event_type for event in target_events) == (
+            tbm.EFFECT_COMPENSATION_REQUESTED_EVENT,
+            tbm.EFFECT_PROVIDER_TRANSITION_EVENT,
+            tbm.EFFECT_PROVIDER_TRANSITION_EVENT,
+            tbm.EFFECT_COMPENSATED_EVENT,
+        )
+
+
+def test_provider_effect_concurrent_distinct_compensations_have_one_winner(
+) -> None:
+    class ConcurrentCompensationLedger:
+        def __init__(self, ledger: SQLiteEventLedgerV1, barrier: Barrier) -> None:
+            self._ledger = ledger
+            self._barrier = barrier
+            self._armed = True
+            self.access_context = ledger.access_context
+
+        @property
+        def authority_identity(self):
+            return self._ledger.authority_identity
+
+        def append_once(self, stream_id, expected_version, events, idempotency):
+            if (
+                self._armed
+                and events
+                and events[0].event_type
+                == tbm.EFFECT_COMPENSATION_REQUESTED_EVENT
+            ):
+                self._armed = False
+                self._barrier.wait(timeout=5)
+            return self._ledger.append_once(
+                stream_id,
+                expected_version,
+                events,
+                idempotency,
+            )
+
+        def read_stream(self, *args, **kwargs):
+            return self._ledger.read_stream(*args, **kwargs)
+
+        def read_global(self, *args, **kwargs):
+            return self._ledger.read_global(*args, **kwargs)
+
+    with SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(),
+        initialize=True,
+    ) as ledger:
+        _seed(ledger, _access())
+        service = ProviderEffectLedgerService(ledger, _provider())
+        _append(service, _transition("attempt_started"), 1)
+        _append(
+            service,
+            _transition(
+                "receipt_recorded",
+                provider_request_id="provider_request_original_001",
+                response_sha256=DIGEST_B,
+            ),
+            2,
+        )
+        original_events = ledger.read_stream(
+            effect_event_stream_id(EFFECT_ID),
+            limit=100,
+        ).events
+
+        def compensation_reference(index: int):
+            effect_id = f"effect_provider_compensation_concurrent_{index:03d}"
+            return tbm.EffectCompensationRequestedRef(
+                original_effect_id=EFFECT_ID,
+                original_terminal_event_id=original_events[-1].event_id,
+                compensation_effect=EffectContract(
+                    effect_id=effect_id,
+                    effect_type="semantic_provider_call_compensation",
+                    idempotency_key=(
+                        f"semantic-provider-compensation-concurrent-{index:03d}"
+                    ),
+                    requested_by_event_id=original_events[-1].event_id,
+                    input_artifact_sha256=DIGEST_B,
+                    authorization_event_id=_access().authorization_decision_id,
+                    compensation_supported=False,
+                ),
+            )
+
+        barrier = Barrier(2)
+        references = tuple(compensation_reference(index) for index in (1, 2))
+        services = tuple(
+            ProviderEffectLedgerService(
+                ConcurrentCompensationLedger(ledger, barrier),
+                _provider(),
+            )
+            for _ in references
+        )
+
+        def request_once(index: int) -> tuple[str, str]:
+            try:
+                result = services[index].request_compensation(
+                    references[index],
+                    occurred_at="2026-08-03T00:00:03Z",
+                )
+            except ProviderEffectLedgerV1Error as error:
+                return "error", error.code
+            return "inserted", result.reference.compensation_effect.effect_id
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            outcomes = tuple(executor.map(request_once, range(2)))
+
+        assert sum(status == "inserted" for status, _value in outcomes) == 1
+        assert tuple(
+            value for status, value in outcomes if status == "error"
+        ) == ("TBM_PROVIDER_EFFECT_CONFLICT",)
+        retained = ledger.read_global(0, 100).events
+        assert sum(
+            event.event_type == tbm.EFFECT_COMPENSATION_REQUESTED_EVENT
+            for event in retained
+        ) == 1
 
 
 def test_provider_effect_post_commit_response_loss_replays_exact_event() -> None:
@@ -661,7 +964,7 @@ def test_postgres_provider_effect_recovery_matches_sqlite(
             service,
             _transition(
                 "retry_scheduled",
-                retry_at="2026-08-03T00:02:00Z",
+                retry_at="2026-08-03T00:00:04Z",
             ),
             4,
         )
@@ -678,3 +981,69 @@ def test_postgres_provider_effect_recovery_matches_sqlite(
         )
         assert receipt.recovery.provider_status == "succeeded"
         assert receipt.recovery.next_action == "complete"
+
+        compensation_id = "effect_provider_compensation_postgres_001"
+        original_events = ledger.read_stream(
+            effect_event_stream_id(EFFECT_ID),
+            limit=100,
+        ).events
+        compensation_contract = EffectContract(
+            effect_id=compensation_id,
+            effect_type="semantic_provider_call_compensation",
+            idempotency_key="semantic-provider-compensation-postgres-001",
+            requested_by_event_id=original_events[-1].event_id,
+            input_artifact_sha256=DIGEST_B,
+            authorization_event_id=_access().authorization_decision_id,
+            compensation_supported=False,
+        )
+        compensation = tbm.EffectCompensationRequestedRef(
+            original_effect_id=EFFECT_ID,
+            original_terminal_event_id=original_events[-1].event_id,
+            compensation_effect=compensation_contract,
+        )
+        assert service.request_compensation(
+            compensation,
+            occurred_at="2026-08-03T00:00:07Z",
+        ).inserted is True
+        conflicting_contract = replace(
+            compensation_contract,
+            effect_id="effect_provider_compensation_postgres_002",
+            idempotency_key="semantic-provider-compensation-postgres-002",
+        )
+        with pytest.raises(ProviderEffectLedgerV1Error) as conflict:
+            service.request_compensation(
+                tbm.EffectCompensationRequestedRef(
+                    original_effect_id=EFFECT_ID,
+                    original_terminal_event_id=original_events[-1].event_id,
+                    compensation_effect=conflicting_contract,
+                ),
+                occurred_at="2026-08-03T00:00:07Z",
+            )
+        assert conflict.value.code == "TBM_PROVIDER_EFFECT_CONFLICT"
+        service.append_transition(
+            _transition(
+                "attempt_started",
+                effect_id=compensation_id,
+                request_sha256=DIGEST_B,
+            ),
+            occurred_at="2026-08-03T00:00:08Z",
+        )
+        service.append_transition(
+            _transition(
+                "receipt_recorded",
+                effect_id=compensation_id,
+                request_sha256=DIGEST_B,
+                provider_request_id="provider_request_compensation_pg",
+                response_sha256=DIGEST_A,
+            ),
+            occurred_at="2026-08-03T00:00:09Z",
+        )
+        completed = service.complete_compensation(
+            compensation_id,
+            occurred_at="2026-08-03T00:00:10Z",
+        )
+        assert completed.inserted is True
+        _events, state, _high_watermark = service._load_effect(
+            compensation_id
+        )
+        assert projected_effect_status(state, EFFECT_ID) == "compensated"

@@ -34,7 +34,8 @@
 GateSession/Gate-evidence/Semantic event 与 reducer、RunOutcome/
 OutcomeAttribution projection，以及本地 EffectQueue delivery-history/dead-letter
 slice。机器可读契约保留上一批已提升 atom ID 与证据路径。当前没有额外未提交 atom
-候选，durable compensation 仍不计入。
+候选；未提交 provider-effect 批次无法映射到一个完整计划 atom，其 generic compensation
+slice 也不提升。
 
 新增的 local-daemon 子进程 hard-restart 测试覆盖已确认的 `PREPARED`、`DECIDED`、
 `FINALIZED`、`EXECUTING` 与 `COMPLETED` commit，并要求精确重试和最终 reducer parity。
@@ -47,26 +48,33 @@ slice。机器可读契约保留上一批已提升 atom ID 与证据路径。当
 claim-time bundle。commit 后 response-loss probe 现覆盖 `DECIDED`、event-first
 `FINALIZED`、`EXECUTING`、组合 completion/outbox 与已提交 acknowledgement，精确
 重试不会重复 replay 或 redelivery。本地 happy path 还通过真实 JSON-RPC STDIO MCP，
-与 Python facade、Python HTTP sync/async SDK 及 TypeScript HTTP SDK 对齐全部 17 个
-global event、七条 stream head 和八个已注册 reducer projection。配置后的显式 SQLite
+与 Python facade、Python HTTP sync/async SDK 及 TypeScript HTTP SDK 对齐全部 21 个
+global event、八条 stream head 和八个已注册 reducer projection。配置后的显式 SQLite
 runtime 现在已有 Semantic provider request/attempt/receipt/reconciliation evidence，
-以及 provider 边界前后的 hard-kill probe，且不会重复 provider invoker。request-only
-safe claim、active retry/dead-letter/compensation、completion-provider integration、
-PostgreSQL parity、其余 crash matrix 与完整 F2 cross-transport conformance 仍未完成。
+以及 provider 边界前后的 hard-kill probe。本批还增加 request-only 原子 claim、服务端证明
+的 provider/policy-bound request、每个 original effect 仅一条 compensation、仅限支持 contract
+的 receipt-backed generic compensation 与跨 transport Semantic invocation parity。配置后的
+reconciliation、服务端证明的 owner fencing 与有界 retry/dead-letter 会核验精确保留 evidence。
+Semantic provider effect 不支持 compensation，也不声明 remote exactly-once。completion-provider
+integration、具体 remote adapter、自动 background sweep/lease fencing、shared-service
+worker、本机尚未运行的 PostgreSQL crash probe 与其余 crash matrix 仍未完成。
 精确 legacy SQLite timestamp trigger 也会在 reopen 时原子修复。这些仍只是新增证据与
 corruption repair，没有提升 atom；
 正式与候选进度均保持 182/490（37.14%）。
 
 F3 provider-effect 基础包含一个严格 provider-transition event、内容寻址 attempt/invocation/
-receipt/reconciliation identity、`effect-queue` reducer version 2 与 authenticated
+receipt/reconciliation identity、`effect-queue` reducer version 3 与 authenticated
 generic-ledger service。SQLite 会核验精确 append replay、receipt mismatch 拒绝、保守的
-orphan fail-closed 行为、unknown-result recovery、reconciliation-gated retry 与 commit
-后 response loss；同一
+orphan fail-closed 行为、request-only 原子 claim、精确 owner-fence attestation、provider-
+bound recovery、unknown-result reconciliation、已保留 retry timing、有界 retry/dead-letter、
+receipt-backed generic compensation 与 commit 后 response loss；同一
 存储中立路径在具备所需 executable 时还有 PostgreSQL integration test。配置后的显式
-durable runtime 已选择 server-owned Semantic invocation 与可信 reconciliation callback；
-receipt 绑定完整 structured result，同 scope 的新 authorization 可以进行对账，且已
-保留 effect 绝不会重复 provider invocation。request-only claim、active retry/dead-letter/
-compensation、orphan owner-abandonment evidence、completion-provider integration、
-具体 remote-provider adapter、
-PostgreSQL crash parity 与完整 transport parity 仍未完成，因此没有完整 F3 effect atom
-被提升；正式与候选进度仍为 182/490（37.14%）。
+durable runtime 已选择 server-owned Semantic invocation；提供相应依赖时，可信 reconciliation、
+owner-fence verification 与有界 retry/dead-letter 会核验精确保留 evidence。receipt 绑定完整
+structured result，同 scope 的新 authorization 可以进行对账，且所有
+已配置 transport 产生相同 provider-effect sequence。PostgreSQL provider hard-crash test 已
+加入，但当前机器缺少 PostgreSQL executable，因而被跳过。completion-provider integration、
+具体 remote-provider adapter、自动 background sweep/lease fencing、shared-service worker、
+其余 crash matrix 与 remote exactly-once 仍未完成。计划没有可安全使用的显式 atom-ID
+映射，因此没有完整 F3 effect atom 被提升；正式与候选进度仍为 182/490（37.14%），
+`atom_ids=[]`。

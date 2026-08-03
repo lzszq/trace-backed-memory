@@ -67,16 +67,18 @@ decision linkage。
 的 revision，因为 terminal session 必然已经推进；此时精确 prompt、parent、chain、
 decision 与读回 receipt 共同构成幂等证明。
 
-effect request/attempt 已存在但 Semantic attempt 尚未保存时，provider invoker 绝不会
-再次调用。当前 adapter 没有 invocation owner 已放弃的 durable 证明，因此
-in-flight/submitted work 会保持 recovery-required 且不产生改写。只有 unknown result
-已经持久保留或 successful receipt 已存在时，才会使用配置的可信 reconciler，并允许其
-返回 `confirmed`、`still_unknown` 或 `not_found`。confirmed recovery 只有在完整 result
+只有 effect request 时，一条原子 `attempt_started` claim 的 owner 可以调用 provider；
+并发失败方保持 recovery-required。in-flight/submitted work 保持 recovery-required，除非
+服务端 verifier 证明精确 owner/head/attempt/invocation 已被 fence，随后也只能追加
+`result_unknown`。配置的可信 reconciler 既用于 durable unknown work，也用于精确恢复已保留的
+successful receipt。只有 unknown work 才允许返回 `confirmed`、`still_unknown` 或
+`not_found`；retained successful receipt 必须返回 `confirmed`。confirmed recovery 只有在完整 result
 digest 与 provider receipt 都精确一致后，才能保存 Semantic attempt。同 scope 的
 reconciliation 可以使用新的 transition authorization，但原始 request authorization
-保持固定。`still_unknown` 与 request-only stream 继续 recovery-required；`not_found`
-也不能直接开始新 attempt，必须先有独立 durable retry schedule/claim，而当前 adapter
-尚未提供该能力。
+保持固定。`still_unknown` 继续 recovery-required；`not_found` 只能按 request-bound
+有界 retry policy，在精确保留的 `retry_at` 之后开始新 attempt，耗尽则 terminal dead-letter。
+不可变 request 绑定 provider registration 与 retry policy；provider 会收到稳定 effect ID 作为
+幂等键。
 
 successful attempt 后又出现另一个 attempt、prompt 或 parent 不匹配、读回被篡改、
 session 已 expired/canceled，或 transition 无法确认时，都必须进入

@@ -80,7 +80,14 @@ the current F2 increment; see [Finalization Event v1](finalization-event-v1.md) 
 [Ledger Replay Export v1](ledger-replay-export-v1.md). Outcome/attribution and
 local completion-effect reducers now provide event-first parity through
 delivery history and dead letter. The storage-neutral provider receipt/
-reconciliation event, reducer, and ledger service are delivered; active
-semantic-provider selection, provider-specific reconciliation, durable
-compensation, complete transport parity, and the F2 crash matrix remain open.
+reconciliation event, reducer, and ledger service are delivered. Configured
+explicit durable runtimes select server-owned Semantic-provider invocation;
+trusted reconciliation, owner-fence attestation, and bounded retry/dead-letter
+activate only when their corresponding trusted dependencies are supplied.
+Atomic request claiming, provider/policy binding, receipt-backed generic
+compensation for contracts that support it, and transport invocation parity are
+delivered. Semantic provider effects do not support compensation or claim remote
+exactly-once. Concrete
+remote/completion adapters, background fencing workers, locally unexecuted
+PostgreSQL crash probes, and the remaining F2 crash matrix remain open.
 `full_persistence` therefore remains `false`.

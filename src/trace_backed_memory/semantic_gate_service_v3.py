@@ -199,6 +199,13 @@ class SemanticProviderCall:
     model_version: str
     endpoint_id: str
     prompt: bytes
+    idempotency_key: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.idempotency_key is not None and not _is_identifier(
+            self.idempotency_key
+        ):
+            raise ValueError("provider idempotency key must be a bounded identifier")
 
 
 @dataclass(frozen=True)

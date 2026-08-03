@@ -71,6 +71,11 @@ final decision/injection view 与 ledger-backed replay export 已在当前 F2 �
 [Finalization Event v1](finalization-event-v1.zh-CN.md) 与
 [Ledger Replay Export v1](ledger-replay-export-v1.zh-CN.md)。outcome/attribution 与本地
 completion-effect reducer 已提供到 delivery history/dead letter 的 event-first parity。
-存储中立 provider receipt/reconciliation event、reducer 与 ledger service 已交付；active
-semantic-provider selection、provider-specific reconciliation、durable compensation、完整
-transport parity 与 F2 crash matrix 仍未完成，所以 `full_persistence` 继续为 `false`。
+存储中立 provider receipt/reconciliation event、reducer 与 ledger service 已交付。配置后的
+显式 durable runtime 会选择 server-owned Semantic-provider invocation；只有提供对应可信依赖时，
+trusted reconciliation、owner-fence attestation 与有界 retry/dead-letter 才会激活。request 原子
+claim、provider/policy 绑定、仅限显式支持 contract 的 generic receipt-backed compensation 与
+transport invocation parity 已交付。Semantic provider effect 不支持 compensation，也不声明
+remote exactly-once。具体 remote/completion adapter、background fencing worker、本机
+尚未运行的 PostgreSQL crash probe 与其余 F2 crash matrix 仍未完成，所以
+`full_persistence` 继续为 `false`。

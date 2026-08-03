@@ -39,6 +39,7 @@ from trace_backed_memory.effect_event_v1 import (
     parse_effect_requested_event,
     provider_effect_attempt_id,
     provider_effect_invocation_id,
+    provider_effect_receipt_id,
 )
 from trace_backed_memory.effect_reducer_v1 import (
     EffectProjectionAuthority,
@@ -348,11 +349,12 @@ def test_effect_queue_replays_delivery_history_retry_and_dead_letter():
 
 def test_effect_queue_parity_replays_provider_transitions() -> None:
     descriptor = build_effect_queue_reducer().descriptor
+    assert descriptor.reducer_version == 3
     assert descriptor.code_sha256 == (
-        "sha256:fbde0e94888e326200571d30391ff25b84d64597ca88374e9266854761c8a9be"
+        "sha256:6fe6d823e90c79874fe542e221ded5fcf7d518564226893692eb08a2fff1057d"
     )
     assert descriptor.descriptor_sha256 == (
-        "sha256:89a7f43ea35304f85711536fd0eaa95a83e675c2f8d7045885aba8f58fc86d56"
+        "sha256:d99205f14cce1ae081d2d9cce7955993c9597124dcbd3850f10e698c644a35ca"
     )
     completed_event, outbox_event, pending, trusted = _completed_fixture()
     requested = build_completion_effect_requested_event(
@@ -556,9 +558,40 @@ def test_compensation_is_a_new_effect_and_original_is_forward_only():
         occurred_at="2026-08-01T00:08:00Z",
         trusted_context=_worker_trusted(trusted, "worker_001"),
     )
+    compensation_started_reference = _provider_attempt_transition(
+        compensation_contract.effect_id,
+        compensation_contract.input_artifact_sha256,
+    )
+    compensation_started = build_provider_effect_transition_event(
+        compensation_started_reference,
+        parent_event=compensation_requested,
+        global_position=12,
+        occurred_at="2026-08-01T00:08:30Z",
+        trusted_context=_worker_trusted(trusted, "worker_001"),
+    )
+    compensation_receipt = build_provider_effect_transition_event(
+        replace(
+            compensation_started_reference,
+            stage="receipt_recorded",
+            provider_request_id="provider_compensation_001",
+            response_sha256=DIGEST_B,
+            provider_receipt_id=provider_effect_receipt_id(
+                provider_invocation_id=(
+                    compensation_started_reference.provider_invocation_id
+                ),
+                provider_request_id="provider_compensation_001",
+                response_sha256=DIGEST_B,
+            ),
+        ),
+        parent_event=compensation_started,
+        global_position=13,
+        occurred_at="2026-08-01T00:08:45Z",
+        trusted_context=_worker_trusted(trusted, "worker_001"),
+    )
     compensated = build_effect_compensated_event(
         compensation_requested,
-        global_position=12,
+        receipt_event=compensation_receipt,
+        global_position=14,
         occurred_at="2026-08-01T00:09:00Z",
         trusted_context=_worker_trusted(trusted, "worker_001"),
     )
@@ -568,6 +601,7 @@ def test_compensation_is_a_new_effect_and_original_is_forward_only():
     assert parse_effect_compensated_event(
         compensated,
         compensation_request_event=compensation_requested,
+        receipt_event=compensation_receipt,
     ).compensation_effect_id == compensation_contract.effect_id
     assert compensation_requested.event_type == EFFECT_COMPENSATION_REQUESTED_EVENT
     assert compensated.event_type == EFFECT_COMPENSATED_EVENT
@@ -578,6 +612,8 @@ def test_compensation_is_a_new_effect_and_original_is_forward_only():
             *started,
             *succeeded,
             compensation_requested,
+            compensation_started,
+            compensation_receipt,
             compensated,
         )
     )
@@ -596,7 +632,7 @@ def test_compensation_is_a_new_effect_and_original_is_forward_only():
             outbox_event.outcome_descriptor_sha256,
         ),
         parent_event=succeeded[-1],
-        global_position=13,
+        global_position=15,
         occurred_at="2026-08-01T00:10:00Z",
         trusted_context=_worker_trusted(trusted, "worker_001"),
     )

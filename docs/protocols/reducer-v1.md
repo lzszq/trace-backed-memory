@@ -145,8 +145,12 @@ explicit SQLite/PostgreSQL event-first paths verify RunOutcome,
 OutcomeAttribution, completion delivery history, and dead-letter parity. See
 [Effect Event v1](effect-event-v1.md). MemoryCatalog, activated heads,
 retrieval indexes, audit, metrics, and PR risk are not yet reducer-native. The
-storage-neutral `effect-queue` version 2 now rebuilds provider receipt,
-unknown-result, reconciliation, and explicit retry state. Active provider
-callbacks, provider-specific reconciliation, durable compensation, and the
-remaining F2 cutover gates remain open, so these opt-in reducers do not change
+storage-neutral `effect-queue` version 3 now rebuilds provider receipt,
+unknown-result, reconciliation, retained retry/dead-letter, and receipt-backed
+generic compensation state. Configured explicit durable transports select the
+server-owned Semantic provider path; reconciliation, owner fencing, and bounded
+retry/dead-letter require their corresponding configured dependencies, and
+Semantic provider effects do not support compensation. Completion-provider integration, automatic sweep/lease
+fencing, shared-service workers, and the remaining F2 cutover gates remain open,
+so these opt-in reducers do not change
 `full_persistence=false`.

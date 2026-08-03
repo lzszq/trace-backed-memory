@@ -142,11 +142,15 @@ Start with:
   read-back, and explicit superseded/recovery-required outcomes.
 - `provider_effect_ledger_v1.py`: storage-neutral provider-effect event-ledger
   service with content-addressed receipts, conservative unknown-result
-  recovery, reconciliation-gated retry, and exact append-response replay.
+  recovery, reconciliation-gated retry/dead-letter, one-compensation-per-original
+  enforcement, receipt-backed generic compensation, provider-registration
+  verification, and exact append replay.
 - `semantic_provider_effect_v1.py`: opt-in server-owned Semantic provider
   invocation over the effect ledger with complete-result receipt binding,
-  trusted reconciliation, and conservative uncertain-result recovery; active
-  retry, compensation, and completion-provider integration remain separate.
+  provider/policy-bound requests, stable provider idempotency, and atomic
+  request-only claiming. Configured dependencies add owner-fence attestation,
+  policy-bound bounded retry/dead-letter, and trusted reconciliation. Concrete remote adapters, completion-provider integration,
+  background sweep/lease fencing, and shared-service workers remain separate.
 - `sqlite_completion_outbox_v3.py`: opt-in atomic SQLite completion, outcome,
   outbox-event, and delivery authority; not wired to active Agent/MCP.
 - `postgres_completion_outbox_v3.py`: isolated PostgreSQL completion outbox

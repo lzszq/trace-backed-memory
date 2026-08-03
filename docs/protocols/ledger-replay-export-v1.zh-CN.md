@@ -38,7 +38,11 @@ metadata。
 `event_export` 继续为 `false`。event ledger 提供 finalization metadata/causation，
 authenticated Artifact/replay authority 提供精确字节。outcome/attribution 与本地
 completion-effect projection 已提供到 delivery history/dead letter 的 event-first parity；
-存储中立 provider event/reducer/ledger 基础已交付，但 active provider receipt/
-reconciliation integration、durable compensation、transport conformance、migration 与
-cutover gate 完成前，产品仍报告
+存储中立 provider event/reducer/ledger 基础和已配置的 server-owned Semantic provider
+effect integration 已交付，包括 provider/policy 绑定、稳定幂等，以及 durable transport 的
+调用 parity。可信 reconciliation、owner fencing 与有界 retry/dead-letter 只有在配置对应依赖时
+才激活；通用 compensation 只适用于支持它的 contract。具体 remote
+adapter、completion-provider integration、自动后台 sweep/lease fencing、shared-service
+worker、migration 与 cutover gate 仍未完成；Semantic provider effect 不宣称支持
+compensation 或 remote exactly-once。因此产品仍报告
 `persistence_model="authority_graph"` 与 `full_persistence=false`。

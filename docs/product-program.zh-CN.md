@@ -977,16 +977,17 @@ replay projection；`final-decision-injection` reducer 会核验精确 authority
 durable replay reader 从 ledger 重建 metadata，并从 authenticated replay authority 加载
 精确字节。outcome/attribution event/reducer 现在会重建精确 durable row；completion
 outbox 操作会追加本地 effect request/delivery/dead-letter evidence，并由 `effect-queue`
-核验精确 history parity。存储中立 provider transition、`effect-queue` reducer version 2
-与 authenticated generic-ledger service 现在会保留内容寻址 attempt、provider request ID、
-receipt、unknown result、reconciliation、显式 retry schedule 与精确 response-loss replay，
-且不新增 authority。显式 durable runtime factory 在配置后已选择 server-owned Semantic
-provider invoker 与可信 reconciliation callback。Semantic receipt 绑定完整 structured
-result；已保留 effect 绝不会重复 provider invocation；新的同 scope transition
-authorization 可以对账不可变原始 request。request-only claim、active retry/dead-letter
-ownership、具体 remote-provider adapter、completion-provider integration、durable
-compensation、Memory/index/audit/metrics reducer、migration、完整 lifecycle
-integration 与其余 event-first cutover 仍未完成。SQLite local daemon 现还具备真实子进程
+核验精确 history parity。存储中立 provider transition、`effect-queue` reducer version 3
+与 authenticated generic-ledger service 现在会保留 provider-bound 内容寻址 attempt、
+receipt、unknown result、trusted reconciliation、有界 retry/dead-letter 与 receipt-backed
+generic compensation，且不新增 authority。显式 durable runtime factory 还提供 provider/policy-
+bound request、request-only 原子 claim 与跨 transport Semantic invocation parity；可信
+reconciliation、服务端证明的 owner fencing 与有界 retry/dead-letter 只有在配置对应依赖时才
+激活。Semantic provider effect 不支持 compensation，也不声明 remote exactly-once。具体
+remote-provider/completion-provider
+adapter、自动 background sweep/lease fencing、shared-service worker、Memory/index/audit/
+metrics reducer、migration、完整 lifecycle integration 与其余 event-first cutover 仍未完成。
+SQLite local daemon 现还具备真实子进程
 `SIGKILL`/reopen sweep：分别在已确认的 `PREPARED`、`DECIDED`、`FINALIZED`、
 `EXECUTING` 与 `COMPLETED` commit 后硬杀并重启；每次重启都要求精确 command replay，
 最终 ledger 还会通过 reducer 与 durable GateSession row 做 parity 核验，且不得出现重复
@@ -998,18 +999,18 @@ orphan evidence、只发布一个逻辑 lifecycle/effect event、保持 reducer 
 probe 还覆盖 `DECIDED`、event-first `FINALIZED`、`EXECUTING`、组合 completion/outbox
 与 acknowledgement durability。精确重试不会改变完整 event ledger、global/stream head
 或 GateSession history；已提交 acknowledgement 不会再次投递。provider-effect ledger
-service 现在会把 orphan in-flight/submitted work 归为 reconciliation-required，且只有显式
-not-found reconciliation 后才允许 retry。Semantic provider-effect path 现在会记录
-request/attempt/submission/receipt evidence，绝不重复不确定或已保留的 invocation，并且
-只对已持久 unknown/successful work 接受精确 confirmed、still-unknown 或 not-found
-reconciliation。orphan owner-abandonment evidence、request-only claim、not-found 后的
-active retry、dead-letter/compensation ownership、completion-provider integration、
-compatibility retained-bundle 的 hard-kill 边界、PostgreSQL transport/crash 对等测试及
-完整 cross-transport crash matrix 仍未完成。
+service 现在会核验已保留 provider registration，要求 unknown 后必须 reconciliation，且
+只有显式 not-found 后才允许 retry。Semantic path 会原子 claim request-only stream，接受
+服务端证明且精确绑定的 owner fence，把 provider registration 与 retry policy digest 绑定到原始
+request，重新核验 retained retry deadline，并在耗尽后写 terminal dead-letter；generic
+compensation 使用独立且 receipt-backed 的 effect stream，每个 original effect 最多一条。
+completion-provider integration、具体 remote adapter、自动 background sweep/lease fencing、
+compatibility retained-bundle 的 hard-kill 边界、shared-service worker 与完整 crash matrix
+仍未完成。PostgreSQL provider crash probe 已加入，但当前机器尚未运行。
 
 同一 durable lifecycle 现在会经 Python facade、Python HTTP 同步/异步 SDK、真实
-JSON-RPC STDIO MCP 子进程与 Bun 下的 TypeScript HTTP SDK 产生完全相同的 17-event
-global sequence、七条 stream head、canonical event ID/SHA 与全部八个已注册 reducer
+JSON-RPC STDIO MCP 子进程与 Bun 下的 TypeScript HTTP SDK 产生完全相同的 21-event
+global sequence、八条 stream head、canonical event ID/SHA 与全部八个已注册 reducer
 projection digest。每个 reducer 都会与保留的 authority row 做 parity，ledger head 还会
 从 canonical event 独立重算。这是完整的本地 happy-path cross-stream/STDIO 证据，
 不是完整 F2 cross-transport 或 crash conformance。SQLite bundle 在 reopen 时还会原子
@@ -1031,11 +1032,14 @@ closed。在更大的 F2 gate 完成前，这两项增量都不提升新 atom。
   authorization 至 evidence、replay/completion rollback、receipt-before-ack redelivery，
   以及从 `DECIDED` 到 acknowledgement 的已提交 response loss。本地 happy-path
   cross-stream parity 已覆盖 Python facade、HTTP sync/async SDK、真实 STDIO MCP
-  子进程与 TypeScript HTTP SDK。存储中立 provider receipt/reconciliation 基础已交付，
-  配置后的显式 runtime 已选择带完整 result receipt binding 的 Semantic provider
-  invocation/reconciliation seam。request-only claim、active retry/dead-letter ownership、
-  completion-provider integration、具体 remote-provider adapter、durable compensation、
-  PostgreSQL transport/crash 对等测试与完整 crash matrix 仍未完成。
+  子进程与 TypeScript HTTP SDK。存储中立 provider receipt/reconciliation 基础已交付，配置后的
+  显式 runtime 已选择带完整 result receipt binding 的 Semantic provider invocation，并覆盖
+  request-only 原子 claim、provider/policy 绑定、单一 compensation 约束与跨 transport
+  Semantic invocation parity；只有配置对应依赖后，可信 reconciliation、服务端证明的 owner
+  fencing 与请求绑定的有界 retry/dead-letter 才激活。Semantic provider effect 不支持
+  compensation，也不声明 remote exactly-once。completion-provider integration、具体 remote-
+  provider adapter、自动 sweep/lease fencing、shared-service worker、当前机器尚未运行的
+  PostgreSQL crash probe 与完整 crash matrix 仍未完成。
 - **F3 — Trace、Git 与 effect evidence：** 有序 Trace/Git observation、Git-graph
   projection、external-effect receipt integration（存储中立 event/reducer/ledger 基础已
   交付）、Codex hook 与受治理 retention/crypto-erasure。

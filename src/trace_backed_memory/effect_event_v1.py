@@ -70,6 +70,7 @@ ProviderEffectStage = Literal[
     "receipt_recorded",
     "reconciled",
     "retry_scheduled",
+    "dead_lettered",
 ]
 ProviderReconciliationResult = Literal[
     "confirmed",
@@ -85,6 +86,7 @@ _PROVIDER_EFFECT_STAGES = frozenset(
         "receipt_recorded",
         "reconciled",
         "retry_scheduled",
+        "dead_lettered",
     }
 )
 _PROVIDER_RECONCILIATION_RESULTS = frozenset(
@@ -519,18 +521,33 @@ class ProviderEffectTransitionRef:
             elif self.response_sha256 is not None or self.provider_receipt_id is not None:
                 _invalid("non-confirmed reconciliation cannot carry a receipt")
             return
-        if self.retry_at is None or any(
+        if self.stage == "retry_scheduled":
+            if self.retry_at is None or any(
+                value is not None
+                for value in (
+                    self.response_sha256,
+                    self.provider_receipt_id,
+                    self.error_code,
+                    self.reconciliation_sequence,
+                    self.reconciliation_id,
+                    self.reconciliation_result,
+                )
+            ):
+                _invalid("retry_scheduled provider transition is invalid")
+            return
+        if self.error_code is None or any(
             value is not None
             for value in (
+                self.provider_request_id,
                 self.response_sha256,
                 self.provider_receipt_id,
-                self.error_code,
                 self.reconciliation_sequence,
                 self.reconciliation_id,
                 self.reconciliation_result,
+                self.retry_at,
             )
         ):
-            _invalid("retry_scheduled provider transition is invalid")
+            _invalid("dead_lettered provider transition is invalid")
 
 
 def completion_effect_contract(
@@ -765,7 +782,10 @@ def build_effect_compensation_requested_event(
     if (
         original.effect.effect_id != reference.original_effect_id
         or not original.effect.compensation_supported
-        or original_terminal_event.event_type != EFFECT_SUCCEEDED_EVENT
+        or not _is_successful_effect_terminal(
+            original_terminal_event,
+            reference.original_effect_id,
+        )
         or original_terminal_event.stream_id
         != original_requested_event.stream_id
         or reference.original_terminal_event_id
@@ -839,6 +859,7 @@ def build_effect_compensation_requested_event(
 def build_effect_compensated_event(
     compensation_request_event: CanonicalEvent,
     *,
+    receipt_event: CanonicalEvent,
     global_position: int,
     occurred_at: str,
     trusted_context: EventTrustedContext,
@@ -846,13 +867,21 @@ def build_effect_compensated_event(
     request = parse_effect_compensation_requested_event(
         compensation_request_event
     )
-    if global_position <= compensation_request_event.global_position:
+    if (
+        type(receipt_event) is not CanonicalEvent
+        or global_position <= receipt_event.global_position
+        or not _is_successful_provider_receipt(
+            receipt_event,
+            request.compensation_effect.effect_id,
+        )
+        or receipt_event.stream_id != compensation_request_event.stream_id
+    ):
         _invalid("EffectCompensated position must follow its request")
     _timestamp(occurred_at, "occurred_at")
     _verify_scope(
-        compensation_request_event,
+        receipt_event,
         trusted_context,
-        require_authorization=True,
+        require_authorization=False,
     )
     reference = EffectCompensatedRef(
         original_effect_id=request.original_effect_id,
@@ -863,7 +892,7 @@ def build_effect_compensated_event(
         event_type=EFFECT_COMPENSATED_EVENT,
         effect_id=request.compensation_effect.effect_id,
         payload=reference.to_dict(),
-        parent_event=compensation_request_event,
+        parent_event=receipt_event,
         global_position=global_position,
         occurred_at=occurred_at,
         trusted_context=trusted_context,
@@ -872,6 +901,7 @@ def build_effect_compensated_event(
     parsed = parse_effect_compensated_event(
         event,
         compensation_request_event=compensation_request_event,
+        receipt_event=receipt_event,
     )
     if parsed != reference:
         raise AssertionError("EffectCompensated did not round-trip")
@@ -1080,6 +1110,7 @@ def parse_effect_compensated_event(
     event: CanonicalEvent,
     *,
     compensation_request_event: CanonicalEvent | None = None,
+    receipt_event: CanonicalEvent | None = None,
 ) -> EffectCompensatedRef:
     _verify_event_shape(event, EFFECT_COMPENSATED_EVENT)
     payload = _payload(event)
@@ -1101,7 +1132,8 @@ def parse_effect_compensated_event(
     if (
         event.stream_id
         != effect_event_stream_id(reference.compensation_effect_id)
-        or reference.compensation_request_event_id != event.causation_id
+        or event.causation_id is None
+        or event.previous_stream_event_sha256 is None
         or event.event_id
         != _effect_event_id(
             EFFECT_COMPENSATED_EVENT,
@@ -1114,20 +1146,28 @@ def parse_effect_compensated_event(
         request = parse_effect_compensation_requested_event(
             compensation_request_event
         )
-        try:
-            verify_event_parent(event, compensation_request_event)
-        except Exception as error:
-            raise EffectEventV1Error(
-                "TBM_EFFECT_EVENT_INVALID",
-                "EffectCompensated parent is invalid",
-            ) from error
         if (
             request.original_effect_id != reference.original_effect_id
             or request.compensation_effect.effect_id
             != reference.compensation_effect_id
+            or reference.compensation_request_event_id
+            != compensation_request_event.event_id
             or not _same_scope(compensation_request_event, event)
         ):
             _invalid("EffectCompensated request is inconsistent")
+    if receipt_event is not None:
+        try:
+            verify_event_parent(event, receipt_event)
+        except Exception as error:
+            raise EffectEventV1Error(
+                "TBM_EFFECT_EVENT_INVALID",
+                "EffectCompensated receipt parent is invalid",
+            ) from error
+        if not _is_successful_provider_receipt(
+            receipt_event,
+            reference.compensation_effect_id,
+        ) or not _same_provider_scope(receipt_event, event):
+            _invalid("EffectCompensated receipt is inconsistent")
     return reference
 
 
@@ -1497,6 +1537,37 @@ def _verify_completion_parent(
         or session.get("status") != "completed"
     ):
         _invalid("completion effect parent does not match the outbox event")
+
+
+def _is_successful_effect_terminal(
+    event: CanonicalEvent,
+    effect_id: str,
+) -> bool:
+    if (
+        event.event_type == EFFECT_SUCCEEDED_EVENT
+        and event.stream_id == effect_event_stream_id(effect_id)
+    ):
+        return True
+    return _is_successful_provider_receipt(event, effect_id)
+
+
+def _is_successful_provider_receipt(
+    event: CanonicalEvent,
+    effect_id: str,
+) -> bool:
+    if event.event_type != EFFECT_PROVIDER_TRANSITION_EVENT:
+        return False
+    try:
+        reference = parse_provider_effect_transition_event(event)
+    except EffectEventV1Error:
+        return False
+    return reference.effect_id == effect_id and (
+        reference.stage == "receipt_recorded"
+        or (
+            reference.stage == "reconciled"
+            and reference.reconciliation_result == "confirmed"
+        )
+    )
 
 
 def _parse_effect_contract(value: object) -> EffectContract:

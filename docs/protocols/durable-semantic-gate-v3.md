@@ -75,18 +75,22 @@ deliberately accepts the original request's older revision because the terminal
 session has necessarily advanced; the exact prompt, parent, chain, decision,
 and read-back receipt become the idempotency proof.
 
-If an effect request or attempt exists without a Semantic attempt, the provider
-invoker is never called again. In-flight/submitted work remains recovery-
-required without mutation because this adapter has no durable proof that the
-invocation owner was abandoned. A configured trusted reconciler is used only
-for a durably recorded unknown result or retained successful receipt and may
-return `confirmed`, `still_unknown`, or `not_found`. Confirmed recovery must
+If only an effect request exists, one atomic `attempt_started` claim owner may
+invoke; concurrent losers remain recovery-required. In-flight/submitted work
+remains recovery-required unless a server-owned verifier attests the exact
+owner/head/attempt/invocation as fenced, after which only `result_unknown` is
+appended. When configured, a trusted reconciler is used both for durably
+recorded unknown work and for exact retained successful-receipt recovery. It may
+return `confirmed`, `still_unknown`, or `not_found` only for unknown work; a
+retained successful receipt requires `confirmed`. Confirmed recovery must
 reproduce the exact complete-result digest and provider receipt before the
 Semantic attempt can be retained. Same-scope reconciliation may use a fresh
 transition authorization while the original request authorization remains
-fixed. `still_unknown` and a request-only stream remain recovery-required;
-`not_found` does not start a new attempt until a separate durable retry schedule
-and claim exist, which this adapter does not yet provide.
+fixed. `still_unknown` remains recovery-required; `not_found` may use only the
+request-bound bounded retry policy after the exact retained `retry_at`, with
+terminal dead-letter on exhaustion. The immutable request binds the provider
+registration and retry policy; the provider receives the stable effect ID as an
+idempotency key.
 
 A succeeded attempt followed by another attempt, a prompt or parent mismatch,
 tampered read-back, an expired/canceled session, or a transition that cannot be

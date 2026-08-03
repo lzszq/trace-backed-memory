@@ -6,6 +6,7 @@ import hashlib
 import json
 from typing import NoReturn, cast
 
+from ._timestamps import parse_rfc3339
 from .completion_outbox_v3 import (
     CompletionOutboxDelivery,
     CompletionOutboxEvent,
@@ -110,7 +111,7 @@ class EffectProjectionAuthority:
 def build_effect_queue_reducer() -> FunctionalReducer:
     descriptor = ReducerDescriptor(
         reducer_id=EFFECT_QUEUE_REDUCER_ID,
-        reducer_version=2,
+        reducer_version=3,
         input_event_types=EFFECT_EVENT_TYPES,
         output_projection=EFFECT_QUEUE_PROJECTION_NAME,
         output_schema_version=EFFECT_QUEUE_PROJECTION_SCHEMA_VERSION,
@@ -126,9 +127,13 @@ def build_effect_queue_reducer() -> FunctionalReducer:
                     "failed-before-retry-or-dead-letter",
                     "terminal-effect-monotonicity",
                     "compensation-is-a-new-effect",
+                    "compensation-requires-provider-receipt",
                     "provider-receipt-content-addressed",
+                    "receipt-after-unknown-requires-reconciliation",
                     "unknown-before-reconciliation",
                     "retry-only-after-not-found",
+                    "retry-time-before-next-attempt",
+                    "bounded-provider-dead-letter-after-not-found",
                     "provider-transition-same-scope-reauthorization",
                 ],
             },
@@ -274,10 +279,24 @@ def build_effect_queue_reducer() -> FunctionalReducer:
                 heads.get(source.stream_id),
                 "compensation stream head",
             )
+            compensation_history = _list_copy(
+                compensation.get("history"),
+                "history",
+            )
+            request_history = _mapping_copy(
+                compensation_history[0] if compensation_history else None,
+                "compensation request history",
+            )
             if (
-                not _head_extends(head, source)
-                or compensation.get("status") != "ready"
-                or compensation.get("event_id")
+                not _head_extends(
+                    head,
+                    source,
+                    actor_types=frozenset({"service", "worker"}),
+                    include_authorization=False,
+                )
+                or compensation.get("status") != "succeeded"
+                or compensation.get("provider_status") != "succeeded"
+                or request_history.get("event_id")
                 != reference.compensation_request_event_id
                 or compensation.get("compensation_for_effect_id")
                 != reference.original_effect_id
@@ -287,14 +306,10 @@ def build_effect_queue_reducer() -> FunctionalReducer:
                 or not _projection_scope_matches_event(
                     compensation,
                     source,
-                    include_authorization=True,
+                    include_authorization=False,
                 )
             ):
                 _reject("EffectCompensated has no exact compensation request")
-            compensation_history = _list_copy(
-                compensation.get("history"),
-                "history",
-            )
             compensation_history.append(_history_entry(source))
             compensation.update(
                 {
@@ -383,6 +398,7 @@ def projected_provider_effect_status(
         "unknown",
         "not_found",
         "retry_wait",
+        "dead_lettered",
         "succeeded",
     }:
         _reject("projected provider effect status is invalid")
@@ -645,8 +661,19 @@ def _apply_provider_transition(
                 attempts[-1],
                 "previous provider attempt",
             )
-            if previous_attempt.get("status") != "retry_wait":
+            retry_at = previous_attempt.get("retry_at")
+            if (
+                previous_attempt.get("status") != "retry_wait"
+                or type(retry_at) is not str
+            ):
                 _reject("provider retry does not follow an explicit schedule")
+            try:
+                if parse_rfc3339(source.occurred_at) < parse_rfc3339(retry_at):
+                    _reject("provider retry started before its scheduled time")
+            except ReducerExecutionError:
+                raise
+            except Exception:
+                _reject("provider retry schedule is invalid")
         attempt = {
             "attempt_id": reference.attempt_id,
             "attempt_sequence": reference.attempt_sequence,
@@ -704,7 +731,7 @@ def _apply_provider_transition(
             attempt["error_code"] = reference.error_code
             provider_status = "unknown"
         elif reference.stage == "receipt_recorded":
-            if current_status not in {"in_flight", "submitted", "unknown"}:
+            if current_status not in {"in_flight", "submitted"}:
                 _reject("provider receipt has no unresolved attempt")
             attempt["status"] = "succeeded"
             attempt["provider_request_id"] = reference.provider_request_id
@@ -744,13 +771,21 @@ def _apply_provider_transition(
                 provider_status = "not_found"
             else:
                 provider_status = "unknown"
-        else:
+        elif reference.stage == "retry_scheduled":
             if current_status != "not_found" or provider_status != "not_found":
                 _reject("provider retry requires a reconciled not-found result")
             attempt["status"] = "retry_wait"
             attempt["retry_at"] = reference.retry_at
             provider_status = "retry_wait"
             effect["provider_retry_at"] = reference.retry_at
+        else:
+            if current_status != "not_found" or provider_status != "not_found":
+                _reject("provider dead-letter requires a not-found result")
+            attempt["status"] = "dead_lettered"
+            attempt["error_code"] = reference.error_code
+            provider_status = "dead_lettered"
+            effect["status"] = "dead_letter"
+            effect["provider_retry_at"] = None
 
         attempt_history.append(transition_entry)
         attempt["history"] = attempt_history

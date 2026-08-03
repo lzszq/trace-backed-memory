@@ -43,9 +43,15 @@ This is a bounded session replay export, not a generic canonical-event export;
 `event_export` remains `false`. The event ledger provides finalization metadata
 and causation, while the authenticated Artifact/replay authority provides exact
 bytes. The product therefore still reports
-`persistence_model="authority_graph"` and `full_persistence=false` until the
-active provider receipt/reconciliation integration, durable compensation,
-transport conformance, migration, and cutover gates are complete. The storage-
-neutral provider event/reducer/ledger foundation is already delivered.
+`persistence_model="authority_graph"` and `full_persistence=false`. The storage-
+neutral provider event/reducer/ledger foundation and configured server-owned
+Semantic provider effect integration are delivered with provider/policy binding,
+stable idempotency, and durable-transport invocation parity. Trusted
+reconciliation, owner fencing, and bounded retry/dead-letter require their
+corresponding configured dependencies; generic compensation is limited to
+supporting contracts. Concrete remote adapters,
+completion-provider integration, automatic background sweep/lease fencing,
+shared-service workers, migration, and cutover gates remain open; Semantic
+provider effects do not claim compensation or remote exactly-once.
 Outcome/attribution and local completion-effect projections already provide
 event-first parity through delivery history and dead letter.

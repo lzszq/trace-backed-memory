@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+import json
 import os
 from pathlib import Path
 import signal
@@ -81,6 +82,8 @@ def _dependencies(
     completion_consumer=None,
     semantic_provider_invoker=None,
     semantic_provider_reconciler=None,
+    semantic_provider_retry_policy=None,
+    semantic_provider_owner_fence_verifier=None,
 ) -> tuple[
     DurableRuntimeDependencies,
     tbm.AuthenticatedServiceContext,
@@ -139,6 +142,10 @@ def _dependencies(
         completion_consumer=completion_consumer,
         semantic_provider_invoker=semantic_provider_invoker,
         semantic_provider_reconciler=semantic_provider_reconciler,
+        semantic_provider_retry_policy=semantic_provider_retry_policy,
+        semantic_provider_owner_fence_verifier=(
+            semantic_provider_owner_fence_verifier
+        ),
     )
     return dependencies, context
 
@@ -313,6 +320,118 @@ def _run_semantic_provider_effect_crash_probe(
         _decide_request(prepared, evaluation),
     )
     raise RuntimeError("semantic provider crash checkpoint was not reached")
+
+
+def _run_postgres_semantic_provider_effect_crash_probe(
+    connection_options: str,
+    session_id: str,
+    checkpoint: str,
+) -> None:
+    if checkpoint not in {
+        "before_provider",
+        "before_submitted",
+        "after_submitted",
+        "after_receipt",
+    }:
+        raise ValueError("semantic provider crash checkpoint is invalid")
+    import psycopg
+
+    clock = _Clock()
+    clock.advance(seconds=30)
+    provider_results: list[tbm.SemanticProviderResult] = []
+
+    def invoke_provider(
+        _call: tbm.SemanticProviderCall,
+    ) -> tbm.SemanticProviderResult:
+        if checkpoint == "before_provider":
+            os.kill(os.getpid(), signal.SIGKILL)
+        return provider_results[-1]
+
+    dependencies, context = _dependencies(
+        clock,
+        semantic_provider_invoker=invoke_provider,
+    )
+    dependencies = replace(
+        dependencies,
+        authorization_request_id_factory=lambda: (
+            f"authorization_provider_pg_crash_{checkpoint}"
+        ),
+    )
+    connection = psycopg.connect(**json.loads(connection_options))
+    runtime = DurableRuntimeFactory(dependencies).bind_postgres(connection)
+    prepared = runtime.sessions.get(session_id)
+    evaluation = runtime.evidence_repository.load_evaluation(
+        prepared.system_gate_evaluation_id
+    )
+    provider_results.append(_provider_result(evaluation))
+    if checkpoint in {"before_submitted", "after_submitted"}:
+        original_append = getattr(
+            tbm.SemanticProviderEffectService,
+            "_append_transition",
+        )
+
+        def kill_around_submitted(
+            service: tbm.SemanticProviderEffectService,
+            reference: tbm.ProviderEffectTransitionRef,
+            effect_id: str,
+            *,
+            provider_service: tbm.ProviderEffectLedgerService | None = None,
+        ) -> tbm.ProviderEffectAppendResult:
+            if (
+                checkpoint == "before_submitted"
+                and reference.stage == "request_submitted"
+            ):
+                os.kill(os.getpid(), signal.SIGKILL)
+            result = original_append(
+                service,
+                reference,
+                effect_id,
+                provider_service=provider_service,
+            )
+            if (
+                checkpoint == "after_submitted"
+                and reference.stage == "request_submitted"
+            ):
+                os.kill(os.getpid(), signal.SIGKILL)
+            return result
+
+        setattr(
+            tbm.SemanticProviderEffectService,
+            "_append_transition",
+            kill_around_submitted,
+        )
+    if checkpoint == "after_receipt":
+        original_invoke = tbm.SemanticProviderEffectService.invoke
+
+        def kill_after_receipt(
+            service: tbm.SemanticProviderEffectService,
+            *,
+            session_id: str,
+            expected_previous_attempt_id: str | None,
+            call: tbm.SemanticProviderCall,
+            call_provider,
+        ) -> tbm.SemanticProviderResult:
+            result = original_invoke(
+                service,
+                session_id=session_id,
+                expected_previous_attempt_id=expected_previous_attempt_id,
+                call=call,
+                call_provider=call_provider,
+            )
+            os.kill(os.getpid(), signal.SIGKILL)
+            return result
+
+        setattr(
+            tbm.SemanticProviderEffectService,
+            "invoke",
+            kill_after_receipt,
+        )
+    runtime.dispatcher.decide(
+        context,
+        _provider_context(),
+        _decide_request(prepared, evaluation),
+    )
+    raise RuntimeError("PostgreSQL provider crash checkpoint was not reached")
 
 
 def _run_completion_crash_probe(
@@ -947,6 +1066,193 @@ def test_durable_sqlite_provider_unknown_blocks_retry_without_reconciliation(
             "attempt_started",
             "request_submitted",
             "result_unknown",
+        )
+    finally:
+        runtime.close()
+
+
+def test_durable_sqlite_provider_retries_after_confirmed_not_found(
+    tmp_path: Path,
+) -> None:
+    provider_calls: list[tbm.SemanticProviderCall] = []
+    provider_results: list[tbm.SemanticProviderResult] = []
+
+    def invoke_provider(
+        call: tbm.SemanticProviderCall,
+    ) -> tbm.SemanticProviderResult:
+        provider_calls.append(call)
+        if len(provider_calls) == 1:
+            raise tbm.SemanticProviderCallError("provider_timeout")
+        return provider_results[-1]
+
+    clock = _Clock()
+    dependencies, context = _dependencies(
+        clock,
+        semantic_provider_invoker=invoke_provider,
+        semantic_provider_reconciler=lambda _call: (
+            tbm.SemanticProviderReconciliationResult("not_found")
+        ),
+        semantic_provider_retry_policy=(
+            tbm.SemanticProviderEffectRetryPolicy(2, (0,))
+        ),
+    )
+    runtime = DurableRuntimeFactory(dependencies).open_sqlite(
+        tmp_path / "durable-provider-retry.sqlite3",
+        initialize=True,
+    )
+    try:
+        prepared_response = runtime.dispatcher.prepare(
+            context,
+            _prepare_request(),
+        )
+        prepared = runtime.sessions.get(
+            prepared_response["result"]["session"]["session_id"]
+        )
+        evaluation = runtime.evidence_repository.load_evaluation(
+            prepared.system_gate_evaluation_id
+        )
+        provider_results.append(_provider_result(evaluation))
+
+        with pytest.raises(DurableAgentWireError) as first:
+            runtime.dispatcher.decide(
+                context,
+                _provider_context(),
+                _decide_request(prepared, evaluation),
+            )
+        assert first.value.category == "recovery"
+
+        decided_response = runtime.dispatcher.decide(
+            context,
+            _provider_context(),
+            _decide_request(runtime.sessions.get(prepared.session_id), evaluation),
+        )
+        assert decided_response["result"]["attempt"]["status"] == "succeeded"
+        assert len(provider_calls) == 2
+
+        effect_id = tbm.semantic_provider_effect_id(
+            session_id=prepared.session_id,
+            system_gate_evaluation_id=evaluation.evaluation_id,
+            expected_previous_attempt_id=None,
+        )
+        rows = runtime._connection.execute(
+            "SELECT canonical_event FROM v3_event_ledger_events "
+            "WHERE stream_id = ? ORDER BY stream_version",
+            (tbm.effect_event_stream_id(effect_id),),
+        ).fetchall()
+        events = tuple(loads_canonical_event(row[0]) for row in rows)
+        assert tuple(
+            tbm.parse_provider_effect_transition_event(event).stage
+            for event in events[1:]
+        ) == (
+            "attempt_started",
+            "result_unknown",
+            "reconciled",
+            "retry_scheduled",
+            "attempt_started",
+            "request_submitted",
+            "receipt_recorded",
+        )
+    finally:
+        runtime.close()
+
+
+def test_durable_agent_records_trusted_provider_owner_abandonment(
+    tmp_path: Path,
+) -> None:
+    class _OwnerTerminated(BaseException):
+        pass
+
+    dependencies, context = _dependencies(
+        _Clock(),
+        semantic_provider_invoker=lambda _call: (_ for _ in ()).throw(
+            _OwnerTerminated()
+        ),
+        semantic_provider_owner_fence_verifier=lambda request: (
+            request.fence_token_sha256 == "sha256:" + "f" * 64
+        ),
+    )
+    runtime = DurableRuntimeFactory(dependencies).open_sqlite(
+        tmp_path / "durable-provider-abandonment.sqlite3",
+        initialize=True,
+    )
+    try:
+        prepared_response = runtime.dispatcher.prepare(
+            context,
+            _prepare_request(),
+        )
+        prepared = runtime.sessions.get(
+            prepared_response["result"]["session"]["session_id"]
+        )
+        evaluation = runtime.evidence_repository.load_evaluation(
+            prepared.system_gate_evaluation_id
+        )
+        decide_request = _decide_request(prepared, evaluation)
+        with pytest.raises(_OwnerTerminated):
+            runtime.agent.decide(
+                context,
+                _provider_context(),
+                tbm.DurableSemanticGateRequest(
+                    session_id=decide_request.session_id,
+                    expected_session_version=(
+                        decide_request.expected_session_version
+                    ),
+                    prompt=base64.b64decode(decide_request.prompt_base64),
+                    expected_previous_attempt_id=None,
+                ),
+                lambda _call: pytest.fail(
+                    "server-owned invoker must replace the caller callback"
+                ),
+            )
+
+        effect_id = tbm.semantic_provider_effect_id(
+            session_id=prepared.session_id,
+            system_gate_evaluation_id=evaluation.evaluation_id,
+            expected_previous_attempt_id=None,
+        )
+        rows = runtime._connection.execute(
+            "SELECT canonical_event FROM v3_event_ledger_events "
+            "WHERE stream_id = ? ORDER BY stream_version",
+            (tbm.effect_event_stream_id(effect_id),),
+        ).fetchall()
+        active_events = tuple(loads_canonical_event(row[0]) for row in rows)
+        started = tbm.parse_provider_effect_transition_event(active_events[-1])
+        recovery = runtime.agent.abandon_semantic_provider_effect(
+            context,
+            tbm.SemanticProviderEffectAbandonmentRequest(
+                session_id=prepared.session_id,
+                expected_previous_attempt_id=None,
+                effect_id=effect_id,
+                attempt_id=started.attempt_id,
+                provider_invocation_id=started.provider_invocation_id,
+                expected_head_event_id=active_events[-1].event_id,
+                owner_actor_type=active_events[-1].actor_type,
+                owner_actor_id=active_events[-1].actor_id,
+                fence_token_sha256="sha256:" + "f" * 64,
+                reason_code="process_terminated",
+            ),
+            tbm.SemanticProviderCall(
+                provider_id="provider_openai",
+                model_id="model_gate",
+                model_version="2026-07-01",
+                endpoint_id="endpoint_primary",
+                prompt=base64.b64decode(decide_request.prompt_base64),
+            ),
+        )
+        assert recovery.provider_status == "unknown"
+
+        rows = runtime._connection.execute(
+            "SELECT canonical_event FROM v3_event_ledger_events "
+            "WHERE stream_id = ? ORDER BY stream_version",
+            (tbm.effect_event_stream_id(effect_id),),
+        ).fetchall()
+        abandoned_events = tuple(loads_canonical_event(row[0]) for row in rows)
+        abandoned = tbm.parse_provider_effect_transition_event(
+            abandoned_events[-1]
+        )
+        assert abandoned.stage == "result_unknown"
+        assert abandoned.error_code == "process_terminated"
+        assert abandoned_events[-1].authorization_decision_id != (
+            active_events[-1].authorization_decision_id
         )
     finally:
         runtime.close()
@@ -2010,8 +2316,183 @@ def test_durable_sqlite_runtime_dependency_guards() -> None:
                 "semantic_provider_effect_actor_id": "invalid actor",
             }
         )
+    with pytest.raises(TypeError):
+        DurableRuntimeDependencies(
+            **{
+                **dependencies.__dict__,
+                "semantic_provider_owner_fence_verifier": object(),
+            }
+        )
 
     assert EVALUATOR.status == "active"
+
+
+@pytest.mark.skipif(
+    not hasattr(signal, "SIGKILL"),
+    reason="hard-crash provider probes require SIGKILL",
+)
+@pytest.mark.parametrize(
+    ("checkpoint", "expected_stages"),
+    (
+        ("before_provider", ("attempt_started",)),
+        ("before_submitted", ("attempt_started",)),
+        (
+            "after_submitted",
+            ("attempt_started", "request_submitted"),
+        ),
+        (
+            "after_receipt",
+            (
+                "attempt_started",
+                "request_submitted",
+                "receipt_recorded",
+            ),
+        ),
+    ),
+)
+def test_durable_postgres_provider_effect_hard_crash_parity(
+    postgres_cluster: PostgresCluster,
+    checkpoint: str,
+    expected_stages: tuple[str, ...],
+) -> None:
+    psycopg = pytest.importorskip("psycopg")
+    postgres_cluster.load_schema()
+    for script in (
+        "postgres-v3-authorization.sql",
+        "postgres-v3-gate-session.sql",
+        "postgres-v3-gate-evidence.sql",
+        "postgres-v3-semantic-gate.sql",
+        "postgres-v3-semantic-gate-artifacts.sql",
+        "postgres-v3-replay.sql",
+        "postgres-v3-outcome.sql",
+        "postgres-v3-completion-outbox.sql",
+        "postgres-v3-event-ledger.sql",
+    ):
+        installed = postgres_cluster.run_script(ROOT / "schemas" / script)
+        assert installed.returncode == 0, installed.stderr
+
+    dependencies, context = _dependencies(_Clock())
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        runtime = DurableRuntimeFactory(dependencies).bind_postgres(connection)
+        prepared_response = runtime.dispatcher.prepare(
+            context,
+            _prepare_request(),
+        )
+        prepared = runtime.sessions.get(
+            prepared_response["result"]["session"]["session_id"]
+        )
+        evaluation = runtime.evidence_repository.load_evaluation(
+            prepared.system_gate_evaluation_id
+        )
+        runtime.close()
+
+    environment = dict(os.environ)
+    environment["TBM_TEST_POSTGRES_CONNECTION"] = json.dumps(
+        postgres_cluster.connection_kwargs(),
+        sort_keys=True,
+    )
+    crashed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from tests.test_durable_runtime_v3 import "
+            "_run_postgres_semantic_provider_effect_crash_probe as run; "
+            "import os, sys; "
+            "run(os.environ['TBM_TEST_POSTGRES_CONNECTION'], "
+            "sys.argv[1], sys.argv[2])",
+            prepared.session_id,
+            checkpoint,
+        ],
+        cwd=ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert crashed.returncode == -signal.SIGKILL, crashed.stderr
+
+    provider_calls: list[tbm.SemanticProviderCall] = []
+    reconciliations: list[tbm.SemanticProviderReconciliationCall] = []
+    provider_result = _provider_result(evaluation)
+
+    def reconcile(
+        call: tbm.SemanticProviderReconciliationCall,
+    ) -> tbm.SemanticProviderReconciliationResult:
+        reconciliations.append(call)
+        return tbm.SemanticProviderReconciliationResult(
+            "confirmed",
+            provider_result,
+        )
+
+    recovery_dependencies, recovery_context = _dependencies(
+        _Clock(),
+        semantic_provider_invoker=lambda call: (
+            provider_calls.append(call),
+            provider_result,
+        )[1],
+        semantic_provider_reconciler=reconcile,
+    )
+    recovery_dependencies = replace(
+        recovery_dependencies,
+        authorization_request_id_factory=lambda: (
+            f"authorization_provider_pg_recovery_{checkpoint}"
+        ),
+    )
+    with psycopg.connect(**postgres_cluster.connection_kwargs()) as connection:
+        runtime = DurableRuntimeFactory(recovery_dependencies).bind_postgres(
+            connection
+        )
+        try:
+            if checkpoint == "after_receipt":
+                response = runtime.dispatcher.decide(
+                    recovery_context,
+                    _provider_context(),
+                    _decide_request(
+                        runtime.sessions.get(prepared.session_id),
+                        evaluation,
+                    ),
+                )
+                assert response["result"]["attempt"]["status"] == "succeeded"
+                assert len(reconciliations) == 1
+            else:
+                with pytest.raises(DurableAgentWireError) as recovery_error:
+                    runtime.dispatcher.decide(
+                        recovery_context,
+                        _provider_context(),
+                        _decide_request(
+                            runtime.sessions.get(prepared.session_id),
+                            evaluation,
+                        ),
+                    )
+                assert recovery_error.value.category == "recovery"
+                assert reconciliations == []
+            assert provider_calls == []
+
+            effect_id = tbm.semantic_provider_effect_id(
+                session_id=prepared.session_id,
+                system_gate_evaluation_id=evaluation.evaluation_id,
+                expected_previous_attempt_id=None,
+            )
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT canonical_event FROM "
+                    "trace_backed_memory_v3_event_ledger.events "
+                    "WHERE stream_id = %s ORDER BY stream_version",
+                    (tbm.effect_event_stream_id(effect_id),),
+                )
+                events = tuple(
+                    loads_canonical_event(row[0]) for row in cursor.fetchall()
+                )
+            retained_stages = tuple(
+                tbm.parse_provider_effect_transition_event(event).stage
+                for event in events[1:]
+            )
+            assert retained_stages == expected_stages + (
+                ("reconciled",) if checkpoint == "after_receipt" else ()
+            )
+        finally:
+            runtime.close()
 
 
 def test_durable_postgres_runtime_parity_and_catalog_verification(

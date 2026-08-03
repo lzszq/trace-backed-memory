@@ -2,17 +2,28 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+import hashlib
+import json
 import re
 from typing import Literal, NoReturn
 
 from .contracts_v3 import V3ContractError
 from .effect_event_v1 import (
+    EFFECT_COMPENSATED_EVENT,
+    EFFECT_COMPENSATION_REQUESTED_EVENT,
     EFFECT_EVENT_TYPES,
+    EFFECT_PROVIDER_TRANSITION_EVENT,
     EFFECT_REQUESTED_EVENT,
+    EffectCompensatedRef,
+    EffectCompensationRequestedRef,
     EffectEventV1Error,
     ProviderEffectTransitionRef,
+    build_effect_compensated_event,
+    build_effect_compensation_requested_event,
     build_provider_effect_transition_event,
     effect_event_stream_id,
+    parse_effect_compensated_event,
+    parse_effect_compensation_requested_event,
     parse_effect_requested_event,
     parse_provider_effect_transition_event,
     provider_effect_transition_event_id,
@@ -45,6 +56,7 @@ ProviderEffectRecoveryAction = Literal[
     "start_attempt",
     "reconcile",
     "schedule_retry",
+    "dead_letter",
     "complete",
 ]
 
@@ -71,6 +83,25 @@ class TrustedProviderEffectRegistration:
             if type(value) is not str or _IDENTIFIER_RE.fullmatch(value) is None:
                 raise ValueError(f"{name} must be a bounded identifier")
 
+    @property
+    def descriptor_sha256(self) -> str:
+        encoded = json.dumps(
+            {
+                "contract_version": "tbm.provider-effect-registration.v1",
+                "provider_id": self.provider_id,
+                "model_id": self.model_id,
+                "model_version": self.model_version,
+                "endpoint_id": self.endpoint_id,
+            },
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        return "sha256:" + hashlib.sha256(
+            b"tbm.provider-effect-registration.v1\x00" + encoded
+        ).hexdigest()
+
 
 @dataclass(frozen=True)
 class ProviderEffectRecovery:
@@ -91,6 +122,14 @@ class ProviderEffectRecovery:
 @dataclass(frozen=True)
 class ProviderEffectAppendResult:
     reference: ProviderEffectTransitionRef
+    receipt: LedgerAppendReceipt
+    recovery: ProviderEffectRecovery
+    inserted: bool = False
+
+
+@dataclass(frozen=True)
+class ProviderEffectCompensationAppendResult:
+    reference: EffectCompensationRequestedRef | EffectCompensatedRef
     receipt: LedgerAppendReceipt
     recovery: ProviderEffectRecovery
     inserted: bool = False
@@ -251,10 +290,314 @@ class ProviderEffectLedgerService:
             raise last_conflict
         raise AssertionError("provider effect append retry loop did not run")
 
+    def request_compensation(
+        self,
+        reference: EffectCompensationRequestedRef,
+        *,
+        occurred_at: str,
+    ) -> ProviderEffectCompensationAppendResult:
+        if type(reference) is not EffectCompensationRequestedRef:
+            _invalid(
+                "reference must be exactly EffectCompensationRequestedRef"
+            )
+        compensation_id = reference.compensation_effect.effect_id
+        last_conflict: EventLedgerConflictError | None = None
+        for _ in range(self._max_conflict_retries):
+            original_events, _state, high_watermark = self._load_effect(
+                reference.original_effect_id
+            )
+            retained_compensation, scan_high_watermark = (
+                self._read_compensation_request(
+                    reference.original_effect_id
+                )
+            )
+            target_events, target_high_watermark = self._read_effect_stream(
+                compensation_id
+            )
+            high_watermark = max(
+                high_watermark,
+                scan_high_watermark,
+                target_high_watermark,
+            )
+            if (
+                retained_compensation is not None
+                and retained_compensation != reference
+            ):
+                raise ProviderEffectLedgerV1Error(
+                    "TBM_PROVIDER_EFFECT_CONFLICT",
+                    "original effect is bound to another compensation",
+                )
+            if target_events:
+                try:
+                    retained = parse_effect_compensation_requested_event(
+                        target_events[0]
+                    )
+                except Exception as error:
+                    raise ProviderEffectLedgerV1Error(
+                        "TBM_PROVIDER_EFFECT_CORRUPT",
+                        "retained compensation request is invalid",
+                    ) from error
+                if retained != reference:
+                    raise ProviderEffectLedgerV1Error(
+                        "TBM_PROVIDER_EFFECT_CONFLICT",
+                        "compensation identity is bound to another request",
+                    )
+                if retained_compensation is None:
+                    raise ProviderEffectLedgerV1Error(
+                        "TBM_PROVIDER_EFFECT_CORRUPT",
+                        "retained compensation is absent from the global ledger",
+                    )
+                commit = self._ledger.append_once(
+                    target_events[0].stream_id,
+                    0,
+                    (target_events[0],),
+                    LedgerIdempotency(
+                        target_events[0].idempotency_key_sha256,
+                        target_events[0].request_sha256,
+                    ),
+                )
+                retained_events, state, _ = self._load_effect(compensation_id)
+                return ProviderEffectCompensationAppendResult(
+                    reference,
+                    commit.receipt,
+                    _recovery_from_state(
+                        state,
+                        retained_events,
+                        compensation_id,
+                    ),
+                    commit.inserted,
+                )
+            original_stream_events = tuple(
+                event
+                for event in original_events
+                if event.stream_id
+                == effect_event_stream_id(reference.original_effect_id)
+            )
+            if not original_stream_events:
+                _invalid("compensation original stream is missing")
+            try:
+                event = build_effect_compensation_requested_event(
+                    reference,
+                    original_requested_event=original_stream_events[0],
+                    original_terminal_event=original_stream_events[-1],
+                    global_position=high_watermark + 1,
+                    occurred_at=occurred_at,
+                    trusted_context=self._access.event_trusted_context(),
+                )
+            except EffectEventV1Error as error:
+                raise ProviderEffectLedgerV1Error(
+                    "TBM_PROVIDER_EFFECT_TRANSITION_REJECTED",
+                    "provider effect compensation is not allowed",
+                ) from error
+            try:
+                commit = self._ledger.append_once(
+                    event.stream_id,
+                    0,
+                    (event,),
+                    LedgerIdempotency(
+                        event.idempotency_key_sha256,
+                        event.request_sha256,
+                    ),
+                )
+            except EventLedgerConflictError as error:
+                if error.code not in {
+                    "TBM_EVENT_LEDGER_GLOBAL_POSITION_CONFLICT",
+                    "TBM_EVENT_LEDGER_HEAD_MISMATCH",
+                    "TBM_EVENT_LEDGER_STALE_STREAM_VERSION",
+                }:
+                    raise
+                last_conflict = error
+                continue
+            retained_events, state, _ = self._load_effect(compensation_id)
+            return ProviderEffectCompensationAppendResult(
+                reference,
+                commit.receipt,
+                _recovery_from_state(
+                    state,
+                    retained_events,
+                    compensation_id,
+                ),
+                commit.inserted,
+            )
+        if last_conflict is not None:
+            raise last_conflict
+        raise AssertionError("provider compensation retry loop did not run")
+
+    def complete_compensation(
+        self,
+        effect_id: str,
+        *,
+        occurred_at: str,
+    ) -> ProviderEffectCompensationAppendResult:
+        last_conflict: EventLedgerConflictError | None = None
+        for _ in range(self._max_conflict_retries):
+            events, state, high_watermark = self._load_effect(effect_id)
+            target_events = tuple(
+                event
+                for event in events
+                if event.stream_id == effect_event_stream_id(effect_id)
+            )
+            if not target_events:
+                _invalid("compensation stream is missing")
+            request_event = target_events[0]
+            try:
+                parse_effect_compensation_requested_event(request_event)
+            except Exception as error:
+                raise ProviderEffectLedgerV1Error(
+                    "TBM_PROVIDER_EFFECT_TRANSITION_REJECTED",
+                    "effect is not a compensation request",
+                ) from error
+            for retained_event in target_events[1:]:
+                if retained_event.event_type != EFFECT_COMPENSATED_EVENT:
+                    continue
+                retained = parse_effect_compensated_event(retained_event)
+                commit = self._ledger.append_once(
+                    retained_event.stream_id,
+                    retained_event.stream_version - 1,
+                    (retained_event,),
+                    LedgerIdempotency(
+                        retained_event.idempotency_key_sha256,
+                        retained_event.request_sha256,
+                    ),
+                )
+                return ProviderEffectCompensationAppendResult(
+                    retained,
+                    commit.receipt,
+                    _recovery_from_state(state, events, effect_id),
+                    commit.inserted,
+                )
+            if projected_provider_effect_status(state, effect_id) != "succeeded":
+                raise ProviderEffectLedgerV1Error(
+                    "TBM_PROVIDER_EFFECT_TRANSITION_REJECTED",
+                    "compensation requires an exact provider receipt",
+                )
+            receipt_event = target_events[-1]
+            try:
+                event = build_effect_compensated_event(
+                    request_event,
+                    receipt_event=receipt_event,
+                    global_position=high_watermark + 1,
+                    occurred_at=occurred_at,
+                    trusted_context=self._access.event_trusted_context(),
+                )
+                next_state = _reduce_effect_events((*events, event))
+            except (EffectEventV1Error, ReducerExecutionError) as error:
+                raise ProviderEffectLedgerV1Error(
+                    "TBM_PROVIDER_EFFECT_TRANSITION_REJECTED",
+                    "provider compensation completion is not allowed",
+                ) from error
+            try:
+                commit = self._ledger.append_once(
+                    event.stream_id,
+                    receipt_event.stream_version,
+                    (event,),
+                    LedgerIdempotency(
+                        event.idempotency_key_sha256,
+                        event.request_sha256,
+                    ),
+                )
+            except EventLedgerConflictError as error:
+                if error.code not in {
+                    "TBM_EVENT_LEDGER_GLOBAL_POSITION_CONFLICT",
+                    "TBM_EVENT_LEDGER_HEAD_MISMATCH",
+                    "TBM_EVENT_LEDGER_STALE_STREAM_VERSION",
+                }:
+                    raise
+                last_conflict = error
+                continue
+            return ProviderEffectCompensationAppendResult(
+                parse_effect_compensated_event(event),
+                commit.receipt,
+                _recovery_from_state(
+                    next_state,
+                    (*events, event),
+                    effect_id,
+                ),
+                commit.inserted,
+            )
+        if last_conflict is not None:
+            raise last_conflict
+        raise AssertionError("provider compensation completion loop did not run")
+
     def _load_effect(
         self,
         effect_id: str,
     ) -> tuple[tuple[CanonicalEvent, ...], Mapping[str, object], int]:
+        retained, high_watermark = self._read_effect_stream(effect_id)
+        if not retained:
+            raise ProviderEffectLedgerV1Error(
+                "TBM_PROVIDER_EFFECT_NOT_FOUND",
+                "provider effect request is not retained",
+            )
+        reduction_events = retained
+        if retained[0].event_type == EFFECT_REQUESTED_EVENT:
+            try:
+                request_effect_id = parse_effect_requested_event(
+                    retained[0]
+                ).effect.effect_id
+            except Exception as error:
+                raise ProviderEffectLedgerV1Error(
+                    "TBM_PROVIDER_EFFECT_CORRUPT",
+                    "provider effect request is invalid",
+                ) from error
+        elif retained[0].event_type == EFFECT_COMPENSATION_REQUESTED_EVENT:
+            try:
+                compensation = parse_effect_compensation_requested_event(
+                    retained[0]
+                )
+                request_effect_id = compensation.compensation_effect.effect_id
+                original_events, original_high_watermark = (
+                    self._read_effect_stream(compensation.original_effect_id)
+                )
+            except Exception as error:
+                raise ProviderEffectLedgerV1Error(
+                    "TBM_PROVIDER_EFFECT_CORRUPT",
+                    "provider compensation request is invalid",
+                ) from error
+            if (
+                not original_events
+                or original_events[0].event_type != EFFECT_REQUESTED_EVENT
+            ):
+                raise ProviderEffectLedgerV1Error(
+                    "TBM_PROVIDER_EFFECT_CORRUPT",
+                    "provider compensation original is unavailable",
+                )
+            high_watermark = max(high_watermark, original_high_watermark)
+            reduction_events = tuple(
+                sorted(
+                    (*original_events, *retained),
+                    key=lambda event: event.global_position,
+                )
+            )
+        else:
+            raise ProviderEffectLedgerV1Error(
+                "TBM_PROVIDER_EFFECT_NOT_FOUND",
+                "provider effect request is not retained",
+            )
+        if request_effect_id != effect_id or any(
+            event.event_type not in EFFECT_EVENT_TYPES
+            for event in reduction_events
+        ):
+            _invalid("provider effect stream contains unrelated events")
+        _verify_effect_access(
+            retained[0],
+            self._access,
+            self._authorized_origin_decision_id,
+        )
+        _verify_provider_registration(retained, self._provider)
+        try:
+            state = _reduce_effect_events(reduction_events)
+        except ReducerExecutionError as error:
+            raise ProviderEffectLedgerV1Error(
+                "TBM_PROVIDER_EFFECT_CORRUPT",
+                "provider effect stream cannot be rebuilt",
+            ) from error
+        return reduction_events, state, high_watermark
+
+    def _read_effect_stream(
+        self,
+        effect_id: str,
+    ) -> tuple[tuple[CanonicalEvent, ...], int]:
         try:
             stream_id = effect_event_stream_id(effect_id)
         except EffectEventV1Error as error:
@@ -280,36 +623,52 @@ class ProviderEffectLedgerService:
             if page.next_stream_version is None:
                 _invalid("provider effect stream page did not advance")
             from_version = page.next_stream_version
-        retained = tuple(events)
-        if not retained or retained[0].event_type != EFFECT_REQUESTED_EVENT:
-            raise ProviderEffectLedgerV1Error(
-                "TBM_PROVIDER_EFFECT_NOT_FOUND",
-                "provider effect request is not retained",
+        return tuple(events), high_watermark
+
+    def _read_compensation_request(
+        self,
+        original_effect_id: str,
+    ) -> tuple[EffectCompensationRequestedRef | None, int]:
+        retained: EffectCompensationRequestedRef | None = None
+        after_position = 0
+        scanned = 0
+        high_watermark = 0
+        while True:
+            page = self._ledger.read_global(
+                after_position,
+                EVENT_LEDGER_MAX_READ_PAGE,
             )
-        try:
-            request = parse_effect_requested_event(retained[0])
-        except Exception as error:
-            raise ProviderEffectLedgerV1Error(
-                "TBM_PROVIDER_EFFECT_CORRUPT",
-                "provider effect request is invalid",
-            ) from error
-        if request.effect.effect_id != effect_id or any(
-            event.event_type not in EFFECT_EVENT_TYPES for event in retained
-        ):
-            _invalid("provider effect stream contains unrelated events")
-        _verify_effect_access(
-            retained[0],
-            self._access,
-            self._authorized_origin_decision_id,
-        )
-        try:
-            state = _reduce_effect_events(retained)
-        except ReducerExecutionError as error:
-            raise ProviderEffectLedgerV1Error(
-                "TBM_PROVIDER_EFFECT_CORRUPT",
-                "provider effect stream cannot be rebuilt",
-            ) from error
-        return retained, state, high_watermark
+            high_watermark = page.high_watermark_global_position
+            scanned += len(page.events)
+            if scanned > PROVIDER_EFFECT_LEDGER_MAX_EVENTS:
+                _invalid("provider compensation scan exceeds the recovery bound")
+            for event in page.events:
+                if event.event_type != EFFECT_COMPENSATION_REQUESTED_EVENT:
+                    continue
+                try:
+                    reference = parse_effect_compensation_requested_event(event)
+                except Exception as error:
+                    raise ProviderEffectLedgerV1Error(
+                        "TBM_PROVIDER_EFFECT_CORRUPT",
+                        "retained compensation request is invalid",
+                    ) from error
+                if reference.original_effect_id != original_effect_id:
+                    continue
+                if retained is not None and retained != reference:
+                    raise ProviderEffectLedgerV1Error(
+                        "TBM_PROVIDER_EFFECT_CONFLICT",
+                        "original effect has multiple compensations",
+                    )
+                retained = reference
+            if not page.has_more:
+                return retained, high_watermark
+            next_position = page.next_global_position
+            if (
+                type(next_position) is not int
+                or next_position <= after_position
+            ):
+                _invalid("provider compensation scan did not advance")
+            after_position = next_position
 
 
 def _retained_transition(
@@ -371,6 +730,40 @@ def _verify_effect_access(
         )
 
 
+def _verify_provider_registration(
+    events: tuple[CanonicalEvent, ...],
+    provider: TrustedProviderEffectRegistration,
+) -> None:
+    expected = (
+        provider.provider_id,
+        provider.model_id,
+        provider.model_version,
+        provider.endpoint_id,
+    )
+    try:
+        for event in events:
+            if event.event_type != EFFECT_PROVIDER_TRANSITION_EVENT:
+                continue
+            transition = parse_provider_effect_transition_event(event)
+            if (
+                transition.provider_id,
+                transition.model_id,
+                transition.model_version,
+                transition.endpoint_id,
+            ) != expected:
+                raise ProviderEffectLedgerV1Error(
+                    "TBM_PROVIDER_EFFECT_PROVIDER_MISMATCH",
+                    "retained provider transition does not match the trusted registration",
+                )
+    except ProviderEffectLedgerV1Error:
+        raise
+    except Exception as error:
+        raise ProviderEffectLedgerV1Error(
+            "TBM_PROVIDER_EFFECT_CORRUPT",
+            "retained provider transition is invalid",
+        ) from error
+
+
 def _recovery_from_state(
     state: Mapping[str, object],
     events: tuple[CanonicalEvent, ...],
@@ -418,6 +811,8 @@ def _recovery_from_state(
         action = "reconcile"
     elif status == "not_found":
         action = "schedule_retry"
+    elif status == "dead_lettered":
+        action = "dead_letter"
     else:
         action = "complete"
     head = events[-1]
@@ -451,6 +846,7 @@ __all__ = [
     "PROVIDER_EFFECT_LEDGER_MAX_EVENTS",
     "PROVIDER_EFFECT_LEDGER_SERVICE_VERSION",
     "ProviderEffectAppendResult",
+    "ProviderEffectCompensationAppendResult",
     "ProviderEffectLedgerService",
     "ProviderEffectLedgerV1Error",
     "ProviderEffectRecovery",

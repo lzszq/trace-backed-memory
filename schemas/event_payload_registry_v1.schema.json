@@ -953,6 +953,7 @@
             "stage": {
               "enum": [
                 "attempt_started",
+                "dead_lettered",
                 "receipt_recorded",
                 "reconciled",
                 "request_submitted",

@@ -49,9 +49,16 @@ content-ID replay. Typed canonical outcome events plus `outcome-current` and
 The explicit durable execution path authenticates the evaluator on every call
 and atomically publishes the RunOutcome, completed session, completion outbox,
 and initial effect request; its worker persists delivery/dead-letter events.
-Artifact-byte verification, active provider receipt/reconciliation integration,
-durable compensation, and default/shared-service cutover remain outstanding;
-the storage-neutral provider event/reducer/ledger foundation is delivered.
+The storage-neutral provider event/reducer/ledger foundation and configured
+server-owned Semantic provider effect integration are delivered with
+provider/policy binding, stable idempotency, and durable-transport invocation
+parity. Trusted reconciliation, owner fencing, and bounded retry/dead-letter
+require their corresponding configured dependencies; generic compensation is
+limited to supporting contracts. Artifact-byte
+verification, concrete remote adapters, completion-provider integration,
+automatic background sweep/lease fencing, shared-service workers, and default
+cutover remain outstanding; Semantic provider effects do not claim compensation
+or remote exactly-once.
 
 Canonical schemas:
 

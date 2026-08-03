@@ -26,6 +26,7 @@ from tests.test_durable_execution_v3 import EVALUATOR_CONTEXT
 from tests.test_durable_http_sdk import LIFECYCLE_FIXTURE, TOKEN
 from tests.test_durable_retrieval_preparation_v3 import _durable_request
 from tests.test_durable_runtime_v3 import _Clock, _dependencies
+from tests.test_retrieval_preparation_v3 import _candidate
 from tests.test_durable_semantic_gate_v3 import (
     _context as _provider_context,
     _provider_result,
@@ -75,7 +76,10 @@ class _LifecycleSignature:
 
 
 def create_transport_parity_application() -> DurableMCPApplication:
-    dependencies, context = _dependencies(_Clock())
+    dependencies, context = _dependencies(
+        _Clock(),
+        semantic_provider_invoker=lambda _call: _trusted_provider_result(),
+    )
     return DurableMCPApplication(
         dependencies,
         DurableMCPTrustedContexts(
@@ -102,6 +106,20 @@ def _complete_request(session: tbm.GateSession) -> DurableCompleteRequest:
         latency_ms=completion.latency_ms,
         cost_usd=completion.cost_usd,
         error_code=completion.error_code,
+    )
+
+
+def _trusted_provider_result() -> tbm.SemanticProviderResult:
+    candidate = _candidate("memory_durable_runtime")
+    return tbm.SemanticProviderResult(
+        response=b'{"decision":"allow"}',
+        provider_request_id="provider_request_transport_001",
+        decision_id="decision_transport_allow",
+        final_allowed_revision_ids=(candidate.revision.revision_id,),
+        final_blocked_revision_ids=(),
+        reason="The trusted provider retained the applicable revision.",
+        risk="low",
+        recommended_injection="summary",
     )
 
 
@@ -133,7 +151,7 @@ def _signature(runtime, session_id: str) -> _LifecycleSignature:
         "SELECT canonical_event FROM v3_event_ledger_events ORDER BY global_position",
     ).fetchall()
     events = tuple(loads_canonical_event(row[0]) for row in rows)
-    assert tuple(event.global_position for event in events) == tuple(range(1, 18))
+    assert tuple(event.global_position for event in events) == tuple(range(1, 22))
     assert tuple(event.event_type for event in events) == (
         tbm.GATE_SESSION_CREATED_EVENT,
         tbm.RETRIEVAL_PREPARED_EVENT,
@@ -141,6 +159,10 @@ def _signature(runtime, session_id: str) -> _LifecycleSignature:
         tbm.GATE_SESSION_PREPARED_EVENT,
         tbm.SEMANTIC_GATE_REQUESTED_EVENT,
         tbm.GATE_SESSION_LEASE_RENEWED_EVENT,
+        tbm.EFFECT_REQUESTED_EVENT,
+        tbm.EFFECT_PROVIDER_TRANSITION_EVENT,
+        tbm.EFFECT_PROVIDER_TRANSITION_EVENT,
+        tbm.EFFECT_PROVIDER_TRANSITION_EVENT,
         tbm.SEMANTIC_GATE_ATTEMPT_SUCCEEDED_EVENT,
         tbm.SEMANTIC_GATE_DECIDED_EVENT,
         tbm.GATE_SESSION_LEASE_RENEWED_EVENT,
@@ -302,9 +324,25 @@ def _signature(runtime, session_id: str) -> _LifecycleSignature:
     projections.append((attribution_reducer.descriptor.reducer_id, attribution_sha256))
 
     effect_events = tuple(
-        event for event in events if event.event_type == tbm.EFFECT_REQUESTED_EVENT
+        event for event in events if event.event_type in tbm.EFFECT_EVENT_TYPES
     )
-    effect_ref = tbm.parse_effect_requested_event(effect_events[0])
+    provider_effect_events = effect_events[:4]
+    assert tuple(event.actor_type for event in provider_effect_events) == (
+        "agent_client",
+        "service",
+        "service",
+        "service",
+    )
+    assert tuple(
+        tbm.parse_provider_effect_transition_event(event).stage
+        for event in provider_effect_events[1:]
+    ) == (
+        "attempt_started",
+        "request_submitted",
+        "receipt_recorded",
+    )
+    completion_effect_events = effect_events[4:]
+    effect_ref = tbm.parse_effect_requested_event(completion_effect_events[0])
     assert effect_ref.outbox_event is not None
     outbox_event = runtime.outbox_repository.get_event(effect_ref.outbox_event.event_id)
     delivery_history = runtime.outbox_repository.list_delivery_history(
@@ -312,10 +350,14 @@ def _signature(runtime, session_id: str) -> _LifecycleSignature:
     )
     effect_reducer = tbm.build_effect_queue_reducer()
     effect_state, effect_sha256 = _reduce(effect_reducer, effect_events)
+    completion_effect_state, _ = _reduce(
+        effect_reducer,
+        completion_effect_events,
+    )
     tbm.verify_effect_projection_parity(
-        effect_state,
+        completion_effect_state,
         (tbm.EffectProjectionAuthority(outbox_event, delivery_history),),
-        effect_events,
+        completion_effect_events,
     )
     projections.append((effect_reducer.descriptor.reducer_id, effect_sha256))
 
@@ -354,7 +396,7 @@ def _signature(runtime, session_id: str) -> _LifecycleSignature:
     assert stream_heads == tuple(
         expected_stream_heads[stream_id] for stream_id in sorted(expected_stream_heads)
     )
-    assert len(stream_heads) == 7
+    assert len(stream_heads) == 8
     return _LifecycleSignature(
         tuple(
             (
@@ -376,7 +418,10 @@ def _signature(runtime, session_id: str) -> _LifecycleSignature:
 
 
 def _open_runtime(tmp_path: Path, name: str):
-    dependencies, context = _dependencies(_Clock())
+    dependencies, context = _dependencies(
+        _Clock(),
+        semantic_provider_invoker=lambda _call: _trusted_provider_result(),
+    )
     runtime = DurableRuntimeFactory(dependencies).open_sqlite(
         tmp_path / f"{name}.sqlite3",
         initialize=True,

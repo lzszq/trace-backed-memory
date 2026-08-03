@@ -601,12 +601,21 @@ retry parent，由服务端持有 provider/model/template/config provenance，�
 binding。`semantic_provider_effect_v1.py` 是显式 durable runtime 在配置可信 Semantic
 provider invoker 时选择的可选 server-owned invocation seam。它会在返回 result 前追加
 effect request 与 provider transition；Semantic receipt digest 绑定完整 structured
-`SemanticProviderResult`，其中包含 raw response digest。重启绝不会重复已保留 effect；
-配置的可信 reconciliation 可以在新的同 scope transition authorization 下恢复精确
-unknown 或 successful result。request-only 与 in-flight/submitted work 无法安全认定
-owner 已放弃，因此保持 recovery-required 且不产生改写。active owner-abandonment
-evidence、retry/dead-letter claim、compensation、completion-provider integration 与具体
-remote-provider adapter 不属于当前 seam。`durable_semantic_gate_v3.py` 会把这个
+`SemanticProviderResult`，其中包含 raw response digest。不可变 request 会绑定可信 provider
+registration 与 retry-policy descriptor；重启绝不会重复已保留 effect，provider callback 会收到
+稳定 effect ID 作为幂等键。request-only stream 只能由一条原子
+`attempt_started` append 取得 claim；并发失败方保持 recovery-required，且不会调用
+provider。in-flight/submitted work 仍保持 recovery-required，除非提交与原始 owner actor、
+head、attempt、invocation 精确绑定且由服务端验证的 fence attestation。该 attestation 只追加
+`result_unknown`；迟到 owner 不能直接写 receipt，必须经过 trusted reconciliation。只有
+可信 `not_found` 才允许按原始请求已绑定摘要的有界 policy retry；retained schedule 必须等于
+精确 policy deadline，耗尽后会追加终态 `dead_lettered`。对声明 compensation-supported 的
+generic effect，每个 original effect 最多使用一条独立 compensation effect stream，且
+`EffectCompensated` 前必须有精确 provider receipt。reconciliation、fencing 与 retry path 只有
+在配置对应可信依赖时才激活。具体 remote-provider
+adapter、completion-provider integration、自动 background sweep/lease fencing 与 shared-
+service worker 不属于当前 seam；remote exactly-once 仍取决于 provider 对所给幂等键的执行。
+`durable_semantic_gate_v3.py` 会把这个
 authenticated service 与任一
 GateSession authority 组合起来：先根据不可变 snapshot/evaluation/attempt chain
 核验 prepared session，再通过 CAS 发布 `AWAITING_DECISION`、调用 provider、读回
@@ -893,18 +902,22 @@ reader 从这些 event 派生 metadata，并只从 authenticated replay authorit
 与本地 completion-effect event/reducer 现已提供到 delivery history/dead letter 的精确
 authority parity。既有 effect family 还新增一个严格判别的 provider transition；其内容
 寻址的 attempt、invocation、receipt 与 reconciliation identity 可由 `effect-queue`
-reducer version 2 重建。`ProviderEffectLedgerService` 通过 authenticated generic ledger
-port 精确重放 append，并把跨崩溃遗留的 in-flight/submitted work 归为必须
-reconciliation。Semantic adapter 只有在 unknown result 或 successful receipt 已经
-持久保留后才会调用该 reconciliation 或改写 stream；只有显式 not-found 结果才允许
-安排 retry。generic SQLite/PostgreSQL
+reducer version 3 重建。`ProviderEffectLedgerService` 通过 authenticated generic ledger
+port 精确重放 append，核验已保留 provider registration，拒绝在 `unknown` 后绕过 trusted
+reconciliation 直接写 receipt，执行已保留 retry time，并支持 receipt-backed generic
+compensation。Semantic adapter 会原子 claim request-only stream，只有服务端证明 owner
+已被 fence 后才把 active work 转为 unknown，并且只有 trusted `not_found` 后才允许有界
+retry 或 terminal dead-letter。generic SQLite/PostgreSQL
 ledger 无需新增 authority 或 SQL component 即可保留这些 event。显式 durable
 SQLite/PostgreSQL runtime factory 在配置后已选择 server-owned Semantic invocation 与
 可信 provider-specific reconciliation callback；完整 result digest 会阻止 reconciler 在
-复用 response bytes 时改变 structured Semantic 字段。request-only safe claim、active
-retry/dead-letter ownership、具体 remote-provider adapter、completion-provider
-integration、durable compensation、PostgreSQL crash parity、Memory/index/audit/metrics
-reducer、完整 lifecycle integration、migration 与 cutover 仍未完成。
+复用 response bytes 时改变 structured Semantic 字段。Python facade、同步/异步 HTTP SDK、
+可信本地 MCP 与 TypeScript SDK parity 现已包含 server-owned provider transition。
+PostgreSQL hard-crash probe 代码覆盖 provider 调用前、submission 前、submission 后与 receipt
+后 checkpoint，但当前机器缺少 PostgreSQL executable，尚未实际运行。具体 remote-provider
+adapter、completion-provider integration、自动 background sweep/lease fencing、shared-
+service worker、Memory/index/audit/metrics reducer、完整 lifecycle integration、migration 与
+cutover 仍未完成。
 
 机器可读的 [`authority-registry.json`](status/authority-registry.json) 会把每个当前
 已登记 SQLite/PostgreSQL 持久化模块分类为 ledger、replaceable projection、compatibility

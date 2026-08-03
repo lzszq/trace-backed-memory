@@ -12,6 +12,7 @@ import trace_backed_memory as tbm
 
 
 DIGEST_A = "sha256:" + "a" * 64
+FENCE_DIGEST = "sha256:" + "f" * 64
 EVALUATION_ID = "system_gate_sha256_" + "b" * 64
 PROMPT = b"Evaluate the prepared memory candidates."
 
@@ -143,7 +144,11 @@ def _seed_awaiting_session(
 def _service(
     request_ledger: tbm.SQLiteEventLedgerV1,
     *,
+    provider: tbm.TrustedProviderEffectRegistration | None = None,
     reconcile_provider=None,
+    retry_policy: tbm.SemanticProviderEffectRetryPolicy | None = None,
+    verify_owner_fence=None,
+    clock=None,
 ) -> tbm.SemanticProviderEffectService:
     provider_ledger = tbm.SQLiteEventLedgerV1(
         getattr(request_ledger, "_connection"),
@@ -155,9 +160,11 @@ def _service(
     return tbm.SemanticProviderEffectService(
         request_ledger=request_ledger,
         provider_ledger=provider_ledger,
-        provider=_provider(),
-        clock=_Clock(),
+        provider=_provider() if provider is None else provider,
+        clock=_Clock() if clock is None else clock,
         reconcile_provider=reconcile_provider,
+        retry_policy=retry_policy,
+        verify_owner_fence=verify_owner_fence,
     )
 
 
@@ -167,6 +174,23 @@ def _effect_id(session: tbm.GateSession) -> str:
         system_gate_evaluation_id=EVALUATION_ID,
         expected_previous_attempt_id=None,
     )
+
+
+def _effect_call(session: tbm.GateSession) -> tbm.SemanticProviderCall:
+    return replace(_call(), idempotency_key=_effect_id(session))
+
+
+def _effect_request_idempotency_key(
+    effect_id: str,
+    *,
+    provider: tbm.TrustedProviderEffectRegistration | None = None,
+    retry_policy: tbm.SemanticProviderEffectRetryPolicy | None = None,
+) -> str:
+    registration = _provider() if provider is None else provider
+    key = f"{effect_id}:{registration.descriptor_sha256}"
+    if retry_policy is not None:
+        key = f"{key}:{retry_policy.descriptor_sha256}"
+    return key
 
 
 def test_semantic_provider_effect_records_receipt_and_blocks_duplicate_call() -> None:
@@ -189,7 +213,7 @@ def test_semantic_provider_effect_records_receipt_and_blocks_duplicate_call() ->
             call_provider=lambda call: (calls.append(call), _result())[1],
         )
         assert returned == _result()
-        assert calls == [_call()]
+        assert calls == [_effect_call(session)]
 
         page = ledger.read_stream(
             tbm.effect_event_stream_id(_effect_id(session)),
@@ -360,7 +384,7 @@ def test_semantic_provider_effect_concurrent_request_invokes_provider_once() -> 
             )
             for outcome in outcomes
         ) == 1
-        assert provider_calls == [_call()]
+        assert provider_calls == [_effect_call(session)]
         page = ledger.read_stream(
             tbm.effect_event_stream_id(_effect_id(session)),
             limit=100,
@@ -385,7 +409,8 @@ def test_semantic_provider_effect_does_not_recover_active_attempt() -> None:
         initialize=True,
     ) as ledger:
         session = _seed_awaiting_session(ledger)
-        owner_service = _service(ledger)
+        clock = _Clock()
+        owner_service = _service(ledger, clock=clock)
         recovery_service = _service(ledger)
         provider_entered = Event()
         release_provider = Event()
@@ -938,7 +963,7 @@ def test_semantic_provider_effect_read_failure_requires_recovery() -> None:
         assert raised.value.effect_id == _effect_id(session)
 
 
-def test_semantic_provider_effect_request_only_state_blocks_provider() -> None:
+def test_semantic_provider_effect_claims_request_only_state_once() -> None:
     with tbm.SQLiteEventLedgerV1.connect(
         ":memory:",
         _access(
@@ -955,7 +980,7 @@ def test_semantic_provider_effect_request_only_state_blocks_provider() -> None:
                 tbm.EffectContract(
                     effect_id=effect_id,
                     effect_type="semantic_provider_call",
-                    idempotency_key=effect_id,
+                    idempotency_key=_effect_request_idempotency_key(effect_id),
                     requested_by_event_id=parent.event_id,
                     input_artifact_sha256=(
                         "sha256:" + hashlib.sha256(PROMPT).hexdigest()
@@ -979,6 +1004,458 @@ def test_semantic_provider_effect_request_only_state_blocks_provider() -> None:
                 requested.request_sha256,
             ),
         )
+        services = (_service(ledger), _service(ledger))
+        provider_calls: list[tbm.SemanticProviderCall] = []
+
+        def invoke(service):
+            try:
+                return service.invoke(
+                    session_id=session.session_id,
+                    expected_previous_attempt_id=None,
+                    call=_call(),
+                    call_provider=lambda call: (
+                        provider_calls.append(call),
+                        _result(),
+                    )[1],
+                )
+            except tbm.SemanticProviderEffectRecoveryRequiredError as error:
+                return error
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            outcomes = tuple(executor.map(invoke, services))
+
+        assert sum(type(item) is tbm.SemanticProviderResult for item in outcomes) == 1
+        assert sum(
+            isinstance(item, tbm.SemanticProviderEffectRecoveryRequiredError)
+            for item in outcomes
+        ) == 1
+        assert provider_calls == [_effect_call(session)]
+        page = ledger.read_stream(requested.stream_id, limit=100)
+        assert tuple(
+            tbm.parse_provider_effect_transition_event(event).stage
+            for event in page.events[1:]
+        ) == (
+            "attempt_started",
+            "request_submitted",
+            "receipt_recorded",
+        )
+
+
+def test_semantic_provider_effect_request_binds_provider_registration() -> None:
+    with tbm.SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(
+            actor_type="agent_client",
+            actor_id="agent_client_001",
+        ),
+        initialize=True,
+    ) as ledger:
+        session = _seed_awaiting_session(ledger)
+        parent = ledger.read_stream(session.session_id, limit=100).events[-1]
+        effect_id = _effect_id(session)
+        requested = tbm.build_effect_requested_event(
+            tbm.EffectRequestedRef(
+                tbm.EffectContract(
+                    effect_id=effect_id,
+                    effect_type="semantic_provider_call",
+                    idempotency_key=_effect_request_idempotency_key(effect_id),
+                    requested_by_event_id=parent.event_id,
+                    input_artifact_sha256=(
+                        "sha256:" + hashlib.sha256(PROMPT).hexdigest()
+                    ),
+                    authorization_event_id=(
+                        ledger.access_context.authorization_decision_id
+                    ),
+                    compensation_supported=False,
+                )
+            ),
+            requested_by_event=parent,
+            global_position=parent.global_position + 1,
+            trusted_context=ledger.access_context.event_trusted_context(),
+        )
+        ledger.append(
+            requested.stream_id,
+            0,
+            (requested,),
+            tbm.LedgerIdempotency(
+                requested.idempotency_key_sha256,
+                requested.request_sha256,
+            ),
+        )
+        changed_provider = replace(
+            _provider(),
+            model_version="v2",
+            endpoint_id="endpoint_002",
+        )
+        changed_call = replace(
+            _call(),
+            model_version="v2",
+            endpoint_id="endpoint_002",
+        )
+        service = _service(ledger, provider=changed_provider)
+
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            service.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=changed_call,
+                call_provider=lambda _call: pytest.fail(
+                    "provider drift must not invoke the provider"
+                ),
+            )
+        assert ledger.read_stream(requested.stream_id, limit=100).events == (
+            requested,
+        )
+
+
+def test_semantic_provider_effect_owner_abandonment_retries_after_not_found() -> None:
+    class _OwnerTerminated(BaseException):
+        pass
+
+    with tbm.SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(
+            actor_type="agent_client",
+            actor_id="agent_client_001",
+        ),
+        initialize=True,
+    ) as ledger:
+        session = _seed_awaiting_session(ledger)
+        clock = _Clock()
+        retry_policy = tbm.SemanticProviderEffectRetryPolicy(2, (0,))
+        owner_service = _service(
+            ledger,
+            clock=clock,
+            retry_policy=retry_policy,
+            verify_owner_fence=lambda request: (
+                request.fence_token_sha256 == FENCE_DIGEST
+            ),
+        )
+        with pytest.raises(_OwnerTerminated):
+            owner_service.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=_call(),
+                call_provider=lambda _call: (_ for _ in ()).throw(
+                    _OwnerTerminated()
+                ),
+            )
+
+        stream_id = tbm.effect_event_stream_id(_effect_id(session))
+        active = ledger.read_stream(stream_id, limit=100)
+        started = tbm.parse_provider_effect_transition_event(active.events[-1])
+        recovery = owner_service.record_owner_abandonment(
+            tbm.SemanticProviderEffectAbandonmentRequest(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                effect_id=_effect_id(session),
+                attempt_id=started.attempt_id,
+                provider_invocation_id=started.provider_invocation_id,
+                expected_head_event_id=active.events[-1].event_id,
+                owner_actor_type=active.events[-1].actor_type,
+                owner_actor_id=active.events[-1].actor_id,
+                fence_token_sha256=FENCE_DIGEST,
+                reason_code="process_terminated",
+            ),
+            _call(),
+        )
+        assert recovery.provider_status == "unknown"
+
+        provider_calls: list[tbm.SemanticProviderCall] = []
+        retry_service = _service(
+            ledger,
+            reconcile_provider=lambda _call: (
+                tbm.SemanticProviderReconciliationResult("not_found")
+            ),
+            retry_policy=retry_policy,
+            clock=clock,
+        )
+        assert retry_service.invoke(
+            session_id=session.session_id,
+            expected_previous_attempt_id=None,
+            call=_call(),
+            call_provider=lambda call: (
+                provider_calls.append(call),
+                _result(),
+            )[1],
+        ) == _result()
+        assert provider_calls == [_effect_call(session)]
+
+        retained = ledger.read_stream(stream_id, limit=100)
+        transitions = tuple(
+            tbm.parse_provider_effect_transition_event(event)
+            for event in retained.events[1:]
+        )
+        assert tuple(item.stage for item in transitions) == (
+            "attempt_started",
+            "result_unknown",
+            "reconciled",
+            "retry_scheduled",
+            "attempt_started",
+            "request_submitted",
+            "receipt_recorded",
+        )
+        assert transitions[1].error_code == "process_terminated"
+        assert transitions[2].reconciliation_result == "not_found"
+        assert transitions[3].retry_at is not None
+        assert transitions[4].attempt_sequence == 2
+
+
+def test_semantic_provider_effect_abandonment_requires_exact_owner_fence() -> None:
+    class _OwnerTerminated(BaseException):
+        pass
+
+    with tbm.SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(
+            actor_type="agent_client",
+            actor_id="agent_client_001",
+        ),
+        initialize=True,
+    ) as ledger:
+        session = _seed_awaiting_session(ledger)
+        service = _service(ledger)
+        with pytest.raises(_OwnerTerminated):
+            service.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=_call(),
+                call_provider=lambda _call: (_ for _ in ()).throw(
+                    _OwnerTerminated()
+                ),
+            )
+        active = ledger.read_stream(
+            tbm.effect_event_stream_id(_effect_id(session)),
+            limit=100,
+        )
+        started = tbm.parse_provider_effect_transition_event(active.events[-1])
+        request = tbm.SemanticProviderEffectAbandonmentRequest(
+            session_id=session.session_id,
+            expected_previous_attempt_id=None,
+            effect_id=_effect_id(session),
+            attempt_id=started.attempt_id,
+            provider_invocation_id=started.provider_invocation_id,
+            expected_head_event_id=active.events[-1].event_id,
+            owner_actor_type=active.events[-1].actor_type,
+            owner_actor_id=active.events[-1].actor_id,
+            fence_token_sha256=FENCE_DIGEST,
+            reason_code="process_terminated",
+        )
+
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            service.record_owner_abandonment(request, _call())
+        verifier_service = _service(
+            ledger,
+            verify_owner_fence=lambda _request: True,
+        )
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            verifier_service.record_owner_abandonment(
+                replace(request, owner_actor_id="different_owner"),
+                _call(),
+            )
+
+
+def test_semantic_provider_effect_retry_policy_is_bound_to_request() -> None:
+    with tbm.SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(
+            actor_type="agent_client",
+            actor_id="agent_client_001",
+        ),
+        initialize=True,
+    ) as ledger:
+        session = _seed_awaiting_session(ledger)
+        original_policy = tbm.SemanticProviderEffectRetryPolicy(2, (0,))
+        service = _service(ledger, retry_policy=original_policy)
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            service.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=_call(),
+                call_provider=lambda _call: (_ for _ in ()).throw(
+                    tbm.SemanticProviderCallError("provider_timeout")
+                ),
+            )
+
+
+def test_semantic_provider_effect_revalidates_retained_retry_delay() -> None:
+    with tbm.SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(
+            actor_type="agent_client",
+            actor_id="agent_client_001",
+        ),
+        initialize=True,
+    ) as ledger:
+        session = _seed_awaiting_session(ledger)
+        policy = tbm.SemanticProviderEffectRetryPolicy(2, (60,))
+        service = _service(ledger, retry_policy=policy)
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            service.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=_call(),
+                call_provider=lambda _call: (_ for _ in ()).throw(
+                    tbm.SemanticProviderCallError(
+                        "provider_timeout",
+                        provider_request_id="provider_request_001",
+                    )
+                ),
+            )
+        events = ledger.read_stream(
+            tbm.effect_event_stream_id(_effect_id(session)),
+            limit=100,
+        ).events
+        requested = tbm.parse_effect_requested_event(events[0]).effect
+        unknown = tbm.parse_provider_effect_transition_event(events[-1])
+        provider_ledger = tbm.SQLiteEventLedgerV1(
+            getattr(ledger, "_connection"),
+            _access(
+                actor_type="service",
+                actor_id="semantic_provider_effect_service",
+            ),
+        )
+        provider_service = tbm.ProviderEffectLedgerService(
+            provider_ledger,
+            _provider(),
+            authorized_origin_decision_id=requested.authorization_event_id,
+        )
+        reconciliation_id = tbm.provider_effect_reconciliation_id(
+            provider_invocation_id=unknown.provider_invocation_id,
+            reconciliation_sequence=1,
+            reconciliation_result="not_found",
+            provider_request_id=unknown.provider_request_id,
+            response_sha256=None,
+            provider_receipt_id=None,
+        )
+        reconciled = replace(
+            unknown,
+            stage="reconciled",
+            error_code=None,
+            reconciliation_sequence=1,
+            reconciliation_id=reconciliation_id,
+            reconciliation_result="not_found",
+        )
+        provider_service.append_transition(
+            reconciled,
+            occurred_at="2026-08-03T00:03:01Z",
+        )
+        provider_service.append_transition(
+            replace(
+                reconciled,
+                stage="retry_scheduled",
+                reconciliation_sequence=None,
+                reconciliation_id=None,
+                reconciliation_result=None,
+                retry_at="2026-08-03T00:03:02Z",
+            ),
+            occurred_at="2026-08-03T00:03:02Z",
+        )
+        recovery = _service(
+            ledger,
+            retry_policy=policy,
+            clock=lambda: "2026-08-03T00:03:30Z",
+        )
+
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            recovery.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=_call(),
+                call_provider=lambda _call: pytest.fail(
+                    "an early retained retry must not invoke the provider"
+                ),
+            )
+
+
+def test_semantic_provider_effect_waits_for_exact_retry_deadline() -> None:
+    with tbm.SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(
+            actor_type="agent_client",
+            actor_id="agent_client_001",
+        ),
+        initialize=True,
+    ) as ledger:
+        session = _seed_awaiting_session(ledger)
+        policy = tbm.SemanticProviderEffectRetryPolicy(2, (60,))
+        initial = _service(
+            ledger,
+            retry_policy=policy,
+            clock=lambda: "2026-08-03T00:03:00Z",
+        )
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            initial.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=_call(),
+                call_provider=lambda _call: (_ for _ in ()).throw(
+                    tbm.SemanticProviderCallError("provider_timeout")
+                ),
+            )
+        before_deadline = _service(
+            ledger,
+            reconcile_provider=lambda _call: (
+                tbm.SemanticProviderReconciliationResult("not_found")
+            ),
+            retry_policy=policy,
+            clock=lambda: "2026-08-03T00:03:30Z",
+        )
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            before_deadline.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=_call(),
+                call_provider=lambda _call: pytest.fail(
+                    "retry must not run before the exact deadline"
+                ),
+            )
+        provider_calls: list[tbm.SemanticProviderCall] = []
+        after_deadline = _service(
+            ledger,
+            retry_policy=policy,
+            clock=lambda: "2026-08-03T00:04:31Z",
+        )
+        assert after_deadline.invoke(
+            session_id=session.session_id,
+            expected_previous_attempt_id=None,
+            call=_call(),
+            call_provider=lambda call: (
+                provider_calls.append(call),
+                _result(),
+            )[1],
+        ) == _result()
+        assert provider_calls == [_effect_call(session)]
+
+        changed_policy = tbm.SemanticProviderEffectRetryPolicy(3, (0, 60))
+        changed = _service(
+            ledger,
+            reconcile_provider=lambda _call: pytest.fail(
+                "policy mismatch must fail before reconciliation"
+            ),
+            retry_policy=changed_policy,
+        )
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            changed.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=_call(),
+                call_provider=lambda _call: pytest.fail(
+                    "policy mismatch must not invoke the provider"
+                ),
+            )
+
+
+def test_semantic_provider_effect_dead_letters_exhausted_attempts() -> None:
+    with tbm.SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(
+            actor_type="agent_client",
+            actor_id="agent_client_001",
+        ),
+        initialize=True,
+    ) as ledger:
+        session = _seed_awaiting_session(ledger)
         reconciliations: list[tbm.SemanticProviderReconciliationCall] = []
         service = _service(
             ledger,
@@ -986,20 +1463,71 @@ def test_semantic_provider_effect_request_only_state_blocks_provider() -> None:
                 reconciliations.append(call),
                 tbm.SemanticProviderReconciliationResult("not_found"),
             )[1],
+            retry_policy=tbm.SemanticProviderEffectRetryPolicy(1, ()),
         )
 
-        with pytest.raises(
-            tbm.SemanticProviderEffectRecoveryRequiredError
-        ):
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            service.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=_call(),
+                call_provider=lambda _call: (_ for _ in ()).throw(
+                    tbm.SemanticProviderCallError("provider_timeout")
+                ),
+            )
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
             service.invoke(
                 session_id=session.session_id,
                 expected_previous_attempt_id=None,
                 call=_call(),
                 call_provider=lambda _call: pytest.fail(
-                    "request-only state must not invoke provider twice"
+                    "exhausted retry must not invoke the provider"
                 ),
             )
-        assert reconciliations == []
+        assert len(reconciliations) == 1
+
+        retained = ledger.read_stream(
+            tbm.effect_event_stream_id(_effect_id(session)),
+            limit=100,
+        )
+        transitions = tuple(
+            tbm.parse_provider_effect_transition_event(event)
+            for event in retained.events[1:]
+        )
+        assert tuple(item.stage for item in transitions) == (
+            "attempt_started",
+            "result_unknown",
+            "reconciled",
+            "dead_lettered",
+        )
+        assert transitions[-1].error_code == "attempts_exhausted"
+
+        with pytest.raises(tbm.SemanticProviderEffectRecoveryRequiredError):
+            service.invoke(
+                session_id=session.session_id,
+                expected_previous_attempt_id=None,
+                call=_call(),
+                call_provider=lambda _call: pytest.fail(
+                    "dead-lettered effect must remain terminal"
+                ),
+            )
+        assert len(reconciliations) == 1
+
+
+def test_semantic_provider_effect_retry_policy_is_strict() -> None:
+    with pytest.raises(ValueError):
+        tbm.SemanticProviderEffectRetryPolicy(0, ())
+    with pytest.raises(ValueError):
+        tbm.SemanticProviderEffectRetryPolicy(2, ())
+    with pytest.raises(ValueError):
+        tbm.SemanticProviderEffectRetryPolicy(2, (-1,))
+
+    policy = tbm.SemanticProviderEffectRetryPolicy(3, (0, 60))
+    assert policy.descriptor_sha256.startswith("sha256:")
+    assert policy.retry_delay_seconds(1) == 0
+    assert policy.retry_delay_seconds(2) == 60
+    with pytest.raises(ValueError):
+        policy.retry_delay_seconds(3)
 
 
 def test_semantic_provider_effect_rejects_invalid_callbacks() -> None:

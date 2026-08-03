@@ -57,6 +57,11 @@ scope drift、stale authorization 或 Artifact set 不完整都会 fail closed�
 parity verification 会把重建 projection 与迁移期 GateSession/replay authorities 比较。
 generic reducer runtime 仍不是唯一 active rebuild path。outcome/attribution 与本地
 completion-effect reducer 已覆盖 delivery history 与 dead-letter parity。存储中立
-provider receipt/reconciliation 基础已交付；active provider integration、durable
-compensation、完整 transport conformance 与 F2 crash matrix 仍未完成；因此产品继续保持
+provider receipt/reconciliation 基础和已配置的 server-owned Semantic provider effect
+integration 已交付，包括 provider/policy 绑定、稳定幂等，以及 durable transport 的调用
+parity。可信 reconciliation、owner fencing 与有界 retry/dead-letter 只有在配置对应依赖时才
+激活；通用 compensation 只适用于支持它的 contract。具体 remote
+adapter、completion-provider integration、自动后台 sweep/lease fencing、shared-service
+worker 与其余 F2 crash/cutover matrix 仍未完成；Semantic provider effect 不宣称支持
+compensation 或 remote exactly-once。因此产品继续保持
 `persistence_model="authority_graph"` 与 `full_persistence=false`。

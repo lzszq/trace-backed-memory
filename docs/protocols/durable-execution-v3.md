@@ -83,8 +83,12 @@ acknowledgement, and dead-letter transitions.
 Each successful delivery transition atomically appends its canonical effect
 event batch with the outbox revision. `EffectSucceeded` is only local callback
 acknowledgement. The storage-neutral provider receipt/reconciliation foundation
-is delivered separately, but active callback integration, provider-specific
-reconciliation, and durable compensation remain outside this F2 slice.
+is delivered separately with opt-in server-owned invocation. Trusted
+reconciliation, owner fencing, and bounded retry/dead-letter require their
+corresponding configured dependencies; generic receipt-backed compensation is
+limited to contracts that support it, and Semantic provider effects do not.
+Completion-provider integration, automatic sweep/lease fencing,
+and shared-service workers remain outside this F2 slice.
 
 ## Abandonment and recovery
 

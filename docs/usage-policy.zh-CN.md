@@ -538,14 +538,23 @@ GateSession/replay 原子性或 active adapter emission。同一 retry chain 已
 `SemanticProviderEffectService` 路由调用，并在 invocation 前追加 effect request 与
 attempt。Semantic 调用成功时，`response_sha256` 必须绑定完整、带版本的
 `SemanticProviderResult` descriptor，包括 raw response digest 与每个 structured
-decision 字段；不得接受 response bytes 相同但 decision 字段变化的结果。任何 effect
-event 已存在后都不得再次调用 provider。可信 provider-specific reconciler 可以确认
-精确 receipt、继续保持 unknown 或报告 not found，但前提是 unknown result 或 successful
-receipt 已经持久保留。不可变 request 保留原始 authorization；同 scope recovery 可以在
-新的 authorization decision 下追加 transition。request-only 与 in-flight/submitted
-stream、`still_unknown` 或尚未 claim 的 `not_found` 必须保持 recovery-required。
-在 active boundary 实现前，不得推断 owner abandonment、安排 retry/dead-letter、执行
-compensation，也不得把 completion callback 当作 provider effect。
+decision 字段；不得接受 response bytes 相同但 decision 字段变化的结果。只有原子插入
+`attempt_started` 的进程拥有一次 provider call；request-only claim 的失败方不得调用
+provider。不可变 request 必须绑定可信 provider registration 与任何 retry-policy digest，
+并把稳定 effect ID 作为 provider 幂等键。in-flight/submitted work 保持
+recovery-required，除非服务端 verifier 证明精确的 retained owner actor、attempt、invocation
+与 head 已被 fence；该操作只能追加 `result_unknown`。迟到 owner result 不得用直接
+receipt 绕过 reconciliation。配置后，可信 provider-specific reconciler 必须确认已保留的
+successful receipt；对 durable unknown work，它可以确认精确 receipt、继续 unknown 或报告
+not found。retained successful receipt 不允许 `still_unknown` 或 `not_found`。不可变 request 保留原始
+authorization 与 retry-policy digest；同 scope recovery 可以在新的 authorization decision
+下追加 transition。只有 trusted `not_found` 可以按已保留的有界 policy 安排 retry 或终态
+dead-letter；每条 retained schedule 都必须重现精确 policy deadline。只有原始 contract 声明
+`compensation_supported=true` 时才允许 generic compensation；每个 original effect 只能使用
+一条新 effect stream，且必须具有精确 provider receipt。Semantic provider effect 不支持
+compensation。`still_unknown`、未证明已 fence 的 active owner、provider/policy mismatch，或
+早于或不符合 `retry_at` 的 retry 都必须保持 recovery-required。completion callback 永远不是
+provider receipt。
 
 只能在 authenticated durable retrieval preparation 生成精确 `PREPARED` session
 后使用 `AuthenticatedSemanticGateSessionService`。请求必须指定预期 session
@@ -696,8 +705,10 @@ dead-letter failure 必须在 delivery revision 的同一 transaction 中先追�
 `EffectFailed`，再追加对应 disposition event。canonical actor 必须使用真实
 `worker_id`。`EffectSucceeded` 只代表本地 callback acknowledgement，不是 provider
 receipt 或 provider 端成功证明。Semantic-provider unknown-result reconciliation 只在
-配置后的显式 durable effect path 中可用。completion-provider integration、active
-provider retry/dead-letter ownership 与 durable compensation 仍是独立工作。outcome
+配置后的显式 durable effect path 中可用；其 request 原子 claim、服务端证明的 owner
+fencing、请求绑定的有界 retry/dead-letter 与 generic receipt-backed compensation 都是
+opt-in。completion-provider integration、自动 background sweep/lease fencing、具体 remote
+adapter 与 shared-service worker 仍是独立工作。outcome
 已存在但 event 缺失时不得静默修补，应调查并恢复被破坏的 transaction boundary。
 显式 durable HTTP/MCP 与 Python/TypeScript SDK profile 已提供 active durable
 completion-outbox emission，`tbmd local` 也会执行有界 SQLite delivery page。

@@ -153,10 +153,14 @@ evaluator，并以 SQLite/PostgreSQL 对等性组合原子
 `RunOutcome + COMPLETED + completion outbox` 发布。同一 transaction 会追加
 `EffectRequested`，worker transition 还会追加 canonical started/succeeded/failed/retry/
 dead-letter evidence；`effect-queue` 会按精确 delivery history 重建。存储中立 provider
-transition、`effect-queue` reducer version 2 与 authenticated generic-ledger service 现在
-会保留内容寻址 receipt、unknown result、reconciliation、显式 retry schedule 与精确
-response-loss replay。active provider callback、provider-specific reconciliation、durable
-compensation、托管生产索引、受保护内容的加密 finalization、默认 adapter cutover、CLI
+transition、`effect-queue` reducer version 3 与 authenticated generic-ledger service 现在
+会保留内容寻址 receipt、unknown result、provider-bound reconciliation、有界 retry/dead-letter
+与 receipt-backed generic compensation。配置后的显式 durable runtime 还提供 request-only 原子
+claim、provider/policy 绑定，以及 server-owned Semantic invocation 的跨 transport parity；
+trusted reconciliation、owner fencing 与有界 retry/dead-letter 只有在提供对应依赖时才激活。
+Semantic provider effect 不支持 compensation，也不声明 remote exactly-once。具体
+remote-provider/completion-provider adapter、自动 background sweep/
+lease fencing、托管生产索引、受保护内容的加密 finalization、默认 adapter cutover、CLI
 durable 选择与共享服务 transport 仍待完成。
 `AuthenticatedDurableAgentMemory` 现在会在一个 adapter-neutral lifecycle
 后面组合上述 opt-in 阶段。它从已保留 RetrievalSnapshot authorization linkage

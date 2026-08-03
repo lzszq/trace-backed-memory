@@ -1412,15 +1412,27 @@ effect request and attempt before invocation. For a successful Semantic call,
 bind `response_sha256` to the complete versioned `SemanticProviderResult`
 descriptor, including the raw response digest and every structured decision
 field; do not accept matching response bytes with changed decision fields.
-Never invoke the provider again after any effect event exists. A trusted
-provider-specific reconciler may confirm the exact receipt, retain unknown, or
-report not found only when an unknown result or successful receipt is already
-durable. The immutable request keeps its original authorization; same-scope
-recovery may append transitions under a fresh authorization decision.
-Request-only and in-flight/submitted streams, `still_unknown`, or an unclaimed
-`not_found` must remain recovery-required. Do not infer owner abandonment,
-schedule retry, dead-letter, compensate, or treat a completion callback as a
-provider effect until those active boundaries are implemented.
+Only the process that atomically inserts `attempt_started` owns one provider
+call; request-only claim losers must not invoke. Bind the trusted provider
+registration and any retry-policy digest into the immutable request, and pass
+the stable effect ID as the provider idempotency key. In-flight/submitted work remains recovery-required
+unless a server-owned verifier attests the exact retained owner actor, attempt,
+invocation, and head as fenced; that operation may only append
+`result_unknown`. A late owner result must not bypass reconciliation with a
+direct receipt. When configured, a trusted provider-specific reconciler must
+confirm an exact retained successful receipt and may confirm the receipt,
+retain unknown, or report not found for durably unknown work. `still_unknown`
+and `not_found` are invalid for a retained successful receipt. The
+immutable request keeps its original authorization and retry-policy digest;
+same-scope recovery may append transitions under a fresh authorization. Only a
+trusted `not_found` may schedule the retained bounded retry policy or terminal
+dead-letter; every retained schedule must reproduce the exact policy deadline.
+Generic compensation is available only when the original contract declares
+`compensation_supported=true`, must use one new effect stream per original
+effect, and requires an exact provider receipt. Semantic provider effects do not
+support compensation. `still_unknown`, an unattested active owner, a provider or
+policy mismatch, or a retry before or inconsistent with `retry_at` remains
+recovery-required. A completion callback is never a provider receipt.
 
 Use `AuthenticatedSemanticGateSessionService` only after authenticated durable
 retrieval preparation produced the exact `PREPARED` session. The request must
@@ -1600,9 +1612,11 @@ disposition event in the same transaction as the delivery revision. Use the
 actual `worker_id` as canonical actor. Treat `EffectSucceeded` as local callback
 acknowledgement only; it is not a provider receipt or proof of provider-side
 success. Semantic-provider unknown-result reconciliation is available only
-through the configured explicit durable effect path. Completion-provider
-integration, active provider retry/dead-letter ownership, and durable
-compensation remain separate work. Do not repair an outcome
+through the configured explicit durable effect path. Its atomic request claim,
+server-attested owner fencing, request-bound bounded retry/dead-letter, and
+generic receipt-backed compensation are opt-in. Completion-provider integration,
+automatic background sweep/lease fencing, concrete remote adapters, and shared-
+service workers remain separate work. Do not repair an outcome
 that exists without its event; investigate and recover the violated transaction
 boundary. Active durable completion-outbox emission is available through the
 explicit durable HTTP/MCP and Python/TypeScript SDK profiles, and `tbmd local`

@@ -26,7 +26,7 @@
 | `examples/completion_outbox_event_v3.example.json` | `example` | `application/json` | 662 | `50fd5af2841c2109d8316e79ab042102125036c0fad1e94f6e58ba2647fe5692` |
 | `examples/decision_replay_manifest_v3.example.json` | `example` | `application/json` | 1318 | `2aa1159ce58751b6776b918acff00b40926f1ecb8c2bdf24b77bad1977ad753a` |
 | `examples/entity_registry_v3.example.json` | `example` | `application/json` | 2683 | `70eca55470c5e9f3c96d42d011407f01381172d88d6ce46053a7b60ca025d15b` |
-| `examples/event_type_registry_v1.example.json` | `example` | `application/json` | 124414 | `094804dfbbf8bbbe7206dbe675347e0206ee8c3bf9d3e40de5bb8e7591601b81` |
+| `examples/event_type_registry_v1.example.json` | `example` | `application/json` | 124430 | `5e82bd9a729e3935b0603ac5f7c18d00712fd706fbf5e374dccc4d82bee36e4d` |
 | `examples/event_v1.example.json` | `example` | `application/json` | 2108 | `64064de1fabb9224b8f4fd1be270520d4f123074884d06d94e9fe2367ec5388c` |
 | `examples/failure_case.example.json` | `example` | `application/json` | 596 | `c54602f8ce6268c47c9eaed5d66994d46514679e1722fbd3988d1ca292d36569` |
 | `examples/fix_evidence_v3.example.json` | `example` | `application/json` | 832 | `16f830196cba86a72b933e130e11b3e6188b20ef5363032622129b076715bdb2` |
@@ -78,7 +78,7 @@
 | `schemas/completion_outbox_event_v3.schema.json` | `schema` | `application/schema+json` | 2126 | `23441c27f43ae571fb69baf5a39e85ab75371ba7981c03872afe5c1f817172f1` |
 | `schemas/decision_replay_manifest_v3.schema.json` | `schema` | `application/schema+json` | 10496 | `b0f54849c5383910a2df705671ba7ee4a89532a91d457277e8c331dd17a8983d` |
 | `schemas/entity_registry_v3.schema.json` | `schema` | `application/schema+json` | 3674 | `8b7d51d945c19731d12d0db53d679edfdd2e78e2834dd6a7c6d75a820b3eea2c` |
-| `schemas/event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 274903 | `5695575911ed5e681154ddec1f585d449df2a84838f80b402d76fa0124d11211` |
+| `schemas/event_payload_registry_v1.schema.json` | `schema` | `application/schema+json` | 274936 | `c6faa5da5b034682ccfef5ca31d4a19e054487d877397a0f11be192f26864cca` |
 | `schemas/event_type_registry_v1.schema.json` | `schema` | `application/schema+json` | 3359 | `fce6a06581e2fb115f2bd67f940ad306d1f634fb1e41895442cd656a544e4490` |
 | `schemas/event_v1.schema.json` | `schema` | `application/schema+json` | 7227 | `85a39c0a8712eca2a74fb5cbb26ce6029f1615aface324ce7e6e1266c3400765` |
 | `schemas/failure_case.schema.json` | `schema` | `application/schema+json` | 2634 | `2097a98f92b0c3e5fb7e57478cb42716be057218a45cd36e446fa1dc2a6826cb` |

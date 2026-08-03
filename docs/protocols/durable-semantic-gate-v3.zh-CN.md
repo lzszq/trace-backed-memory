@@ -23,6 +23,9 @@ preparation 边界生成；组合服务仍是可信内部 kernel，而不是 tra
 显式 durable HTTP/MCP 与 SDK profile 会通过 authenticated durable Agent facade
 暴露它；默认 compatibility adapter 不会。它的 provider callback 必须由服务端持有；provider authentication 不会把调用方
 提供的 callback 变成可信模型 provenance，签名 provider attestation 仍是后续工作。
+显式 durable runtime 配置可信 provider invoker 时，durable Agent 会用该 invoker
+替换 wire callback，并用 `SemanticProviderEffectService` 包装它。调用方 response 字段
+仍只是 compatibility input，不是可信 provider provenance。
 
 ## 决策顺序
 
@@ -36,9 +39,9 @@ preparation 边界生成；组合服务仍是可信内部 kernel，而不是 tra
 5. 通过 CAS 发布并读回 `AWAITING_DECISION`；
 6. 通过 CAS 续期并读回 live decision lease，让 stale 或竞争 revision 在 provider
    工作前失败；
-7. 调用 `AuthenticatedSemanticGateService`，由后者负责 provider/model、
-   prompt-template、generation、timing、result 与精确 prompt/response
-   provenance；
+7. 调用 `AuthenticatedSemanticGateService`；配置 trusted effect path 时，会先追加
+   Semantic effect request/attempt，只调用一次 server-owned provider，再记录一份
+   digest 绑定完整 structured provider result、而非只绑定 response bytes 的 receipt；
 8. 重新加载并核验完整 attempt chain，包括 System Gate 单调收窄规则与精确
    artifact 读回；以及
 9. 通过 CAS 发布并读回 `DECIDED`，其中记录完整有序 attempt-ID chain，以及
@@ -63,6 +66,17 @@ decision linkage。
 预期 revision 会在任何可变工作前强制核验。decided replay 会刻意接受原始请求中较旧
 的 revision，因为 terminal session 必然已经推进；此时精确 prompt、parent、chain、
 decision 与读回 receipt 共同构成幂等证明。
+
+effect request/attempt 已存在但 Semantic attempt 尚未保存时，provider invoker 绝不会
+再次调用。当前 adapter 没有 invocation owner 已放弃的 durable 证明，因此
+in-flight/submitted work 会保持 recovery-required 且不产生改写。只有 unknown result
+已经持久保留或 successful receipt 已存在时，才会使用配置的可信 reconciler，并允许其
+返回 `confirmed`、`still_unknown` 或 `not_found`。confirmed recovery 只有在完整 result
+digest 与 provider receipt 都精确一致后，才能保存 Semantic attempt。同 scope 的
+reconciliation 可以使用新的 transition authorization，但原始 request authorization
+保持固定。`still_unknown` 与 request-only stream 继续 recovery-required；`not_found`
+也不能直接开始新 attempt，必须先有独立 durable retry schedule/claim，而当前 adapter
+尚未提供该能力。
 
 successful attempt 后又出现另一个 attempt、prompt 或 parent 不匹配、读回被篡改、
 session 已 expired/canceled，或 transition 无法确认时，都必须进入

@@ -78,10 +78,15 @@ retrieval verifies those descriptors against the selected bundle.
 
 For a Semantic Gate decision, prompt and response bytes use canonical base64.
 Provider identity and credentials come only from the trusted provider context.
-The dispatcher builds the provider callback and compares retained prompt and
-response bytes after the durable service returns. A decided-session replay with
-different submitted response bytes fails as
-`TBM_DURABLE_WIRE_DECISION_REPLAY_MISMATCH`.
+The dispatcher still requires callback-compatible response input. Without a
+trusted server-owned Semantic invoker, it builds the provider callback and
+compares retained prompt and response bytes after the durable service returns;
+a decided-session replay with different submitted response bytes fails as
+`TBM_DURABLE_WIRE_DECISION_REPLAY_MISMATCH`. With the trusted invoker/effect
+profile enabled, caller response fields and bytes remain compatibility input
+only and are not provider provenance. The server invoker replaces that
+callback, and exact replay is governed by the retained Semantic attempt plus
+effect/result receipt.
 
 For completion, the operation-specific fields contain only measurement facts
 and artifact hashes, in addition to the session ID and expected version shared

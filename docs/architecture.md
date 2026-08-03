@@ -1779,6 +1779,18 @@ provenance, samples trusted start/finish time, and atomically retains the
 attempt plus exact bytes through either repository. Repeated prompt/response
 bytes reuse their immutable content-addressed descriptor while each attempt
 keeps a distinct role binding.
+`semantic_provider_effect_v1.py` is the optional server-owned invocation seam
+selected by explicit durable runtimes when a trusted Semantic provider invoker
+is configured. It appends the effect request and provider transitions before
+returning a result, and its Semantic receipt digest binds the complete
+structured `SemanticProviderResult`, including the raw response digest. A
+restart never repeats a retained effect; configured trusted reconciliation may
+recover a durably unknown or successful exact result under a fresh same-scope
+transition authorization. Request-only and in-flight/submitted work cannot be
+safely claimed as abandoned and remain recovery-required without mutation.
+Active owner-abandonment evidence, retry/dead-letter claims, compensation,
+completion-provider integration, and concrete remote-provider adapters remain
+outside this seam.
 `durable_semantic_gate_v3.py` composes that authenticated service with either
 GateSession authority. It verifies the prepared session against the immutable
 snapshot/evaluation/attempt chain, CAS-publishes `AWAITING_DECISION`, invokes
@@ -1823,8 +1835,11 @@ authority identity. A trusted adapter supplies those contexts and resolves the
 canonical repository and evaluator registration. Canonical-base64
 prompt/response/query bytes, exact session revisions, stable public errors, and
 explicit injection/replay content profiles are enforced before the facade is
-called. The dispatcher stores no lifecycle handles and is not a transport
-authenticator. The explicit `tbm-http --profile durable-v3` adapter selects it
+called. In callback-compatibility mode a decided replay must match retained
+response bytes; in trusted-invoker mode caller response bytes are not provider
+provenance and the server-owned effect/result receipt is authoritative. The
+dispatcher stores no lifecycle handles and is not a transport authenticator.
+The explicit `tbm-http --profile durable-v3` adapter selects it
 through the sole durable runtime factory, authenticates a local bearer before
 deriving server-owned contexts, hides content by default, and reopens the
 unified SQLite v3 graph across process restarts. The explicit
@@ -2127,11 +2142,18 @@ transition whose content-addressed attempt, invocation, receipt, and
 reconciliation identities rebuild through `effect-queue` reducer version 2.
 `ProviderEffectLedgerService` uses the authenticated generic ledger port for
 exact append replay and classifies orphan in-flight/submitted work as requiring
-reconciliation; only an explicit not-found result permits a scheduled retry.
+reconciliation. The Semantic adapter does not invoke that reconciliation or
+rewrite the stream until an unknown result or successful receipt is already
+durable; only an explicit not-found result permits a scheduled retry.
 Both generic SQLite/PostgreSQL ledgers can retain these events without another
-authority or SQL component. Active provider callbacks, provider-specific
-reconciliation adapters, durable compensation, Memory/index/audit/metrics
-reducers, complete lifecycle integration, migration, and cutover remain open.
+authority or SQL component. Explicit durable SQLite/PostgreSQL runtime factories
+now select server-owned Semantic invocation and a trusted provider-specific
+reconciliation callback when configured. The complete-result digest prevents a
+reconciler from changing structured Semantic fields while reusing response
+bytes. Request-only safe claims, active retry/dead-letter ownership, concrete
+remote-provider adapters, completion-provider integration, durable
+compensation, PostgreSQL crash parity, Memory/index/audit/metrics reducers,
+complete lifecycle integration, migration, and cutover remain open.
 
 The machine-readable
 [`authority-registry.json`](status/authority-registry.json) classifies every

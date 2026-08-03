@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+import re
 import secrets
 import sqlite3
 from threading import RLock
@@ -38,6 +39,11 @@ from .durable_semantic_gate_v3 import (
     AuthenticatedSemanticGateSessionService,
 )
 from .ledger_replay_export_v1 import ContextualLedgerReplayExportReaderV1
+from .ledger_port_v1 import (
+    LedgerAccessContext,
+    LedgerClassificationFilter,
+    LedgerTenantPartition,
+)
 from .gate_service_v3 import AuthenticatedGateSessionService
 from .gate_worker_v3 import (
     GateSessionRecoveryResult,
@@ -62,10 +68,21 @@ from .retrieval_preparation_v3 import (
 )
 from .semantic_gate_service_v3 import (
     AuthenticatedSemanticGateService,
+    SemanticProviderCall,
+    SemanticProviderResult,
     SemanticGateServiceConfiguration,
     TrustedSemanticProvider,
 )
-from .service_v3 import AuthenticatedRetrievalService
+from .semantic_provider_effect_v1 import (
+    SemanticProviderEffectService,
+    SemanticProviderReconciliationCall,
+    SemanticProviderReconciliationResult,
+)
+from .provider_effect_ledger_v1 import TrustedProviderEffectRegistration
+from .service_v3 import (
+    AuthenticatedRetrievalService,
+    AuthorizedRetrievalScope,
+)
 from .sqlite_authorization_v3 import SQLiteAuthorizationV3Repository
 from .sqlite_completion_outbox_v3 import (
     SQLiteCompletionOutboxV3Repository,
@@ -82,6 +99,9 @@ from .sqlite_bundle_v3 import (
     install_sqlite_v3_bundle,
     verify_sqlite_v3_bundle,
 )
+
+
+_RUNTIME_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 DURABLE_RUNTIME_CONTRACT_VERSION = "tbm.durable-runtime.v3"
@@ -146,6 +166,19 @@ class DurableRuntimeDependencies:
         Callable[[CompletionOutboxEvent], CompletionOutboxConsumerReceipt]
         | None
     ) = None
+    semantic_provider_invoker: (
+        Callable[[SemanticProviderCall], SemanticProviderResult] | None
+    ) = None
+    semantic_provider_reconciler: (
+        Callable[
+            [SemanticProviderReconciliationCall],
+            SemanticProviderReconciliationResult,
+        ]
+        | None
+    ) = None
+    semantic_provider_effect_actor_id: str = (
+        "semantic_provider_effect_service"
+    )
 
     def __post_init__(self) -> None:
         for callback in (
@@ -182,6 +215,21 @@ class DurableRuntimeDependencies:
             self.completion_consumer
         ):
             raise TypeError("completion_consumer must be callable")
+        if self.semantic_provider_invoker is not None and not callable(
+            self.semantic_provider_invoker
+        ):
+            raise TypeError("semantic_provider_invoker must be callable")
+        if self.semantic_provider_reconciler is not None and not callable(
+            self.semantic_provider_reconciler
+        ):
+            raise TypeError("semantic_provider_reconciler must be callable")
+        if (
+            self.semantic_provider_reconciler is not None
+            and self.semantic_provider_invoker is None
+        ):
+            raise ValueError(
+                "semantic provider reconciler requires an active invoker"
+            )
         for value in (
             self.retrieval_evaluator_id,
             self.retrieval_evaluator_version,
@@ -195,6 +243,16 @@ class DurableRuntimeDependencies:
                 raise ValueError(
                     "retrieval evaluator identifiers must be bounded"
                 )
+        if (
+            type(self.semantic_provider_effect_actor_id) is not str
+            or _RUNTIME_IDENTIFIER_RE.fullmatch(
+                self.semantic_provider_effect_actor_id
+            )
+            is None
+        ):
+            raise ValueError(
+                "semantic provider effect actor ID must be bounded"
+            )
 
 
 class _RuntimeLock(Protocol):
@@ -375,7 +433,43 @@ class DurableSQLiteRuntime:
                 execution_service=execution,
             )
             self.agent = AuthenticatedDurableAgentMemory(
-                service_bundle=self.service_bundle
+                service_bundle=self.service_bundle,
+                trusted_semantic_provider_invoker=(
+                    dependencies.semantic_provider_invoker
+                ),
+                semantic_provider_effect_factory=(
+                    None
+                    if dependencies.semantic_provider_invoker is None
+                    else lambda scope: SemanticProviderEffectService(
+                        request_ledger=SQLiteEventLedgerV1(
+                            connection,
+                            _semantic_effect_access(
+                                scope,
+                                actor_type="agent_client",
+                                actor_id=scope.agent_client_id,
+                            ),
+                        ),
+                        provider_ledger=SQLiteEventLedgerV1(
+                            connection,
+                            _semantic_effect_access(
+                                scope,
+                                actor_type="service",
+                                actor_id=(
+                                    dependencies
+                                    .semantic_provider_effect_actor_id
+                                ),
+                            ),
+                        ),
+                        provider=_provider_effect_registration(
+                            dependencies.semantic_provider
+                        ),
+                        clock=dependencies.clock,
+                        reconcile_provider=(
+                            dependencies.semantic_provider_reconciler
+                        ),
+                        owns_ledgers=True,
+                    )
+                ),
             )
             self.dispatcher = DurableAgentProtocolDispatcher(
                 DurableAgentWireConfiguration(
@@ -672,7 +766,43 @@ class DurablePostgresRuntime:
                 execution_service=execution,
             )
             self.agent = AuthenticatedDurableAgentMemory(
-                service_bundle=self.service_bundle
+                service_bundle=self.service_bundle,
+                trusted_semantic_provider_invoker=(
+                    dependencies.semantic_provider_invoker
+                ),
+                semantic_provider_effect_factory=(
+                    None
+                    if dependencies.semantic_provider_invoker is None
+                    else lambda scope: SemanticProviderEffectService(
+                        request_ledger=PostgresEventLedgerV1(
+                            connection,
+                            _semantic_effect_access(
+                                scope,
+                                actor_type="agent_client",
+                                actor_id=scope.agent_client_id,
+                            ),
+                        ),
+                        provider_ledger=PostgresEventLedgerV1(
+                            connection,
+                            _semantic_effect_access(
+                                scope,
+                                actor_type="service",
+                                actor_id=(
+                                    dependencies
+                                    .semantic_provider_effect_actor_id
+                                ),
+                            ),
+                        ),
+                        provider=_provider_effect_registration(
+                            dependencies.semantic_provider
+                        ),
+                        clock=dependencies.clock,
+                        reconcile_provider=(
+                            dependencies.semantic_provider_reconciler
+                        ),
+                        owns_ledgers=True,
+                    )
+                ),
             )
             self.dispatcher = DurableAgentProtocolDispatcher(
                 DurableAgentWireConfiguration(
@@ -899,6 +1029,41 @@ class DurableRuntimeFactory:
 
 def _runtime_failed(code: str, message: str) -> NoReturn:
     raise DurableRuntimeV3Error(code, message)
+
+
+def _semantic_effect_access(
+    scope: AuthorizedRetrievalScope,
+    *,
+    actor_type: str,
+    actor_id: str,
+) -> LedgerAccessContext:
+    return LedgerAccessContext(
+        partition=LedgerTenantPartition(
+            scope.organization_id,
+            scope.tenant_id,
+            scope.repository_id,
+            scope.environment_id,
+        ),
+        principal_id=scope.principal_id,
+        agent_client_id=scope.agent_client_id,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        authorization_decision_id=scope.authorization_event_id,
+        classification_filter=LedgerClassificationFilter(
+            ("public", "internal", "confidential", "restricted")
+        ),
+    )
+
+
+def _provider_effect_registration(
+    provider: TrustedSemanticProvider,
+) -> TrustedProviderEffectRegistration:
+    return TrustedProviderEffectRegistration(
+        provider_id=provider.provider_id,
+        model_id=provider.model_id,
+        model_version=provider.model_version,
+        endpoint_id=provider.endpoint_id,
+    )
 
 
 def _verify_postgres_schema_catalog(connection: object) -> None:

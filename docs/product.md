@@ -80,8 +80,8 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 结构化证据准备 | content-addressed FixEvidence 与 regression evidence 绑定精确 case、source Trace、source/fix/verification commit、artifact、独立 reviewer/verifier 与 attestation provenance；严格 MemoryRevision preflight 校验跨记录关系，active v2 record 尚不使用它们 |
 | 不可变 revision publication | 内容派生 proposal 与独立 approval/activation event 绑定精确 artifact、evidence、authorization、actor、scope 与 lineage；隔离 SQLite/PostgreSQL authority 持久化 canonical provenance，通过调用方 boundary 验证 attestation，并以 CAS 锁定 durable target head；已授权 ActivatedRevision source 会通过 SQLite/PostgreSQL Artifact authority 为未来 v3 retrieval 重新核验当前 head、publication provenance、结构化 evidence 与加密内容；active-v2 projection 和 retrieval integration 仍待完成 |
 | 可回放检索准备 | 内容寻址 policy 与可选 authenticated preparation kernel 先授权，再读取已核验 activated revision，过滤 classification/applicability/eval leakage/Git ancestry，对分数做确定性融合，并生成配对 RetrievalSnapshot/System Gate evidence，最后复查 head/policy；opt-in immutable 五视图托管索引 bundle 通过精确 SQLite/PostgreSQL scope-head CAS 提供内容寻址 metadata/lexical/semantic/evidence/Git discovery；durable 组合服务会创建已授权 GateSession、保存并核验精确 evidence 记录对，再通过 CAS 发布 `PREPARED`；生产分片/worker 与默认兼容路径 cutover 仍待完成 |
-| 可回放门禁准备 | 内容派生 System Gate evaluation 与 Semantic Gate attempt 绑定确定性 rule 结果及 provider/model provenance，并强制模型只能缩小；精确 prompt/response binding 核验角色 digest，SQLite/PostgreSQL authority 原子保存 public/internal 字节，共享服务认证 provider registration、持有可信计时与 retry parent，并要求精确读回；opt-in session 组合现会推进 `PREPARED -> AWAITING_DECISION -> DECIDED`、记录完整 attempt chain，并在不重复 provider 调用的情况下恢复已保存 success；显式 durable finalization 会在 `FINALIZED`/replay projection 同一 transaction 中 append `tbm.usage_decision.finalized -> tbm.injection.rendered`，`final-decision-injection` 会重建精确 parity；active policy emission 仍待完成 |
-| 持久化执行与完成准备 | authenticated execution 组合会在 `FINALIZED` → `EXECUTING` 前核验已保留 injection，支持精确 revision 的 lease resume 与 abandonment，认证已注册 outcome evaluator，并组合 opt-in SQLite 或隔离 PostgreSQL authority，原子绑定一份 content-addressed RunOutcome、`COMPLETED`、一条 immutable completion event、`EffectRequested` 与 append-only leased retry/dead-letter delivery chain；canonical worker transition event 会供 `effect-queue` reducer 按精确 delivery history 重建。存储中立 provider-effect transition/reducer/ledger service 现在会通过 generic SQLite/PostgreSQL ledger 保留内容寻址 receipt、unknown result、reconciliation、显式 retry schedule 与精确 response-loss replay。显式 durable transport 已暴露 completion 生命周期，`tbmd local` 会运行有界 SQLite recovery/outbox page；active provider callback selection、provider-specific reconciliation adapter、durable compensation 与 shared-service worker 仍待完成 |
+| 可回放门禁准备 | 内容派生 System Gate evaluation 与 Semantic Gate attempt 绑定确定性 rule 结果及 provider/model provenance，并强制模型只能缩小；精确 prompt/response binding 核验角色 digest，SQLite/PostgreSQL authority 原子保存 public/internal 字节，共享服务认证 provider registration、持有可信计时与 retry parent，并要求精确读回；opt-in session 组合推进 `PREPARED -> AWAITING_DECISION -> DECIDED`。显式 durable runtime 配置可信 invoker 后，会记录 server-owned Semantic effect request/attempt/receipt evidence，以完整 structured result digest 绑定 receipt，在不重复 provider 调用的情况下对账 retained uncertainty，再保存精确 Semantic attempt；显式 durable finalization 会在 `FINALIZED`/replay projection 同一 transaction 中 append `tbm.usage_decision.finalized -> tbm.injection.rendered`，`final-decision-injection` 会重建精确 parity；request-only claim、active provider retry/dead-letter/compensation 与 active policy emission 仍待完成 |
+| 持久化执行与完成准备 | authenticated execution 组合会在 `FINALIZED` → `EXECUTING` 前核验已保留 injection，支持精确 revision 的 lease resume 与 abandonment，认证已注册 outcome evaluator，并组合 opt-in SQLite 或隔离 PostgreSQL authority，原子绑定一份 content-addressed RunOutcome、`COMPLETED`、一条 immutable completion event、`EffectRequested` 与 append-only leased retry/dead-letter delivery chain；canonical worker transition event 会供 `effect-queue` reducer 按精确 delivery history 重建。存储中立 provider-effect transition/reducer/ledger service 会通过 generic SQLite/PostgreSQL ledger 保留内容寻址 receipt、unknown result、reconciliation、显式 retry schedule 与精确 response-loss replay，配置后的 Semantic provider path 已选择它。completion-provider integration、具体 reconciliation adapter、request-only claim、active retry/dead-letter ownership、durable compensation、PostgreSQL crash parity 与 shared-service worker 仍待完成 |
 | 分发资源 | [`resources/manifest.json`](../resources/manifest.json) 驱动严格、byte-identical 的 Schema/OpenAPI/SQL/迁移/taxonomy/example allowlist、runtime 声明、package data、metadata 与生成索引 |
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类；bounded local document ingestion 对本地 JSON/YAML 先限额再校验，并以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
@@ -136,8 +136,10 @@ replay manifest，并在不接受内容派生 lookup ID 的前提下授权有界
 `DurableAgentProtocolDispatcher` 现在会把该完整 facade 映射为可选
 `tbm.durable-agent-wire.v1` Python 边界。严格 request model 排除全部
 caller/provider/evaluator 与 scope identity，精确 bytes 使用 canonical base64，
-Semantic replay 会复查已保留 response bytes；embedding adapter 未显式启用时，
-injection/replay content 默认关闭。dispatcher 本身不认证 peer。显式 durable HTTP
+embedding adapter 未显式启用时，injection/replay content 默认关闭。callback
+compatibility replay 会复查已保留 response bytes；配置可信 server-owned invoker 时，
+调用方 response bytes 不是 provider provenance，以 effect/result receipt 为准。
+dispatcher 本身不认证 peer。显式 durable HTTP
 与可信本地 MCP profile 会选择它。Node.js `DurableAgentHTTPClient` 会选择 durable
 HTTP profile；默认兼容 HTTP/MCP、`AgentHTTPClient` 与普通 CLI 仍使用
 `tbm.agent.v1`。
@@ -231,6 +233,11 @@ HTTP profile；默认兼容 HTTP/MCP、`AgentHTTPClient` 与普通 CLI 仍使用
 
 当前版本已完成路线图 Phase 0-73、本地 agent/MCP 集成增量，并交付 Phase 74 已落地的 contract/隔离 authority，包括 opt-in SQLite 与隔离 PostgreSQL completion outbox 及其有界 at-least-once delivery worker、有界五视图 managed-index bundle 与精确 SQLite/PostgreSQL publication authority、经 Gate evidence 核验并推进 GateSession `PREPARED` 的 opt-in durable retrieval-preparation 桥接，经 `AWAITING_DECISION` 推进到 `DECIDED` 的 durable Semantic Gate 组合、通过精确 UsageDecision/replay 保留推进到 `FINALIZED` 的 opt-in durable finalization、authenticated durable execution，以及组合这些阶段的 adapter-neutral authenticated durable Agent facade。主要产品链路均有可执行 README 示例、JSON Schema、SQL invariants 和 pytest 覆盖，覆盖 Python 3.11、3.12、3.13、Windows、SQLite 与 required PostgreSQL CI。本地 MCP 采用固定 Git provenance、有界 strict frame、完整 ancestry capture 与 session-namespaced opaque request handle，阻止 stale finalize/cancel 在重启后命中新 request。bounded local document ingestion 使用 single file handle 施加 64 MiB、8 MiB 和 1 MiB 的输入上限；Trace 三个 structured JSON 字段共享 100,000 nodes 与 8 MiB key/string UTF-8 text 的固定 runtime budget；LLM decision 的 `allowed_memory_ids` / `blocked_memory_ids` 各限 50 项；`capture_commit_ancestry()` 以 `COMMIT_ANCESTRY_MAX_ANCHORS` 在去重前限制 1,000 个输入并在 overflow 时不启动 Git；read-only `pr-report` 保留 `commit_ancestry` 与 `report` 审计输出；active-lessons CLI 在默认 no-replace 导出和 dry-run 导入下复用同一 Store 原子边界；单项及 batch obsolescence CLI 以非敏感 dry-run 预览复用 forward-only failure-case/lesson/project-policy 状态与 case→lesson 原子 cascade，批次由 Store all-or-nothing 提交；decision-only `outcome` CLI 以最小非敏感摘要封存 deferred evaluation，不修改关联 Trace；PostgreSQL load/sync 通过表锁与行锁避免跨时刻快照和 stale protected-field validation，并在五表锁后依次以 `count(*)` count preflight 将加载限制为每集合 100,000 条、总计 250,000 条，再以 loaded-row projection UTF-8 JSON preflight 将最大单行与五表总计限制为 64 MiB，在 collection fetch 前拒绝超限数据库，且不再计入三个 selector 未读取的内部 `updated_at`；缺失行 INSERT 的保存点重查进一步将同主键并发提交分类为 `unchanged`、`updated` 或 `PostgresConflictError`，且保留目标缺失碰撞的 `PostgresPersistenceError`；所有 caller-owned JSON 在任意层拒绝重复对象键。Phase 71 更新可信提升与 LLM 边界；Phase 72 增加 schema 版本 1 的 SQLite Repository 与第 19 项 packaged resource；Phase 73 增加运行时容量/文本限制、Gate Trace/run/request 审计绑定、SQLite/摄取故障加固、PostgreSQL schema 版本 2 和第 20 项 v1-to-v2 迁移资源；Phase 74 当前交付 strict v3 mapping/preflight、不可激活 content-addressed bundle、immutable SQLite staging、隔离 PostgreSQL staging/rollback 及后续的 v3 contract/isolated authority。
 
+显式 durable runtime 还可以选择 server-owned Semantic provider effect invoker 与可信
+reconciliation 边界。这仍是 opt-in provider-effect evidence，不是默认路径 cutover；
+request-only claim、active provider retry/dead-letter/compensation、completion-provider
+integration、PostgreSQL crash parity 与完整 transport parity 尚未完成。
+
 [ADR-0006](adr/0006-full-persistence-reducer-native-memory.zh-CN.md) 已冻结下一阶段
 产品架构：canonical event ledger、content-addressed artifact 与 versioned deterministic
 reducer。这仍不是 active 事实来源能力：reducer/projection kernel 现在只通过显式
@@ -280,9 +287,12 @@ authenticated replay authority 加载精确字节，并核验 projection parity�
 attribution 与本地 completion-effect event/reducer 已覆盖精确 RunOutcome、
 OutcomeAttribution、delivery-history 与 dead-letter parity。存储中立 provider
 transition/reducer/ledger service 已覆盖内容寻址 receipt 与保守 unknown-result recovery；
-active provider callback selection、provider-specific reconciliation adapter、durable
-compensation、完整 transport conformance 与 F2 kill matrix 仍未完成。因此 ledger 尚未成为
-唯一 durable 事实源，`full_persistence` 继续为 `false`。
+显式 durable runtime 已选择 server-owned Semantic invocation 与配置的可信
+reconciliation，并以完整 result digest 绑定 receipt。request-only safe claim、active
+retry/dead-letter ownership、completion-provider integration、具体 remote-provider
+adapter、durable compensation、PostgreSQL crash parity、完整 transport conformance 与
+F2 kill matrix 仍未完成。因此 ledger 尚未成为唯一 durable 事实源，
+`full_persistence` 继续为 `false`。
 
 Phase 71 强化可信提升与运行时边界：Failure Case 只能来自 `fail`/`error` Trace，verify 前必须具备 reviewer、root cause 与 review timestamp，dirty source 不能激活 Lesson；LLM response 限制为 64 KiB、1,000 nodes、depth 20，reason 最多 2,000 字符；所有未被 LLM 选中的系统候选都会进入 blocked 审计，超过 50 项时确定性保留前 50 项并记录其余项；`short_summary` 与 `full_case_summary` 使用不同 renderer，关键词检索支持 Unicode。
 

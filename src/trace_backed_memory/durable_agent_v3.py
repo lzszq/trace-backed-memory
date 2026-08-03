@@ -57,6 +57,7 @@ from .semantic_gate_service_v3 import (
     SemanticProviderCall,
     SemanticProviderResult,
 )
+from .semantic_provider_effect_v1 import SemanticProviderEffectService
 from .service_v3 import (
     AuthenticatedRetrievalService,
     AuthenticatedServiceContext,
@@ -204,6 +205,13 @@ class AuthenticatedDurableAgentMemory:
         semantic_service: AuthenticatedSemanticGateSessionService | None = None,
         finalization_service: DurableFinalizationService | None = None,
         execution_service: DurableExecutionService | None = None,
+        trusted_semantic_provider_invoker: (
+            Callable[[SemanticProviderCall], SemanticProviderResult] | None
+        ) = None,
+        semantic_provider_effect_factory: (
+            Callable[[AuthorizedRetrievalScope], SemanticProviderEffectService]
+            | None
+        ) = None,
     ) -> None:
         legacy_services = (
             authorization_service,
@@ -246,6 +254,19 @@ class AuthenticatedDurableAgentMemory:
         ):
             raise TypeError(
                 "service_bundle cannot be combined with legacy service arguments"
+            )
+
+        if (trusted_semantic_provider_invoker is None) != (
+            semantic_provider_effect_factory is None
+        ) or (
+            trusted_semantic_provider_invoker is not None
+            and (
+                not callable(trusted_semantic_provider_invoker)
+                or not callable(semantic_provider_effect_factory)
+            )
+        ):
+            raise TypeError(
+                "trusted semantic provider invoker and effect factory must be paired"
             )
 
         graph = service_bundle.authority_graph
@@ -293,12 +314,24 @@ class AuthenticatedDurableAgentMemory:
             DurableAgentReplayExportReader,
             replay_export_reader,
         )
+        self._trusted_semantic_provider_invoker = (
+            trusted_semantic_provider_invoker
+        )
+        self._semantic_provider_effect_factory = (
+            semantic_provider_effect_factory
+        )
 
     @property
     def service_bundle(self) -> DurableServiceBundle:
         """Return the validated service bundle used by this facade."""
 
         return self._service_bundle
+
+    @property
+    def uses_trusted_semantic_provider_invoker(self) -> bool:
+        """Whether server-owned provider invocation replaces caller callbacks."""
+
+        return self._trusted_semantic_provider_invoker is not None
 
     def prepare(
         self,
@@ -524,20 +557,64 @@ class AuthenticatedDurableAgentMemory:
         transition_scope: AuthorizedRetrievalScope,
         call_provider: Callable[[SemanticProviderCall], SemanticProviderResult],
     ) -> DurableSemanticGateResult:
+        selected_provider = self._trusted_semantic_provider_invoker
+        effect_service: SemanticProviderEffectService | None = None
+        if selected_provider is None:
+            selected_provider = call_provider
+        effect_factory = self._semantic_provider_effect_factory
+        if effect_factory is not None:
+            effect_service = effect_factory(transition_scope)
+            if type(effect_service) is not SemanticProviderEffectService:
+                raise DurableAgentV3Error(
+                    "TBM_DURABLE_AGENT_PROVIDER_EFFECT_INVALID",
+                    "semantic provider effect service is invalid",
+                )
+            provider_invoker = selected_provider
+
+            def call_effect_provider(
+                provider_call: SemanticProviderCall,
+            ) -> SemanticProviderResult:
+                return effect_service.invoke(
+                    session_id=request.session_id,
+                    expected_previous_attempt_id=(
+                        request.expected_previous_attempt_id
+                    ),
+                    call=provider_call,
+                    call_provider=provider_invoker,
+                )
+
+            selected_provider = call_effect_provider
+
         def call_rechecked_provider(
             provider_call: SemanticProviderCall,
         ) -> SemanticProviderResult:
             self._recover_retrieval_scope(context, request.session_id)
-            result = call_provider(provider_call)
+            result = selected_provider(provider_call)
             self._recover_retrieval_scope(context, request.session_id)
             self._verify_transition_scope(context, transition_scope)
             return result
 
-        return self._semantic_service.decide(
-            provider_context,
-            request,
-            call_rechecked_provider,
-        )
+        decision_error: BaseException | None = None
+        try:
+            return self._semantic_service.decide(
+                provider_context,
+                request,
+                call_rechecked_provider,
+            )
+        except BaseException as error:
+            decision_error = error
+            raise
+        finally:
+            if effect_service is not None:
+                try:
+                    effect_service.close()
+                except BaseException as close_error:
+                    if decision_error is None:
+                        raise
+                    decision_error.add_note(
+                        f"also failed to close provider effect service: "
+                        f"{close_error}"
+                    )
 
     def _cancel_authorized(
         self,

@@ -5,6 +5,7 @@ import inspect
 
 import pytest
 import trace_backed_memory as tbm
+import trace_backed_memory.ledger_port_v1 as ledger_port_v1
 
 from trace_backed_memory.event_v1 import (
     CanonicalEvent,
@@ -15,6 +16,7 @@ from trace_backed_memory.ledger_port_v1 import (
     EVENT_LEDGER_MAX_APPEND_BATCH,
     EVENT_LEDGER_MAX_READ_PAGE,
     EVENT_LEDGER_PORT_VERSION,
+    EventLedgerAtomicAppendPort,
     EventLedgerClassificationDeniedError,
     EventLedgerConflictError,
     EventLedgerIdempotencyConflictError,
@@ -22,6 +24,7 @@ from trace_backed_memory.ledger_port_v1 import (
     EventLedgerPort,
     EventLedgerScopeDeniedError,
     LedgerAccessContext,
+    LedgerAppendCommit,
     LedgerAppendReceipt,
     LedgerAppendRequest,
     LedgerClassificationFilter,
@@ -260,12 +263,18 @@ def test_event_ledger_port_contract_is_intentionally_exported() -> None:
     assert tbm.EVENT_LEDGER_PORT_VERSION == "tbm.event-ledger-port.v1"
     assert {
         "EventLedgerPort",
+        "EventLedgerAtomicAppendPort",
         "LedgerAppendRequest",
+        "LedgerAppendCommit",
         "LedgerAppendReceipt",
         "LedgerStreamReadRequest",
         "LedgerGlobalReadRequest",
         "LedgerSubscriptionRequest",
     } <= set(tbm.__all__)
+    assert {
+        "EventLedgerAtomicAppendPort",
+        "LedgerAppendCommit",
+    } <= set(ledger_port_v1.__all__)
     assert tuple(inspect.signature(EventLedgerPort.append).parameters) == (
         "self",
         "stream_id",
@@ -273,6 +282,16 @@ def test_event_ledger_port_contract_is_intentionally_exported() -> None:
         "events",
         "idempotency",
     )
+    assert tuple(
+        inspect.signature(EventLedgerAtomicAppendPort.append_once).parameters
+    ) == (
+        "self",
+        "stream_id",
+        "expected_version",
+        "events",
+        "idempotency",
+    )
+    assert LedgerAppendCommit.__dataclass_params__.frozen is True
     assert tuple(inspect.signature(EventLedgerPort.read_stream).parameters) == (
         "self",
         "stream_id",

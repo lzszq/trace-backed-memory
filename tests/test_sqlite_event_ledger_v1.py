@@ -618,11 +618,21 @@ def test_sqlite_event_ledger_concurrent_exact_replay_is_single_commit() -> None:
     request = _batch(_access())
     try:
         with ThreadPoolExecutor(max_workers=2) as executor:
-            receipts = tuple(
-                executor.map(lambda _index: _append(ledger, request), range(2))
+            commits = tuple(
+                executor.map(
+                    lambda _index: ledger.append_once(
+                        request.stream_id,
+                        request.expected_stream_version,
+                        request.events,
+                        request.idempotency,
+                    ),
+                    range(2),
+                )
             )
 
-        assert receipts[0] == receipts[1]
+        assert commits[0].receipt == commits[1].receipt
+        assert sorted(commit.inserted for commit in commits) == [False, True]
+        assert sorted(commit.replayed for commit in commits) == [False, True]
         assert connection.execute(
             "SELECT COUNT(*) FROM v3_event_ledger_events"
         ).fetchone() == (2,)

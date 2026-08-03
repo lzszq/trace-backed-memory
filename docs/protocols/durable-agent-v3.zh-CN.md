@@ -40,7 +40,9 @@ facade 暴露：
    保存精确 RetrievalSnapshot/System Gate evidence，并发布 `PREPARED`；
 2. `decide(context, provider_context, request, call_provider)`：先从已保留 retrieval
    evidence 重新认证 session owner，持久化新的 `gate_session:transition` 授权，
-   在 provider 工作前后复查两个 scope，再调用已认证 Semantic Gate service；
+   在 provider 工作前后复查两个 scope，再调用已认证 Semantic Gate service。配置
+   可信 server-owned invoker 时，`call_provider` 仍是兼容参数，但不构成 provider
+   provenance，且会由 server invoker 替代；
 3. `finalize(context, request)`：恢复原始 retrieval scope，复查当前授权与 revision
    状态，持久化新的 transition 授权，保存精确 replay bundle，并发布 `FINALIZED`；
 4. `start(context, request)` 与 `resume(context, request)`：恢复原始 retrieval scope，

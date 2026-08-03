@@ -534,6 +534,19 @@ GateSession/replay 原子性或 active adapter emission。同一 retry chain 已
 相同的 prompt 或 response 字节时，应复用其不可变 content-addressed descriptor，
 只创建新的 attempt binding；不得用新 timestamp 改写 content row。
 
+显式 durable runtime 配置可信 Semantic provider invoker 时，必须通过
+`SemanticProviderEffectService` 路由调用，并在 invocation 前追加 effect request 与
+attempt。Semantic 调用成功时，`response_sha256` 必须绑定完整、带版本的
+`SemanticProviderResult` descriptor，包括 raw response digest 与每个 structured
+decision 字段；不得接受 response bytes 相同但 decision 字段变化的结果。任何 effect
+event 已存在后都不得再次调用 provider。可信 provider-specific reconciler 可以确认
+精确 receipt、继续保持 unknown 或报告 not found，但前提是 unknown result 或 successful
+receipt 已经持久保留。不可变 request 保留原始 authorization；同 scope recovery 可以在
+新的 authorization decision 下追加 transition。request-only 与 in-flight/submitted
+stream、`still_unknown` 或尚未 claim 的 `not_found` 必须保持 recovery-required。
+在 active boundary 实现前，不得推断 owner abandonment、安排 retry/dead-letter、执行
+compensation，也不得把 completion callback 当作 provider effect。
+
 只能在 authenticated durable retrieval preparation 生成精确 `PREPARED` session
 后使用 `AuthenticatedSemanticGateSessionService`。请求必须指定预期 session
 revision、retry parent 与有界 decision lease；snapshot/evaluation ID 必须从 session
@@ -605,7 +618,10 @@ principal/client/tenant/repository/environment、provider、evaluator、credenti
 authorization event 与 authority handle 均不得进入 request JSON。adapter 必须根据
 实时 authentication 构造可信 context，在服务端解析 canonical repository，并在构造
 completion 前解析已注册 evaluator。精确 query、prompt 与 provider response bytes
-必须使用 canonical base64；已 decided 的重放必须匹配已保留 response bytes。
+必须使用 canonical base64。callback compatibility 模式下，已 decided 的重放必须匹配
+已保留 response bytes；配置可信 server-owned Semantic invoker 时，调用方 response
+bytes 不是 provider provenance，精确 replay 由已保留 Semantic attempt 与 effect/result
+receipt 约束。
 
 内容暴露必须另外 fail closed。adapter 未显式启用 injection content 时，只返回
 descriptor 与 null snippet；未显式启用 replay content 时，从 capabilities 移除
@@ -679,8 +695,9 @@ response digest 只是 audit metadata，不能证明远端副作用 exactly once
 dead-letter failure 必须在 delivery revision 的同一 transaction 中先追加
 `EffectFailed`，再追加对应 disposition event。canonical actor 必须使用真实
 `worker_id`。`EffectSucceeded` 只代表本地 callback acknowledgement，不是 provider
-receipt 或 provider 端成功证明。provider unknown-result reconciliation 与 durable
-compensation 仍是独立工作。outcome
+receipt 或 provider 端成功证明。Semantic-provider unknown-result reconciliation 只在
+配置后的显式 durable effect path 中可用。completion-provider integration、active
+provider retry/dead-letter ownership 与 durable compensation 仍是独立工作。outcome
 已存在但 event 缺失时不得静默修补，应调查并恢复被破坏的 transaction boundary。
 显式 durable HTTP/MCP 与 Python/TypeScript SDK profile 已提供 active durable
 completion-outbox emission，`tbmd local` 也会执行有界 SQLite delivery page。

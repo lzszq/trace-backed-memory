@@ -178,7 +178,10 @@
         "src/trace_backed_memory/effect_event_v1.py",
         "src/trace_backed_memory/effect_reducer_v1.py",
         "src/trace_backed_memory/provider_effect_ledger_v1.py",
+        "src/trace_backed_memory/semantic_provider_effect_v1.py",
         "tests/test_provider_effect_ledger_v1.py",
+        "tests/test_semantic_provider_effect_v1.py",
+        "tests/test_durable_runtime_v3.py",
         "docs/protocols/effect-event-v1.md"
       ]
     },

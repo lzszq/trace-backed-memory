@@ -777,9 +777,12 @@ class DurableAgentProtocolDispatcher:
             if (
                 not hmac.compare_digest(artifacts.prompt.content, prompt)
                 or retained_response is None
-                or not hmac.compare_digest(
-                    retained_response.content,
-                    response,
+                or (
+                    not self._runtime.uses_trusted_semantic_provider_invoker
+                    and not hmac.compare_digest(
+                        retained_response.content,
+                        response,
+                    )
                 )
             ):
                 raise DurableAgentWireError(

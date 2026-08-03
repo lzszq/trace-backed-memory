@@ -1869,8 +1869,13 @@ that `effect-queue` verifies with exact history parity. A storage-neutral
 provider transition, `effect-queue` reducer version 2, and authenticated
 generic-ledger service now retain content-addressed attempts, provider request
 IDs, receipts, unknown results, reconciliation, explicit retry scheduling, and
-exact response-loss replay without another authority. Active provider
-callbacks, provider-specific reconciliation adapters, durable compensation,
+exact response-loss replay without another authority. Explicit durable runtime
+factories now select a server-owned Semantic provider invoker and trusted
+reconciliation callback when configured. The Semantic receipt binds the full
+structured result, retained effects never repeat provider invocation, and a
+fresh same-scope transition authorization may reconcile the immutable original
+request. Request-only claims, active retry/dead-letter ownership, concrete
+remote-provider adapters, completion-provider integration, durable compensation,
 Memory/index/audit/metrics reducers, migration, complete lifecycle integration,
 and the remaining event-first cutover remain outstanding. The SQLite local daemon now also has a
 real child-process `SIGKILL`/reopen sweep after acknowledged `PREPARED`,
@@ -1888,10 +1893,15 @@ Recovery preserves orphan evidence, publishes one logical lifecycle/effect
 event, keeps reducers equal to projections, and treats only the pre-ack
 boundary as bounded at-least-once delivery. The provider-effect ledger service
 now treats orphan in-flight/submitted work as reconciliation-required and
-allows retry only after an explicit not-found reconciliation. Active provider-
-call selection and provider-specific reconciliation, a hard-kill compatibility
-retained-bundle boundary, durable compensation, PostgreSQL transport/crash
-equivalents, and the complete cross-transport crash matrix remain open.
+allows retry only after an explicit not-found reconciliation. The Semantic
+provider-effect path records request/attempt/submission/receipt evidence, never
+repeats an uncertain or retained invocation, and accepts exact confirmed,
+still-unknown, or not-found reconciliation only for durably unknown/successful
+work. Orphan owner-abandonment evidence, request-only claiming, active retry
+after not-found, dead-letter/compensation ownership, completion-provider
+integration, a hard-kill compatibility retained-bundle boundary, PostgreSQL
+transport/crash equivalents, and the complete cross-transport crash matrix
+remain open.
 
 The same durable lifecycle now produces an identical 17-event global sequence,
 seven stream heads, canonical event IDs/SHAs, and all eight registered reducer
@@ -1924,10 +1934,12 @@ broader F2 gates remain incomplete.
   response loss from `DECIDED` through acknowledgement. Local happy-path
   cross-stream parity now covers the Python facade, HTTP sync/async SDKs, a real
   STDIO MCP child process, and the TypeScript HTTP SDK. The storage-neutral
-  provider receipt/reconciliation foundation is delivered, but active callback
-  integration, provider-specific reconciliation, durable compensation,
-  PostgreSQL transport/crash equivalents, and the complete crash matrix remain
-  open.
+  provider receipt/reconciliation foundation is delivered, and configured
+  explicit runtimes select the Semantic provider invocation/reconciliation
+  seam with complete-result receipt binding. Request-only claims, active
+  retry/dead-letter ownership, completion-provider integration, concrete
+  remote-provider adapters, durable compensation, PostgreSQL transport/crash
+  equivalents, and the complete crash matrix remain open.
 - **F3 — Trace, Git, and effect evidence:** ordered Trace/Git observations,
   Git-graph projection, external-effect receipt integration (the storage-
   neutral event/reducer/ledger foundation is delivered), Codex hooks, and

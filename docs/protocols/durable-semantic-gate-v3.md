@@ -27,6 +27,10 @@ authenticated durable Agent facade; default compatibility adapters do not.
 Its provider callback must remain server-owned; provider
 authentication does not turn a caller-supplied callback into trustworthy model
 provenance, and signed provider attestation remains future work.
+When the explicit durable runtime is configured with a trusted provider
+invoker, the durable Agent replaces the wire callback with that invoker and
+wraps it in `SemanticProviderEffectService`. Caller response fields remain
+compatibility input, not trusted provider provenance.
 
 ## Decision order
 
@@ -40,9 +44,10 @@ For a fresh prepared session, the service:
 5. CAS-publishes and reads back `AWAITING_DECISION`;
 6. CAS-renews and reads back the live decision lease, so stale or competing
    revisions fail before provider work;
-7. invokes `AuthenticatedSemanticGateService`, which owns provider/model,
-   prompt-template, generation, timing, result, and exact prompt/response
-   provenance;
+7. invokes `AuthenticatedSemanticGateService`; when the trusted effect path is
+   configured it first appends the Semantic effect request/attempt, calls the
+   server-owned provider once, and records a receipt whose digest binds the
+   complete structured provider result rather than response bytes alone;
 8. reloads and verifies the complete attempt chain, including monotonic System
    Gate narrowing and exact artifact read-back; and
 9. CAS-publishes and reads back `DECIDED` with the complete ordered attempt-ID
@@ -69,6 +74,19 @@ The expected revision is enforced before mutable work. A decided replay
 deliberately accepts the original request's older revision because the terminal
 session has necessarily advanced; the exact prompt, parent, chain, decision,
 and read-back receipt become the idempotency proof.
+
+If an effect request or attempt exists without a Semantic attempt, the provider
+invoker is never called again. In-flight/submitted work remains recovery-
+required without mutation because this adapter has no durable proof that the
+invocation owner was abandoned. A configured trusted reconciler is used only
+for a durably recorded unknown result or retained successful receipt and may
+return `confirmed`, `still_unknown`, or `not_found`. Confirmed recovery must
+reproduce the exact complete-result digest and provider receipt before the
+Semantic attempt can be retained. Same-scope reconciliation may use a fresh
+transition authorization while the original request authorization remains
+fixed. `still_unknown` and a request-only stream remain recovery-required;
+`not_found` does not start a new attempt until a separate durable retry schedule
+and claim exist, which this adapter does not yet provide.
 
 A succeeded attempt followed by another attempt, a prompt or parent mismatch,
 tampered read-back, an expired/canceled session, or a transition that cannot be

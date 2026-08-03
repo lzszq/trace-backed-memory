@@ -47,6 +47,18 @@ same key and exact canonical request returns the exact original
 `LedgerAppendReceipt`. Reusing the key for another command or request fails;
 a stale expected version fails without mutation.
 
+`EventLedgerAtomicAppendPort` is an additive ownership extension; it does not
+change the frozen `append` signature, receipt, digest, or port version.
+`append_once(...)` executes the same transaction and returns
+`LedgerAppendCommit(receipt, inserted)`. `inserted=true` belongs only to the
+caller whose transaction inserted the idempotency record; an exact retained
+replay returns the same receipt with `inserted=false`. Effect orchestrators use
+that result before invoking a remote provider and never infer ownership from a
+read-after-write. The extension also exposes a backend-owned opaque
+`authority_identity`; compositions may compare it only by strict object
+identity to reject mixed physical authorities. It is not a tenant or scope
+credential.
+
 Immediately before that transaction commits, the backend applies
 `verify_ledger_append_precondition`: the supplied current head must match the
 expected stream version, the first event must extend its exact hash, and the

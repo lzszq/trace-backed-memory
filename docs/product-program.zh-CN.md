@@ -980,8 +980,12 @@ outbox 操作会追加本地 effect request/delivery/dead-letter evidence，并�
 核验精确 history parity。存储中立 provider transition、`effect-queue` reducer version 2
 与 authenticated generic-ledger service 现在会保留内容寻址 attempt、provider request ID、
 receipt、unknown result、reconciliation、显式 retry schedule 与精确 response-loss replay，
-且不新增 authority。active provider callback、provider-specific reconciliation adapter、
-durable compensation、Memory/index/audit/metrics reducer、migration、完整 lifecycle
+且不新增 authority。显式 durable runtime factory 在配置后已选择 server-owned Semantic
+provider invoker 与可信 reconciliation callback。Semantic receipt 绑定完整 structured
+result；已保留 effect 绝不会重复 provider invocation；新的同 scope transition
+authorization 可以对账不可变原始 request。request-only claim、active retry/dead-letter
+ownership、具体 remote-provider adapter、completion-provider integration、durable
+compensation、Memory/index/audit/metrics reducer、migration、完整 lifecycle
 integration 与其余 event-first cutover 仍未完成。SQLite local daemon 现还具备真实子进程
 `SIGKILL`/reopen sweep：分别在已确认的 `PREPARED`、`DECIDED`、`FINALIZED`、
 `EXECUTING` 与 `COMPLETED` commit 后硬杀并重启；每次重启都要求精确 command replay，
@@ -995,10 +999,13 @@ probe 还覆盖 `DECIDED`、event-first `FINALIZED`、`EXECUTING`、组合 compl
 与 acknowledgement durability。精确重试不会改变完整 event ledger、global/stream head
 或 GateSession history；已提交 acknowledgement 不会再次投递。provider-effect ledger
 service 现在会把 orphan in-flight/submitted work 归为 reconciliation-required，且只有显式
-not-found reconciliation 后才允许 retry。active provider-call selection 与 provider-
-specific reconciliation、compatibility retained-bundle 的 hard-kill 边界、durable
-compensation、PostgreSQL transport/crash 对等测试及完整 cross-transport crash matrix
-仍未完成。
+not-found reconciliation 后才允许 retry。Semantic provider-effect path 现在会记录
+request/attempt/submission/receipt evidence，绝不重复不确定或已保留的 invocation，并且
+只对已持久 unknown/successful work 接受精确 confirmed、still-unknown 或 not-found
+reconciliation。orphan owner-abandonment evidence、request-only claim、not-found 后的
+active retry、dead-letter/compensation ownership、completion-provider integration、
+compatibility retained-bundle 的 hard-kill 边界、PostgreSQL transport/crash 对等测试及
+完整 cross-transport crash matrix 仍未完成。
 
 同一 durable lifecycle 现在会经 Python facade、Python HTTP 同步/异步 SDK、真实
 JSON-RPC STDIO MCP 子进程与 Bun 下的 TypeScript HTTP SDK 产生完全相同的 17-event
@@ -1025,7 +1032,9 @@ closed。在更大的 F2 gate 完成前，这两项增量都不提升新 atom。
   以及从 `DECIDED` 到 acknowledgement 的已提交 response loss。本地 happy-path
   cross-stream parity 已覆盖 Python facade、HTTP sync/async SDK、真实 STDIO MCP
   子进程与 TypeScript HTTP SDK。存储中立 provider receipt/reconciliation 基础已交付，
-  但 active callback integration、provider-specific reconciliation、durable compensation、
+  配置后的显式 runtime 已选择带完整 result receipt binding 的 Semantic provider
+  invocation/reconciliation seam。request-only claim、active retry/dead-letter ownership、
+  completion-provider integration、具体 remote-provider adapter、durable compensation、
   PostgreSQL transport/crash 对等测试与完整 crash matrix 仍未完成。
 - **F3 — Trace、Git 与 effect evidence：** 有序 Trace/Git observation、Git-graph
   projection、external-effect receipt integration（存储中立 event/reducer/ledger 基础已

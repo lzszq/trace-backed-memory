@@ -74,10 +74,14 @@ Semantic Gate provider identity；managed-index retrieval 会针对所选 bundle
 这些 descriptor。
 
 Semantic Gate decision 的 prompt/response bytes 使用 canonical base64。provider
-identity 与 credential 只能来自可信 provider context。dispatcher 构造 provider
-callback，并在 durable service 返回后比较已保留 prompt/response bytes。对已经
-decided 的 session 使用不同 response bytes 重放时，会以
-`TBM_DURABLE_WIRE_DECISION_REPLAY_MISMATCH` 失败。
+identity 与 credential 只能来自可信 provider context。dispatcher 仍要求兼容
+callback 的 response 输入。未配置可信 server-owned Semantic invoker 时，它会构造
+provider callback，并在 durable service 返回后比较已保留 prompt/response bytes；
+对已经 decided 的 session 使用不同 response bytes 重放时，会以
+`TBM_DURABLE_WIRE_DECISION_REPLAY_MISMATCH` 失败。启用可信 invoker/effect profile
+后，调用方 response 字段与 bytes 只保留为兼容输入，不构成 provider provenance；
+server invoker 会替代该 callback，精确 replay 由已保留 Semantic attempt 与
+effect/result receipt 约束。
 
 completion 的操作专属字段只包含 measurement facts 与 artifact hash，此外还有
 state transition 共用的 session ID 与 expected version。可信 evaluator resolver

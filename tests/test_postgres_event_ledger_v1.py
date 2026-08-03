@@ -630,11 +630,18 @@ def test_postgres_event_ledger_concurrent_exact_replay_is_single_commit(
 
     def append() -> object:
         with _repository(postgres_cluster) as ledger:
-            return _append(ledger, request)
+            return ledger.append_once(
+                request.stream_id,
+                request.expected_stream_version,
+                request.events,
+                request.idempotency,
+            )
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        receipts = tuple(pool.map(lambda _value: append(), range(2)))
-    assert receipts[0] == receipts[1]
+        commits = tuple(pool.map(lambda _value: append(), range(2)))
+    assert commits[0].receipt == commits[1].receipt
+    assert sorted(commit.inserted for commit in commits) == [False, True]
+    assert sorted(commit.replayed for commit in commits) == [False, True]
     with _repository(postgres_cluster) as ledger:
         assert ledger.read_global().events == request.events
 

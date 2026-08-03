@@ -63,11 +63,39 @@ retry-scheduled evidence.
 exact retained append receipt after response loss. Recovery returns one of
 `start_attempt`, `reconcile`, `schedule_retry`, or `complete`. A restart that
 sees only `attempt_started` or `request_submitted` returns `reconcile`, because
-the ledger cannot prove whether the external request ran. The service binds one
-server-owned `TrustedProviderEffectRegistration` and rejects transitions whose
-provider/model/version/endpoint differ. The application must keep this service
-behind its authenticated provider adapter; the service does not authenticate a
-remote provider from request JSON.
+the ledger cannot prove whether the external request ran. That classification
+does not authorize the Semantic adapter to rewrite the attempt: without durable
+owner-abandonment evidence, retained in-flight/submitted work remains recovery-
+required and does not invoke the reconciler. The service binds one server-owned
+`TrustedProviderEffectRegistration` and rejects transitions whose provider/
+model/version/endpoint differ. The application must keep this service behind
+its authenticated provider adapter; the service does not authenticate a remote
+provider from request JSON.
+
+When an explicit durable SQLite or PostgreSQL runtime is configured with a
+trusted Semantic provider invoker, `SemanticProviderEffectService` selects this
+ledger before the provider call. It appends `EffectRequested` and
+`attempt_started` before invocation, then retains submission/unknown/receipt
+evidence. For this Semantic adapter the transition field `response_sha256`
+binds the versioned complete `SemanticProviderResult` descriptor: the raw
+response-byte digest, provider request and decision IDs, allowed/blocked IDs,
+reason, risk, recommended injection, and token counts. Raw response bytes stay
+in the Semantic artifact authority. Changing prompt or provider configuration
+after a crash cannot create a second effect stream or repeat the provider call.
+
+Recovery of any retained attempt never invokes the provider again. A configured
+trusted provider-specific reconciler is used only after `result_unknown` is
+durably recorded, or to confirm an already retained successful receipt; it may
+confirm the exact result, keep the result unknown, or report not found.
+In-flight/submitted and request-only streams cannot safely prove owner
+abandonment and therefore remain recovery-required without mutation. The
+original request authorization remains immutable, while same-scope
+reconciliation transitions may carry a fresh authorization decision and record
+that decision on every event. Exact append replay of an already retained
+transition still requires that transition's original authorization because the
+receipt binds the complete canonical event. The Semantic adapter does not yet claim orphaned
+work, schedule a retry after `not_found`, own dead-letter or compensation, or
+cover completion-provider effects.
 
 ## Event-first persistence
 
@@ -128,9 +156,10 @@ embedded in the event.
 
 The storage-neutral provider event/reducer/ledger service is delivered and the
 generic SQLite/PostgreSQL ledgers can retain it without another authority or
-schema component. Active semantic-provider and completion-consumer callbacks
-do not yet select this service, and provider-specific reconciliation adapters,
-durable compensation orchestration, and the complete transport/crash matrix
-remain F3 work. Current adapters retain at-least-once delivery semantics,
-remain opt-in, and do not change `persistence_model="authority_graph"` or
-`full_persistence=false`.
+schema component. Explicit durable runtimes now select server-owned Semantic
+provider invocation and the trusted reconciliation boundary when configured;
+no concrete remote-provider reconciliation adapter is bundled. Completion-
+provider integration, request-only claims, active retry/dead-letter ownership,
+durable compensation orchestration, PostgreSQL crash parity, and the complete
+transport/crash matrix remain F3 work. Current adapters remain opt-in and do
+not change `persistence_model="authority_graph"` or `full_persistence=false`.

@@ -129,6 +129,7 @@ def build_effect_queue_reducer() -> FunctionalReducer:
                     "provider-receipt-content-addressed",
                     "unknown-before-reconciliation",
                     "retry-only-after-not-found",
+                    "provider-transition-same-scope-reauthorization",
                 ],
             },
         ),
@@ -212,6 +213,7 @@ def build_effect_queue_reducer() -> FunctionalReducer:
                 head,
                 source,
                 actor_types=frozenset({"service", "worker"}),
+                include_authorization=False,
             ):
                 _reject("provider effect event has no exact stream parent")
             updated = _apply_provider_transition(effect, source, reference)
@@ -888,6 +890,7 @@ def _head_extends(
     event: CanonicalEvent,
     *,
     actor_types: frozenset[str] = frozenset({"worker"}),
+    include_authorization: bool = True,
 ) -> bool:
     return (
         head.get("stream_version") == event.stream_version - 1
@@ -899,6 +902,7 @@ def _head_extends(
             head,
             event,
             actor_types=actor_types,
+            include_authorization=include_authorization,
         )
     )
 
@@ -967,14 +971,18 @@ def _projection_authority_matches_event(
     event: CanonicalEvent,
     *,
     actor_types: frozenset[str],
+    include_authorization: bool,
 ) -> bool:
     return (
         all(
             projection.get(name) == getattr(event, name)
             for name in _EVENT_AUTHORITY_SCOPE_FIELDS
         )
-        and projection.get("authorization_decision_id")
-        == event.authorization_decision_id
+        and (
+            not include_authorization
+            or projection.get("authorization_decision_id")
+            == event.authorization_decision_id
+        )
         and event.actor_type in actor_types
     )
 

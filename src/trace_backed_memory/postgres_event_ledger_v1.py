@@ -23,6 +23,7 @@ from .ledger_port_v1 import (
     EventLedgerInvalidRequestError,
     EventLedgerPortError,
     LedgerAccessContext,
+    LedgerAppendCommit,
     LedgerAppendReceipt,
     LedgerAppendRequest,
     LedgerGlobalReadRequest,
@@ -423,6 +424,10 @@ class PostgresEventLedgerV1:
     @property
     def access_context(self) -> LedgerAccessContext:
         return self._access_context
+
+    @property
+    def authority_identity(self) -> object:
+        return self._connection
 
     def _require_open(self) -> None:
         if self._closed or bool(getattr(self._connection, "closed", False)):
@@ -1101,7 +1106,7 @@ class PostgresEventLedgerV1:
         self,
         cursor: object,
         request: LedgerAppendRequest,
-    ) -> LedgerAppendReceipt:
+    ) -> LedgerAppendCommit:
         self._require_open()
         if type(request) is not LedgerAppendRequest:
             raise ValueError("request must be exactly LedgerAppendRequest")
@@ -1135,7 +1140,7 @@ class PostgresEventLedgerV1:
                 retained_row,
             )
             verify_ledger_append_receipt(request, retained)
-            return retained
+            return LedgerAppendCommit(retained, False)
         partition = self._access_context.partition
         cursor.execute(
             """
@@ -1208,16 +1213,16 @@ class PostgresEventLedgerV1:
             retained_row,
         )
         verify_ledger_append_receipt(request, retained)
-        return retained
+        return LedgerAppendCommit(retained, True)
 
     @_synchronized
-    def append(
+    def append_once(
         self,
         stream_id: str,
         expected_version: int,
         events: tuple[CanonicalEvent, ...],
         idempotency: LedgerIdempotency,
-    ) -> LedgerAppendReceipt:
+    ) -> LedgerAppendCommit:
         self._require_open()
         request = LedgerAppendRequest(
             access=self._access_context,
@@ -1234,6 +1239,20 @@ class PostgresEventLedgerV1:
             raise
         except Exception as error:
             self._raise_database_error(error, "PostgreSQL event ledger append failed")
+
+    def append(
+        self,
+        stream_id: str,
+        expected_version: int,
+        events: tuple[CanonicalEvent, ...],
+        idempotency: LedgerIdempotency,
+    ) -> LedgerAppendReceipt:
+        return self.append_once(
+            stream_id,
+            expected_version,
+            events,
+            idempotency,
+        ).receipt
 
     def _events_from_query(
         self,

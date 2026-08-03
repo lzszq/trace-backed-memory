@@ -46,7 +46,9 @@ The facade exposes:
    first re-authenticates the session owner from retained retrieval evidence,
    persists a fresh `gate_session:transition` authorization, rechecks both
    scopes around provider work, and then invokes the authenticated Semantic
-   Gate service;
+   Gate service. `call_provider` remains a compatibility argument when a
+   trusted server-owned invoker is configured, but it is not provider
+   provenance and the server invoker replaces it;
 3. `finalize(context, request)`:
    recovers the original retrieval scope, rechecks current authorization and
    revision state, persists a fresh transition authorization, stores the exact

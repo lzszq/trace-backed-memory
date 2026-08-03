@@ -22,6 +22,14 @@
 
 后端必须在单个事务中提交完整批次、stream-head 更新、global position 和幂等记录，否则不得产生任何变化。使用相同 key 与完全一致的 canonical request 重试时，返回原始的同一个 `LedgerAppendReceipt`。用该 key 提交不同 command 或 request 会失败；过期的 expected version 也必须在不修改状态的情况下失败。
 
+`EventLedgerAtomicAppendPort` 是附加的所有权扩展；它不改变冻结的 `append`
+签名、receipt、digest 或端口版本。`append_once(...)` 执行同一个事务并返回
+`LedgerAppendCommit(receipt, inserted)`。只有实际插入幂等记录的事务调用方会得到
+`inserted=true`；精确保留重放返回同一 receipt 与 `inserted=false`。effect 编排器必须
+在调用远端 provider 前使用该结果，不能通过写后读取推断所有权。该扩展还暴露后端
+拥有的不透明 `authority_identity`；组合层只能按严格对象 identity 比较它，以拒绝
+混用不同物理 authority。它不是 tenant 或 scope credential。
+
 该事务提交前，后端必须立即应用 `verify_ledger_append_precondition`：提供的当前 head
 必须匹配 expected stream version，第一个 event 必须扩展其精确 hash，且该批次必须消费
 下一组全局连续 position。head 或 global sequence 漂移属于 conflict，不能产生部分 append。

@@ -82,8 +82,8 @@ Each decision records candidates, allowed and blocked IDs, reasons, risk, inject
 | Structured evidence preparation | Content-addressed FixEvidence and regression evidence bind the exact case, source Trace, source/fix/verification commits, artifacts, independent reviewers/verifiers, and attestation provenance; strict MemoryRevision preflight verifies their cross-record linkage, while active v2 records do not use them |
 | Immutable revision publication | Content-derived proposals and separate approval/activation events bind exact artifact, evidence, authorization, actors, scope, and lineage; isolated SQLite/PostgreSQL authorities persist canonical provenance, validate attestations through a caller boundary, and CAS-lock the durable target head; an authorized ActivatedRevision source revalidates the current head, publication provenance, structured evidence, and encrypted content through SQLite/PostgreSQL Artifact authorities for future v3 retrieval; active-v2 projection and retrieval integration remain outstanding |
 | Replayable retrieval preparation | Content-addressed policy and optional authenticated preparation kernel authorize first, load verified activated revisions, filter classification/applicability/eval leakage/Git ancestry, deterministically fuse scores, and emit paired RetrievalSnapshot/System Gate evidence with final head/policy rechecks; an opt-in immutable five-view managed index bundle supplies content-addressed metadata/lexical/semantic/evidence/Git discovery through exact SQLite/PostgreSQL scope-head CAS; a durable composition service creates the authorized GateSession, stores and verifies the exact evidence pair, and CAS-publishes `PREPARED`; production sharding/workers and default compatibility cutover remain outstanding |
-| Replayable gate preparation | Content-derived System Gate evaluations and Semantic Gate attempts bind deterministic rule outcomes and provider/model provenance while enforcing that a model can only narrow; exact prompt/response bindings verify role digests, SQLite/PostgreSQL authorities atomically retain public/internal bytes, and one shared service authenticates the provider registration, owns trusted timing and retry parents, and requires exact read-back; an opt-in session composition now advances `PREPARED -> AWAITING_DECISION -> DECIDED`, records the complete attempt chain, and recovers retained success without repeating the provider call; explicit durable finalization appends `tbm.usage_decision.finalized -> tbm.injection.rendered` in one transaction with `FINALIZED` and replay projections, while `final-decision-injection` rebuilds exact parity; active policy emission remains outstanding |
-| Durable execution and completion preparation | An authenticated execution composition verifies the retained injection before `FINALIZED` → `EXECUTING`, supports exact-version lease resume and abandonment, authenticates a registered outcome evaluator, and composes opt-in SQLite or isolated PostgreSQL authorities that atomically bind one content-addressed RunOutcome to `COMPLETED`, one immutable completion event, `EffectRequested`, and an append-only leased retry/dead-letter delivery chain; canonical worker transition events feed the `effect-queue` reducer with exact delivery-history parity. A storage-neutral provider-effect transition/reducer/ledger service now retains content-addressed receipts, unknown results, reconciliation, explicit retry scheduling, and exact response-loss replay through the generic SQLite/PostgreSQL ledgers. Explicit durable transports expose the completion lifecycle, and `tbmd local` operates bounded SQLite recovery/outbox pages; active provider-callback selection, provider-specific reconciliation adapters, durable compensation, and shared-service workers remain outstanding |
+| Replayable gate preparation | Content-derived System Gate evaluations and Semantic Gate attempts bind deterministic rule outcomes and provider/model provenance while enforcing that a model can only narrow; exact prompt/response bindings verify role digests, SQLite/PostgreSQL authorities atomically retain public/internal bytes, and one shared service authenticates the provider registration, owns trusted timing and retry parents, and requires exact read-back; an opt-in session composition advances `PREPARED -> AWAITING_DECISION -> DECIDED`. Explicit durable runtimes configured with a trusted invoker record server-owned Semantic effect request/attempt/receipt evidence, bind the complete structured result digest, reconcile retained uncertainty without repeating the provider call, and then retain the exact Semantic attempt; explicit durable finalization appends `tbm.usage_decision.finalized -> tbm.injection.rendered` in one transaction with `FINALIZED` and replay projections, while `final-decision-injection` rebuilds exact parity; request-only claims, active provider retry/dead-letter/compensation, and active policy emission remain outstanding |
+| Durable execution and completion preparation | An authenticated execution composition verifies the retained injection before `FINALIZED` → `EXECUTING`, supports exact-version lease resume and abandonment, authenticates a registered outcome evaluator, and composes opt-in SQLite or isolated PostgreSQL authorities that atomically bind one content-addressed RunOutcome to `COMPLETED`, one immutable completion event, `EffectRequested`, and an append-only leased retry/dead-letter delivery chain; canonical worker transition events feed the `effect-queue` reducer with exact delivery-history parity. A storage-neutral provider-effect transition/reducer/ledger service retains content-addressed receipts, unknown results, reconciliation, explicit retry scheduling, and exact response-loss replay through generic SQLite/PostgreSQL ledgers; the configured Semantic provider path now selects it. Completion-provider integration, concrete reconciliation adapters, request-only claims, active retry/dead-letter ownership, durable compensation, PostgreSQL crash parity, and shared-service workers remain outstanding |
 | Distribution resources | [`resources/manifest.json`](../resources/manifest.json) drives the strict byte-identical packaged Schema/OpenAPI/SQL/migration/taxonomy/example allowlist, runtime declaration, package data, metadata, and generated index |
 | Ingestion integrity | Explicit failure evidence only, duplicate-key rejection, bounded local documents, and all-or-nothing imports |
 | Metrics | With/without-memory pass rates, wrong-memory counts, per-memory observations, and run health |
@@ -136,9 +136,11 @@ trusted-local MCP adapters select it under separate transport boundaries.
 `DurableAgentProtocolDispatcher` now maps that complete facade into the
 optional `tbm.durable-agent-wire.v1` Python boundary. Strict request models
 exclude all caller/provider/evaluator and scope identities, exact bytes use
-canonical base64, semantic replay rechecks retained response bytes, and
-injection/replay content are disabled unless the embedding adapter explicitly
-enables them. The dispatcher itself authenticates no peer. Explicit durable
+canonical base64, and injection/replay content are disabled unless the embedding
+adapter explicitly enables them. Callback-compatibility replay rechecks
+retained response bytes; when a trusted server-owned invoker is configured,
+caller response bytes are not provider provenance and the effect/result receipt
+is authoritative. The dispatcher itself authenticates no peer. Explicit durable
   HTTP and trusted-local MCP profiles select it. The Node.js
   `DurableAgentHTTPClient` selects the durable HTTP profile; default compatibility
   HTTP/MCP, `AgentHTTPClient`, and general CLI still use `tbm.agent.v1`.
@@ -229,6 +231,12 @@ The product fails closed:
 
 The current release implements roadmap Phases 0 through 73, the local agent/MCP integration increment, and the delivered contract/isolated-authority portions of Phase 74, including opt-in SQLite and isolated PostgreSQL completion outboxes plus their bounded at-least-once delivery worker, the bounded five-view managed-index bundle with exact SQLite/PostgreSQL publication authorities, the opt-in durable retrieval-preparation bridge through Gate evidence verification and GateSession `PREPARED`, durable Semantic Gate composition through `AWAITING_DECISION` to `DECIDED`, opt-in durable finalization through exact UsageDecision/replay retention to `FINALIZED`, authenticated durable execution through exact injection replay, `EXECUTING`, evaluator-authenticated `COMPLETED`, and completion outbox emission, and the adapter-neutral authenticated durable Agent composition over those stages. The main product path has executable README examples, JSON Schemas, SQL invariants, and pytest coverage across Python 3.11, 3.12, 3.13, Windows, SQLite, and required PostgreSQL CI.
 
+The explicit durable runtime can additionally select a server-owned Semantic
+provider effect invoker and trusted reconciliation boundary. This is opt-in
+provider-effect evidence, not default-path cutover: request-only claims, active
+provider retry/dead-letter/compensation, completion-provider integration,
+PostgreSQL crash parity, and full transport parity remain incomplete.
+
 [ADR-0006](adr/0006-full-persistence-reducer-native-memory.md) freezes the
 next product architecture around a canonical event ledger, content-addressed
 artifacts, and versioned deterministic reducers. This is a delivery target, not
@@ -288,10 +296,12 @@ replay authority, and verifies projection parity. See
 attribution and local completion-effect events/reducers now cover exact
 RunOutcome, OutcomeAttribution, delivery-history, and dead-letter parity.
 The storage-neutral provider transition/reducer/ledger service covers
-content-addressed receipts and conservative unknown-result recovery. Active
-provider callback selection, provider-specific reconciliation adapters,
-durable compensation, complete transport conformance, and the F2 kill matrix
-remain open.
+content-addressed receipts and conservative unknown-result recovery. Explicit
+durable runtimes now select server-owned Semantic invocation and configured
+trusted reconciliation with complete-result receipt binding. Request-only safe
+claims, active retry/dead-letter ownership, completion-provider integration,
+concrete remote-provider adapters, durable compensation, PostgreSQL crash
+parity, complete transport conformance, and the F2 kill matrix remain open.
 The ledger is therefore not yet the sole durable source of truth and
 `full_persistence` remains `false`.
 

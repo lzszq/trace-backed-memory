@@ -55,10 +55,32 @@ not-found reconciliation 与 retry-scheduled evidence 都存在时才能开始�
 只对过期 stream/global position 重试，并在 response loss 后精确重放已保留 append
 receipt。恢复结果只有 `start_attempt`、`reconcile`、`schedule_retry` 或 `complete`。
 重启后若只看到 `attempt_started` 或 `request_submitted`，结果必须是 `reconcile`，
-因为 ledger 无法证明外部请求是否已经执行。服务绑定一份 server-owned
+因为 ledger 无法证明外部请求是否已经执行。该分类不会授权 Semantic adapter 改写
+attempt：缺少 durable owner-abandonment evidence 时，已保留的 in-flight/submitted work
+保持 recovery-required，且不会调用 reconciler。服务绑定一份 server-owned
 `TrustedProviderEffectRegistration`，并拒绝 provider/model/version/endpoint 不一致的
 transition。application 必须把服务放在 authenticated provider adapter 之后；服务不会
 从 request JSON 认证远端 provider。
+
+显式 durable SQLite/PostgreSQL runtime 配置可信 Semantic provider invoker 时，
+`SemanticProviderEffectService` 会在 provider 调用前选择该 ledger。它先追加
+`EffectRequested` 与 `attempt_started`，再保留 submission/unknown/receipt evidence。
+对该 Semantic adapter 而言，transition 字段 `response_sha256` 绑定带版本的完整
+`SemanticProviderResult` descriptor，包括 raw response 字节摘要、provider request 与
+decision ID、allowed/blocked ID、reason、risk、recommended injection 与 token count；
+raw response 字节仍由 Semantic artifact authority 保存。崩溃后即使 prompt 或 provider
+配置变化，也不能创建第二条 effect stream 或重复调用 provider。
+
+任何已保留 attempt 的恢复都不会再次调用 provider。只有 `result_unknown` 已持久保留，
+或 successful receipt 已经存在时，才会使用配置的可信 provider-specific reconciler；
+它可以确认精确结果、继续保持 unknown 或报告 not found。in-flight/submitted 与
+request-only stream 都无法安全证明 owner 已放弃，因此保持 recovery-required 且不产生
+改写。原始 request authorization 保持不可变；同 scope 的 reconciliation transition
+可以使用新的 authorization decision，且每条 event 都记录自己的当前 decision。
+已保留 transition 的 exact append replay 仍要求该 transition 的原始 authorization，
+因为 receipt 会绑定完整 canonical event。
+Semantic adapter 尚不认领 orphan work，也不在 `not_found` 后主动安排 retry，不负责
+dead-letter/compensation，且未覆盖 completion-provider effect。
 
 ## Event-first 持久化
 
@@ -109,8 +131,10 @@ outbox revision 进入 `delivered`。response digest 只是审计 metadata。两
 嵌入 event。
 
 存储中立 provider event/reducer/ledger service 已交付，generic SQLite/PostgreSQL ledger
-无需新增 authority 或 schema component 即可保留它。active semantic-provider 与
-completion-consumer callback 尚未选择该服务；provider-specific reconciliation adapter、
-durable compensation orchestration 与完整 transport/crash matrix 仍属于 F3。当前 adapter
-保持 at-least-once delivery、仅显式 opt-in，且不会改变
-`persistence_model="authority_graph"` 或 `full_persistence=false`。
+无需新增 authority 或 schema component 即可保留它。显式 durable runtime 在配置后已
+选择 server-owned Semantic provider invocation 与可信 reconciliation 边界，但尚未捆绑
+具体 remote-provider reconciliation adapter。completion-provider integration、
+request-only claim、active retry/dead-letter ownership、durable compensation、
+PostgreSQL crash parity 与完整 transport/crash matrix 仍属于 F3。当前 adapter 仍仅显式
+opt-in，且不会改变 `persistence_model="authority_graph"` 或
+`full_persistence=false`。

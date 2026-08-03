@@ -249,6 +249,14 @@ def test_provider_effect_unknown_requires_reconciliation_before_retry() -> None:
         started = _transition("attempt_started")
         first = _append(service, started, 1)
         replay = _append(service, started, 1)
+        legacy_result = tbm.ProviderEffectAppendResult(
+            first.reference,
+            first.receipt,
+            first.recovery,
+        )
+        assert legacy_result.inserted is False
+        assert first.inserted is True
+        assert replay.inserted is False
         assert replay.receipt == first.receipt
         assert replay.recovery.provider_status == "in_flight"
         assert replay.recovery.next_action == "reconcile"
@@ -351,12 +359,19 @@ def test_provider_effect_post_commit_response_loss_replays_exact_event() -> None
             self.access_context = ledger.access_context
             self.armed = True
 
+        @property
+        def authority_identity(self):
+            return self._ledger.authority_identity
+
         def append(self, *args, **kwargs):
-            receipt = self._ledger.append(*args, **kwargs)
+            return self._ledger.append(*args, **kwargs)
+
+        def append_once(self, *args, **kwargs):
+            commit = self._ledger.append_once(*args, **kwargs)
             if self.armed:
                 self.armed = False
                 raise RuntimeError("simulated post-commit response loss")
-            return receipt
+            return commit
 
         def read_stream(self, *args, **kwargs):
             return self._ledger.read_stream(*args, **kwargs)
@@ -369,6 +384,9 @@ def test_provider_effect_post_commit_response_loss_replays_exact_event() -> None
 
         def subscribe(self, *args, **kwargs):
             return self._ledger.subscribe(*args, **kwargs)
+
+        def close(self):
+            self._ledger.close()
 
     with SQLiteEventLedgerV1.connect(
         ":memory:",
@@ -388,6 +406,8 @@ def test_provider_effect_post_commit_response_loss_replays_exact_event() -> None
         assert recovered.recover(EFFECT_ID).next_action == "reconcile"
         first_replay = _append(recovered, started, 1)
         second_replay = _append(recovered, started, 1)
+        assert first_replay.inserted is False
+        assert second_replay.inserted is False
         assert first_replay.receipt == second_replay.receipt
         stream = ledger.read_stream(effect_event_stream_id(EFFECT_ID), limit=100)
         assert tuple(event.stream_version for event in stream.events) == (1, 2)
@@ -495,6 +515,104 @@ def test_provider_effect_rejects_untrusted_provider_and_cross_scope_read(
         service = ProviderEffectLedgerService(other, _provider())
         with pytest.raises(ProviderEffectLedgerV1Error) as error:
             service.recover(EFFECT_ID)
+        assert error.value.code == "TBM_PROVIDER_EFFECT_SCOPE_DENIED"
+
+
+def test_provider_effect_allows_explicit_same_scope_reauthorization(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "provider-effect-reauthorized.sqlite3"
+    owner_access = _access()
+    with SQLiteEventLedgerV1.connect(
+        database,
+        owner_access,
+        initialize=True,
+    ) as owner:
+        _seed(owner, owner_access)
+
+    reauthorized = _access(
+        authorization_decision_id="authorization_decision_reconcile",
+    )
+    with SQLiteEventLedgerV1.connect(database, reauthorized) as ledger:
+        service = ProviderEffectLedgerService(
+            ledger,
+            _provider(),
+            authorized_origin_decision_id=(
+                owner_access.authorization_decision_id
+            ),
+        )
+        appended = _append(service, _transition("attempt_started"), 1)
+        assert appended.recovery.provider_status == "in_flight"
+        assert appended.receipt.events[0].authorization_decision_id == (
+            reauthorized.authorization_decision_id
+        )
+        _append(
+            service,
+            _transition(
+                "request_submitted",
+                provider_request_id="provider_request_001",
+            ),
+            2,
+        )
+        _append(
+            service,
+            _transition(
+                "result_unknown",
+                provider_request_id="provider_request_001",
+                error_code="provider_timeout",
+            ),
+            3,
+        )
+        reconciled = _append(
+            service,
+            _transition(
+                "reconciled",
+                provider_request_id="provider_request_001",
+                reconciliation_sequence=1,
+                reconciliation_result="not_found",
+            ),
+            4,
+        )
+        assert reconciled.recovery.provider_status == "not_found"
+        assert reconciled.recovery.next_action == "schedule_retry"
+        verification = ledger.verify_stream(effect_event_stream_id(EFFECT_ID))
+        assert verification.valid is True
+        page = ledger.read_stream(
+            effect_event_stream_id(EFFECT_ID),
+            limit=100,
+        )
+        assert all(
+            tbm.DEFAULT_EVENT_TYPE_REGISTRY.consume(event)
+            for event in page.events
+        )
+
+        replay_access = _access(
+            authorization_decision_id="authorization_decision_replay",
+        )
+        with SQLiteEventLedgerV1(
+            getattr(ledger, "_connection"),
+            replay_access,
+        ) as replay_ledger:
+            replay_service = ProviderEffectLedgerService(
+                replay_ledger,
+                _provider(),
+                authorized_origin_decision_id=(
+                    owner_access.authorization_decision_id
+                ),
+            )
+            with pytest.raises(ProviderEffectLedgerV1Error) as replay_error:
+                _append(replay_service, _transition("attempt_started"), 1)
+            assert replay_error.value.code == (
+                "TBM_PROVIDER_EFFECT_REPLAY_AUTHORIZATION_MISMATCH"
+            )
+
+        denied = ProviderEffectLedgerService(
+            ledger,
+            _provider(),
+            authorized_origin_decision_id="authorization_decision_wrong",
+        )
+        with pytest.raises(ProviderEffectLedgerV1Error) as error:
+            denied.recover(EFFECT_ID)
         assert error.value.code == "TBM_PROVIDER_EFFECT_SCOPE_DENIED"
 
 

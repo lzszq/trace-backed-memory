@@ -1774,7 +1774,6 @@ def _verify_provider_scope(
         "environment_id",
         "principal_id",
         "agent_client_id",
-        "authorization_decision_id",
     )
     if any(
         getattr(event, name) != getattr(trusted_context, name)
@@ -1813,7 +1812,6 @@ def _same_provider_scope(
         "environment_id",
         "principal_id",
         "agent_client_id",
-        "authorization_decision_id",
     )
     return (
         all(getattr(left, name) == getattr(right, name) for name in fields)

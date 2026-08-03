@@ -398,6 +398,22 @@ class LedgerAppendReceipt:
 
 
 @dataclass(frozen=True)
+class LedgerAppendCommit:
+    receipt: LedgerAppendReceipt
+    inserted: bool
+
+    def __post_init__(self) -> None:
+        if type(self.receipt) is not LedgerAppendReceipt:
+            _invalid("receipt must be exactly LedgerAppendReceipt")
+        if type(self.inserted) is not bool:
+            _invalid("inserted must be a boolean")
+
+    @property
+    def replayed(self) -> bool:
+        return not self.inserted
+
+
+@dataclass(frozen=True)
 class LedgerStreamReadRequest:
     access: LedgerAccessContext
     stream_id: str
@@ -646,6 +662,29 @@ class EventLedgerPort(Protocol):
         poll_timeout_seconds: int = 10,
     ) -> EventLedgerSubscription:
         """Create a bounded page subscription; never expose raw backend state."""
+        ...
+
+
+class EventLedgerAtomicAppendPort(EventLedgerPort, Protocol):
+    """Additive atomic ownership extension over the frozen v1 ledger port."""
+
+    @property
+    def authority_identity(self) -> object:
+        """Return an opaque backend-owned identity for strict graph checks."""
+        ...
+
+    def append_once(
+        self,
+        stream_id: str,
+        expected_version: int,
+        events: tuple[CanonicalEvent, ...],
+        idempotency: LedgerIdempotency,
+    ) -> LedgerAppendCommit:
+        """Atomically distinguish the inserting caller from an exact replay."""
+        ...
+
+    def close(self) -> None:
+        """Release adapter-local resources without closing borrowed state."""
         ...
 
 
@@ -1008,6 +1047,7 @@ __all__ = [
     "EVENT_LEDGER_MAX_SUBSCRIPTION_POLL_SECONDS",
     "EVENT_LEDGER_MAX_VERIFICATION_ISSUES",
     "EVENT_LEDGER_PORT_VERSION",
+    "EventLedgerAtomicAppendPort",
     "EventLedgerClassificationDeniedError",
     "EventLedgerConflictError",
     "EventLedgerIdempotencyConflictError",
@@ -1019,6 +1059,7 @@ __all__ = [
     "EventLedgerSubscription",
     "EventLedgerUnsupportedError",
     "LedgerAccessContext",
+    "LedgerAppendCommit",
     "LedgerAppendOutcome",
     "LedgerAppendReceipt",
     "LedgerAppendRequest",

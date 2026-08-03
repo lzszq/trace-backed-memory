@@ -46,6 +46,7 @@ from trace_backed_memory.effect_reducer_v1 import (
     projected_completion_delivery,
     projected_completion_outbox_event,
     projected_effect_contract,
+    projected_provider_effect_status,
     projected_effect_status,
     verify_effect_projection_parity,
 )
@@ -346,6 +347,13 @@ def test_effect_queue_replays_delivery_history_retry_and_dead_letter():
 
 
 def test_effect_queue_parity_replays_provider_transitions() -> None:
+    descriptor = build_effect_queue_reducer().descriptor
+    assert descriptor.code_sha256 == (
+        "sha256:fbde0e94888e326200571d30391ff25b84d64597ca88374e9266854761c8a9be"
+    )
+    assert descriptor.descriptor_sha256 == (
+        "sha256:89a7f43ea35304f85711536fd0eaa95a83e675c2f8d7045885aba8f58fc86d56"
+    )
     completed_event, outbox_event, pending, trusted = _completed_fixture()
     requested = build_completion_effect_requested_event(
         outbox_event,
@@ -372,6 +380,29 @@ def test_effect_queue_parity_replays_provider_transitions() -> None:
         (EffectProjectionAuthority(outbox_event, (pending,)),),
         events,
     )
+
+    submitted = build_provider_effect_transition_event(
+        replace(
+            _provider_attempt_transition(
+                outbox_event.event_id,
+                outbox_event.outcome_descriptor_sha256,
+            ),
+            stage="request_submitted",
+            provider_request_id="provider_request_001",
+        ),
+        parent_event=provider_transition,
+        global_position=10,
+        occurred_at="2026-08-01T00:07:30Z",
+        trusted_context=replace(
+            _worker_trusted(trusted, "worker_001"),
+            authorization_decision_id="authorization_decision_reauthorized",
+        ),
+    )
+    reauthorized_state = _reduce((requested, provider_transition, submitted))
+    assert projected_provider_effect_status(
+        reauthorized_state,
+        outbox_event.event_id,
+    ) == "submitted"
 
     unrelated_contract = EffectContract(
         effect_id="effect_unrelated_001",

@@ -31,6 +31,7 @@ from .ledger_port_v1 import (
     EventLedgerNotFoundError,
     EventLedgerPortError,
     LedgerAccessContext,
+    LedgerAppendCommit,
     LedgerAppendReceipt,
     LedgerAppendRequest,
     LedgerClassificationFilter,
@@ -608,6 +609,10 @@ class SQLiteEventLedgerV1:
     def access_context(self) -> LedgerAccessContext:
         return self._access_context
 
+    @property
+    def authority_identity(self) -> object:
+        return self._connection
+
     def _require_open(self) -> None:
         if self._closed:
             raise SQLiteEventLedgerV1Error(
@@ -978,7 +983,7 @@ class SQLiteEventLedgerV1:
         self,
         cursor: sqlite3.Cursor,
         request: LedgerAppendRequest,
-    ) -> LedgerAppendReceipt:
+    ) -> LedgerAppendCommit:
         self._require_open()
         if type(request) is not LedgerAppendRequest:
             raise ValueError("request must be exactly LedgerAppendRequest")
@@ -1005,7 +1010,7 @@ class SQLiteEventLedgerV1:
                 retained_row,
             )
             verify_ledger_append_receipt(request, retained)
-            return retained
+            return LedgerAppendCommit(retained, False)
 
         current_head = self._select_head_event(cursor, request.stream_id)
         next_global_position = self._select_global_position(cursor) + 1
@@ -1073,16 +1078,16 @@ class SQLiteEventLedgerV1:
             retained_row,
         )
         verify_ledger_append_receipt(request, retained)
-        return retained
+        return LedgerAppendCommit(retained, True)
 
     @_synchronized
-    def append(
+    def append_once(
         self,
         stream_id: str,
         expected_version: int,
         events: tuple[CanonicalEvent, ...],
         idempotency: LedgerIdempotency,
-    ) -> LedgerAppendReceipt:
+    ) -> LedgerAppendCommit:
         self._require_open()
         request = LedgerAppendRequest(
             access=self._access_context,
@@ -1104,6 +1109,20 @@ class SQLiteEventLedgerV1:
             raise _persistence_error(
                 "SQLite event ledger append failed atomically"
             ) from error
+
+    def append(
+        self,
+        stream_id: str,
+        expected_version: int,
+        events: tuple[CanonicalEvent, ...],
+        idempotency: LedgerIdempotency,
+    ) -> LedgerAppendReceipt:
+        return self.append_once(
+            stream_id,
+            expected_version,
+            events,
+            idempotency,
+        ).receipt
 
     def _events_from_query(
         self,

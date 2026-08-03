@@ -27,7 +27,7 @@ from .event_v1 import CanonicalEvent
 from .ledger_port_v1 import (
     EVENT_LEDGER_MAX_READ_PAGE,
     EventLedgerConflictError,
-    EventLedgerPort,
+    EventLedgerAtomicAppendPort,
     LedgerAccessContext,
     LedgerAppendReceipt,
     LedgerIdempotency,
@@ -93,6 +93,7 @@ class ProviderEffectAppendResult:
     reference: ProviderEffectTransitionRef
     receipt: LedgerAppendReceipt
     recovery: ProviderEffectRecovery
+    inserted: bool = False
 
 
 class ProviderEffectLedgerService:
@@ -100,10 +101,11 @@ class ProviderEffectLedgerService:
 
     def __init__(
         self,
-        ledger: EventLedgerPort,
+        ledger: EventLedgerAtomicAppendPort,
         provider: TrustedProviderEffectRegistration,
         *,
         max_conflict_retries: int = PROVIDER_EFFECT_LEDGER_MAX_CONFLICT_RETRIES,
+        authorized_origin_decision_id: str | None = None,
     ) -> None:
         try:
             access = ledger.access_context
@@ -122,10 +124,22 @@ class ProviderEffectLedgerService:
             or not 1 <= max_conflict_retries <= 32
         ):
             raise ValueError("max_conflict_retries must be between 1 and 32")
+        if authorized_origin_decision_id is not None and (
+            type(authorized_origin_decision_id) is not str
+            or _IDENTIFIER_RE.fullmatch(authorized_origin_decision_id) is None
+        ):
+            raise ValueError(
+                "authorized_origin_decision_id must be a bounded identifier"
+            )
         self._ledger = ledger
         self._access = access
         self._provider = provider
         self._max_conflict_retries = max_conflict_retries
+        self._authorized_origin_decision_id = (
+            access.authorization_decision_id
+            if authorized_origin_decision_id is None
+            else authorized_origin_decision_id
+        )
 
     def recover(self, effect_id: str) -> ProviderEffectRecovery:
         try:
@@ -162,7 +176,15 @@ class ProviderEffectLedgerService:
             )
             retained = _retained_transition(events, reference)
             if retained is not None:
-                receipt = self._ledger.append(
+                if (
+                    retained.authorization_decision_id
+                    != self._access.authorization_decision_id
+                ):
+                    raise ProviderEffectLedgerV1Error(
+                        "TBM_PROVIDER_EFFECT_REPLAY_AUTHORIZATION_MISMATCH",
+                        "retained transition requires its original authorization",
+                    )
+                commit = self._ledger.append_once(
                     retained.stream_id,
                     retained.stream_version - 1,
                     (retained,),
@@ -172,9 +194,14 @@ class ProviderEffectLedgerService:
                     ),
                 )
                 return ProviderEffectAppendResult(
-                    reference,
-                    receipt,
-                    _recovery_from_state(state, events, reference.effect_id),
+                    reference=reference,
+                    receipt=commit.receipt,
+                    recovery=_recovery_from_state(
+                        state,
+                        events,
+                        reference.effect_id,
+                    ),
+                    inserted=commit.inserted,
                 )
             parent = events[-1]
             try:
@@ -192,7 +219,7 @@ class ProviderEffectLedgerService:
                     "provider effect transition is not allowed",
                 ) from error
             try:
-                receipt = self._ledger.append(
+                commit = self._ledger.append_once(
                     event.stream_id,
                     parent.stream_version,
                     (event,),
@@ -211,13 +238,14 @@ class ProviderEffectLedgerService:
                 last_conflict = error
                 continue
             return ProviderEffectAppendResult(
-                reference,
-                receipt,
-                _recovery_from_state(
+                reference=reference,
+                receipt=commit.receipt,
+                recovery=_recovery_from_state(
                     next_state,
                     (*events, event),
                     reference.effect_id,
                 ),
+                inserted=commit.inserted,
             )
         if last_conflict is not None:
             raise last_conflict
@@ -269,7 +297,11 @@ class ProviderEffectLedgerService:
             event.event_type not in EFFECT_EVENT_TYPES for event in retained
         ):
             _invalid("provider effect stream contains unrelated events")
-        _verify_effect_access(retained[0], self._access)
+        _verify_effect_access(
+            retained[0],
+            self._access,
+            self._authorized_origin_decision_id,
+        )
         try:
             state = _reduce_effect_events(retained)
         except ReducerExecutionError as error:
@@ -318,6 +350,7 @@ def _reduce_effect_events(events: tuple[CanonicalEvent, ...]):
 def _verify_effect_access(
     requested_event: CanonicalEvent,
     access: LedgerAccessContext,
+    authorized_origin_decision_id: str,
 ) -> None:
     expected = {
         "organization_id": access.partition.organization_id,
@@ -326,7 +359,7 @@ def _verify_effect_access(
         "environment_id": access.partition.environment_id,
         "principal_id": access.principal_id,
         "agent_client_id": access.agent_client_id,
-        "authorization_decision_id": access.authorization_decision_id,
+        "authorization_decision_id": authorized_origin_decision_id,
     }
     if any(
         getattr(requested_event, name) != value

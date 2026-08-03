@@ -312,6 +312,17 @@ class SemanticProviderInvocationFailedError(SemanticGateServiceV3Error):
         )
 
 
+class SemanticProviderEffectRecoveryRequiredError(SemanticGateServiceV3Error):
+    """A provider effect may have happened and must not be repeated."""
+
+    def __init__(self, effect_id: str) -> None:
+        self.effect_id = effect_id
+        super().__init__(
+            "TBM_SEMANTIC_PROVIDER_EFFECT_RECOVERY_REQUIRED",
+            "semantic provider effect requires reconciliation before retry",
+        )
+
+
 class AuthenticatedSemanticGateService:
     """Authenticate, time, construct, and atomically retain one model attempt."""
 
@@ -399,6 +410,8 @@ class AuthenticatedSemanticGateService:
                 failure = SemanticProviderCallError("provider_response_invalid")
             else:
                 provider_result = returned
+        except SemanticProviderEffectRecoveryRequiredError:
+            raise
         except SemanticProviderCallError as error:
             failure = error
         except Exception:
@@ -794,6 +807,7 @@ __all__ = [
     "SemanticGateServiceV3Error",
     "SemanticProviderCall",
     "SemanticProviderCallError",
+    "SemanticProviderEffectRecoveryRequiredError",
     "SemanticProviderInvocationFailedError",
     "SemanticProviderResult",
     "TrustedSemanticProvider",

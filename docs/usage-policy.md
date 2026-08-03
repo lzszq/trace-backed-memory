@@ -1406,6 +1406,22 @@ do not rewrite the content row with a new timestamp. This service does not add
 encryption, retention, artifact access control, signed provider attestation,
 GateSession/replay atomicity, or active adapter emission.
 
+When an explicit durable runtime is configured with a trusted Semantic provider
+invoker, route the call through `SemanticProviderEffectService`. Append the
+effect request and attempt before invocation. For a successful Semantic call,
+bind `response_sha256` to the complete versioned `SemanticProviderResult`
+descriptor, including the raw response digest and every structured decision
+field; do not accept matching response bytes with changed decision fields.
+Never invoke the provider again after any effect event exists. A trusted
+provider-specific reconciler may confirm the exact receipt, retain unknown, or
+report not found only when an unknown result or successful receipt is already
+durable. The immutable request keeps its original authorization; same-scope
+recovery may append transitions under a fresh authorization decision.
+Request-only and in-flight/submitted streams, `still_unknown`, or an unclaimed
+`not_found` must remain recovery-required. Do not infer owner abandonment,
+schedule retry, dead-letter, compensate, or treat a completion callback as a
+provider effect until those active boundaries are implemented.
+
 Use `AuthenticatedSemanticGateSessionService` only after authenticated durable
 retrieval preparation produced the exact `PREPARED` session. The request must
 name the expected session revision, retry parent, and bounded decision lease;
@@ -1493,8 +1509,11 @@ provider, evaluator, credential, authorization event, and authority handle out
 of request JSON. The adapter must construct trusted contexts from live
 authentication, resolve the canonical repository server-side, and resolve the
 registered evaluator before constructing completion. Canonical base64 is
-required for exact query, prompt, and provider response bytes. A decided replay
-must match the retained response bytes.
+required for exact query, prompt, and provider response bytes. In callback-
+compatibility mode, a decided replay must match the retained response bytes.
+When a trusted server-owned Semantic invoker is configured, caller response
+bytes are not provider provenance; exact replay is governed by the retained
+Semantic attempt plus effect/result receipt.
 
 Content exposure is separately fail closed. Unless an adapter explicitly
 enables injection content, return descriptors and a null snippet. Unless it
@@ -1580,8 +1599,10 @@ dead-letter failure must append `EffectFailed` followed by the matching
 disposition event in the same transaction as the delivery revision. Use the
 actual `worker_id` as canonical actor. Treat `EffectSucceeded` as local callback
 acknowledgement only; it is not a provider receipt or proof of provider-side
-success. Provider unknown-result reconciliation and durable compensation remain
-separate work. Do not repair an outcome
+success. Semantic-provider unknown-result reconciliation is available only
+through the configured explicit durable effect path. Completion-provider
+integration, active provider retry/dead-letter ownership, and durable
+compensation remain separate work. Do not repair an outcome
 that exists without its event; investigate and recover the violated transaction
 boundary. Active durable completion-outbox emission is available through the
 explicit durable HTTP/MCP and Python/TypeScript SDK profiles, and `tbmd local`

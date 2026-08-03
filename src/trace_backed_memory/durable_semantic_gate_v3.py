@@ -22,6 +22,7 @@ from .semantic_gate_service_v3 import (
     SemanticGateServiceResult,
     SemanticGateServiceV3Error,
     SemanticProviderCall,
+    SemanticProviderEffectRecoveryRequiredError,
     SemanticProviderInvocationFailedError,
     SemanticProviderResult,
 )
@@ -129,6 +130,20 @@ class DurableSemanticGateRecoveryRequiredError(DurableSemanticGateV3Error):
         super().__init__(
             "TBM_DURABLE_SEMANTIC_GATE_RECOVERY_REQUIRED",
             "durable Semantic Gate state requires explicit recovery",
+        )
+
+
+class DurableSemanticGateProviderEffectRecoveryRequiredError(
+    DurableSemanticGateV3Error
+):
+    """A remote provider effect may exist and must be reconciled first."""
+
+    def __init__(self, session: GateSession, effect_id: str) -> None:
+        self.session = session
+        self.effect_id = effect_id
+        super().__init__(
+            "TBM_DURABLE_SEMANTIC_PROVIDER_EFFECT_RECOVERY_REQUIRED",
+            "semantic provider effect requires explicit reconciliation",
         )
 
 
@@ -257,6 +272,17 @@ class AuthenticatedSemanticGateSessionService:
                 invocation,
                 call_provider,
             )
+        except SemanticProviderEffectRecoveryRequiredError as error:
+            current = self._load_session(awaiting.session_id)
+            if not self._same_awaiting_state(current, awaiting):
+                raise DurableSemanticGateRecoveryRequiredError(
+                    current,
+                    None,
+                ) from None
+            raise DurableSemanticGateProviderEffectRecoveryRequiredError(
+                current,
+                error.effect_id,
+            ) from None
         except SemanticProviderInvocationFailedError as error:
             self._raise_provider_failure(
                 context,
@@ -744,6 +770,7 @@ def _is_identifier(value: object) -> bool:
 __all__ = [
     "DURABLE_SEMANTIC_GATE_CONTRACT_VERSION",
     "AuthenticatedSemanticGateSessionService",
+    "DurableSemanticGateProviderEffectRecoveryRequiredError",
     "DurableSemanticGateProviderFailedError",
     "DurableSemanticGateRecoveryRequiredError",
     "DurableSemanticGateRequest",

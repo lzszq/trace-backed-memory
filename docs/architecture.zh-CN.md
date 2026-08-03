@@ -598,7 +598,16 @@ provider/authenticator/credential registration，在调用前重新加载 Gate e
 retry parent，由服务端持有 provider/model/template/config provenance，采样可信开始/结束
 时间，并通过任一 repository 原子保存 attempt 与精确字节。重复的 prompt/response
 字节会复用其不可变 content-addressed descriptor，而每条 attempt 仍保留独立 role
-binding。`durable_semantic_gate_v3.py` 会把这个 authenticated service 与任一
+binding。`semantic_provider_effect_v1.py` 是显式 durable runtime 在配置可信 Semantic
+provider invoker 时选择的可选 server-owned invocation seam。它会在返回 result 前追加
+effect request 与 provider transition；Semantic receipt digest 绑定完整 structured
+`SemanticProviderResult`，其中包含 raw response digest。重启绝不会重复已保留 effect；
+配置的可信 reconciliation 可以在新的同 scope transition authorization 下恢复精确
+unknown 或 successful result。request-only 与 in-flight/submitted work 无法安全认定
+owner 已放弃，因此保持 recovery-required 且不产生改写。active owner-abandonment
+evidence、retry/dead-letter claim、compensation、completion-provider integration 与具体
+remote-provider adapter 不属于当前 seam。`durable_semantic_gate_v3.py` 会把这个
+authenticated service 与任一
 GateSession authority 组合起来：先根据不可变 snapshot/evaluation/attempt chain
 核验 prepared session，再通过 CAS 发布 `AWAITING_DECISION`、调用 provider、读回
 完整单调收窄 chain，最后通过 CAS 发布带全部 attempt ID 与 successful decision 的
@@ -633,7 +642,10 @@ repository、environment、authorization event 或 authority identity；可信 a
 负责提供这些 context，并解析 canonical repository 与 evaluator registration。
 dispatcher 会在调用 facade 前执行 canonical-base64 prompt/response/query byte、
 精确 session revision、稳定公开 error 与显式 injection/replay content profile
-约束。它不保存 lifecycle handle，也不是 transport authenticator。显式
+约束。callback compatibility 模式下，decided replay 必须匹配已保留 response bytes；
+trusted-invoker 模式下，调用方 response bytes 不是 provider provenance，以 server-owned
+effect/result receipt 为准。dispatcher 不保存 lifecycle handle，也不是 transport
+authenticator。显式
 `tbm-http --profile durable-v3` adapter 已通过唯一 durable runtime factory 选择
 它，在派生服务端持有的 context 前认证本地 bearer，默认隐藏内容，并可在进程重启后重新
 打开统一 SQLite v3 graph。显式 `tbm-mcp --profile durable-v3` adapter 也会通过
@@ -883,10 +895,16 @@ authority parity。既有 effect family 还新增一个严格判别的 provider 
 寻址的 attempt、invocation、receipt 与 reconciliation identity 可由 `effect-queue`
 reducer version 2 重建。`ProviderEffectLedgerService` 通过 authenticated generic ledger
 port 精确重放 append，并把跨崩溃遗留的 in-flight/submitted work 归为必须
-reconciliation；只有显式 not-found 结果才允许安排 retry。generic SQLite/PostgreSQL
-ledger 无需新增 authority 或 SQL component 即可保留这些 event。active provider
-callback、provider-specific reconciliation adapter、durable compensation、Memory/index/
-audit/metrics reducer、完整 lifecycle integration、migration 与 cutover 仍未完成。
+reconciliation。Semantic adapter 只有在 unknown result 或 successful receipt 已经
+持久保留后才会调用该 reconciliation 或改写 stream；只有显式 not-found 结果才允许
+安排 retry。generic SQLite/PostgreSQL
+ledger 无需新增 authority 或 SQL component 即可保留这些 event。显式 durable
+SQLite/PostgreSQL runtime factory 在配置后已选择 server-owned Semantic invocation 与
+可信 provider-specific reconciliation callback；完整 result digest 会阻止 reconciler 在
+复用 response bytes 时改变 structured Semantic 字段。request-only safe claim、active
+retry/dead-letter ownership、具体 remote-provider adapter、completion-provider
+integration、durable compensation、PostgreSQL crash parity、Memory/index/audit/metrics
+reducer、完整 lifecycle integration、migration 与 cutover 仍未完成。
 
 机器可读的 [`authority-registry.json`](status/authority-registry.json) 会把每个当前
 已登记 SQLite/PostgreSQL 持久化模块分类为 ledger、replaceable projection、compatibility

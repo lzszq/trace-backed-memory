@@ -103,8 +103,23 @@ ledger-compatible partition identity/content digest for atomic batches of at
 most 100 contiguous events. Typed preflight plus SQLite continuation and exact
 append/replay are verified, and an exact SQLite/PostgreSQL receipt/page parity
 test is present, but PostgreSQL executables are not
-available locally. Codex Hook/App Server ingestion, Git observations, Trace/Git
-reducers, and default Trace persistence cutover remain incomplete. The fixed
+available locally. Codex Hook/App Server ingestion, Trace reducers, and default
+Trace persistence cutover remain incomplete. The fixed
 progress contract contains no auditable F3 atom-ID-to-plan-line map, so this
 protocol evidence is not assigned an invented atom ID. Formal and candidate
 progress therefore remain 182/490 (37.14%) with `atom_ids=[]`.
+
+The Git observation protocol now adds eight registered checkout, commit, ref,
+worktree-status, diff, commit-relation, object-availability, and shallow-state
+event types. An opt-in recorder preserves the frozen legacy capture return
+types while binding canonical Git/runner/algorithm versions, partition and
+checkout identity, exact Artifact-only diff references, and conservative
+unknown ancestry into the generic ledger. Focused SQLite append/replay and
+legacy capture compatibility are verified, and PostgreSQL parity coverage is
+present but was skipped locally because PostgreSQL executables are unavailable.
+Raw paths, remote URLs, diff bytes, stdout, and stderr are excluded from event
+payloads. Automatic Git/diff capture, checkout authority, Git reducers and
+projections, force-push reconciliation, Codex Hook/App Server ingestion, and
+default cutover remain incomplete. No complete fixed-plan atom has a safe
+atom-ID mapping for this increment, so formal and candidate progress remain
+182/490 (37.14%) with `atom_ids=[]`.

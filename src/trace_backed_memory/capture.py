@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from threading import Event, Thread
-from typing import BinaryIO
+from typing import BinaryIO, Literal, Protocol
 
 from .models import CommitAncestryEvidence, TraceMetadata
 from .policy import METADATA_VALUE_MAX_CHARS
@@ -20,6 +20,25 @@ GIT_CAPTURE_OUTPUT_MAX_BYTES = 64 * 1024
 _GIT_CAPTURE_READ_CHUNK_BYTES = 8 * 1024
 _GIT_CAPTURE_POLL_SECONDS = 0.05
 _GIT_CAPTURE_REAP_TIMEOUT_SECONDS = 1.0
+
+
+class GitObservationRecorder(Protocol):
+    def record_metadata(self, metadata: TraceMetadata) -> None: ...
+
+    def record_ancestry(self, evidence: CommitAncestryEvidence) -> None: ...
+
+    def record_ancestry_failure(
+        self,
+        ancestor_sha: str,
+        descendant_sha: str,
+        reason: Literal[
+            "missing",
+            "shallow_boundary",
+            "not_fetched",
+            "capture_failed",
+            "unknown",
+        ],
+    ) -> None: ...
 
 
 class TraceMetadataCaptureError(RuntimeError):
@@ -63,9 +82,7 @@ class _BoundedPipeReader:
     def join(self) -> None:
         self.thread.join(timeout=_GIT_CAPTURE_REAP_TIMEOUT_SECONDS)
         if self.thread.is_alive():
-            raise RuntimeError(
-                f"git command {self.stream_name} reader did not stop"
-            )
+            raise RuntimeError(f"git command {self.stream_name} reader did not stop")
         if self.error is not None:
             raise RuntimeError(
                 f"failed to read git command {self.stream_name}: {self.error}"
@@ -91,6 +108,7 @@ def capture_trace_metadata(
     repo_path: str | None = None,
     *,
     runner: CommandRunner | None = None,
+    observation_recorder: GitObservationRecorder | None = None,
 ) -> TraceMetadata:
     run = runner or _run_command
     commit_args = ["git", "rev-parse", "HEAD"]
@@ -133,12 +151,20 @@ def capture_trace_metadata(
         repo_path,
     )
 
-    return TraceMetadata(
+    metadata = TraceMetadata(
         commit_sha=commit_sha,
         repo=repo_name,
         branch=branch_output or None,
         dirty=bool(status_output.strip()),
     )
+    if observation_recorder is not None:
+        try:
+            observation_recorder.record_metadata(metadata)
+        except Exception as exc:
+            raise TraceMetadataCaptureError(
+                "failed to record Git metadata observation"
+            ) from exc
+    return metadata
 
 
 def capture_commit_ancestry(
@@ -147,6 +173,7 @@ def capture_commit_ancestry(
     repo_path: str | None = None,
     *,
     runner: AncestryRunner | None = None,
+    observation_recorder: GitObservationRecorder | None = None,
 ) -> CommitAncestryEvidence:
     _validate_commit_string(current_commit_sha, "current_commit_sha")
     if isinstance(anchor_commit_shas, (str, bytes)) or not isinstance(
@@ -174,14 +201,36 @@ def capture_commit_ancestry(
             anchor,
             current_commit_sha,
         ]
-        return_code = _capture_ancestry_result(
-            run, args, repo_path, anchor=anchor, current=current_commit_sha
-        )
+        try:
+            return_code = _capture_ancestry_result(
+                run, args, repo_path, anchor=anchor, current=current_commit_sha
+            )
+        except CommitAncestryCaptureError:
+            if observation_recorder is not None:
+                try:
+                    observation_recorder.record_ancestry_failure(
+                        anchor,
+                        current_commit_sha,
+                        "capture_failed",
+                    )
+                except Exception as exc:
+                    raise CommitAncestryCaptureError(
+                        "failed to record Git ancestry failure observation"
+                    ) from exc
+            raise
         relations.append((anchor, return_code == 0))
-    return CommitAncestryEvidence(
+    evidence = CommitAncestryEvidence(
         current_commit_sha=current_commit_sha,
         commit_relations=tuple(relations),
     )
+    if observation_recorder is not None:
+        try:
+            observation_recorder.record_ancestry(evidence)
+        except Exception as exc:
+            raise CommitAncestryCaptureError(
+                "failed to record Git ancestry observation"
+            ) from exc
+    return evidence
 
 
 def _validate_commit_string(value: object, field_name: str) -> None:
@@ -436,7 +485,9 @@ def _kill_process_tree(process: subprocess.Popen[bytes]) -> None:
 def _run_git(run: CommandRunner, args: list[str], repo_path: str | None) -> str:
     try:
         result = run(args, repo_path)
-    except Exception as exc:  # pragma: no cover - exact exception type depends on runner/subprocess
+    except (
+        Exception
+    ) as exc:  # pragma: no cover - exact exception type depends on runner/subprocess
         raise _metadata_capture_error(
             args,
             repo_path,

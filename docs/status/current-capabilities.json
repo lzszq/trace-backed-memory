@@ -155,6 +155,7 @@
         "src/trace_backed_memory/outcome_event_v1.py",
         "src/trace_backed_memory/effect_event_v1.py",
         "src/trace_backed_memory/trace_event_v1.py",
+        "src/trace_backed_memory/git_observation_v1.py",
         "schemas/event_v1.schema.json",
         "docs/protocols/event-v1.md"
       ]
@@ -169,6 +170,19 @@
         "examples/event_type_registry_v1.example.json",
         "tests/test_trace_event_v1.py",
         "docs/protocols/trace-event-v1.md"
+      ]
+    },
+    {
+      "id": "protocol.git-observation-v1",
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/git_observation_v1.py",
+        "src/trace_backed_memory/capture.py",
+        "src/trace_backed_memory/event_registry_v1.py",
+        "schemas/event_payload_registry_v1.schema.json",
+        "examples/event_type_registry_v1.example.json",
+        "tests/test_git_observation_v1.py",
+        "docs/protocols/git-observation-v1.md"
       ]
     },
     {

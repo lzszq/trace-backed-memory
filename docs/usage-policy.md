@@ -1753,6 +1753,48 @@ transcript as the sole fact source, accept repository or authorization identity
 from a hook payload, or claim a Trace projection/default-runtime cutover until
 those separate adapters and reducers are implemented and verified.
 
+## Git observation policy
+
+Use `GitObservationEventRecorder` only with an adapter-authenticated
+`LedgerAccessContext`, canonical repository registration, and a bounded opaque
+checkout alias. Configure explicit Git, runner, and algorithm versions. These
+values and `EventSource` timing/quality are evidence claims that are hashed into
+the command; they are not self-attestation.
+
+Passing the recorder through the keyword-only `observation_recorder` argument
+does not change the `TraceMetadata` or `CommitAncestryEvidence` return types.
+Without a recorder, both capture functions retain their compatibility behavior
+and write no Git event. With a recorder, treat recorder failure as capture
+failure; do not silently keep the legacy aggregate after losing the canonical
+observation.
+
+Keep checkout paths, remote URLs, credentials, command output, error text, raw
+status, path lists, and diff bytes out of event payloads. Use only a checkout
+alias, remote SHA-256 digest, bounded reason code, and authorized Artifact
+descriptor. A worktree/diff record that names an Artifact must carry exactly
+that descriptor, and its envelope classification must cover the Artifact.
+Ref names must pass the protocol's bounded ASCII Git-ref grammar, and version
+fields must be normalized version tokens rather than raw command output.
+
+Ancestry exit 0 means `ancestor`; exit 1 means `not_ancestor`. Other failures
+remain errors. When a recorder is configured, a failed probe may retain only
+`unknown/capture_failed` object availability before the existing capture error
+is re-raised. Never convert missing, shallow, unfetched, timed-out, or otherwise
+unverifiable objects to `not_ancestor`.
+
+Use `append_git_observation_batch()` rather than raw generic-ledger append.
+One typed batch is limited to 100 contiguous events. Larger ancestry evidence
+is prevalidated as a whole and split into bounded atomic batches; callers must
+recover through exact ledger replay if a later persistence batch fails. The
+concrete recorder retains exact unconfirmed batches for `resume_pending()`;
+call it before any new capture instead of rebuilding the logical observation
+at new sequence numbers. The adapter must be the serialized global-position
+owner or reserve the operation's full interval. A permanent global-position
+conflict is terminal for that recorder and requires operator recovery; never
+renumber already retained events or mark the incomplete observation complete.
+The default Agent/MCP profile does not configure this recorder and must not
+claim a Git projection or default-runtime cutover.
+
 ## Fixed runtime budgets
 
 The runtime fails closed at these fixed boundaries:

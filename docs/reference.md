@@ -1970,8 +1970,12 @@ dirty detection while draining and discarding the remaining output. Injected
 runner call signatures, commands, and error mapping remain unchanged. These
 runtime limits do not change snapshot version 2 or PostgreSQL schema version 2.
 
-Evidence is request-time input only: it is neither stored in snapshots nor
-persisted to PostgreSQL, and it does not replace either gate. PR callers use
+The compatibility evidence object remains request-time input only: it is not
+stored in snapshot version 2 or the active PostgreSQL schema and does not
+replace either gate. An explicit `GitObservationEventRecorder` may also be
+passed through the keyword-only `observation_recorder` argument; it appends
+typed ancestry/object observations to the generic event ledger while the
+function still returns the same `CommitAncestryEvidence`. PR callers use
 `pr_report_commit_anchors(context)`, capture against the same context commit,
 and pass that same evidence object to `pr_memory_report()`.
 

@@ -1068,7 +1068,12 @@ request = store.prepare_memory(
 
 `capture_commit_ancestry()` 对每个 anchor 运行 `git merge-base --is-ancestor`。退出码 0 记录 `True`，1 记录 `False` 并排除无关历史，其他错误停止工作流。若调用方提供证据，必须覆盖每个已发现 anchor；缺少关系会 fail closed。省略 `commit_ancestry` 则保持原检索行为。
 
-单次捕获最多提交 1,000 个 anchor，并在去重与启动 Git 命令前检查。默认子进程使用 30 秒超时、二进制管道和 UTF-8 replacement 解码，stdout/stderr 各最多保留 64 KiB。证据仅存在于 request，不写入快照或 PostgreSQL。
+单次捕获最多提交 1,000 个 anchor，并在去重与启动 Git 命令前检查。默认子进程使用
+30 秒超时、二进制管道和 UTF-8 replacement 解码，stdout/stderr 各最多保留 64 KiB。
+compatibility evidence object 仍只存在于 request，不写入 snapshot version 2 或 active
+PostgreSQL schema。显式调用方可以通过 keyword-only `observation_recorder` 传入
+`GitObservationEventRecorder`，在函数仍返回同一 `CommitAncestryEvidence` 的同时，
+把 typed ancestry/object observation 追加到 generic event ledger。
 
 ## 端点感知 PR 报告
 

@@ -18,8 +18,8 @@ Schema 哈希。根 payload Schema 必须拒绝额外属性。无依赖的受支
 `seal()` 会冻结 registration/upcaster 拓扑。检查、类型化消费、兼容矩阵和 Schema
 生成都要求注册表非空且已经密封。
 
-版本 1 把 catalog 限制为 32 个 event type、每类 32 个 version、2,048 条 upcaster
-edge 与 32,768 行 compatibility；发布的 catalog Schema 使用相同限制。
+版本 1 把 catalog 限制为 128 个 event type、每类 32 个 version、2,048 条 upcaster
+edge 与 131,072 行 compatibility；发布的 catalog Schema 使用相同限制。
 
 Schema keyword 的类型及其 object/array/string/number 上下文都会严格核验。property
 name 和每次 upcaster 输出还会经过 canonical event payload 的容量限制与 forbidden
@@ -52,9 +52,10 @@ secret-metadata policy，因此 typed evolution 不能绕过基础信封的安�
 
 已密封的默认注册表会发布 canonical memory proposal，以及 typed GateSession、
 Retrieval/System Gate evidence、Semantic Gate attempt、finalization、outcome/attribution、
-有序 Trace observation 与本地 effect 事件族。当前 catalog 包含 31 个 version-1
-event type，其中包括[有序 Trace Event v1](trace-event-v1.zh-CN.md) 定义的 Trace family，
-以及 [Effect Event v1](effect-event-v1.zh-CN.md) 定义的全部九个 `tbm.effect.*` event。
+有序 Trace/Git observation 与本地 effect 事件族。当前 catalog 包含 39 个 version-1
+event type，其中包括[有序 Trace Event v1](trace-event-v1.zh-CN.md) 定义的 Trace family、
+[Git Observation v1](git-observation-v1.zh-CN.md) 定义的八种 type，以及
+[Effect Event v1](effect-event-v1.zh-CN.md) 定义的全部九个 `tbm.effect.*` event。
 它确定性生成：
 
 - `examples/event_type_registry_v1.example.json`——内容寻址目录；

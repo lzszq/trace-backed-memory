@@ -32,6 +32,10 @@ from .gate_session_event_v1 import (
     GATE_SESSION_EVENT_TYPES,
     gate_session_event_payload_schema,
 )
+from .git_observation_v1 import (
+    GIT_OBSERVATION_TYPES,
+    git_observation_payload_schema,
+)
 from .outcome_event_v1 import (
     OUTCOME_EVENT_TYPES,
     outcome_event_payload_schema,
@@ -47,10 +51,10 @@ from .trace_event_v1 import (
 
 
 EVENT_REGISTRY_PROTOCOL_VERSION = "tbm.event-registry.v1"
-EVENT_REGISTRY_MAX_TYPES = 32
+EVENT_REGISTRY_MAX_TYPES = 128
 EVENT_REGISTRY_MAX_VERSIONS_PER_TYPE = 32
 EVENT_REGISTRY_MAX_UPCASTERS = 2048
-EVENT_REGISTRY_MAX_COMPATIBILITY_ROWS = 32_768
+EVENT_REGISTRY_MAX_COMPATIBILITY_ROWS = 131_072
 EVENT_REGISTRY_MAX_SCHEMA_BYTES = 128 * 1024
 EVENT_REGISTRY_MAX_SCHEMA_DEPTH = 24
 EVENT_REGISTRY_MAX_SCHEMA_NODES = 8192
@@ -717,6 +721,16 @@ def build_default_event_type_registry() -> EventTypeRegistry:
                 event_kind="observation",
                 payload_schema=f"{event_type}.v1",
                 schema=trace_event_payload_schema(event_type),
+            )
+        )
+    for event_type in GIT_OBSERVATION_TYPES:
+        registry.register(
+            EventPayloadRegistration(
+                event_type=event_type,
+                event_version=1,
+                event_kind="observation",
+                payload_schema=f"{event_type}.v1",
+                schema=git_observation_payload_schema(event_type),
             )
         )
     for event_type in SEMANTIC_GATE_ATTEMPT_EVENT_TYPES:

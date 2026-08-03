@@ -2186,8 +2186,20 @@ The typed append helper verifies that complete command and the ledger access
 context before the existing SQLite/PostgreSQL event ledger appends it atomically.
 See
 [Ordered Trace Event Protocol v1](protocols/trace-event-v1.md). No Codex Hook/
-App Server adapter, Git observation, Trace reducer/projection, or compatibility
+App Server adapter, Trace reducer/projection, or compatibility
 Trace cutover is implied by this protocol increment.
+
+The F3 Git observation increment is also delivered as an opt-in typed protocol.
+Eight registered observation types retain checkout, commit, ref, worktree,
+Artifact-linked diff, ancestry, object-availability, and shallow-state evidence
+with exact Git/runner/algorithm versions. `GitObservationEventRecorder` binds a
+trusted ledger context and can be supplied through the new keyword-only capture
+seam while `capture_trace_metadata()` and `capture_commit_ancestry()` preserve
+their original return records and default behavior. Missing-object capture
+remains `unknown`, never false. The default Agent/MCP profile, automatic remote/
+diff Artifact capture, checkout-binding authority, Git graph reducers, force-
+push reconciliation, and cutover remain open. See
+[Git Observation Protocol v1](protocols/git-observation-v1.md).
 
 The machine-readable
 [`authority-registry.json`](status/authority-registry.json) classifies every

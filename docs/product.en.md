@@ -324,8 +324,17 @@ tool/permission/parent/subagent correlation, and one shared command digest for
 an atomic batch of at most 100 events. The typed helper verifies the complete
 command and trusted ledger context before the generic SQLite/PostgreSQL event
 ledgers provide exact append and replay without another schema. This is not yet
-Codex Hook/App Server ingestion, Git evidence, a Trace reducer/projection, or a
+Codex Hook/App Server ingestion, a Trace reducer/projection, or a
 default Trace-store cutover.
+
+The F3 Git increment adds eight registered observation types plus an opt-in
+`GitObservationEventRecorder`. Checkout/ref/commit/worktree/diff/ancestry/
+object-availability/shallow evidence is version-bound and retained through the
+same generic SQLite/PostgreSQL ledger. Existing metadata and ancestry capture
+functions preserve their return types and default behavior; explicit callers
+may supply the recorder to append evidence at capture time. Automatic Git and
+diff-Artifact capture, checkout-binding authority, Git graph reducers, force-
+push reconciliation, and default Agent/MCP cutover remain open.
 
 The implemented hardening includes:
 

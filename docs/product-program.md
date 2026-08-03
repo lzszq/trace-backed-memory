@@ -1946,10 +1946,12 @@ broader F2 gates remain incomplete.
   sweep/lease fencing, shared-service workers, locally unexecuted PostgreSQL
   crash probes, and the complete crash matrix remain open.
 - **F3 — Trace, Git, and effect evidence:** the ordered typed Trace event
-  protocol and ledger-context-bound atomic append helper are delivered, as is the
+  protocol, ledger-context-bound append helper, eight-type Git observation
+  protocol, and capture-compatible Git recorder are delivered, as is the
   storage-neutral external-effect event/reducer/ledger foundation. Trusted Codex
-  Hook/App Server ingestion, Git observations, Trace/Git projections, complete
-  external-effect integration, and governed retention/crypto-erasure remain.
+  Hook/App Server ingestion, automatic Git/diff capture, Trace/Git projections,
+  complete external-effect integration, and governed retention/crypto-erasure
+  remain.
 - **F4 — Governed memory projections:** failure extraction, structured evidence,
   MemoryRevision publication, ActivatedRevision retrieval, policy/index, and
   remaining Memory projections become reducer-native; the opt-in outcome/

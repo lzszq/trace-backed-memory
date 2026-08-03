@@ -18,7 +18,7 @@
     "event_types": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 1024,
+      "maxItems": 4096,
       "items": {"$ref": "#/$defs/eventType"}
     },
     "upcasters": {
@@ -28,7 +28,7 @@
     },
     "compatibility": {
       "type": "array",
-      "maxItems": 32768,
+      "maxItems": 131072,
       "items": {"$ref": "#/$defs/compatibility"}
     }
   },

@@ -108,7 +108,8 @@ It does not yet:
 
 - ingest Codex Hooks or App Server frames;
 - parse unstable transcripts;
-- emit Git checkout or ancestry observations;
+- embed Git checkout or ancestry details in the Trace payload (the separate
+  Git observation protocol owns those records);
 - build a Trace projection or Git graph reducer;
 - cut over the compatibility Trace aggregate or default Agent/MCP profiles.
 

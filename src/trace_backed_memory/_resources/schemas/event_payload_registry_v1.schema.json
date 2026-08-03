@@ -4823,6 +4823,1522 @@
       "additionalProperties": false,
       "properties": {
         "event_type": {
+          "const": "tbm.git.checkout_observed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "algorithm_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "artifact_ids": {
+              "items": {
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "authorization_event_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "batch_first_sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "batch_size": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "causation_event_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "checkout_alias": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "contract_version": {
+              "const": "tbm.git-observation.v1"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "commit_sha": {
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+                  "type": "string"
+                },
+                "detached": {
+                  "type": "boolean"
+                },
+                "ref_name": {
+                  "oneOf": [
+                    {
+                      "maxLength": 512,
+                      "minLength": 1,
+                      "pattern": "^(?![-/.])(?!@$)(?!.*//)(?!.*\\.\\.)(?!.*@\\{)(?!.*(?:^|/)\\.)(?!.*(?:^|/)[^/]*\\.lock(?:/|$))(?!.*[./]$)[A-Za-z0-9_@+./-]{1,512}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "remote_sha256": {
+                  "oneOf": [
+                    {
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "commit_sha",
+                "ref_name",
+                "detached",
+                "remote_sha256"
+              ],
+              "type": "object"
+            },
+            "git_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "observation_kind": {
+              "const": "checkout"
+            },
+            "occurred_at": {
+              "maxLength": 64,
+              "minLength": 20,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$",
+              "type": "string"
+            },
+            "repository_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "run_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "trace_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract_version",
+            "trace_id",
+            "run_id",
+            "repository_id",
+            "checkout_alias",
+            "sequence",
+            "observation_kind",
+            "occurred_at",
+            "authorization_event_id",
+            "git_version",
+            "runner_name",
+            "runner_version",
+            "algorithm_name",
+            "algorithm_version",
+            "artifact_ids",
+            "details",
+            "causation_event_id",
+            "batch_first_sequence",
+            "batch_size"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.git.checkout_observed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.git.commit_observed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "algorithm_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "artifact_ids": {
+              "items": {
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "authorization_event_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "batch_first_sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "batch_size": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "causation_event_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "checkout_alias": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "contract_version": {
+              "const": "tbm.git-observation.v1"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "commit_sha": {
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "commit_sha"
+              ],
+              "type": "object"
+            },
+            "git_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "observation_kind": {
+              "const": "commit"
+            },
+            "occurred_at": {
+              "maxLength": 64,
+              "minLength": 20,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$",
+              "type": "string"
+            },
+            "repository_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "run_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "trace_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract_version",
+            "trace_id",
+            "run_id",
+            "repository_id",
+            "checkout_alias",
+            "sequence",
+            "observation_kind",
+            "occurred_at",
+            "authorization_event_id",
+            "git_version",
+            "runner_name",
+            "runner_version",
+            "algorithm_name",
+            "algorithm_version",
+            "artifact_ids",
+            "details",
+            "causation_event_id",
+            "batch_first_sequence",
+            "batch_size"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.git.commit_observed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.git.commit_relation_observed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "algorithm_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "artifact_ids": {
+              "items": {
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "authorization_event_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "batch_first_sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "batch_size": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "causation_event_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "checkout_alias": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "contract_version": {
+              "const": "tbm.git-observation.v1"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "ancestor_sha": {
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+                  "type": "string"
+                },
+                "descendant_sha": {
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+                  "type": "string"
+                },
+                "relation": {
+                  "enum": [
+                    "ancestor",
+                    "not_ancestor",
+                    "unknown"
+                  ]
+                }
+              },
+              "required": [
+                "ancestor_sha",
+                "descendant_sha",
+                "relation"
+              ],
+              "type": "object"
+            },
+            "git_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "observation_kind": {
+              "const": "ancestry"
+            },
+            "occurred_at": {
+              "maxLength": 64,
+              "minLength": 20,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$",
+              "type": "string"
+            },
+            "repository_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "run_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "trace_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract_version",
+            "trace_id",
+            "run_id",
+            "repository_id",
+            "checkout_alias",
+            "sequence",
+            "observation_kind",
+            "occurred_at",
+            "authorization_event_id",
+            "git_version",
+            "runner_name",
+            "runner_version",
+            "algorithm_name",
+            "algorithm_version",
+            "artifact_ids",
+            "details",
+            "causation_event_id",
+            "batch_first_sequence",
+            "batch_size"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.git.commit_relation_observed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.git.diff_captured"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "algorithm_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "artifact_ids": {
+              "items": {
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "authorization_event_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "batch_first_sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "batch_size": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "causation_event_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "checkout_alias": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "contract_version": {
+              "const": "tbm.git-observation.v1"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "base_commit_sha": {
+                  "oneOf": [
+                    {
+                      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "commit_sha": {
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+                  "type": "string"
+                },
+                "diff_artifact_id": {
+                  "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "commit_sha",
+                "base_commit_sha",
+                "diff_artifact_id"
+              ],
+              "type": "object"
+            },
+            "git_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "observation_kind": {
+              "const": "diff"
+            },
+            "occurred_at": {
+              "maxLength": 64,
+              "minLength": 20,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$",
+              "type": "string"
+            },
+            "repository_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "run_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "trace_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract_version",
+            "trace_id",
+            "run_id",
+            "repository_id",
+            "checkout_alias",
+            "sequence",
+            "observation_kind",
+            "occurred_at",
+            "authorization_event_id",
+            "git_version",
+            "runner_name",
+            "runner_version",
+            "algorithm_name",
+            "algorithm_version",
+            "artifact_ids",
+            "details",
+            "causation_event_id",
+            "batch_first_sequence",
+            "batch_size"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.git.diff_captured.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.git.object_availability_observed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "algorithm_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "artifact_ids": {
+              "items": {
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "authorization_event_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "batch_first_sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "batch_size": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "causation_event_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "checkout_alias": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "contract_version": {
+              "const": "tbm.git-observation.v1"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "availability": {
+                  "enum": [
+                    "available",
+                    "unavailable",
+                    "unknown"
+                  ]
+                },
+                "object_sha": {
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+                  "type": "string"
+                },
+                "object_type": {
+                  "enum": [
+                    "blob",
+                    "commit",
+                    "tag",
+                    "tree",
+                    "unknown"
+                  ]
+                },
+                "unavailable_reason": {
+                  "oneOf": [
+                    {
+                      "enum": [
+                        "capture_failed",
+                        "missing",
+                        "not_fetched",
+                        "shallow_boundary",
+                        "unknown"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "object_sha",
+                "object_type",
+                "availability",
+                "unavailable_reason"
+              ],
+              "type": "object"
+            },
+            "git_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "observation_kind": {
+              "const": "object_availability"
+            },
+            "occurred_at": {
+              "maxLength": 64,
+              "minLength": 20,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$",
+              "type": "string"
+            },
+            "repository_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "run_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "trace_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract_version",
+            "trace_id",
+            "run_id",
+            "repository_id",
+            "checkout_alias",
+            "sequence",
+            "observation_kind",
+            "occurred_at",
+            "authorization_event_id",
+            "git_version",
+            "runner_name",
+            "runner_version",
+            "algorithm_name",
+            "algorithm_version",
+            "artifact_ids",
+            "details",
+            "causation_event_id",
+            "batch_first_sequence",
+            "batch_size"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.git.object_availability_observed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.git.ref_observed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "algorithm_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "artifact_ids": {
+              "items": {
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "authorization_event_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "batch_first_sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "batch_size": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "causation_event_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "checkout_alias": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "contract_version": {
+              "const": "tbm.git-observation.v1"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "commit_sha": {
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+                  "type": "string"
+                },
+                "detached": {
+                  "type": "boolean"
+                },
+                "ref_name": {
+                  "oneOf": [
+                    {
+                      "maxLength": 512,
+                      "minLength": 1,
+                      "pattern": "^(?![-/.])(?!@$)(?!.*//)(?!.*\\.\\.)(?!.*@\\{)(?!.*(?:^|/)\\.)(?!.*(?:^|/)[^/]*\\.lock(?:/|$))(?!.*[./]$)[A-Za-z0-9_@+./-]{1,512}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "commit_sha",
+                "ref_name",
+                "detached"
+              ],
+              "type": "object"
+            },
+            "git_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "observation_kind": {
+              "const": "ref"
+            },
+            "occurred_at": {
+              "maxLength": 64,
+              "minLength": 20,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$",
+              "type": "string"
+            },
+            "repository_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "run_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "trace_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract_version",
+            "trace_id",
+            "run_id",
+            "repository_id",
+            "checkout_alias",
+            "sequence",
+            "observation_kind",
+            "occurred_at",
+            "authorization_event_id",
+            "git_version",
+            "runner_name",
+            "runner_version",
+            "algorithm_name",
+            "algorithm_version",
+            "artifact_ids",
+            "details",
+            "causation_event_id",
+            "batch_first_sequence",
+            "batch_size"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.git.ref_observed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.git.shallow_state_observed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "algorithm_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "artifact_ids": {
+              "items": {
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "authorization_event_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "batch_first_sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "batch_size": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "causation_event_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "checkout_alias": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "contract_version": {
+              "const": "tbm.git-observation.v1"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "boundary_commit_shas": {
+                  "items": {
+                    "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+                    "type": "string"
+                  },
+                  "maxItems": 100,
+                  "type": "array",
+                  "uniqueItems": true
+                },
+                "shallow": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "shallow",
+                "boundary_commit_shas"
+              ],
+              "type": "object"
+            },
+            "git_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "observation_kind": {
+              "const": "shallow_state"
+            },
+            "occurred_at": {
+              "maxLength": 64,
+              "minLength": 20,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$",
+              "type": "string"
+            },
+            "repository_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "run_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "trace_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract_version",
+            "trace_id",
+            "run_id",
+            "repository_id",
+            "checkout_alias",
+            "sequence",
+            "observation_kind",
+            "occurred_at",
+            "authorization_event_id",
+            "git_version",
+            "runner_name",
+            "runner_version",
+            "algorithm_name",
+            "algorithm_version",
+            "artifact_ids",
+            "details",
+            "causation_event_id",
+            "batch_first_sequence",
+            "batch_size"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.git.shallow_state_observed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "tbm.git.worktree_status_observed"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "algorithm_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "algorithm_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "artifact_ids": {
+              "items": {
+                "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "maxItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "authorization_event_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "batch_first_sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "batch_size": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "causation_event_id": {
+              "oneOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 5,
+                  "pattern": "^evt_[A-Za-z0-9][A-Za-z0-9._:-]{0,123}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "checkout_alias": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "contract_version": {
+              "const": "tbm.git-observation.v1"
+            },
+            "details": {
+              "additionalProperties": false,
+              "properties": {
+                "commit_sha": {
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+                  "type": "string"
+                },
+                "detached": {
+                  "type": "boolean"
+                },
+                "diff_artifact_id": {
+                  "oneOf": [
+                    {
+                      "pattern": "^artifact_sha256_[0-9a-f]{64}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "dirty": {
+                  "type": "boolean"
+                },
+                "ref_name": {
+                  "oneOf": [
+                    {
+                      "maxLength": 512,
+                      "minLength": 1,
+                      "pattern": "^(?![-/.])(?!@$)(?!.*//)(?!.*\\.\\.)(?!.*@\\{)(?!.*(?:^|/)\\.)(?!.*(?:^|/)[^/]*\\.lock(?:/|$))(?!.*[./]$)[A-Za-z0-9_@+./-]{1,512}$",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "commit_sha",
+                "ref_name",
+                "detached",
+                "dirty",
+                "diff_artifact_id"
+              ],
+              "type": "object"
+            },
+            "git_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "observation_kind": {
+              "const": "worktree_status"
+            },
+            "occurred_at": {
+              "maxLength": 64,
+              "minLength": 20,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$",
+              "type": "string"
+            },
+            "repository_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "run_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_name": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "runner_version": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,255}$",
+              "type": "string"
+            },
+            "sequence": {
+              "maximum": 1000000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "trace_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract_version",
+            "trace_id",
+            "run_id",
+            "repository_id",
+            "checkout_alias",
+            "sequence",
+            "observation_kind",
+            "occurred_at",
+            "authorization_event_id",
+            "git_version",
+            "runner_name",
+            "runner_version",
+            "algorithm_name",
+            "algorithm_version",
+            "artifact_ids",
+            "details",
+            "causation_event_id",
+            "batch_first_sequence",
+            "batch_size"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.git.worktree_status_observed.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
           "const": "tbm.injection.rendered"
         },
         "event_version": {

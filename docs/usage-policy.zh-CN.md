@@ -827,6 +827,40 @@ command，逐条 parse 不能代替 batch verification。
 禁止从 hook payload 接受 repository/authorization identity；在独立 adapter/reducer 落地并
 核验前，也不得声明 Trace projection 或默认 runtime cutover。
 
+## Git observation 策略
+
+只能把 `GitObservationEventRecorder` 与 adapter-authenticated
+`LedgerAccessContext`、canonical repository registration 和有界 opaque checkout alias
+组合使用。必须配置显式 Git、runner 与 algorithm version。这些值以及 `EventSource` 的
+timing/quality 都是会进入 command hash 的 evidence 声明，不是自证明。
+
+通过 keyword-only `observation_recorder` 传入 recorder 不会改变 `TraceMetadata` 或
+`CommitAncestryEvidence` 返回类型。未传 recorder 时，两个 capture function 均保留
+compatibility 行为且不写 Git event；传入后，recorder failure 必须视为 capture failure，
+不得在 canonical observation 丢失后静默保留 legacy aggregate。
+
+event payload 禁止包含 checkout path、remote URL、credential、command output、error text、
+raw status、path list 或 diff 字节。只能使用 checkout alias、remote SHA-256 digest、有界
+reason code 与已授权 Artifact descriptor。worktree/diff record 一旦命名 Artifact，就必须
+精确携带该 descriptor，且 envelope classification 不得低于 Artifact。
+ref name 必须通过协议规定的有界 ASCII Git-ref grammar；version field 必须是规范化 version
+token，不能是 raw command output。
+
+ancestry exit 0 表示 `ancestor`，exit 1 表示 `not_ancestor`，其他 failure 仍是错误。配置
+recorder 时，失败 probe 可以先保留 `unknown/capture_failed` object availability，再重抛
+既有 capture error；绝不能把 missing、shallow、unfetched、timeout 或其他不可验证 object
+转换为 `not_ancestor`。
+
+必须使用 `append_git_observation_batch()`，不得直接 raw generic-ledger append。一个 typed
+batch 最多 100 条连续 event。更大的 ancestry evidence 会先整体 prevalidate，再拆成有界
+atomic batch；若后续 persistence batch 失败，调用方必须通过 exact ledger replay 恢复。
+concrete recorder 会为 `resume_pending()` 保留精确未确认 batch；任何新 capture 前必须先调用
+它，不能在新 sequence 上重建同一逻辑 observation。adapter 必须是串行化的 global-position
+owner，或预留该 operation 的完整区间。永久 global-position conflict 对该 recorder 是
+terminal，必须进入 operator recovery；禁止重编号已保留 event 或把未完成 observation 标记为
+完成。默认 Agent/MCP profile 不配置 recorder，也不得声明 Git projection 或 default-runtime
+cutover。
+
 ## 固定运行时预算
 
 运行时在以下边界 fail closed：

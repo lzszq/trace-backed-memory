@@ -927,8 +927,18 @@ tool correlation、permission result 与 parent/subagent linkage。有界批次�
 typed append helper 会先复验完整 command 与 ledger access context，再由既有
 SQLite/PostgreSQL event ledger 原子 append。详见
 [有序 Trace Event 协议 v1](protocols/trace-event-v1.zh-CN.md)。该协议增量不代表已经
-交付 Codex Hook/App Server adapter、Git observation、Trace reducer/projection 或
+交付 Codex Hook/App Server adapter、Trace reducer/projection 或
 compatibility Trace cutover。
+
+F3 Git observation 增量也已作为 opt-in typed 协议交付。八种注册 observation type 会保留
+checkout、commit、ref、worktree、Artifact-linked diff、ancestry、object availability 与
+shallow-state evidence，并绑定精确 Git/runner/algorithm version。
+`GitObservationEventRecorder` 会绑定 trusted ledger context，并可通过新的 keyword-only
+capture seam 传入；`capture_trace_metadata()` 与 `capture_commit_ancestry()` 仍保留原返回
+record 与默认行为。missing-object capture 保持 `unknown`，绝不转为 false。默认 Agent/MCP
+profile、自动 remote/diff Artifact capture、checkout-binding authority、Git graph reducer、
+force-push reconciliation 与 cutover 仍待完成。详见
+[Git Observation 协议 v1](protocols/git-observation-v1.zh-CN.md)。
 
 机器可读的 [`authority-registry.json`](status/authority-registry.json) 会把每个当前
 已登记 SQLite/PostgreSQL 持久化模块分类为 ledger、replaceable projection、compatibility

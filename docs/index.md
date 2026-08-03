@@ -44,6 +44,7 @@ orientation; these documents define the engineering contracts.
 - [Event type registry and upcasters v1](protocols/event-registry-v1.md)
 - [Event ledger application port v1](protocols/event-ledger-port-v1.md)
 - [Ordered Trace event protocol v1](protocols/trace-event-v1.md)
+- [Git observation protocol v1](protocols/git-observation-v1.md)
 - [Reducer and projection runtime v1](protocols/reducer-v1.md)
 - [Gate evidence canonical events and reducer v1](protocols/gate-evidence-event-v1.md)
 - [Semantic Gate attempt canonical events and reducer v1](protocols/semantic-gate-attempt-event-v1.md)

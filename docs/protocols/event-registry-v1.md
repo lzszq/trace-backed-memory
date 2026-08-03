@@ -21,8 +21,8 @@ Duplicate type/version pairs and duplicate payload-schema names fail. A
 registry is mutable only while being assembled. `seal()` freezes its
 registration/upcaster topology; inspection, typed consumption, compatibility
 reporting, and schema generation require a sealed non-empty registry.
-Version 1 bounds the catalog to 32 event types, 32 versions per type, 2,048
-upcaster edges, and 32,768 compatibility rows; the published catalog schema
+Version 1 bounds the catalog to 128 event types, 32 versions per type, 2,048
+upcaster edges, and 131,072 compatibility rows; the published catalog schema
 uses the same limits.
 
 Schema keyword types and their object/array/string/number contexts are checked
@@ -62,10 +62,12 @@ deployed code provenance remains a release/distribution responsibility.
 
 The sealed default registry publishes the canonical memory proposal plus the
 typed GateSession, retrieval/System Gate evidence, Semantic Gate attempt,
-finalization, outcome/attribution, ordered Trace observation, and local effect
-families. The current catalog contains 31 version-1 event types, including the
-Trace family described by [Ordered Trace Event v1](trace-event-v1.md) and all
-nine `tbm.effect.*` events described by [Effect Event v1](effect-event-v1.md).
+finalization, outcome/attribution, ordered Trace/Git observations, and local
+effect families. The current catalog contains 39 version-1 event types,
+including the Trace family described by
+[Ordered Trace Event v1](trace-event-v1.md), the eight types described by
+[Git Observation v1](git-observation-v1.md), and all nine `tbm.effect.*`
+events described by [Effect Event v1](effect-event-v1.md).
 It deterministically generates:
 
 - `examples/event_type_registry_v1.example.json` — content-addressed catalog;

@@ -91,7 +91,8 @@ rollback 与 packaged registry schema parity 都沿用同一条已测试存储�
 
 - 摄取 Codex Hooks 或 App Server frame；
 - 解析不稳定 transcript；
-- 生成 Git checkout 或 ancestry observation；
+- 在 Trace payload 中嵌入 Git checkout/ancestry detail（这些 record 由独立 Git
+  observation 协议承载）；
 - 构建 Trace projection 或 Git graph reducer；
 - 切换 compatibility Trace aggregate 或默认 Agent/MCP profile。
 

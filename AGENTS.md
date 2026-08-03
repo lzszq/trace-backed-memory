@@ -143,6 +143,9 @@ Start with:
 - `trace_event_v1.py`: storage-neutral ordered engineering-observation event
   with exact source time, Artifact-only content linkage, tool/permission/
   parent/subagent correlation, and ledger-compatible atomic batches.
+- `git_observation_v1.py`: storage-neutral typed checkout/ref/commit/worktree/
+  diff/ancestry/object/shallow evidence, capture-compatible ledger recorder, and
+  exact SQLite/PostgreSQL event-ledger replay.
 - `provider_effect_ledger_v1.py`: storage-neutral provider-effect event-ledger
   service with content-addressed receipts, conservative unknown-result
   recovery, reconciliation-gated retry/dead-letter, one-compensation-per-original

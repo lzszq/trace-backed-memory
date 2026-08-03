@@ -983,9 +983,11 @@ receipt、unknown result、trusted reconciliation、有界 retry/dead-letter 与
 generic compensation，且不新增 authority。显式 durable runtime factory 还提供 provider/policy-
 bound request、request-only 原子 claim 与跨 transport Semantic invocation parity；可信
 reconciliation、服务端证明的 owner fencing 与有界 retry/dead-letter 只有在配置对应依赖时才
-激活。Semantic provider effect 不支持 compensation，也不声明 remote exactly-once。具体
-remote-provider/completion-provider
-adapter、自动 background sweep/lease fencing、shared-service worker、Memory/index/audit/
+激活。opt-in completion-provider consumer bridge 现在会绑定精确 worker lease 与 effect-
+stream head，只把已被取代的 owner 转成 unknown 后再可信 reconciliation，并在不重复调用
+provider 的情况下重放已保留 receipt。completion effect 不可补偿，两个 provider path 都不
+声明 remote exactly-once。具体 remote-provider adapter、默认 bridge 构造、自动 background
+sweep/lease fencing、shared-service worker、Memory/index/audit/
 metrics reducer、migration、完整 lifecycle integration 与其余 event-first cutover 仍未完成。
 SQLite local daemon 现还具备真实子进程
 `SIGKILL`/reopen sweep：分别在已确认的 `PREPARED`、`DECIDED`、`FINALIZED`、
@@ -1004,7 +1006,8 @@ service 现在会核验已保留 provider registration，要求 unknown 后必�
 服务端证明且精确绑定的 owner fence，把 provider registration 与 retry policy digest 绑定到原始
 request，重新核验 retained retry deadline，并在耗尽后写 terminal dead-letter；generic
 compensation 使用独立且 receipt-backed 的 effect stream，每个 original effect 最多一条。
-completion-provider integration、具体 remote adapter、自动 background sweep/lease fencing、
+opt-in completion-provider bridge 已增加精确 worker-lease/stream-head fencing 与保守 unknown
+reconciliation，但仍由 operator 构造。具体 remote adapter、默认 bridge 构造、自动 background sweep/lease fencing、
 compatibility retained-bundle 的 hard-kill 边界、shared-service worker 与完整 crash matrix
 仍未完成。PostgreSQL provider crash probe 已加入，但当前机器尚未运行。
 
@@ -1036,9 +1039,10 @@ closed。在更大的 F2 gate 完成前，这两项增量都不提升新 atom。
   显式 runtime 已选择带完整 result receipt binding 的 Semantic provider invocation，并覆盖
   request-only 原子 claim、provider/policy 绑定、单一 compensation 约束与跨 transport
   Semantic invocation parity；只有配置对应依赖后，可信 reconciliation、服务端证明的 owner
-  fencing 与请求绑定的有界 retry/dead-letter 才激活。Semantic provider effect 不支持
-  compensation，也不声明 remote exactly-once。completion-provider integration、具体 remote-
-  provider adapter、自动 sweep/lease fencing、shared-service worker、当前机器尚未运行的
+  fencing 与请求绑定的有界 retry/dead-letter 才激活。opt-in completion-provider consumer
+  bridge 已提供 lease/head-fenced receipt capture 与保守 unknown reconciliation。completion
+  effect 不可补偿，两个 provider path 都不声明 remote exactly-once。默认 bridge 构造、具体
+  remote-provider adapter、自动 sweep/lease fencing、shared-service worker、当前机器尚未运行的
   PostgreSQL crash probe 与完整 crash matrix 仍未完成。
 - **F3 — Trace、Git 与 effect evidence：** 有序 typed Trace event 协议与 ledger-context-
   bound atomic append helper、八种 type 的 Git observation 协议与 capture-compatible Git

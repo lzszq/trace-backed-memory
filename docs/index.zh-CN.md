@@ -82,6 +82,7 @@
 - [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.zh-CN.md)
 - [Completion outbox 契约与 SQLite/PostgreSQL authority v3](protocols/completion-outbox-v3.zh-CN.md)
 - [本地 effect event 与 EffectQueue reducer v1](protocols/effect-event-v1.zh-CN.md)
+- [Completion provider effect bridge v1](protocols/completion-provider-effect-v1.zh-CN.md)
 - [Durable GateSession v3 领域契约](protocols/gate-session-v3.zh-CN.md)
 - [内容寻址重放与可移植导出契约 v3](protocols/replay-v3.zh-CN.md)
 - [已认证加密 Artifact Authority v3](protocols/artifact-authority-v3.zh-CN.md)
@@ -161,8 +162,10 @@ transition、`effect-queue` reducer version 3 与 authenticated generic-ledger s
 与 receipt-backed generic compensation。配置后的显式 durable runtime 还提供 request-only 原子
 claim、provider/policy 绑定，以及 server-owned Semantic invocation 的跨 transport parity；
 trusted reconciliation、owner fencing 与有界 retry/dead-letter 只有在提供对应依赖时才激活。
-Semantic provider effect 不支持 compensation，也不声明 remote exactly-once。具体
-remote-provider/completion-provider adapter、自动 background sweep/
+Semantic provider effect 不支持 compensation，也不声明 remote exactly-once。opt-in
+completion-provider consumer bridge 现在会在每条 provider transition 前绑定精确 worker
+lease 与 effect-stream head，把迟到 owner 收窄为 unknown reconciliation，并在不重复调用
+provider 的情况下重放已保留 receipt。具体 remote-provider adapter、默认 bridge 构造、自动 background sweep/
 lease fencing、托管生产索引、受保护内容的加密 finalization、默认 adapter cutover、CLI
 durable 选择与共享服务 transport 仍待完成。
 `AuthenticatedDurableAgentMemory` 现在会在一个 adapter-neutral lifecycle

@@ -259,6 +259,7 @@ def test_provider_effect_unknown_requires_reconciliation_before_retry() -> None:
         service = ProviderEffectLedgerService(ledger, _provider())
         assert service.recover(EFFECT_ID).next_action == "start_attempt"
 
+
         started = _transition("attempt_started")
         first = _append(service, started, 1)
         replay = _append(service, started, 1)
@@ -329,11 +330,55 @@ def test_provider_effect_unknown_requires_reconciliation_before_retry() -> None:
         completed = _append(service, receipt, 9)
         assert completed.recovery.provider_status == "succeeded"
         assert completed.recovery.next_action == "complete"
+        assert completed.recovery.response_sha256 == DIGEST_B
         assert completed.recovery.provider_receipt_id == receipt.provider_receipt_id
 
         state = service._load_effect(EFFECT_ID)[1]
         assert projected_effect_status(state, EFFECT_ID) == "succeeded"
         assert ledger.verify_stream(effect_event_stream_id(EFFECT_ID)).valid
+
+
+def test_provider_effect_expected_head_fences_new_append_but_allows_replay() -> None:
+    with SQLiteEventLedgerV1.connect(
+        ":memory:",
+        _access(),
+        initialize=True,
+    ) as ledger:
+        _seed(ledger, _access())
+        service = ProviderEffectLedgerService(ledger, _provider())
+        page = ledger.read_stream(effect_event_stream_id(EFFECT_ID), limit=100)
+        head = page.events[-1]
+        started = _transition("attempt_started")
+
+        inserted = service.append_transition(
+            started,
+            occurred_at="2026-08-03T00:00:01Z",
+            expected_head_event_id=head.event_id,
+            expected_head_event_sha256=head.event_sha256,
+        )
+        assert inserted.inserted is True
+
+        replayed = service.append_transition(
+            started,
+            occurred_at="2026-08-03T00:00:01Z",
+            expected_head_event_id=head.event_id,
+            expected_head_event_sha256=head.event_sha256,
+        )
+        assert replayed.inserted is False
+        with pytest.raises(
+            ProviderEffectLedgerV1Error,
+            match="provider effect head changed before append",
+        ) as raised:
+            service.append_transition(
+                _transition(
+                    "request_submitted",
+                    provider_request_id="provider_request_001",
+                ),
+                occurred_at="2026-08-03T00:00:02Z",
+                expected_head_event_id=head.event_id,
+                expected_head_event_sha256=head.event_sha256,
+            )
+        assert raised.value.code == "TBM_PROVIDER_EFFECT_HEAD_MISMATCH"
 
 
 def test_provider_effect_rejects_early_retry_and_receipt_after_unknown() -> None:

@@ -67,8 +67,10 @@ enforcement, receipt-backed generic compensation for supporting contracts, and
 cross-transport Semantic invocation parity. Configured reconciliation,
 server-attested owner fencing, and bounded retry/dead-letter revalidate their
 exact retained evidence. Semantic provider effects do not support compensation
-or claim remote exactly-once. Completion-provider integration,
-concrete remote adapters, automatic background sweep/lease fencing, shared-
+or claim remote exactly-once. The later opt-in completion-provider consumer
+bridge adds lease/head-fenced receipt capture and conservative reconciliation;
+default bridge construction, concrete remote adapters, automatic background
+sweep/lease fencing, shared-
 service workers, the locally unexecuted PostgreSQL crash probes, and the
 remaining crash matrix stay incomplete. The exact legacy
 SQLite timestamp trigger is also repaired atomically on reopen. These are
@@ -90,10 +92,14 @@ owner-fence verification, and bounded retry/dead-letter validate exact retained
 evidence. The receipt binds the complete structured result, fresh same-scope
 authorization can reconcile, and all configured transports produce the same
 provider-effect sequence. PostgreSQL provider hard-crash tests are present but were skipped on
-this machine because PostgreSQL executables are unavailable. Completion-provider
-integration, concrete remote-provider adapters, automatic background sweep/
-lease fencing, shared-service workers, the remaining crash matrix, and remote
-exactly-once remain incomplete. The plan has no explicit safe atom-ID mapping for
+this machine because PostgreSQL executables are unavailable. An opt-in storage-
+neutral completion-provider consumer bridge now consumes only an exact worker-
+owned lease, fences every transition by delivery revision and stream head,
+converts a superseded owner to unknown before reconciliation, and replays a
+retained receipt without another provider call. It remains operator-constructed;
+default runtime wiring, concrete remote-provider adapters, automatic background
+sweep/lease fencing, shared-service workers, the remaining crash matrix, and
+remote exactly-once remain incomplete. The plan has no explicit safe atom-ID mapping for
 this partial F3 cluster, so no complete F3 effect atom is promoted. Formal and
 candidate progress remain 182/490 (37.14%) with `atom_ids=[]`.
 

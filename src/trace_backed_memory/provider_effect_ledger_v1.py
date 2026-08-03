@@ -117,6 +117,7 @@ class ProviderEffectRecovery:
     transition_ids: tuple[str, ...]
     head_event_id: str
     head_event_sha256: str
+    response_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -195,6 +196,8 @@ class ProviderEffectLedgerService:
         reference: ProviderEffectTransitionRef,
         *,
         occurred_at: str,
+        expected_head_event_id: str | None = None,
+        expected_head_event_sha256: str | None = None,
     ) -> ProviderEffectAppendResult:
         if type(reference) is not ProviderEffectTransitionRef:
             _invalid("reference must be exactly ProviderEffectTransitionRef")
@@ -208,6 +211,21 @@ class ProviderEffectLedgerService:
                 "TBM_PROVIDER_EFFECT_PROVIDER_MISMATCH",
                 "provider transition does not match the trusted registration",
             )
+        if (expected_head_event_id is None) != (
+            expected_head_event_sha256 is None
+        ):
+            _invalid("expected provider effect head must be paired")
+        if expected_head_event_id is not None and (
+            type(expected_head_event_id) is not str
+            or _IDENTIFIER_RE.fullmatch(expected_head_event_id) is None
+            or type(expected_head_event_sha256) is not str
+            or re.fullmatch(
+                r"^sha256:[0-9a-f]{64}$",
+                expected_head_event_sha256,
+            )
+            is None
+        ):
+            _invalid("expected provider effect head is invalid")
         last_conflict: EventLedgerConflictError | None = None
         for _ in range(self._max_conflict_retries):
             events, state, high_watermark = self._load_effect(
@@ -243,6 +261,14 @@ class ProviderEffectLedgerService:
                     inserted=commit.inserted,
                 )
             parent = events[-1]
+            if expected_head_event_id is not None and (
+                parent.event_id != expected_head_event_id
+                or parent.event_sha256 != expected_head_event_sha256
+            ):
+                raise ProviderEffectLedgerV1Error(
+                    "TBM_PROVIDER_EFFECT_HEAD_MISMATCH",
+                    "provider effect head changed before append",
+                )
             try:
                 event = build_provider_effect_transition_event(
                     reference,
@@ -695,7 +721,9 @@ def _retained_transition(
     return retained
 
 
-def _reduce_effect_events(events: tuple[CanonicalEvent, ...]):
+def _reduce_effect_events(
+    events: tuple[CanonicalEvent, ...],
+) -> Mapping[str, object]:
     reducer = build_effect_queue_reducer()
     state = reducer.initial_state()
     for event in events:
@@ -794,6 +822,16 @@ def _recovery_from_state(
         ),
         None,
     )
+    response_sha256 = next(
+        (
+            item.response_sha256
+            for item in reversed(transitions)
+            if latest is not None
+            and item.attempt_id == latest.attempt_id
+            and item.response_sha256 is not None
+        ),
+        None,
+    )
     retry_at = next(
         (
             item.retry_at
@@ -826,6 +864,7 @@ def _recovery_from_state(
             None if latest is None else latest.provider_invocation_id
         ),
         provider_request_id=provider_request_id,
+        response_sha256=response_sha256,
         provider_receipt_id=provider_receipt_id,
         retry_at=retry_at,
         transition_ids=tuple(item.transition_id for item in transitions),

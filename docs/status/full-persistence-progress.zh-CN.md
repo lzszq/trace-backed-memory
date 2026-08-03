@@ -55,8 +55,9 @@ runtime 现在已有 Semantic provider request/attempt/receipt/reconciliation ev
 的 provider/policy-bound request、每个 original effect 仅一条 compensation、仅限支持 contract
 的 receipt-backed generic compensation 与跨 transport Semantic invocation parity。配置后的
 reconciliation、服务端证明的 owner fencing 与有界 retry/dead-letter 会核验精确保留 evidence。
-Semantic provider effect 不支持 compensation，也不声明 remote exactly-once。completion-provider
-integration、具体 remote adapter、自动 background sweep/lease fencing、shared-service
+Semantic provider effect 不支持 compensation，也不声明 remote exactly-once。后续 opt-in
+completion-provider consumer bridge 已增加 lease/head-fenced receipt capture 与保守
+reconciliation；默认 bridge 构造、具体 remote adapter、自动 background sweep/lease fencing、shared-service
 worker、本机尚未运行的 PostgreSQL crash probe 与其余 crash matrix 仍未完成。
 精确 legacy SQLite timestamp trigger 也会在 reopen 时原子修复。这些仍只是新增证据与
 corruption repair，没有提升 atom；
@@ -73,7 +74,10 @@ durable runtime 已选择 server-owned Semantic invocation；提供相应依赖�
 owner-fence verification 与有界 retry/dead-letter 会核验精确保留 evidence。receipt 绑定完整
 structured result，同 scope 的新 authorization 可以进行对账，且所有
 已配置 transport 产生相同 provider-effect sequence。PostgreSQL provider hard-crash test 已
-加入，但当前机器缺少 PostgreSQL executable，因而被跳过。completion-provider integration、
+加入，但当前机器缺少 PostgreSQL executable，因而被跳过。opt-in、存储中立的 completion-
+provider consumer bridge 现在只消费由精确 worker 持有的 lease，让每条 transition 同时绑定
+delivery revision 与 stream head，把已被取代的 owner 转成 unknown 后才 reconciliation，并在
+不重复调用 provider 的情况下重放已保留 receipt。它仍由 operator 构造；默认 runtime wiring、
 具体 remote-provider adapter、自动 background sweep/lease fencing、shared-service worker、
 其余 crash matrix 与 remote exactly-once 仍未完成。计划没有可安全使用的显式 atom-ID
 映射，因此没有完整 F3 effect atom 被提升；正式与候选进度仍为 182/490（37.14%），

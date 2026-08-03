@@ -1483,6 +1483,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
 |   |-- gate_worker_v3.py
 |   |-- completion_outbox_v3.py
 |   |-- completion_outbox_worker_v3.py
+|   |-- completion_provider_effect_v1.py
 |   |-- audit_v3.py
 |   |-- evidence_v3.py
 |   |-- gate_session_v3.py
@@ -1526,6 +1527,7 @@ store.save_lessons_yaml("lessons.active.yaml", overwrite=False)
     |-- test_gate_worker_v3.py
     |-- test_completion_outbox_v3.py
     |-- test_completion_outbox_worker_v3.py
+    |-- test_completion_provider_effect_v1.py
     |-- test_audit_v3.py
     |-- test_evidence_v3.py
     |-- test_contracts_v3.py

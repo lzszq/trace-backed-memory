@@ -61,7 +61,11 @@ retry-scheduled evidence, and its event time cannot precede the retained
 
 `ProviderEffectLedgerService` appends each transition through the authenticated
 `EventLedgerPort`, retries only stale stream/global positions, and replays an
-exact retained append receipt after response loss. Recovery returns one of
+exact retained append receipt after response loss. A caller may additionally
+fence a new transition with the exact expected effect-stream head event ID and
+SHA-256. Both values are required together: a stale head rejects the new
+append, while an exact retained replay remains idempotent after the head has
+advanced. Recovery returns one of
 `start_attempt`, `reconcile`, `schedule_retry`, `dead_letter`, or `complete`. A restart that
 sees only `attempt_started` or `request_submitted` returns `reconcile`, because
 the ledger cannot prove whether the external request ran. That classification
@@ -111,8 +115,10 @@ transition still requires that transition's original authorization because the
 receipt binds the complete canonical event. The Semantic provider effect itself
 declares compensation unsupported; generic receipt-backed compensation applies
 only to effect contracts that explicitly support it, and the global event CAS
-allows at most one compensation stream per original effect. Completion-provider
-integration remains separate.
+allows at most one compensation stream per original effect. The optional
+[Completion Provider Effect v1](completion-provider-effect-v1.md) consumer
+bridge reuses this ledger for completion delivery, but completion effects
+declare compensation unsupported.
 
 ## Event-first persistence
 
@@ -179,8 +185,11 @@ Semantic provider invocation; trusted reconciliation, owner fencing, and bounded
 retry/dead-letter activate only when their corresponding dependencies are
 configured. Python facade, synchronous/asynchronous HTTP, trusted-local MCP, and TypeScript
 SDK parity include the provider transitions. No concrete remote-provider
-adapter is bundled. Completion-provider integration, automatic background sweep/
+adapter is bundled. An operator-supplied completion-provider consumer bridge is
+delivered with exact worker-lease and stream-head fencing, conservative unknown
+reconciliation, and retained-receipt replay. Default runtime/daemon bridge
+construction, concrete remote-provider adapters, automatic background sweep/
 lease fencing, shared-service workers, and the remaining crash matrix remain F3
 work. PostgreSQL provider crash probes are present but were not executed on this
-machine. Remote exactly-once is not claimed. Current adapters remain opt-in and do
-not change `persistence_model="authority_graph"` or `full_persistence=false`.
+machine. Remote exactly-once is not claimed. Current adapters remain opt-in and
+do not change `persistence_model="authority_graph"` or `full_persistence=false`.

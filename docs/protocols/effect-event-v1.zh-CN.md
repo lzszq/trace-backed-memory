@@ -55,7 +55,10 @@ not-found reconciliation 与 retry-scheduled evidence 都存在时才能开始�
 
 `ProviderEffectLedgerService` 通过 authenticated `EventLedgerPort` 追加 transition，
 只对过期 stream/global position 重试，并在 response loss 后精确重放已保留 append
-receipt。恢复结果只有 `start_attempt`、`reconcile`、`schedule_retry`、`dead_letter` 或 `complete`。
+receipt。调用方还可以用精确的预期 effect-stream head event ID 与 SHA-256 对新 transition
+执行 fencing；两个值必须同时提供。过期 head 会拒绝新 append，但即使当前 head 已推进，
+精确的 retained replay 仍保持幂等。恢复结果只有 `start_attempt`、`reconcile`、
+`schedule_retry`、`dead_letter` 或 `complete`。
 重启后若只看到 `attempt_started` 或 `request_submitted`，结果必须是 `reconcile`，
 因为 ledger 无法证明外部请求是否已经执行。该分类不会授权 Semantic adapter 改写
 attempt：缺少 durable owner-abandonment evidence 时，已保留的 in-flight/submitted work
@@ -93,8 +96,10 @@ terminal dead-letter。原始 request authorization 保持不可变；同 scope 
 因为 receipt 会绑定完整 canonical event。
 Semantic provider effect 自身声明 compensation unsupported；generic receipt-backed
 compensation 只适用于显式声明支持它的 effect contract；global event CAS 保证每个 original
-effect 最多一条 compensation stream。completion-provider integration
-仍是独立边界。
+effect 最多一条 compensation stream。可选的
+[Completion Provider Effect v1](completion-provider-effect-v1.zh-CN.md) consumer
+bridge 会为 completion delivery 复用该 ledger，但 completion effect 声明不支持
+compensation。
 
 ## Event-first 持久化
 
@@ -150,8 +155,10 @@ outbox revision 进入 `delivered`。response digest 只是审计 metadata。两
 server-owned Semantic provider invocation；trusted reconciliation、owner fencing 与有界
 retry/dead-letter 只有在配置对应依赖时才激活。Python facade、
 同步/异步 HTTP、可信本地 MCP 与 TypeScript SDK parity 均包含 provider transition，但尚未
-捆绑具体 remote-provider adapter。completion-provider integration、自动 background sweep/
-lease fencing、shared-service worker 与其余 transport/crash matrix 仍属于 F3。PostgreSQL
-provider crash probe 已加入，但当前机器未运行；不声明 remote exactly-once。当前 adapter 仍仅显式
-opt-in，且不会改变 `persistence_model="authority_graph"` 或
+捆绑具体 remote-provider adapter。operator 提供的 completion-provider consumer bridge
+已经交付，包含精确 worker-lease/stream-head fencing、保守 unknown reconciliation 与 retained-
+receipt replay。默认 runtime/daemon bridge 构造、具体 remote-provider adapter、自动
+background sweep/lease fencing、shared-service worker 与其余 transport/crash matrix 仍属于
+F3。PostgreSQL provider crash probe 已加入，但当前机器未运行；不声明 remote exactly-once。
+当前 adapter 仍仅显式 opt-in，且不会改变 `persistence_model="authority_graph"` 或
 `full_persistence=false`。

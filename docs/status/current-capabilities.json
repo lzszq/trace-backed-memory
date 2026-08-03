@@ -128,14 +128,17 @@
       "status": "opt-in",
       "evidence": [
         "src/trace_backed_memory/completion_outbox_worker_v3.py",
+        "src/trace_backed_memory/completion_provider_effect_v1.py",
         "src/trace_backed_memory/effect_event_v1.py",
         "src/trace_backed_memory/effect_reducer_v1.py",
         "src/trace_backed_memory/sqlite_completion_outbox_v3.py",
         "src/trace_backed_memory/postgres_completion_outbox_v3.py",
         "tests/test_effect_event_v1.py",
+        "tests/test_completion_provider_effect_v1.py",
         "tests/test_sqlite_completion_outbox_event_first_v1.py",
         "tests/test_postgres_completion_outbox_event_first_v1.py",
         "docs/protocols/completion-outbox-v3.md",
+        "docs/protocols/completion-provider-effect-v1.md",
         "docs/protocols/effect-event-v1.md"
       ]
     },
@@ -220,12 +223,15 @@
         "src/trace_backed_memory/effect_event_v1.py",
         "src/trace_backed_memory/effect_reducer_v1.py",
         "src/trace_backed_memory/provider_effect_ledger_v1.py",
+        "src/trace_backed_memory/completion_provider_effect_v1.py",
         "src/trace_backed_memory/semantic_provider_effect_v1.py",
         "tests/test_provider_effect_ledger_v1.py",
+        "tests/test_completion_provider_effect_v1.py",
         "tests/test_semantic_provider_effect_v1.py",
         "tests/test_durable_runtime_v3.py",
         "tests/test_durable_transport_event_parity.py",
-        "docs/protocols/effect-event-v1.md"
+        "docs/protocols/effect-event-v1.md",
+        "docs/protocols/completion-provider-effect-v1.md"
       ]
     },
     {

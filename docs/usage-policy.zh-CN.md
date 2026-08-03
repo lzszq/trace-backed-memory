@@ -707,8 +707,12 @@ dead-letter failure 必须在 delivery revision 的同一 transaction 中先追�
 receipt 或 provider 端成功证明。Semantic-provider unknown-result reconciliation 只在
 配置后的显式 durable effect path 中可用；其 request 原子 claim、服务端证明的 owner
 fencing、请求绑定的有界 retry/dead-letter 与 generic receipt-backed compensation 都是
-opt-in。completion-provider integration、自动 background sweep/lease fencing、具体 remote
-adapter 与 shared-service worker 仍是独立工作。outcome
+opt-in。可选 completion-provider consumer bridge 必须使用 worker-scoped ledger，且其 actor
+必须等于当前 delivery `worker_id`；每条 provider transition 前都必须核验尚未过期的精确
+delivery revision 与 effect-stream head。已被取代的 owner 只能由后续有效 lease 先转成
+`result_unknown` 再 reconciliation，不能追加迟到 receipt。provider callback 只接收 immutable
+event ID 幂等键与有界 descriptor data。bridge 由 operator 显式提供；默认 runtime 构造、自动
+background sweep/lease fencing、具体 remote adapter 与 shared-service worker 仍是独立工作。outcome
 已存在但 event 缺失时不得静默修补，应调查并恢复被破坏的 transaction boundary。
 显式 durable HTTP/MCP 与 Python/TypeScript SDK profile 已提供 active durable
 completion-outbox emission，`tbmd local` 也会执行有界 SQLite delivery page。

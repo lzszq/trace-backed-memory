@@ -75,6 +75,14 @@ canonical events and the delivery revision/head are one atomic unit. The
 `effect-queue` reducer rebuilds the exact delivery history and current status;
 see [Effect Event v1](effect-event-v1.md).
 
+An operator may explicitly supply the opt-in
+[Completion Provider Effect v1](completion-provider-effect-v1.md) consumer to
+the worker. It validates the exact active worker lease, records provider
+transitions behind exact delivery-revision and effect-stream-head fences, and
+replays retained receipts without another provider call. It does not make the
+outbox exactly once, enable completion compensation, or provide a concrete
+remote-provider adapter.
+
 The SQLite schema uses immutable event and delivery-revision rows, one
 compare-and-swap head, canonical descriptor validation, integer-microsecond due
 ordering, schema-drift detection, caller-transaction preservation, and a
@@ -122,7 +130,8 @@ bytes, or create an OutcomeAttribution event. The durable execution/facade
 composition wires them into explicit durable HTTP/MCP and Python/TypeScript
 clients. Explicit `tbmd local` operates bounded SQLite delivery pages and
 reclaims expired leases; default compatibility cutover, PostgreSQL
-shared-service dispatch, and remote consumer operations remain part of the
+shared-service dispatch, default completion-bridge construction, concrete
+remote-provider adapters, and automatic background sweep remain part of the
 coordinated version-3 program.
 The SQLite connection owner remains a trusted operator boundary: code that can
 replace registered SQLite functions or drop and recreate triggers can also

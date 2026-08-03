@@ -69,6 +69,13 @@ acknowledgement 追加 `EffectSucceeded`，并为失败 disposition 成对追加
 会重建精确 delivery history 与当前状态；详见
 [Effect Event v1](effect-event-v1.zh-CN.md)。
 
+operator 可以向 worker 显式提供 opt-in 的
+[Completion Provider Effect v1](completion-provider-effect-v1.zh-CN.md) consumer。
+它会核验精确 active worker lease，在精确 delivery-revision 与 effect-stream-head fence
+之后记录 provider transition，并在不再次调用 provider 的情况下重放 retained receipt。
+它不会把 outbox 变成 exactly once，不会启用 completion compensation，也不提供具体
+remote-provider adapter。
+
 SQLite schema 使用 immutable event/delivery revision、单个 compare-and-swap
 head、canonical descriptor 校验、整数微秒级 due 排序、schema drift 检测与调用方
 transaction 保留，并使用 repository-scoped mutation guard。同一个 connection
@@ -109,7 +116,8 @@ active SQLite schema version 1 或 PostgreSQL schema version 2，不会发起网
 durable execution/facade 组合会把它们接入显式 durable HTTP/MCP 与
 Python/TypeScript client。显式 `tbmd local` 会运行有界 SQLite delivery page 并
 reclaim 过期 lease；默认兼容路径 cutover、PostgreSQL shared-service dispatch 与
-远程 consumer 运维仍属于统一推进的 version-3 计划。
+默认 completion-bridge 构造、具体 remote-provider adapter、自动 background sweep 仍属于
+统一推进的 version-3 计划。
 SQLite connection owner 仍是可信 operator boundary：能够替换已注册 SQLite
 function 或删除并重建 trigger 的代码同样能够改写数据库，不得把这种能力暴露给
 不可信调用方。

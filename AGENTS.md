@@ -157,12 +157,17 @@ Start with:
   recovery, reconciliation-gated retry/dead-letter, one-compensation-per-original
   enforcement, receipt-backed generic compensation, provider-registration
   verification, and exact append replay.
+- `completion_provider_effect_v1.py`: opt-in storage-neutral completion-outbox
+  consumer bridge with exact worker-lease/stream-head fencing, stable provider
+  idempotency, receipt replay, unknown reconciliation, and outbox-bounded retry;
+  not default runtime wiring and not a concrete remote adapter.
 - `semantic_provider_effect_v1.py`: opt-in server-owned Semantic provider
   invocation over the effect ledger with complete-result receipt binding,
   provider/policy-bound requests, stable provider idempotency, and atomic
   request-only claiming. Configured dependencies add owner-fence attestation,
-  policy-bound bounded retry/dead-letter, and trusted reconciliation. Concrete remote adapters, completion-provider integration,
-  background sweep/lease fencing, and shared-service workers remain separate.
+  policy-bound bounded retry/dead-letter, and trusted reconciliation. Concrete
+  remote adapters, automatic background sweep/lease fencing, default completion-
+  bridge construction, and shared-service workers remain separate.
 - `sqlite_completion_outbox_v3.py`: opt-in atomic SQLite completion, outcome,
   outbox-event, and delivery authority; not wired to active Agent/MCP.
 - `postgres_completion_outbox_v3.py`: isolated PostgreSQL completion outbox

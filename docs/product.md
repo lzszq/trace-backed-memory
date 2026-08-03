@@ -81,7 +81,7 @@ System Gate 先检查来源、状态、scope、tenant、敏感性、评测泄漏
 | 不可变 revision publication | 内容派生 proposal 与独立 approval/activation event 绑定精确 artifact、evidence、authorization、actor、scope 与 lineage；隔离 SQLite/PostgreSQL authority 持久化 canonical provenance，通过调用方 boundary 验证 attestation，并以 CAS 锁定 durable target head；已授权 ActivatedRevision source 会通过 SQLite/PostgreSQL Artifact authority 为未来 v3 retrieval 重新核验当前 head、publication provenance、结构化 evidence 与加密内容；active-v2 projection 和 retrieval integration 仍待完成 |
 | 可回放检索准备 | 内容寻址 policy 与可选 authenticated preparation kernel 先授权，再读取已核验 activated revision，过滤 classification/applicability/eval leakage/Git ancestry，对分数做确定性融合，并生成配对 RetrievalSnapshot/System Gate evidence，最后复查 head/policy；opt-in immutable 五视图托管索引 bundle 通过精确 SQLite/PostgreSQL scope-head CAS 提供内容寻址 metadata/lexical/semantic/evidence/Git discovery；durable 组合服务会创建已授权 GateSession、保存并核验精确 evidence 记录对，再通过 CAS 发布 `PREPARED`；生产分片/worker 与默认兼容路径 cutover 仍待完成 |
 | 可回放门禁准备 | 内容派生 System Gate evaluation 与 Semantic Gate attempt 绑定确定性 rule 结果及 provider/model provenance，并强制模型只能缩小；精确 prompt/response binding 核验角色 digest，SQLite/PostgreSQL authority 原子保存 public/internal 字节，共享服务认证 provider registration、持有可信计时与 retry parent，并要求精确读回；opt-in session 组合推进 `PREPARED -> AWAITING_DECISION -> DECIDED`。显式 durable runtime 配置可信 invoker 后，会记录 server-owned Semantic effect request/attempt/receipt evidence，以完整 structured result digest 绑定 receipt，原子 claim request-only stream，要求服务端证明 owner fence，在不重复 provider 调用的情况下对账 retained uncertainty，并执行请求绑定的有界 retry/dead-letter policy；显式 durable finalization 会在 `FINALIZED`/replay projection 同一 transaction 中 append `tbm.usage_decision.finalized -> tbm.injection.rendered`，`final-decision-injection` 会重建精确 parity；active policy emission 仍待完成 |
-| 持久化执行与完成准备 | authenticated execution 组合会在 `FINALIZED` → `EXECUTING` 前核验已保留 injection，支持精确 revision 的 lease resume 与 abandonment，认证已注册 outcome evaluator，并组合 opt-in SQLite 或隔离 PostgreSQL authority，原子绑定一份 content-addressed RunOutcome、`COMPLETED`、一条 immutable completion event、`EffectRequested` 与 append-only leased retry/dead-letter delivery chain；canonical worker transition event 会供 `effect-queue` reducer 按精确 delivery history 重建。存储中立 provider-effect transition/reducer/ledger service 会通过 generic SQLite/PostgreSQL ledger 保留 provider-bound 内容寻址 receipt、unknown result、trusted reconciliation、有界 retry/dead-letter、每个 original effect 一条 compensation 与 receipt-backed generic compensation。配置后的 Semantic provider path 还提供 provider/policy 绑定、稳定 provider 幂等键、request-only 原子 claim 与跨 transport invocation parity；owner fencing、reconciliation 与有界 retry/dead-letter 只有在配置对应依赖时才激活。Semantic provider effect 不支持 compensation，也不声明 remote exactly-once。completion-provider integration、具体 remote adapter、自动 background sweep/lease fencing、shared-service worker，以及当前机器尚未运行的 PostgreSQL crash probe 仍待完成 |
+| 持久化执行与完成准备 | authenticated execution 组合会在 `FINALIZED` → `EXECUTING` 前核验已保留 injection，支持精确 revision 的 lease resume 与 abandonment，认证已注册 outcome evaluator，并组合 opt-in SQLite 或隔离 PostgreSQL authority，原子绑定一份 content-addressed RunOutcome、`COMPLETED`、一条 immutable completion event、`EffectRequested` 与 append-only leased retry/dead-letter delivery chain；canonical worker transition event 会供 `effect-queue` reducer 按精确 delivery history 重建。存储中立 provider-effect transition/reducer/ledger service 会通过 generic SQLite/PostgreSQL ledger 保留 provider-bound 内容寻址 receipt、unknown result、trusted reconciliation、有界 retry/dead-letter、每个 original effect 一条 compensation 与 receipt-backed generic compensation。配置后的 Semantic provider path 还提供 provider/policy 绑定、稳定 provider 幂等键、request-only 原子 claim 与跨 transport invocation parity；owner fencing、reconciliation 与有界 retry/dead-letter 只有在配置对应依赖时才激活。opt-in completion-provider consumer bridge 会绑定精确 worker lease 与 stream head、对账被 fence 的 owner，并重放已保留 receipt；completion effect 不可补偿。Semantic 与 completion provider path 都不声明 remote exactly-once。默认 bridge 构造、具体 remote adapter、自动 background sweep/lease fencing、shared-service worker，以及当前机器尚未运行的 PostgreSQL crash probe 仍待完成 |
 | 分发资源 | [`resources/manifest.json`](../resources/manifest.json) 驱动严格、byte-identical 的 Schema/OpenAPI/SQL/迁移/taxonomy/example allowlist、runtime 声明、package data、metadata 与生成索引 |
 | 证据摄取 | Trace、tool call 与顶层 `tool_outputs.error` 按顺序参与失败提取；成功输出不触发分类；bounded local document ingestion 对本地 JSON/YAML 先限额再校验，并以 all-or-nothing 方式导入 |
 | 质量度量 | with/without-memory pass rate、错误记忆计数、per-memory observed outcomes、run health |
@@ -238,9 +238,11 @@ reconciliation、owner-fence verification 与有界 retry/dead-letter 只有在�
 这仍是 opt-in provider-effect evidence，不是默认路径 cutover；
 request-only 原子 claim、服务端证明的 owner abandonment、请求绑定的有界 retry/dead-letter、
 provider/policy-bound request、仅限支持 contract 的 receipt-backed generic compensation，以及
-Python/HTTP/MCP/TypeScript invocation parity 已交付。Semantic provider effect 不支持
-compensation，也不声明 remote exactly-once。
-completion-provider integration、具体 remote adapter、自动 background sweep/lease fencing 与
+Python/HTTP/MCP/TypeScript invocation parity 已交付。opt-in completion-provider consumer
+bridge 现在要求每条 transition 绑定精确 worker lease 与 stream head，只把已被后续 lease
+取代的 owner 转成 unknown 后再可信 reconciliation，并在不重复调用 provider 的情况下重放
+已保留 receipt。completion effect 不支持 compensation，两个 provider path 都不声明 remote
+exactly-once。默认 bridge 构造、具体 remote adapter、自动 background sweep/lease fencing 与
 shared-service worker 尚未完成；PostgreSQL crash probe 已加入，但当前机器尚未运行。
 
 [ADR-0006](adr/0006-full-persistence-reducer-native-memory.zh-CN.md) 已冻结下一阶段
@@ -296,8 +298,9 @@ transition/reducer/ledger service 已覆盖内容寻址 receipt 与保守 unknow
 会以完整 result digest 绑定 receipt，owner fencing 由服务端证明，有界 retry/dead-letter 会
 重新核验已保留的 policy deadline。request-only safe claim、provider/policy 绑定、仅限支持
 contract 的 receipt-backed generic compensation
-与跨 transport server-owned invocation parity 现已覆盖。completion-provider integration、
-具体 remote-provider adapter、自动 background sweep/lease fencing、shared-service worker、
+与跨 transport server-owned invocation parity 现已覆盖。opt-in completion-provider consumer
+bridge 新增 lease/head-fenced provider receipt 与保守 unknown reconciliation。默认 bridge
+构造、具体 remote-provider adapter、自动 background sweep/lease fencing、shared-service worker、
 当前机器尚未运行的 PostgreSQL crash probe 与其余 F2 kill matrix 仍未完成；不声明 remote
 exactly-once，也不支持 Semantic provider compensation。因此 ledger 尚未成为唯一 durable 事实源，
 `full_persistence` 继续为 `false`。

@@ -612,9 +612,17 @@ head、attempt、invocation 精确绑定且由服务端验证的 fence attestati
 精确 policy deadline，耗尽后会追加终态 `dead_lettered`。对声明 compensation-supported 的
 generic effect，每个 original effect 最多使用一条独立 compensation effect stream，且
 `EffectCompensated` 前必须有精确 provider receipt。reconciliation、fencing 与 retry path 只有
-在配置对应可信依赖时才激活。具体 remote-provider
-adapter、completion-provider integration、自动 background sweep/lease fencing 与 shared-
-service worker 不属于当前 seam；remote exactly-once 仍取决于 provider 对所给幂等键的执行。
+在配置对应可信依赖时才激活。`completion_provider_effect_v1.py` 另行提供 opt-in consumer
+bridge，消费已经保留的 completion `EffectRequested`。它只接受由 authenticated worker
+持有且尚未过期的精确 lease，并让每条新 provider transition 同时绑定该 delivery revision
+与当前 effect-stream head。callback 以 completion event ID 作为稳定幂等键，只返回有界
+provider request ID 与 response digest。reclaim 后迟到 owner 不能追加 receipt；后续有效
+lease 必须先用 `owner_fenced` 追加 `result_unknown`，再调用可信 reconciliation。confirmed
+receipt 可在不再次调用 provider 的情况下重放；completion retry/dead-letter 上限仍由 outbox
+delivery chain 持有，且不支持 compensation。bridge 由 operator 作为 `completion_consumer`
+显式构造，不是默认 runtime/daemon wiring，也不是具体 remote adapter。自动 provider sweep、
+shared-service worker 与 remote exactly-once 仍不属于当前 seam；exactly-once 仍取决于 provider
+是否执行所给幂等键。
 `durable_semantic_gate_v3.py` 会把这个
 authenticated service 与任一
 GateSession authority 组合起来：先根据不可变 snapshot/evaluation/attempt chain
@@ -914,9 +922,10 @@ SQLite/PostgreSQL runtime factory 在配置后已选择 server-owned Semantic in
 复用 response bytes 时改变 structured Semantic 字段。Python facade、同步/异步 HTTP SDK、
 可信本地 MCP 与 TypeScript SDK parity 现已包含 server-owned provider transition。
 PostgreSQL hard-crash probe 代码覆盖 provider 调用前、submission 前、submission 后与 receipt
-后 checkpoint，但当前机器缺少 PostgreSQL executable，尚未实际运行。具体 remote-provider
-adapter、completion-provider integration、自动 background sweep/lease fencing、shared-
-service worker、Memory/index/audit/metrics reducer、完整 lifecycle integration、migration 与
+后 checkpoint，但当前机器缺少 PostgreSQL executable，尚未实际运行。opt-in completion-
+provider consumer bridge 已增加精确 worker-lease/stream-head fencing、owner 被取代后的
+unknown reconciliation，以及 retained receipt replay。具体 remote-provider adapter、默认
+bridge 构造、自动 background sweep/lease fencing、shared-service worker、Memory/index/audit/metrics reducer、完整 lifecycle integration、migration 与
 cutover 仍未完成。
 
 第一项 F3 Trace 增量也已作为存储中立协议交付。

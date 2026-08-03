@@ -1873,9 +1873,12 @@ and receipt-backed generic compensation without another authority. Explicit
 durable runtime factories add provider/policy-bound requests, atomic request-only
 claims, and cross-transport Semantic invocation parity. Trusted reconciliation,
 server-attested owner fencing, and bounded retry/dead-letter require their
-corresponding configured dependencies. Semantic provider effects do not support
-compensation or claim remote exactly-once. Concrete remote-provider and
-completion-provider adapters, automatic background sweep/lease fencing,
+corresponding configured dependencies. An opt-in completion-provider consumer
+bridge now binds the exact worker lease and effect-stream head, converts only a
+superseded owner to unknown before trusted reconciliation, and replays retained
+receipts without another provider call. Completion effects are non-compensable,
+and neither provider path claims remote exactly-once. Concrete remote-provider
+adapters, default bridge construction, automatic background sweep/lease fencing,
 shared-service workers, Memory/index/audit/metrics reducers, migration, complete
 lifecycle integration, and the remaining event-first cutover remain outstanding.
 The SQLite local daemon now also has a
@@ -1899,8 +1902,10 @@ atomically claims request-only streams, accepts a server-attested exact owner
 fence, binds provider registration and one retry policy digest to the original
 request, revalidates retained retry deadlines, and writes terminal dead-letter
 on exhaustion. Generic compensation is a separate receipt-backed effect stream,
-with at most one compensation per original effect. Completion-provider integration, concrete remote adapters,
-automatic background sweep/lease fencing, a hard-kill compatibility retained-
+with at most one compensation per original effect. The opt-in completion-provider
+bridge adds exact worker-lease/stream-head fencing and conservative unknown
+reconciliation, but remains operator-constructed. Concrete remote adapters,
+default bridge construction, automatic background sweep/lease fencing, a hard-kill compatibility retained-
 bundle boundary, shared-service workers, and the complete crash matrix remain
 open. PostgreSQL provider crash probes are present but were not executed on this
 machine.
@@ -1942,8 +1947,10 @@ broader F2 gates remain incomplete.
   server-attested owner fencing, and request-bound bounded retry/dead-letter;
   Semantic provider effects do not support compensation or claim remote
   exactly-once.
-  Completion-provider integration, concrete remote-provider adapters, automatic
-  sweep/lease fencing, shared-service workers, locally unexecuted PostgreSQL
+  The opt-in completion-provider consumer bridge now provides lease/head-fenced
+  receipt capture and conservative unknown reconciliation. Default bridge
+  construction, concrete remote-provider adapters, automatic sweep/lease
+  fencing, shared-service workers, locally unexecuted PostgreSQL
   crash probes, and the complete crash matrix remain open.
 - **F3 — Trace, Git, and effect evidence:** the ordered typed Trace event
   protocol, ledger-context-bound append helper, eight-type Git observation

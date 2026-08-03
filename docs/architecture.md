@@ -1800,10 +1800,20 @@ Generic compensation-supported effects use at most one separate effect stream
 per original effect and require an exact provider receipt before
 `EffectCompensated`. These reconciliation, fencing, and retry paths activate
 only when their corresponding trusted dependencies are configured.
-Concrete remote-provider adapters, completion-provider integration, automatic
-background sweep/lease fencing, and shared-service workers remain outside this
-seam; remote exactly-once still depends on provider enforcement of the supplied
-idempotency key.
+`completion_provider_effect_v1.py` adds a separate opt-in consumer bridge over
+the already-retained completion `EffectRequested`. It accepts only the exact
+unexpired lease owned by its authenticated worker and fences every new provider
+transition with both that delivery revision and the current effect-stream head.
+The callback receives the completion event ID as its stable idempotency key and
+returns only a bounded provider request ID plus response digest. A late owner
+cannot append a receipt after reclaim; a later valid lease first records
+`result_unknown` with `owner_fenced` and only then invokes trusted reconciliation.
+Confirmed receipts replay without another provider call, while completion retry/
+dead-letter bounds stay in the outbox delivery chain and compensation remains
+unsupported. The bridge is an operator-constructed `completion_consumer`, not
+default runtime/daemon wiring or a concrete remote adapter. Automatic provider
+sweep, shared-service workers, and remote exactly-once remain outside this seam;
+exactly-once still depends on provider enforcement of the supplied idempotency key.
 `durable_semantic_gate_v3.py` composes that authenticated service with either
 GateSession authority. It verifies the prepared session against the immutable
 snapshot/evaluation/attempt chain, CAS-publishes `AWAITING_DECISION`, invokes
@@ -2171,9 +2181,11 @@ bytes. Python facade, synchronous/asynchronous HTTP SDK, trusted-local MCP, and
 TypeScript SDK parity now include the server-owned provider transitions. The
 PostgreSQL hard-crash probe covers before-provider, before-submission,
 after-submission, and after-receipt checkpoints in code, but could not run on the
-current machine because PostgreSQL executables are unavailable. Concrete remote
-provider adapters, completion-provider integration, automatic background sweep/
-lease fencing, shared-service workers, Memory/index/audit/metrics reducers,
+current machine because PostgreSQL executables are unavailable. The opt-in
+completion-provider consumer bridge adds exact worker-lease/stream-head fencing,
+unknown reconciliation after ownership replacement, and retained receipt replay.
+Concrete remote provider adapters, default bridge construction, automatic
+background sweep/lease fencing, shared-service workers, Memory/index/audit/metrics reducers,
 complete lifecycle integration, migration, and cutover remain open.
 
 The first F3 Trace increment is also delivered as a storage-neutral protocol.

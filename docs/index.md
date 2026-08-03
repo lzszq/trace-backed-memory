@@ -83,6 +83,7 @@ orientation; these documents define the engineering contracts.
 - [PostgreSQL OutcomeAttribution ledger v3](protocols/postgres-outcome-attribution-v3.md)
 - [Completion outbox contract and SQLite/PostgreSQL authorities v3](protocols/completion-outbox-v3.md)
 - [Local effect events and EffectQueue reducer v1](protocols/effect-event-v1.md)
+- [Completion provider effect bridge v1](protocols/completion-provider-effect-v1.md)
 - [Durable GateSession v3 domain contract](protocols/gate-session-v3.md)
 - [Content-addressed replay and portable export contracts v3](protocols/replay-v3.md)
 - [Authenticated encrypted Artifact Authority v3](protocols/artifact-authority-v3.md)
@@ -178,8 +179,11 @@ server-owned Semantic invocation parity; trusted reconciliation, owner fencing,
 and bounded retry/dead-letter require their corresponding configured
 dependencies. Semantic provider effects do not support compensation or claim
 remote exactly-once.
-Concrete remote-provider and completion-provider adapters, automatic background
-sweep/lease fencing, managed production indexes, encrypted protected-content
+An opt-in completion-provider consumer bridge now binds the exact worker lease
+and effect-stream head before every provider transition, fences late owners into
+unknown reconciliation, and replays retained receipts without another provider
+call. Concrete remote-provider adapters, default bridge construction, automatic
+background sweep/lease fencing, managed production indexes, encrypted protected-content
 finalization, default adapter cutover, CLI durable selection, and shared-service
 transport remain outstanding.
 `AuthenticatedDurableAgentMemory` now composes those opt-in stages behind one

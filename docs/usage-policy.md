@@ -1614,9 +1614,16 @@ acknowledgement only; it is not a provider receipt or proof of provider-side
 success. Semantic-provider unknown-result reconciliation is available only
 through the configured explicit durable effect path. Its atomic request claim,
 server-attested owner fencing, request-bound bounded retry/dead-letter, and
-generic receipt-backed compensation are opt-in. Completion-provider integration,
-automatic background sweep/lease fencing, concrete remote adapters, and shared-
-service workers remain separate work. Do not repair an outcome
+generic receipt-backed compensation are opt-in. The optional completion-provider
+consumer bridge must use a worker-scoped ledger whose actor equals the current
+delivery `worker_id`. It must verify the unexpired exact delivery revision and
+effect-stream head before every provider transition. A superseded owner may only
+be converted to `result_unknown` by a later valid lease and then reconciled; it
+may not append a late receipt. Provider callbacks receive only the immutable
+event ID as idempotency key and bounded descriptor data. Treat the bridge as
+operator-supplied: default runtime construction, automatic background sweep/
+lease fencing, concrete remote adapters, and shared-service workers remain
+separate work. Do not repair an outcome
 that exists without its event; investigate and recover the violated transaction
 boundary. Active durable completion-outbox emission is available through the
 explicit durable HTTP/MCP and Python/TypeScript SDK profiles, and `tbmd local`

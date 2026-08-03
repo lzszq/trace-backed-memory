@@ -42,8 +42,8 @@ replay。typed canonical outcome event 以及 `outcome-current`/
 `outcome-attribution` reducer 会逐字段重建并核验两个 authority。显式 durable execution
 路径会在每次调用时认证 evaluator，并原子发布 RunOutcome、completed session、completion
 outbox 与初始 effect request；worker 会持久化 delivery/dead-letter event。artifact byte
-核验、provider receipt 与 unknown-result reconciliation、durable compensation，以及
-default/shared-service cutover 仍未完成。
+核验、active provider receipt/reconciliation integration、durable compensation，以及
+default/shared-service cutover 仍未完成；存储中立 provider event/reducer/ledger 基础已交付。
 
 规范 Schema：
 

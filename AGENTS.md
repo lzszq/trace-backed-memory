@@ -140,6 +140,9 @@ Start with:
 - `completion_outbox_worker_v3.py`: storage-neutral bounded at-least-once
   dispatcher with sanitized consumer failures, exact acknowledgement
   read-back, and explicit superseded/recovery-required outcomes.
+- `provider_effect_ledger_v1.py`: storage-neutral provider-effect event-ledger
+  service with content-addressed receipts, conservative unknown-result
+  recovery, reconciliation-gated retry, and exact append-response replay.
 - `sqlite_completion_outbox_v3.py`: opt-in atomic SQLite completion, outcome,
   outbox-event, and delivery authority; not wired to active Agent/MCP.
 - `postgres_completion_outbox_v3.py`: isolated PostgreSQL completion outbox

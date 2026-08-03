@@ -64,3 +64,14 @@ compensation remain incomplete. The exact legacy SQLite timestamp trigger is
 also repaired atomically on reopen. These are additional evidence and a
 corruption repair only, so formal and candidate progress both remain 182/490
 (37.14%) with no promoted atom.
+
+The next F3 foundation adds one strict provider-transition event, content-
+addressed attempt/invocation/receipt/reconciliation identities,
+`effect-queue` reducer version 2, and an authenticated generic-ledger service.
+SQLite verifies exact append replay, receipt mismatch rejection, conservative
+orphan/unknown recovery, reconciliation-gated retry, and post-commit response
+loss; the same storage-neutral path has a PostgreSQL integration test when the
+required executables are available. Active semantic/completion callbacks and
+provider-specific reconciliation adapters do not yet select it, so no complete
+F3 effect atom is promoted. Formal and candidate progress remain 182/490
+(37.14%).

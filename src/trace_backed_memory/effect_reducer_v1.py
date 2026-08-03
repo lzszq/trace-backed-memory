@@ -19,6 +19,7 @@ from .effect_event_v1 import (
     EFFECT_DEAD_LETTERED_EVENT,
     EFFECT_EVENT_TYPES,
     EFFECT_FAILED_EVENT,
+    EFFECT_PROVIDER_TRANSITION_EVENT,
     EFFECT_REQUESTED_EVENT,
     EFFECT_RETRY_SCHEDULED_EVENT,
     EFFECT_STARTED_EVENT,
@@ -26,10 +27,13 @@ from .effect_event_v1 import (
     EffectContract,
     EffectDeliveryTransitionRef,
     EffectEventV1Error,
+    ProviderEffectTransitionRef,
     parse_effect_compensated_event,
     parse_effect_compensation_requested_event,
     parse_effect_delivery_event,
     parse_effect_requested_event,
+    parse_provider_effect_transition_event,
+    parse_provider_effect_transition_reference,
 )
 from .event_registry_v1 import DEFAULT_EVENT_TYPE_REGISTRY
 from .event_v1 import CanonicalEvent
@@ -43,7 +47,7 @@ from .reducer import (
 
 EFFECT_QUEUE_REDUCER_ID = "effect-queue"
 EFFECT_QUEUE_PROJECTION_NAME = "effect_queue_v1"
-EFFECT_QUEUE_PROJECTION_SCHEMA_VERSION = 1
+EFFECT_QUEUE_PROJECTION_SCHEMA_VERSION = 2
 
 _EVENT_SCOPE_FIELDS = (
     "organization_id",
@@ -106,7 +110,7 @@ class EffectProjectionAuthority:
 def build_effect_queue_reducer() -> FunctionalReducer:
     descriptor = ReducerDescriptor(
         reducer_id=EFFECT_QUEUE_REDUCER_ID,
-        reducer_version=1,
+        reducer_version=2,
         input_event_types=EFFECT_EVENT_TYPES,
         output_projection=EFFECT_QUEUE_PROJECTION_NAME,
         output_schema_version=EFFECT_QUEUE_PROJECTION_SCHEMA_VERSION,
@@ -122,6 +126,9 @@ def build_effect_queue_reducer() -> FunctionalReducer:
                     "failed-before-retry-or-dead-letter",
                     "terminal-effect-monotonicity",
                     "compensation-is-a-new-effect",
+                    "provider-receipt-content-addressed",
+                    "unknown-before-reconciliation",
+                    "retry-only-after-not-found",
                 ],
             },
         ),
@@ -169,6 +176,10 @@ def build_effect_queue_reducer() -> FunctionalReducer:
                 "pending_failure": None,
                 "compensation_effect_id": None,
                 "compensation_for_effect_id": None,
+                "provider_status": "not_started",
+                "provider_attempts": [],
+                "provider_transitions": [],
+                "provider_retry_at": None,
                 **_event_metadata(source),
             }
             heads[source.stream_id] = _head(source)
@@ -188,6 +199,22 @@ def build_effect_queue_reducer() -> FunctionalReducer:
             if not _head_extends(head, source):
                 _reject("effect delivery event has no exact stream parent")
             updated = _apply_delivery_transition(effect, source, reference)
+            effects[reference.effect_id] = updated
+            heads[source.stream_id] = _head(source)
+        elif source.event_type == EFFECT_PROVIDER_TRANSITION_EVENT:
+            reference = _parse_provider_transition(source)
+            effect = _effect_entry(effects, reference.effect_id)
+            head = _mapping_copy(
+                heads.get(source.stream_id),
+                "provider effect stream head",
+            )
+            if not _head_extends(
+                head,
+                source,
+                actor_types=frozenset({"service", "worker"}),
+            ):
+                _reject("provider effect event has no exact stream parent")
+            updated = _apply_provider_transition(effect, source, reference)
             effects[reference.effect_id] = updated
             heads[source.stream_id] = _head(source)
         elif source.event_type == EFFECT_COMPENSATION_REQUESTED_EVENT:
@@ -227,6 +254,10 @@ def build_effect_queue_reducer() -> FunctionalReducer:
                 "pending_failure": None,
                 "compensation_effect_id": None,
                 "compensation_for_effect_id": reference.original_effect_id,
+                "provider_status": "not_started",
+                "provider_attempts": [],
+                "provider_transitions": [],
+                "provider_retry_at": None,
                 **_event_metadata(source),
             }
             heads[source.stream_id] = _head(source)
@@ -337,6 +368,53 @@ def projected_effect_status(
     return cast(str, status)
 
 
+def projected_provider_effect_status(
+    state: Mapping[str, object],
+    effect_id: str,
+) -> str:
+    effect = _effect_entry_from_state(state, effect_id)
+    status = effect.get("provider_status")
+    if status not in {
+        "not_started",
+        "in_flight",
+        "submitted",
+        "unknown",
+        "not_found",
+        "retry_wait",
+        "succeeded",
+    }:
+        _reject("projected provider effect status is invalid")
+    return cast(str, status)
+
+
+def projected_provider_effect_transitions(
+    state: Mapping[str, object],
+    effect_id: str,
+) -> tuple[ProviderEffectTransitionRef, ...]:
+    effect = _effect_entry_from_state(state, effect_id)
+    entries = _list_copy(
+        effect.get("provider_transitions"),
+        "provider transitions",
+    )
+    parsed: list[ProviderEffectTransitionRef] = []
+    for entry in entries:
+        payload = _mapping_copy(entry, "provider transition")
+        reference_payload = _mapping_copy(
+            payload.get("transition"),
+            "provider transition reference",
+        )
+        try:
+            parsed.append(
+                parse_provider_effect_transition_reference(reference_payload)
+            )
+        except EffectEventV1Error as error:
+            raise ReducerExecutionError(
+                "TBM_EFFECT_REDUCER_STATE_INVALID",
+                "projected provider transition is invalid",
+            ) from error
+    return tuple(parsed)
+
+
 def projected_completion_outbox_event(
     state: Mapping[str, object],
     effect_id: str,
@@ -428,6 +506,10 @@ def verify_effect_projection_parity(
             failed_dispositions[reference.effect_id].add(
                 reference.delivery.delivery_revision_id
             )
+        elif event.event_type == EFFECT_PROVIDER_TRANSITION_EVENT:
+            reference = _parse_provider_transition(event)
+            if reference.effect_id not in expected:
+                _reject("effect parity contains an unrelated provider transition")
         else:
             _reject("effect authority parity cannot include compensation events")
     if set(requested) != set(expected):
@@ -525,6 +607,181 @@ def _apply_delivery_transition(
     return effect
 
 
+def _apply_provider_transition(
+    effect: dict[str, object],
+    source: CanonicalEvent,
+    reference: ProviderEffectTransitionRef,
+) -> dict[str, object]:
+    attempts = _list_copy(effect.get("provider_attempts"), "provider attempts")
+    transitions = _list_copy(
+        effect.get("provider_transitions"),
+        "provider transitions",
+    )
+    history = _list_copy(effect.get("history"), "history")
+    provider_status = effect.get("provider_status")
+    contract = _mapping_copy(effect.get("effect"), "effect contract")
+    if reference.request_sha256 != contract.get("input_artifact_sha256"):
+        _reject("provider request digest differs from the effect contract")
+    if effect.get("status") in {"succeeded", "compensated"}:
+        _reject("provider transition cannot reopen a terminal effect")
+    if effect.get("pending_failure") is not None:
+        _reject("provider transition cannot interrupt failure disposition")
+
+    transition_entry = {
+        "transition": reference.to_dict(),
+        **_event_metadata(source),
+    }
+    if reference.stage == "attempt_started":
+        if (
+            provider_status not in {"not_started", "retry_wait"}
+            or effect.get("status") == "dead_letter"
+            or reference.attempt_sequence != len(attempts) + 1
+        ):
+            _reject("provider attempt cannot start from the current state")
+        if attempts:
+            previous_attempt = _mapping_copy(
+                attempts[-1],
+                "previous provider attempt",
+            )
+            if previous_attempt.get("status") != "retry_wait":
+                _reject("provider retry does not follow an explicit schedule")
+        attempt = {
+            "attempt_id": reference.attempt_id,
+            "attempt_sequence": reference.attempt_sequence,
+            "provider_invocation_id": reference.provider_invocation_id,
+            "provider_id": reference.provider_id,
+            "model_id": reference.model_id,
+            "model_version": reference.model_version,
+            "endpoint_id": reference.endpoint_id,
+            "request_sha256": reference.request_sha256,
+            "status": "in_flight",
+            "provider_request_id": None,
+            "response_sha256": None,
+            "provider_receipt_id": None,
+            "error_code": None,
+            "retry_at": None,
+            "reconciliations": [],
+            "history": [transition_entry],
+        }
+        attempts.append(attempt)
+        provider_status = "in_flight"
+        effect["provider_retry_at"] = None
+    else:
+        if not attempts:
+            _reject("provider transition requires an existing attempt")
+        attempt = _mapping_copy(attempts[-1], "provider attempt")
+        _verify_provider_attempt_identity(attempt, reference)
+        attempt_history = _list_copy(
+            attempt.get("history"),
+            "provider attempt history",
+        )
+        current_status = attempt.get("status")
+        retained_request_id = attempt.get("provider_request_id")
+        if (
+            retained_request_id is not None
+            and reference.provider_request_id is not None
+            and retained_request_id != reference.provider_request_id
+        ):
+            _reject("provider request ID changed within one attempt")
+
+        if reference.stage == "request_submitted":
+            if current_status != "in_flight":
+                _reject("provider submission does not follow attempt start")
+            attempt["status"] = "submitted"
+            attempt["provider_request_id"] = reference.provider_request_id
+            provider_status = "submitted"
+        elif reference.stage == "result_unknown":
+            if current_status not in {"in_flight", "submitted"}:
+                _reject("unknown provider result has no active attempt")
+            attempt["status"] = "unknown"
+            attempt["provider_request_id"] = (
+                retained_request_id
+                if reference.provider_request_id is None
+                else reference.provider_request_id
+            )
+            attempt["error_code"] = reference.error_code
+            provider_status = "unknown"
+        elif reference.stage == "receipt_recorded":
+            if current_status not in {"in_flight", "submitted", "unknown"}:
+                _reject("provider receipt has no unresolved attempt")
+            attempt["status"] = "succeeded"
+            attempt["provider_request_id"] = reference.provider_request_id
+            attempt["response_sha256"] = reference.response_sha256
+            attempt["provider_receipt_id"] = reference.provider_receipt_id
+            attempt["error_code"] = None
+            provider_status = "succeeded"
+            if effect.get("outbox_event") is None:
+                effect["status"] = "succeeded"
+        elif reference.stage == "reconciled":
+            if current_status != "unknown":
+                _reject("provider reconciliation requires an unknown result")
+            attempt["provider_request_id"] = (
+                retained_request_id
+                if reference.provider_request_id is None
+                else reference.provider_request_id
+            )
+            reconciliations = _list_copy(
+                attempt.get("reconciliations"),
+                "provider reconciliations",
+            )
+            if reference.reconciliation_sequence != len(reconciliations) + 1:
+                _reject("provider reconciliation sequence is not contiguous")
+            reconciliations.append(transition_entry)
+            attempt["reconciliations"] = reconciliations
+            if reference.reconciliation_result == "confirmed":
+                attempt["status"] = "succeeded"
+                attempt["provider_request_id"] = reference.provider_request_id
+                attempt["response_sha256"] = reference.response_sha256
+                attempt["provider_receipt_id"] = reference.provider_receipt_id
+                attempt["error_code"] = None
+                provider_status = "succeeded"
+                if effect.get("outbox_event") is None:
+                    effect["status"] = "succeeded"
+            elif reference.reconciliation_result == "not_found":
+                attempt["status"] = "not_found"
+                provider_status = "not_found"
+            else:
+                provider_status = "unknown"
+        else:
+            if current_status != "not_found" or provider_status != "not_found":
+                _reject("provider retry requires a reconciled not-found result")
+            attempt["status"] = "retry_wait"
+            attempt["retry_at"] = reference.retry_at
+            provider_status = "retry_wait"
+            effect["provider_retry_at"] = reference.retry_at
+
+        attempt_history.append(transition_entry)
+        attempt["history"] = attempt_history
+        attempts[-1] = attempt
+
+    transitions.append(transition_entry)
+    history.append(_history_entry(source))
+    effect["provider_status"] = provider_status
+    effect["provider_attempts"] = attempts
+    effect["provider_transitions"] = transitions
+    effect["history"] = history
+    effect.update(_event_metadata(source))
+    return effect
+
+
+def _verify_provider_attempt_identity(
+    attempt: Mapping[str, object],
+    reference: ProviderEffectTransitionRef,
+) -> None:
+    expected = {
+        "attempt_id": reference.attempt_id,
+        "attempt_sequence": reference.attempt_sequence,
+        "provider_invocation_id": reference.provider_invocation_id,
+        "provider_id": reference.provider_id,
+        "model_id": reference.model_id,
+        "model_version": reference.model_version,
+        "endpoint_id": reference.endpoint_id,
+        "request_sha256": reference.request_sha256,
+    }
+    if any(attempt.get(name) != value for name, value in expected.items()):
+        _reject("provider attempt identity or provenance changed")
+
+
 def _effect_supports_compensation(effect: Mapping[str, object]) -> bool:
     contract = effect.get("effect")
     return isinstance(contract, Mapping) and (
@@ -594,6 +851,18 @@ def _parse_delivery(event: CanonicalEvent) -> EffectDeliveryTransitionRef:
         ) from error
 
 
+def _parse_provider_transition(
+    event: CanonicalEvent,
+) -> ProviderEffectTransitionRef:
+    try:
+        return parse_provider_effect_transition_event(event)
+    except EffectEventV1Error as error:
+        raise ReducerExecutionError(
+            "TBM_EFFECT_REDUCER_EVENT_INVALID",
+            "provider effect event cannot update the projection",
+        ) from error
+
+
 def _parse_compensation_requested(event: CanonicalEvent):
     try:
         return parse_effect_compensation_requested_event(event)
@@ -614,7 +883,12 @@ def _parse_compensated(event: CanonicalEvent):
         ) from error
 
 
-def _head_extends(head: Mapping[str, object], event: CanonicalEvent) -> bool:
+def _head_extends(
+    head: Mapping[str, object],
+    event: CanonicalEvent,
+    *,
+    actor_types: frozenset[str] = frozenset({"worker"}),
+) -> bool:
     return (
         head.get("stream_version") == event.stream_version - 1
         and head.get("event_id") == event.causation_id
@@ -624,6 +898,7 @@ def _head_extends(head: Mapping[str, object], event: CanonicalEvent) -> bool:
         and _projection_authority_matches_event(
             head,
             event,
+            actor_types=actor_types,
         )
     )
 
@@ -690,6 +965,8 @@ def _projection_scope_matches_event(
 def _projection_authority_matches_event(
     projection: Mapping[str, object],
     event: CanonicalEvent,
+    *,
+    actor_types: frozenset[str],
 ) -> bool:
     return (
         all(
@@ -698,7 +975,7 @@ def _projection_authority_matches_event(
         )
         and projection.get("authorization_decision_id")
         == event.authorization_decision_id
-        and event.actor_type == "worker"
+        and event.actor_type in actor_types
     )
 
 
@@ -759,5 +1036,7 @@ __all__ = [
     "projected_completion_outbox_event",
     "projected_effect_contract",
     "projected_effect_status",
+    "projected_provider_effect_status",
+    "projected_provider_effect_transitions",
     "verify_effect_projection_parity",
 ]

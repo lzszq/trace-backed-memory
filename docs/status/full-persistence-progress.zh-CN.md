@@ -53,3 +53,11 @@ receipt/reconciliation、PostgreSQL parity、其余 crash matrix、完整 F2 cro
 conformance 与 durable compensation 仍未完成。精确 legacy SQLite timestamp trigger
 也会在 reopen 时原子修复。这些仍只是新增证据与 corruption repair，没有提升 atom；
 正式与候选进度均保持 182/490（37.14%）。
+
+下一项 F3 基础新增一个严格 provider-transition event、内容寻址 attempt/invocation/
+receipt/reconciliation identity、`effect-queue` reducer version 2 与 authenticated
+generic-ledger service。SQLite 会核验精确 append replay、receipt mismatch 拒绝、保守的
+orphan/unknown recovery、reconciliation-gated retry 与 commit 后 response loss；同一
+存储中立路径在具备所需 executable 时还有 PostgreSQL integration test。active semantic/
+completion callback 与 provider-specific reconciliation adapter 尚未选择它，因此没有
+完整 F3 effect atom 被提升；正式与候选进度仍为 182/490（37.14%）。

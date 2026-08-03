@@ -2,13 +2,14 @@
 
 [English](effect-event-v1.md) | **简体中文**
 
-`tbm.effect-event.v1` 是本地 completion-notification effect 生命周期的存储中立
-canonical event 契约。它把既有 durable completion outbox 绑定到 append-only effect
-stream，但绝不会把 delivery 状态当作远端 provider 结果的证明。
+`tbm.effect-event.v1` 是本地 completion delivery 与 authenticated provider-effect
+evidence 的存储中立 canonical event 契约。它把既有 durable completion outbox 和
+provider request/receipt/reconciliation 记录绑定到 append-only effect stream，但绝不会
+把本地 delivery 状态当作远端结果的证明。
 
 ## 事件族
 
-Version 1 注册八类 typed event：
+Version 1 注册九类 typed event：
 
 - `tbm.effect.requested`；
 - `tbm.effect.started`；
@@ -16,8 +17,9 @@ Version 1 注册八类 typed event：
 - `tbm.effect.failed`；
 - `tbm.effect.retry_scheduled`；
 - `tbm.effect.dead_lettered`；
-- `tbm.effect.compensation_requested`；以及
-- `tbm.effect.compensated`。
+- `tbm.effect.compensation_requested`；
+- `tbm.effect.compensated`；以及
+- `tbm.effect.provider_transition`。
 
 每个 effect 都使用独立的 `effect` stream。不可变 `EffectContract` 绑定 effect
 identity/type、idempotency key、请求来源 event、输入 Artifact 摘要、authorization
@@ -32,6 +34,31 @@ Delivery event 会保留精确的前一版和当前版 outbox delivery revision�
 `EffectSucceeded`；可重试失败生成 `EffectFailed`，随后生成
 `EffectRetryScheduled`；终态失败生成 `EffectFailed`，随后生成
 `EffectDeadLettered`。retry/dead-letter disposition 之前必须紧邻对应 failure event。
+
+## Provider transition 与 receipt evidence
+
+严格判别的 `ProviderEffectTransitionRef` 用一个 registry type 表达全部 provider
+子状态，而不为每个子状态消耗独立 type。stage 包括 `attempt_started`、
+`request_submitted`、`result_unknown`、`receipt_recorded`、`reconciled` 与
+`retry_scheduled`。每个 transition 都绑定精确 effect、attempt sequence、内容派生的
+attempt/invocation identity、provider/model/endpoint registration 与 request digest。
+provider request ID 只有在 authenticated adapter 报告后才会保留。
+
+成功 receipt 必须携带 provider request ID 与 response digest；其
+`provider_receipt_id` 由 invocation、request ID 与 response digest 内容派生。
+reconciliation 独立排序并内容寻址：`confirmed` 必须携带同一份精确 receipt；
+`still_unknown` 继续保持 unknown；只有 `not_found` 才允许随后显式安排 retry。
+unknown 或跨崩溃遗留的 in-flight/submitted attempt 绝不会静默转成 retry；只有
+not-found reconciliation 与 retry-scheduled evidence 都存在时才能开始新 attempt。
+
+`ProviderEffectLedgerService` 通过 authenticated `EventLedgerPort` 追加 transition，
+只对过期 stream/global position 重试，并在 response loss 后精确重放已保留 append
+receipt。恢复结果只有 `start_attempt`、`reconcile`、`schedule_retry` 或 `complete`。
+重启后若只看到 `attempt_started` 或 `request_submitted`，结果必须是 `reconcile`，
+因为 ledger 无法证明外部请求是否已经执行。服务绑定一份 server-owned
+`TrustedProviderEffectRegistration`，并拒绝 provider/model/version/endpoint 不一致的
+transition。application 必须把服务放在 authenticated provider adapter 之后；服务不会
+从 request JSON 认证远端 provider。
 
 ## Event-first 持久化
 
@@ -54,11 +81,17 @@ event-ledger schema/global head。所有 canonical event 与同步 authority row
 
 ## EffectQueue projection
 
-已注册的 `effect-queue` reducer 会重建 `effect_queue_v1`，状态为 `ready`、
+已注册的 `effect-queue` reducer version 2 会重建 `effect_queue_v1` schema version 2，
+状态为 `ready`、
 `leased`、`retry`、`dead_letter`、`succeeded` 与 `compensated`。它保留紧凑不可变
 event metadata、精确 outbox delivery history、attempt count、pending failure、当前
 delivery 与 stream head。parity verifier 会把重建出的 contract、status、completion
 event 与 delivery revision 同过渡期 completion-outbox authority 逐项比较。
+
+同一 projection 现在还会保留 provider attempt/transition、精确 receipt/reconciliation
+identity，以及 `not_started`、`in_flight`、`submitted`、`unknown`、`not_found`、
+`retry_wait` 与 `succeeded` provider 状态。receipt/request ID 不一致、reconciliation
+不连续、not-found 之前安排 retry 或 provider provenance 变化都会 fail closed。
 
 reducer 强制线性 stream、终态单调性、`failed` 在 retry/dead-letter 之前的精确顺序，
 并要求 compensation 使用新的因果关联 effect stream。当前已经提供存储中立的
@@ -71,7 +104,13 @@ repository 尚未提供 durable compensation append API。
 outbox revision 进入 `delivered`。response digest 只是审计 metadata。两者都不能证明
 外部 provider 已执行副作用、只执行一次或返回了 durable receipt。
 
-provider request ID、provider receipt、effect contract 之外的 authorization event、
-unknown-result 分类、reconciliation 与 durable compensation orchestration 仍属于 F3。
-当前 adapter 保持 at-least-once delivery、仅显式 opt-in，且不会改变
+`provider_receipt_id` 只证明 authenticated 本地 adapter 已保留内容绑定的 provider
+报告，不能证明远端 exactly-once execution。raw provider body、secret 与无界错误绝不
+嵌入 event。
+
+存储中立 provider event/reducer/ledger service 已交付，generic SQLite/PostgreSQL ledger
+无需新增 authority 或 schema component 即可保留它。active semantic-provider 与
+completion-consumer callback 尚未选择该服务；provider-specific reconciliation adapter、
+durable compensation orchestration 与完整 transport/crash matrix 仍属于 F3。当前 adapter
+保持 at-least-once delivery、仅显式 opt-in，且不会改变
 `persistence_model="authority_graph"` 或 `full_persistence=false`。

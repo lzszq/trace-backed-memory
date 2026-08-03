@@ -879,9 +879,14 @@ reader 从这些 event 派生 metadata，并只从 authenticated replay authorit
 详见 [Finalization Event v1](protocols/finalization-event-v1.zh-CN.md) 与
 [Ledger Replay Export v1](protocols/ledger-replay-export-v1.zh-CN.md)。outcome/attribution
 与本地 completion-effect event/reducer 现已提供到 delivery history/dead letter 的精确
-authority parity。provider receipt、unknown-result reconciliation、durable compensation、
-Memory/index/audit/metrics reducer、完整 lifecycle integration、migration 与 cutover
-仍未完成。
+authority parity。既有 effect family 还新增一个严格判别的 provider transition；其内容
+寻址的 attempt、invocation、receipt 与 reconciliation identity 可由 `effect-queue`
+reducer version 2 重建。`ProviderEffectLedgerService` 通过 authenticated generic ledger
+port 精确重放 append，并把跨崩溃遗留的 in-flight/submitted work 归为必须
+reconciliation；只有显式 not-found 结果才允许安排 retry。generic SQLite/PostgreSQL
+ledger 无需新增 authority 或 SQL component 即可保留这些 event。active provider
+callback、provider-specific reconciliation adapter、durable compensation、Memory/index/
+audit/metrics reducer、完整 lifecycle integration、migration 与 cutover 仍未完成。
 
 机器可读的 [`authority-registry.json`](status/authority-registry.json) 会把每个当前
 已登记 SQLite/PostgreSQL 持久化模块分类为 ledger、replaceable projection、compatibility

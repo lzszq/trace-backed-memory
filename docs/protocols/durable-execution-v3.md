@@ -82,8 +82,9 @@ deduplicate by event ID, and the bounded outbox worker owns lease, retry,
 acknowledgement, and dead-letter transitions.
 Each successful delivery transition atomically appends its canonical effect
 event batch with the outbox revision. `EffectSucceeded` is only local callback
-acknowledgement; provider receipts, unknown-result reconciliation, and durable
-compensation remain outside this F2 slice.
+acknowledgement. The storage-neutral provider receipt/reconciliation foundation
+is delivered separately, but active callback integration, provider-specific
+reconciliation, and durable compensation remain outside this F2 slice.
 
 ## Abandonment and recovery
 

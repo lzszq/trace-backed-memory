@@ -786,6 +786,227 @@
       "additionalProperties": false,
       "properties": {
         "event_type": {
+          "const": "tbm.effect.provider_transition"
+        },
+        "event_version": {
+          "const": 1
+        },
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "attempt_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "attempt_sequence": {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "contract_version": {
+              "const": "tbm.effect-event.v1"
+            },
+            "effect_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "endpoint_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "error_code": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "model_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "model_version": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "provider_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "provider_invocation_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            },
+            "provider_receipt_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "provider_request_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "reconciliation_id": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "reconciliation_result": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "enum": [
+                    "confirmed",
+                    "not_found",
+                    "still_unknown"
+                  ]
+                }
+              ]
+            },
+            "reconciliation_sequence": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maximum": 1000,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              ]
+            },
+            "request_sha256": {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "response_sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "retry_at": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?(?:Z|[+-]\\d{2}:\\d{2})$",
+                  "type": "string"
+                }
+              ]
+            },
+            "stage": {
+              "enum": [
+                "attempt_started",
+                "receipt_recorded",
+                "reconciled",
+                "request_submitted",
+                "result_unknown",
+                "retry_scheduled"
+              ]
+            },
+            "transition_id": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "contract_version",
+            "transition_id",
+            "effect_id",
+            "attempt_id",
+            "attempt_sequence",
+            "provider_invocation_id",
+            "stage",
+            "provider_id",
+            "model_id",
+            "model_version",
+            "endpoint_id",
+            "request_sha256",
+            "provider_request_id",
+            "response_sha256",
+            "provider_receipt_id",
+            "error_code",
+            "reconciliation_sequence",
+            "reconciliation_id",
+            "reconciliation_result",
+            "retry_at"
+          ],
+          "type": "object"
+        },
+        "payload_schema": {
+          "const": "tbm.effect.provider_transition.v1"
+        }
+      },
+      "required": [
+        "event_type",
+        "event_version",
+        "payload_schema",
+        "payload"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
           "const": "tbm.effect.requested"
         },
         "event_version": {

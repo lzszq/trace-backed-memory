@@ -2121,10 +2121,17 @@ metadata from those events and reads exact bytes only from the authenticated
 replay authority. See [Finalization Event v1](protocols/finalization-event-v1.md)
 and [Ledger Replay Export v1](protocols/ledger-replay-export-v1.md).
 Outcome/attribution and local completion-effect events/reducers now provide
-exact authority parity through delivery history and dead letter. Provider
-receipts, unknown-result reconciliation, durable compensation, Memory/index/
-audit/metrics reducers, complete lifecycle integration, migration, and cutover
-remain open.
+exact authority parity through delivery history and dead letter. The existing
+effect family additionally carries one strictly discriminated provider
+transition whose content-addressed attempt, invocation, receipt, and
+reconciliation identities rebuild through `effect-queue` reducer version 2.
+`ProviderEffectLedgerService` uses the authenticated generic ledger port for
+exact append replay and classifies orphan in-flight/submitted work as requiring
+reconciliation; only an explicit not-found result permits a scheduled retry.
+Both generic SQLite/PostgreSQL ledgers can retain these events without another
+authority or SQL component. Active provider callbacks, provider-specific
+reconciliation adapters, durable compensation, Memory/index/audit/metrics
+reducers, complete lifecycle integration, migration, and cutover remain open.
 
 The machine-readable
 [`authority-registry.json`](status/authority-registry.json) classifies every

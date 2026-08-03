@@ -44,7 +44,8 @@ This is a bounded session replay export, not a generic canonical-event export;
 and causation, while the authenticated Artifact/replay authority provides exact
 bytes. The product therefore still reports
 `persistence_model="authority_graph"` and `full_persistence=false` until the
-remaining provider receipt/unknown-result reconciliation, durable
-compensation, transport conformance, migration, and cutover gates are complete.
+active provider receipt/reconciliation integration, durable compensation,
+transport conformance, migration, and cutover gates are complete. The storage-
+neutral provider event/reducer/ledger foundation is already delivered.
 Outcome/attribution and local completion-effect projections already provide
 event-first parity through delivery history and dead letter.

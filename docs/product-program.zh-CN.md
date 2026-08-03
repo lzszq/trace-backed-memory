@@ -977,9 +977,12 @@ replay projection；`final-decision-injection` reducer 会核验精确 authority
 durable replay reader 从 ledger 重建 metadata，并从 authenticated replay authority 加载
 精确字节。outcome/attribution event/reducer 现在会重建精确 durable row；completion
 outbox 操作会追加本地 effect request/delivery/dead-letter evidence，并由 `effect-queue`
-核验精确 history parity。provider receipt、unknown-result reconciliation、durable
-compensation、Memory/index/audit/metrics reducer、migration、完整 lifecycle integration
-与其余 event-first cutover 仍未完成。SQLite local daemon 现还具备真实子进程
+核验精确 history parity。存储中立 provider transition、`effect-queue` reducer version 2
+与 authenticated generic-ledger service 现在会保留内容寻址 attempt、provider request ID、
+receipt、unknown result、reconciliation、显式 retry schedule 与精确 response-loss replay，
+且不新增 authority。active provider callback、provider-specific reconciliation adapter、
+durable compensation、Memory/index/audit/metrics reducer、migration、完整 lifecycle
+integration 与其余 event-first cutover 仍未完成。SQLite local daemon 现还具备真实子进程
 `SIGKILL`/reopen sweep：分别在已确认的 `PREPARED`、`DECIDED`、`FINALIZED`、
 `EXECUTING` 与 `COMPLETED` commit 后硬杀并重启；每次重启都要求精确 command replay，
 最终 ledger 还会通过 reducer 与 durable GateSession row 做 parity 核验，且不得出现重复
@@ -990,9 +993,12 @@ orphan evidence、只发布一个逻辑 lifecycle/effect event、保持 reducer 
 一致，并把最后一个边界明确为有界 at-least-once delivery。新增 commit 后 response-loss
 probe 还覆盖 `DECIDED`、event-first `FINALIZED`、`EXECUTING`、组合 completion/outbox
 与 acknowledgement durability。精确重试不会改变完整 event ledger、global/stream head
-或 GateSession history；已提交 acknowledgement 不会再次投递。provider-call receipt 与
-unknown-result reconciliation、compatibility retained-bundle 的 hard-kill 边界、durable
-compensation、PostgreSQL 对等测试及完整 cross-transport crash matrix 仍未完成。
+或 GateSession history；已提交 acknowledgement 不会再次投递。provider-effect ledger
+service 现在会把 orphan in-flight/submitted work 归为 reconciliation-required，且只有显式
+not-found reconciliation 后才允许 retry。active provider-call selection 与 provider-
+specific reconciliation、compatibility retained-bundle 的 hard-kill 边界、durable
+compensation、PostgreSQL transport/crash 对等测试及完整 cross-transport crash matrix
+仍未完成。
 
 同一 durable lifecycle 现在会经 Python facade、Python HTTP 同步/异步 SDK、真实
 JSON-RPC STDIO MCP 子进程与 Bun 下的 TypeScript HTTP SDK 产生完全相同的 17-event
@@ -1018,10 +1024,12 @@ closed。在更大的 F2 gate 完成前，这两项增量都不提升新 atom。
   authorization 至 evidence、replay/completion rollback、receipt-before-ack redelivery，
   以及从 `DECIDED` 到 acknowledgement 的已提交 response loss。本地 happy-path
   cross-stream parity 已覆盖 Python facade、HTTP sync/async SDK、真实 STDIO MCP
-  子进程与 TypeScript HTTP SDK。provider receipt/reconciliation、durable compensation、
+  子进程与 TypeScript HTTP SDK。存储中立 provider receipt/reconciliation 基础已交付，
+  但 active callback integration、provider-specific reconciliation、durable compensation、
   PostgreSQL transport/crash 对等测试与完整 crash matrix 仍未完成。
 - **F3 — Trace、Git 与 effect evidence：** 有序 Trace/Git observation、Git-graph
-  projection、external-effect receipt、Codex hook 与受治理 retention/crypto-erasure。
+  projection、external-effect receipt integration（存储中立 event/reducer/ledger 基础已
+  交付）、Codex hook 与受治理 retention/crypto-erasure。
 - **F4 — 受治理 memory projection：** failure extraction、structured evidence、
   MemoryRevision publication、ActivatedRevision retrieval、policy/index 与其余 Memory
   projection 变为 reducer-native；opt-in outcome/effect reducer 已在 F2 交付。

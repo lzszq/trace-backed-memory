@@ -71,5 +71,6 @@ final decision/injection view 与 ledger-backed replay export 已在当前 F2 �
 [Finalization Event v1](finalization-event-v1.zh-CN.md) 与
 [Ledger Replay Export v1](ledger-replay-export-v1.zh-CN.md)。outcome/attribution 与本地
 completion-effect reducer 已提供到 delivery history/dead letter 的 event-first parity。
-provider receipt、unknown-result reconciliation、durable compensation、完整 transport
-parity 与 F2 crash matrix 仍未完成，所以 `full_persistence` 继续为 `false`。
+存储中立 provider receipt/reconciliation event、reducer 与 ledger service 已交付；active
+semantic-provider selection、provider-specific reconciliation、durable compensation、完整
+transport parity 与 F2 crash matrix 仍未完成，所以 `full_persistence` 继续为 `false`。

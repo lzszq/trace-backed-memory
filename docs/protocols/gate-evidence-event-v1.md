@@ -59,7 +59,8 @@ ledger; see [Semantic Gate Attempt Event v1](semantic-gate-attempt-event-v1.md),
 [Finalization Event v1](finalization-event-v1.md), and
 [Ledger Replay Export v1](ledger-replay-export-v1.md). Outcome/attribution and
 local completion-effect events/reducers, including delivery history and
-dead-letter parity, are also delivered. Provider receipts, unknown-result
-reconciliation, durable compensation, and the remaining transport commit
-points remain open. The product therefore continues to report
+dead-letter parity, are also delivered. The storage-neutral provider receipt/
+reconciliation event, reducer, and ledger service are delivered; active
+provider callbacks, provider-specific reconciliation, durable compensation,
+and the remaining transport commit points remain open. The product therefore continues to report
 `full_persistence=false`.

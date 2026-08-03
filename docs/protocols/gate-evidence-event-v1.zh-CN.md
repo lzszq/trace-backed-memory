@@ -54,5 +54,6 @@ export 也会从 ledger 派生 metadata；详见
 [Finalization Event v1](finalization-event-v1.zh-CN.md) 与
 [Ledger Replay Export v1](ledger-replay-export-v1.zh-CN.md)。outcome/attribution 与本地
 completion-effect event/reducer（含 delivery history 和 dead-letter parity）也已交付。
-provider receipt、unknown-result reconciliation、durable compensation 与其余 transport
+存储中立 provider receipt/reconciliation event、reducer 与 ledger service 已交付；active
+provider callback、provider-specific reconciliation、durable compensation 与其余 transport
 commit point 仍未完成，因此产品继续报告 `full_persistence=false`。

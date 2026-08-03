@@ -25,16 +25,20 @@ from trace_backed_memory.effect_event_v1 import (
     EffectContract,
     EffectEventV1Error,
     EffectRequestedRef,
+    ProviderEffectTransitionRef,
     build_completion_effect_requested_event,
     build_effect_compensated_event,
     build_effect_compensation_requested_event,
     build_effect_delivery_event_batch,
     build_effect_requested_event,
+    build_provider_effect_transition_event,
     completion_effect_contract,
     parse_effect_compensated_event,
     parse_effect_compensation_requested_event,
     parse_effect_delivery_event,
     parse_effect_requested_event,
+    provider_effect_attempt_id,
+    provider_effect_invocation_id,
 )
 from trace_backed_memory.effect_reducer_v1 import (
     EffectProjectionAuthority,
@@ -198,6 +202,33 @@ def _reduce(events: tuple[CanonicalEvent, ...]):
     return state
 
 
+def _provider_attempt_transition(
+    effect_id: str,
+    request_sha256: str,
+) -> ProviderEffectTransitionRef:
+    attempt_id = provider_effect_attempt_id(effect_id, 1)
+    return ProviderEffectTransitionRef(
+        effect_id=effect_id,
+        attempt_id=attempt_id,
+        attempt_sequence=1,
+        provider_invocation_id=provider_effect_invocation_id(
+            effect_id=effect_id,
+            attempt_id=attempt_id,
+            provider_id="provider_001",
+            model_id="model_001",
+            model_version="v1",
+            endpoint_id="endpoint_001",
+            request_sha256=request_sha256,
+        ),
+        stage="attempt_started",
+        provider_id="provider_001",
+        model_id="model_001",
+        model_version="v1",
+        endpoint_id="endpoint_001",
+        request_sha256=request_sha256,
+    )
+
+
 def _dead_letter_history() -> tuple[
     tuple[CanonicalEvent, ...],
     CompletionOutboxEvent,
@@ -314,6 +345,68 @@ def test_effect_queue_replays_delivery_history_retry_and_dead_letter():
     )
 
 
+def test_effect_queue_parity_replays_provider_transitions() -> None:
+    completed_event, outbox_event, pending, trusted = _completed_fixture()
+    requested = build_completion_effect_requested_event(
+        outbox_event,
+        pending,
+        completed_event=completed_event,
+        global_position=8,
+        trusted_context=trusted,
+    )
+    provider_transition = build_provider_effect_transition_event(
+        _provider_attempt_transition(
+            outbox_event.event_id,
+            outbox_event.outcome_descriptor_sha256,
+        ),
+        parent_event=requested,
+        global_position=9,
+        occurred_at="2026-08-01T00:07:00Z",
+        trusted_context=_worker_trusted(trusted, "worker_001"),
+    )
+    events = (requested, provider_transition)
+    state = _reduce(events)
+
+    verify_effect_projection_parity(
+        state,
+        (EffectProjectionAuthority(outbox_event, (pending,)),),
+        events,
+    )
+
+    unrelated_contract = EffectContract(
+        effect_id="effect_unrelated_001",
+        effect_type="semantic_provider_call",
+        idempotency_key="semantic-provider-call-unrelated-001",
+        requested_by_event_id=completed_event.event_id,
+        input_artifact_sha256=outbox_event.outcome_descriptor_sha256,
+        authorization_event_id=trusted.authorization_decision_id,
+        compensation_supported=False,
+    )
+    unrelated_requested = build_effect_requested_event(
+        EffectRequestedRef(unrelated_contract),
+        requested_by_event=completed_event,
+        global_position=10,
+        trusted_context=trusted,
+    )
+    unrelated_transition = build_provider_effect_transition_event(
+        _provider_attempt_transition(
+            unrelated_contract.effect_id,
+            unrelated_contract.input_artifact_sha256,
+        ),
+        parent_event=unrelated_requested,
+        global_position=11,
+        occurred_at="2026-08-01T00:08:00Z",
+        trusted_context=_worker_trusted(trusted, "worker_001"),
+    )
+    with pytest.raises(ReducerExecutionError) as error:
+        verify_effect_projection_parity(
+            state,
+            (EffectProjectionAuthority(outbox_event, (pending,)),),
+            (unrelated_transition,),
+        )
+    assert error.value.code == "TBM_EFFECT_REDUCER_EVENT_INVALID"
+
+
 def test_effect_queue_requires_failed_event_before_retry_disposition():
     events, _outbox_event, _delivery_history = _dead_letter_history()
     reducer = build_effect_queue_reducer()
@@ -330,6 +423,43 @@ def test_effect_queue_requires_failed_event_before_retry_disposition():
             ReducerEvent(
                 retry_without_failure,
                 DEFAULT_EVENT_TYPE_REGISTRY.consume(retry_without_failure),
+            ),
+        )
+    assert error.value.code == "TBM_EFFECT_REDUCER_EVENT_INVALID"
+
+
+def test_effect_queue_rejects_provider_transition_during_failure_disposition():
+    events, outbox_event, _delivery_history = _dead_letter_history()
+    failed = events[2]
+    state = _reduce(events[:3])
+    provider_transition = build_provider_effect_transition_event(
+        _provider_attempt_transition(
+            outbox_event.event_id,
+            outbox_event.outcome_descriptor_sha256,
+        ),
+        parent_event=failed,
+        global_position=failed.global_position + 1,
+        occurred_at="2026-08-01T00:08:00Z",
+        trusted_context=EventTrustedContext(
+            organization_id=failed.organization_id,
+            tenant_id=failed.tenant_id,
+            repository_id=failed.repository_id,
+            environment_id=failed.environment_id,
+            principal_id=failed.principal_id,
+            agent_client_id=failed.agent_client_id,
+            actor_type="worker",
+            actor_id=failed.actor_id,
+            authorization_decision_id=failed.authorization_decision_id,
+        ),
+    )
+    reducer = build_effect_queue_reducer()
+
+    with pytest.raises(ReducerExecutionError) as error:
+        reducer.transition(
+            state,
+            ReducerEvent(
+                provider_transition,
+                DEFAULT_EVENT_TYPE_REGISTRY.consume(provider_transition),
             ),
         )
     assert error.value.code == "TBM_EFFECT_REDUCER_EVENT_INVALID"
@@ -428,6 +558,26 @@ def test_compensation_is_a_new_effect_and_original_is_forward_only():
         state,
         compensation_contract.effect_id,
     ) == compensation_contract
+
+    reopened = build_provider_effect_transition_event(
+        _provider_attempt_transition(
+            outbox_event.event_id,
+            outbox_event.outcome_descriptor_sha256,
+        ),
+        parent_event=succeeded[-1],
+        global_position=13,
+        occurred_at="2026-08-01T00:10:00Z",
+        trusted_context=_worker_trusted(trusted, "worker_001"),
+    )
+    reducer = build_effect_queue_reducer()
+    with pytest.raises(ReducerExecutionError):
+        reducer.transition(
+            state,
+            ReducerEvent(
+                reopened,
+                DEFAULT_EVENT_TYPE_REGISTRY.consume(reopened),
+            ),
+        )
 
 
 def test_non_compensable_completion_effect_rejects_compensation_request():

@@ -152,9 +152,12 @@ metadata，并从 authenticated replay authority 读取精确字节；默认 com
 evaluator，并以 SQLite/PostgreSQL 对等性组合原子
 `RunOutcome + COMPLETED + completion outbox` 发布。同一 transaction 会追加
 `EffectRequested`，worker transition 还会追加 canonical started/succeeded/failed/retry/
-dead-letter evidence；`effect-queue` 会按精确 delivery history 重建。provider receipt、
-unknown-result reconciliation、durable compensation、托管生产索引、受保护内容的加密
-finalization、默认 adapter cutover、CLI durable 选择与共享服务 transport 仍待完成。
+dead-letter evidence；`effect-queue` 会按精确 delivery history 重建。存储中立 provider
+transition、`effect-queue` reducer version 2 与 authenticated generic-ledger service 现在
+会保留内容寻址 receipt、unknown result、reconciliation、显式 retry schedule 与精确
+response-loss replay。active provider callback、provider-specific reconciliation、durable
+compensation、托管生产索引、受保护内容的加密 finalization、默认 adapter cutover、CLI
+durable 选择与共享服务 transport 仍待完成。
 `AuthenticatedDurableAgentMemory` 现在会在一个 adapter-neutral lifecycle
 后面组合上述 opt-in 阶段。它从已保留 RetrievalSnapshot authorization linkage
 重建原始 retrieval scope，拒绝错配的 service graph，增加已授权的精确版本取消，

@@ -63,7 +63,7 @@ deployed code provenance remains a release/distribution responsibility.
 The sealed default registry publishes the canonical memory proposal plus the
 typed GateSession, retrieval/System Gate evidence, Semantic Gate attempt,
 finalization, outcome/attribution, and local effect families. The current
-catalog contains 29 version-1 event types, including all eight
+catalog contains 30 version-1 event types, including all nine
 `tbm.effect.*` events described by [Effect Event v1](effect-event-v1.md). It
 deterministically generates:
 

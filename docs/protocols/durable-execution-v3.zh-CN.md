@@ -67,8 +67,9 @@ exact retry 返回已保留 outcome 与 event，不会创建第二个 event，�
 at-least-once 语义：consumer 按 event ID 去重，有界 outbox worker 负责 lease、retry、
 acknowledgement 与 dead-letter transition。
 每次成功 delivery transition 都会把 canonical effect event batch 与 outbox revision
-原子追加。`EffectSucceeded` 只代表本地 callback acknowledgement；provider receipt、
-unknown-result reconciliation 与 durable compensation 不属于本 F2 slice。
+原子追加。`EffectSucceeded` 只代表本地 callback acknowledgement。存储中立 provider
+receipt/reconciliation 基础已单独交付，但 active callback integration、provider-specific
+reconciliation 与 durable compensation 不属于本 F2 slice。
 
 ## abandonment 与恢复
 

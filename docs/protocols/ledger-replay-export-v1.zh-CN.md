@@ -38,6 +38,7 @@ metadata。
 `event_export` 继续为 `false`。event ledger 提供 finalization metadata/causation，
 authenticated Artifact/replay authority 提供精确字节。outcome/attribution 与本地
 completion-effect projection 已提供到 delivery history/dead letter 的 event-first parity；
-provider receipt/unknown-result reconciliation、durable compensation、transport
-conformance、migration 与 cutover gate 完成前，产品仍报告
+存储中立 provider event/reducer/ledger 基础已交付，但 active provider receipt/
+reconciliation integration、durable compensation、transport conformance、migration 与
+cutover gate 完成前，产品仍报告
 `persistence_model="authority_graph"` 与 `full_persistence=false`。

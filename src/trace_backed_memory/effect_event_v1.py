@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import re
-from typing import NoReturn, cast
+from typing import Literal, NoReturn, cast
 
 from ._timestamps import RFC3339_PATTERN, canonical_rfc3339
 from .completion_outbox_v3 import (
@@ -46,6 +46,7 @@ EFFECT_RETRY_SCHEDULED_EVENT = "tbm.effect.retry_scheduled"
 EFFECT_DEAD_LETTERED_EVENT = "tbm.effect.dead_lettered"
 EFFECT_COMPENSATION_REQUESTED_EVENT = "tbm.effect.compensation_requested"
 EFFECT_COMPENSATED_EVENT = "tbm.effect.compensated"
+EFFECT_PROVIDER_TRANSITION_EVENT = "tbm.effect.provider_transition"
 EFFECT_EVENT_TYPES = tuple(
     sorted(
         (
@@ -57,8 +58,37 @@ EFFECT_EVENT_TYPES = tuple(
             EFFECT_DEAD_LETTERED_EVENT,
             EFFECT_COMPENSATION_REQUESTED_EVENT,
             EFFECT_COMPENSATED_EVENT,
+            EFFECT_PROVIDER_TRANSITION_EVENT,
         )
     )
+)
+
+ProviderEffectStage = Literal[
+    "attempt_started",
+    "request_submitted",
+    "result_unknown",
+    "receipt_recorded",
+    "reconciled",
+    "retry_scheduled",
+]
+ProviderReconciliationResult = Literal[
+    "confirmed",
+    "not_found",
+    "still_unknown",
+]
+
+_PROVIDER_EFFECT_STAGES = frozenset(
+    {
+        "attempt_started",
+        "request_submitted",
+        "result_unknown",
+        "receipt_recorded",
+        "reconciled",
+        "retry_scheduled",
+    }
+)
+_PROVIDER_RECONCILIATION_RESULTS = frozenset(
+    {"confirmed", "not_found", "still_unknown"}
 )
 
 _DELIVERY_EVENT_TYPES = frozenset(
@@ -265,6 +295,244 @@ class EffectCompensatedRef:
         }
 
 
+@dataclass(frozen=True)
+class ProviderEffectTransitionRef:
+    effect_id: str
+    attempt_id: str
+    attempt_sequence: int
+    provider_invocation_id: str
+    stage: ProviderEffectStage
+    provider_id: str
+    model_id: str
+    model_version: str
+    endpoint_id: str
+    request_sha256: str
+    provider_request_id: str | None = None
+    response_sha256: str | None = None
+    provider_receipt_id: str | None = None
+    error_code: str | None = None
+    reconciliation_sequence: int | None = None
+    reconciliation_id: str | None = None
+    reconciliation_result: ProviderReconciliationResult | None = None
+    retry_at: str | None = None
+
+    def __post_init__(self) -> None:
+        for name in (
+            "effect_id",
+            "attempt_id",
+            "provider_invocation_id",
+            "provider_id",
+            "model_id",
+            "model_version",
+            "endpoint_id",
+        ):
+            _identifier(getattr(self, name), name)
+        if (
+            type(self.attempt_sequence) is not int
+            or not 1 <= self.attempt_sequence <= 1000
+        ):
+            _invalid("attempt_sequence must be between 1 and 1000")
+        if type(self.stage) is not str or self.stage not in _PROVIDER_EFFECT_STAGES:
+            _invalid("provider effect stage is not supported")
+        _digest(self.request_sha256, "request_sha256")
+        _optional_identifier(
+            self.provider_request_id,
+            "provider_request_id",
+        )
+        _optional_digest(self.response_sha256, "response_sha256")
+        _optional_identifier(
+            self.provider_receipt_id,
+            "provider_receipt_id",
+        )
+        _optional_identifier(self.error_code, "error_code")
+        if self.reconciliation_sequence is not None and (
+            type(self.reconciliation_sequence) is not int
+            or not 1 <= self.reconciliation_sequence <= 1000
+        ):
+            _invalid("reconciliation_sequence must be between 1 and 1000")
+        _optional_identifier(
+            self.reconciliation_id,
+            "reconciliation_id",
+        )
+        if (
+            self.reconciliation_result is not None
+            and (
+                type(self.reconciliation_result) is not str
+                or self.reconciliation_result
+                not in _PROVIDER_RECONCILIATION_RESULTS
+            )
+        ):
+            _invalid("reconciliation_result is not supported")
+        if self.retry_at is not None:
+            _timestamp(self.retry_at, "retry_at")
+        if self.attempt_id != provider_effect_attempt_id(
+            self.effect_id,
+            self.attempt_sequence,
+        ):
+            _invalid("attempt_id is not derived from the effect attempt")
+        if self.provider_invocation_id != provider_effect_invocation_id(
+            effect_id=self.effect_id,
+            attempt_id=self.attempt_id,
+            provider_id=self.provider_id,
+            model_id=self.model_id,
+            model_version=self.model_version,
+            endpoint_id=self.endpoint_id,
+            request_sha256=self.request_sha256,
+        ):
+            _invalid("provider_invocation_id is not content-derived")
+        self._verify_stage_shape()
+
+    @property
+    def transition_id(self) -> str:
+        return "provider_transition_sha256_" + _domain_sha256(
+            b"tbm.provider-effect-transition.v1\x00",
+            self._unsigned_dict(),
+        ).removeprefix("sha256:")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "contract_version": EFFECT_EVENT_CONTRACT_VERSION,
+            "transition_id": self.transition_id,
+            **self._unsigned_dict(),
+        }
+
+    def _unsigned_dict(self) -> dict[str, object]:
+        return {
+            "effect_id": self.effect_id,
+            "attempt_id": self.attempt_id,
+            "attempt_sequence": self.attempt_sequence,
+            "provider_invocation_id": self.provider_invocation_id,
+            "stage": self.stage,
+            "provider_id": self.provider_id,
+            "model_id": self.model_id,
+            "model_version": self.model_version,
+            "endpoint_id": self.endpoint_id,
+            "request_sha256": self.request_sha256,
+            "provider_request_id": self.provider_request_id,
+            "response_sha256": self.response_sha256,
+            "provider_receipt_id": self.provider_receipt_id,
+            "error_code": self.error_code,
+            "reconciliation_sequence": self.reconciliation_sequence,
+            "reconciliation_id": self.reconciliation_id,
+            "reconciliation_result": self.reconciliation_result,
+            "retry_at": self.retry_at,
+        }
+
+    def _verify_stage_shape(self) -> None:
+        if self.stage == "attempt_started":
+            if any(
+                value is not None
+                for value in (
+                    self.provider_request_id,
+                    self.response_sha256,
+                    self.provider_receipt_id,
+                    self.error_code,
+                    self.reconciliation_sequence,
+                    self.reconciliation_id,
+                    self.reconciliation_result,
+                    self.retry_at,
+                )
+            ):
+                _invalid("attempt_started provider transition is invalid")
+            return
+        if self.stage == "request_submitted":
+            if self.provider_request_id is None or any(
+                value is not None
+                for value in (
+                    self.response_sha256,
+                    self.provider_receipt_id,
+                    self.error_code,
+                    self.reconciliation_sequence,
+                    self.reconciliation_id,
+                    self.reconciliation_result,
+                    self.retry_at,
+                )
+            ):
+                _invalid("request_submitted provider transition is invalid")
+            return
+        if self.stage == "result_unknown":
+            if self.error_code is None or any(
+                value is not None
+                for value in (
+                    self.response_sha256,
+                    self.provider_receipt_id,
+                    self.reconciliation_sequence,
+                    self.reconciliation_id,
+                    self.reconciliation_result,
+                    self.retry_at,
+                )
+            ):
+                _invalid("result_unknown provider transition is invalid")
+            return
+        if self.stage == "receipt_recorded":
+            if (
+                self.provider_request_id is None
+                or self.response_sha256 is None
+                or self.provider_receipt_id
+                != provider_effect_receipt_id(
+                    provider_invocation_id=self.provider_invocation_id,
+                    provider_request_id=self.provider_request_id,
+                    response_sha256=self.response_sha256,
+                )
+                or any(
+                    value is not None
+                    for value in (
+                        self.error_code,
+                        self.reconciliation_sequence,
+                        self.reconciliation_id,
+                        self.reconciliation_result,
+                        self.retry_at,
+                    )
+                )
+            ):
+                _invalid("receipt_recorded provider transition is invalid")
+            return
+        if self.stage == "reconciled":
+            if (
+                self.reconciliation_sequence is None
+                or self.reconciliation_result is None
+                or self.reconciliation_id
+                != provider_effect_reconciliation_id(
+                    provider_invocation_id=self.provider_invocation_id,
+                    reconciliation_sequence=self.reconciliation_sequence,
+                    reconciliation_result=self.reconciliation_result,
+                    provider_request_id=self.provider_request_id,
+                    response_sha256=self.response_sha256,
+                    provider_receipt_id=self.provider_receipt_id,
+                )
+                or self.error_code is not None
+                or self.retry_at is not None
+            ):
+                _invalid("reconciled provider transition is invalid")
+            if self.reconciliation_result == "confirmed":
+                if (
+                    self.provider_request_id is None
+                    or self.response_sha256 is None
+                    or self.provider_receipt_id
+                    != provider_effect_receipt_id(
+                        provider_invocation_id=self.provider_invocation_id,
+                        provider_request_id=self.provider_request_id,
+                        response_sha256=self.response_sha256,
+                    )
+                ):
+                    _invalid("confirmed reconciliation requires an exact receipt")
+            elif self.response_sha256 is not None or self.provider_receipt_id is not None:
+                _invalid("non-confirmed reconciliation cannot carry a receipt")
+            return
+        if self.retry_at is None or any(
+            value is not None
+            for value in (
+                self.response_sha256,
+                self.provider_receipt_id,
+                self.error_code,
+                self.reconciliation_sequence,
+                self.reconciliation_id,
+                self.reconciliation_result,
+            )
+        ):
+            _invalid("retry_scheduled provider transition is invalid")
+
+
 def completion_effect_contract(
     outbox_event: CompletionOutboxEvent,
     completed_event: CanonicalEvent,
@@ -438,6 +706,48 @@ def build_effect_delivery_event_batch(
         events.append(event)
         previous = event
     return tuple(events)
+
+
+def build_provider_effect_transition_event(
+    reference: ProviderEffectTransitionRef,
+    *,
+    parent_event: CanonicalEvent,
+    global_position: int,
+    occurred_at: str,
+    trusted_context: EventTrustedContext,
+) -> CanonicalEvent:
+    if type(reference) is not ProviderEffectTransitionRef:
+        _invalid("reference must be exactly ProviderEffectTransitionRef")
+    if type(parent_event) is not CanonicalEvent:
+        _invalid("parent_event must be exactly CanonicalEvent")
+    if type(trusted_context) is not EventTrustedContext:
+        _invalid("trusted_context must be exactly EventTrustedContext")
+    if (
+        parent_event.stream_id != effect_event_stream_id(reference.effect_id)
+        or parent_event.stream_type != EFFECT_EVENT_STREAM_TYPE
+        or parent_event.event_type not in EFFECT_EVENT_TYPES
+        or global_position <= parent_event.global_position
+    ):
+        _invalid("provider effect transition parent is invalid")
+    _timestamp(occurred_at, "occurred_at")
+    _verify_provider_scope(parent_event, trusted_context)
+    event = _build_stream_event(
+        event_type=EFFECT_PROVIDER_TRANSITION_EVENT,
+        effect_id=reference.effect_id,
+        payload=reference.to_dict(),
+        parent_event=parent_event,
+        global_position=global_position,
+        occurred_at=occurred_at,
+        trusted_context=trusted_context,
+        identity_suffix=reference.transition_id,
+    )
+    parsed = parse_provider_effect_transition_event(
+        event,
+        parent_event=parent_event,
+    )
+    if parsed != reference:
+        raise AssertionError("ProviderEffectTransition did not round-trip")
+    return event
 
 
 def build_effect_compensation_requested_event(
@@ -687,6 +997,45 @@ def parse_effect_delivery_event(
     return reference
 
 
+def parse_provider_effect_transition_event(
+    event: CanonicalEvent,
+    *,
+    parent_event: CanonicalEvent | None = None,
+) -> ProviderEffectTransitionRef:
+    _verify_event_shape(event, EFFECT_PROVIDER_TRANSITION_EVENT)
+    payload = _payload(event)
+    reference = parse_provider_effect_transition_reference(payload)
+    if (
+        event.stream_id != effect_event_stream_id(reference.effect_id)
+        or event.event_id
+        != _effect_event_id(
+            EFFECT_PROVIDER_TRANSITION_EVENT,
+            reference.effect_id,
+            reference.transition_id,
+        )
+    ):
+        _invalid("provider effect transition envelope linkage is invalid")
+    if parent_event is not None:
+        try:
+            verify_event_parent(event, parent_event)
+        except Exception as error:
+            raise EffectEventV1Error(
+                "TBM_EFFECT_EVENT_INVALID",
+                "provider effect transition parent is invalid",
+            ) from error
+        if not _same_provider_scope(parent_event, event):
+            _invalid("provider effect transition scope changed")
+    return reference
+
+
+def parse_provider_effect_transition_reference(
+    value: Mapping[str, object],
+) -> ProviderEffectTransitionRef:
+    if not isinstance(value, Mapping):
+        _invalid("provider effect transition reference must be an object")
+    return _parse_provider_effect_transition(value)
+
+
 def parse_effect_compensation_requested_event(
     event: CanonicalEvent,
 ) -> EffectCompensationRequestedRef:
@@ -790,6 +1139,120 @@ def effect_event_stream_id(effect_id: str) -> str:
     ).removeprefix("sha256:")
 
 
+def provider_effect_attempt_id(effect_id: str, attempt_sequence: int) -> str:
+    _identifier(effect_id, "effect_id")
+    if type(attempt_sequence) is not int or not 1 <= attempt_sequence <= 1000:
+        _invalid("attempt_sequence must be between 1 and 1000")
+    return "effect_attempt_sha256_" + _domain_sha256(
+        b"tbm.provider-effect-attempt.v1\x00",
+        {
+            "effect_id": effect_id,
+            "attempt_sequence": attempt_sequence,
+        },
+    ).removeprefix("sha256:")
+
+
+def provider_effect_invocation_id(
+    *,
+    effect_id: str,
+    attempt_id: str,
+    provider_id: str,
+    model_id: str,
+    model_version: str,
+    endpoint_id: str,
+    request_sha256: str,
+) -> str:
+    for name, value in (
+        ("effect_id", effect_id),
+        ("attempt_id", attempt_id),
+        ("provider_id", provider_id),
+        ("model_id", model_id),
+        ("model_version", model_version),
+        ("endpoint_id", endpoint_id),
+    ):
+        _identifier(value, name)
+    _digest(request_sha256, "request_sha256")
+    return "provider_invocation_sha256_" + _domain_sha256(
+        b"tbm.provider-effect-invocation.v1\x00",
+        {
+            "effect_id": effect_id,
+            "attempt_id": attempt_id,
+            "provider_id": provider_id,
+            "model_id": model_id,
+            "model_version": model_version,
+            "endpoint_id": endpoint_id,
+            "request_sha256": request_sha256,
+        },
+    ).removeprefix("sha256:")
+
+
+def provider_effect_receipt_id(
+    *,
+    provider_invocation_id: str,
+    provider_request_id: str,
+    response_sha256: str,
+) -> str:
+    _identifier(provider_invocation_id, "provider_invocation_id")
+    _identifier(provider_request_id, "provider_request_id")
+    _digest(response_sha256, "response_sha256")
+    return "provider_receipt_sha256_" + _domain_sha256(
+        b"tbm.provider-effect-receipt.v1\x00",
+        {
+            "provider_invocation_id": provider_invocation_id,
+            "provider_request_id": provider_request_id,
+            "response_sha256": response_sha256,
+        },
+    ).removeprefix("sha256:")
+
+
+def provider_effect_reconciliation_id(
+    *,
+    provider_invocation_id: str,
+    reconciliation_sequence: int,
+    reconciliation_result: ProviderReconciliationResult,
+    provider_request_id: str | None,
+    response_sha256: str | None,
+    provider_receipt_id: str | None,
+) -> str:
+    _identifier(provider_invocation_id, "provider_invocation_id")
+    if (
+        type(reconciliation_sequence) is not int
+        or not 1 <= reconciliation_sequence <= 1000
+    ):
+        _invalid("reconciliation_sequence must be between 1 and 1000")
+    if (
+        type(reconciliation_result) is not str
+        or reconciliation_result not in _PROVIDER_RECONCILIATION_RESULTS
+    ):
+        _invalid("reconciliation_result is not supported")
+    _optional_identifier(provider_request_id, "provider_request_id")
+    _optional_digest(response_sha256, "response_sha256")
+    _optional_identifier(provider_receipt_id, "provider_receipt_id")
+    return "provider_reconciliation_sha256_" + _domain_sha256(
+        b"tbm.provider-effect-reconciliation.v1\x00",
+        {
+            "provider_invocation_id": provider_invocation_id,
+            "reconciliation_sequence": reconciliation_sequence,
+            "reconciliation_result": reconciliation_result,
+            "provider_request_id": provider_request_id,
+            "response_sha256": response_sha256,
+            "provider_receipt_id": provider_receipt_id,
+        },
+    ).removeprefix("sha256:")
+
+
+def provider_effect_transition_event_id(
+    reference: ProviderEffectTransitionRef,
+) -> str:
+    if type(reference) is not ProviderEffectTransitionRef:
+        _invalid("reference must be exactly ProviderEffectTransitionRef")
+    return _effect_event_id(
+        EFFECT_PROVIDER_TRANSITION_EVENT,
+        reference.effect_id,
+        reference.transition_id,
+    )
+
+
 def effect_event_payload_schema(event_type: str) -> dict[str, object]:
     if event_type not in EFFECT_EVENT_TYPES:
         _invalid("event_type is not an effect event")
@@ -855,6 +1318,45 @@ def effect_event_payload_schema(event_type: str) -> dict[str, object]:
                 digest,
                 timestamp,
             ),
+        }
+    elif event_type == EFFECT_PROVIDER_TRANSITION_EVENT:
+        optional_identifier = {"oneOf": [{"type": "null"}, identifier]}
+        optional_digest = {"oneOf": [{"type": "null"}, digest]}
+        properties = {
+            "contract_version": {"const": EFFECT_EVENT_CONTRACT_VERSION},
+            "transition_id": identifier,
+            "effect_id": identifier,
+            "attempt_id": identifier,
+            "attempt_sequence": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+            },
+            "provider_invocation_id": identifier,
+            "stage": {"enum": sorted(_PROVIDER_EFFECT_STAGES)},
+            "provider_id": identifier,
+            "model_id": identifier,
+            "model_version": identifier,
+            "endpoint_id": identifier,
+            "request_sha256": digest,
+            "provider_request_id": optional_identifier,
+            "response_sha256": optional_digest,
+            "provider_receipt_id": optional_identifier,
+            "error_code": optional_identifier,
+            "reconciliation_sequence": {
+                "oneOf": [
+                    {"type": "null"},
+                    {"type": "integer", "minimum": 1, "maximum": 1000},
+                ]
+            },
+            "reconciliation_id": optional_identifier,
+            "reconciliation_result": {
+                "oneOf": [
+                    {"type": "null"},
+                    {"enum": sorted(_PROVIDER_RECONCILIATION_RESULTS)},
+                ]
+            },
+            "retry_at": {"oneOf": [{"type": "null"}, timestamp]},
         }
     elif event_type == EFFECT_COMPENSATION_REQUESTED_EVENT:
         properties = {
@@ -1017,6 +1519,70 @@ def _parse_effect_contract(value: object) -> EffectContract:
         authorization_event_id=cast(str, value["authorization_event_id"]),
         compensation_supported=cast(bool, value["compensation_supported"]),
     )
+
+
+def _parse_provider_effect_transition(
+    value: Mapping[str, object],
+) -> ProviderEffectTransitionRef:
+    expected = {
+        "contract_version",
+        "transition_id",
+        "effect_id",
+        "attempt_id",
+        "attempt_sequence",
+        "provider_invocation_id",
+        "stage",
+        "provider_id",
+        "model_id",
+        "model_version",
+        "endpoint_id",
+        "request_sha256",
+        "provider_request_id",
+        "response_sha256",
+        "provider_receipt_id",
+        "error_code",
+        "reconciliation_sequence",
+        "reconciliation_id",
+        "reconciliation_result",
+        "retry_at",
+    }
+    if (
+        set(value) != expected
+        or value.get("contract_version") != EFFECT_EVENT_CONTRACT_VERSION
+    ):
+        _invalid("provider effect transition payload is invalid")
+    reference = ProviderEffectTransitionRef(
+        effect_id=cast(str, value["effect_id"]),
+        attempt_id=cast(str, value["attempt_id"]),
+        attempt_sequence=cast(int, value["attempt_sequence"]),
+        provider_invocation_id=cast(str, value["provider_invocation_id"]),
+        stage=cast(ProviderEffectStage, value["stage"]),
+        provider_id=cast(str, value["provider_id"]),
+        model_id=cast(str, value["model_id"]),
+        model_version=cast(str, value["model_version"]),
+        endpoint_id=cast(str, value["endpoint_id"]),
+        request_sha256=cast(str, value["request_sha256"]),
+        provider_request_id=cast(str | None, value["provider_request_id"]),
+        response_sha256=cast(str | None, value["response_sha256"]),
+        provider_receipt_id=cast(
+            str | None,
+            value["provider_receipt_id"],
+        ),
+        error_code=cast(str | None, value["error_code"]),
+        reconciliation_sequence=cast(
+            int | None,
+            value["reconciliation_sequence"],
+        ),
+        reconciliation_id=cast(str | None, value["reconciliation_id"]),
+        reconciliation_result=cast(
+            ProviderReconciliationResult | None,
+            value["reconciliation_result"],
+        ),
+        retry_at=cast(str | None, value["retry_at"]),
+    )
+    if value.get("transition_id") != reference.transition_id:
+        _invalid("provider effect transition ID is not content-derived")
+    return reference
 
 
 def _effect_contract_schema(
@@ -1197,6 +1763,26 @@ def _verify_delivery_scope(
         _invalid("delivery event is outside the trusted effect authority")
 
 
+def _verify_provider_scope(
+    event: CanonicalEvent,
+    trusted_context: EventTrustedContext,
+) -> None:
+    fields = (
+        "organization_id",
+        "tenant_id",
+        "repository_id",
+        "environment_id",
+        "principal_id",
+        "agent_client_id",
+        "authorization_decision_id",
+    )
+    if any(
+        getattr(event, name) != getattr(trusted_context, name)
+        for name in fields
+    ) or trusted_context.actor_type not in {"service", "worker"}:
+        _invalid("provider event is outside the trusted effect authority")
+
+
 def _same_delivery_scope(
     left: CanonicalEvent,
     right: CanonicalEvent,
@@ -1213,6 +1799,25 @@ def _same_delivery_scope(
     return (
         all(getattr(left, name) == getattr(right, name) for name in fields)
         and right.actor_type == "worker"
+    )
+
+
+def _same_provider_scope(
+    left: CanonicalEvent,
+    right: CanonicalEvent,
+) -> bool:
+    fields = (
+        "organization_id",
+        "tenant_id",
+        "repository_id",
+        "environment_id",
+        "principal_id",
+        "agent_client_id",
+        "authorization_decision_id",
+    )
+    return (
+        all(getattr(left, name) == getattr(right, name) for name in fields)
+        and right.actor_type in {"service", "worker"}
     )
 
 
@@ -1270,6 +1875,18 @@ def _digest(value: object, name: str) -> str:
     return value
 
 
+def _optional_identifier(value: object, name: str) -> str | None:
+    if value is None:
+        return None
+    return _identifier(value, name)
+
+
+def _optional_digest(value: object, name: str) -> str | None:
+    if value is None:
+        return None
+    return _digest(value, name)
+
+
 def _timestamp(value: object, name: str) -> str:
     if type(value) is not str or canonical_rfc3339(value) != value:
         _invalid(f"{name} must be a canonical RFC 3339 timestamp")
@@ -1305,6 +1922,7 @@ __all__ = [
     "EFFECT_EVENT_TYPES",
     "EFFECT_EVENT_VERSION",
     "EFFECT_FAILED_EVENT",
+    "EFFECT_PROVIDER_TRANSITION_EVENT",
     "EFFECT_REQUESTED_EVENT",
     "EFFECT_RETRY_SCHEDULED_EVENT",
     "EFFECT_STARTED_EVENT",
@@ -1315,11 +1933,15 @@ __all__ = [
     "EffectDeliveryTransitionRef",
     "EffectEventV1Error",
     "EffectRequestedRef",
+    "ProviderEffectStage",
+    "ProviderEffectTransitionRef",
+    "ProviderReconciliationResult",
     "build_completion_effect_requested_event",
     "build_effect_compensated_event",
     "build_effect_compensation_requested_event",
     "build_effect_delivery_event_batch",
     "build_effect_requested_event",
+    "build_provider_effect_transition_event",
     "completion_effect_contract",
     "effect_event_payload_schema",
     "effect_event_stream_id",
@@ -1327,4 +1949,11 @@ __all__ = [
     "parse_effect_compensation_requested_event",
     "parse_effect_delivery_event",
     "parse_effect_requested_event",
+    "parse_provider_effect_transition_event",
+    "parse_provider_effect_transition_reference",
+    "provider_effect_attempt_id",
+    "provider_effect_invocation_id",
+    "provider_effect_receipt_id",
+    "provider_effect_reconciliation_id",
+    "provider_effect_transition_event_id",
 ]

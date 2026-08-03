@@ -79,7 +79,8 @@ Final decision/injection views and ledger-backed replay export are delivered in
 the current F2 increment; see [Finalization Event v1](finalization-event-v1.md) and
 [Ledger Replay Export v1](ledger-replay-export-v1.md). Outcome/attribution and
 local completion-effect reducers now provide event-first parity through
-delivery history and dead letter. Provider receipts, unknown-result
-reconciliation, durable compensation, complete transport parity, and the F2
-crash matrix remain open.
+delivery history and dead letter. The storage-neutral provider receipt/
+reconciliation event, reducer, and ledger service are delivered; active
+semantic-provider selection, provider-specific reconciliation, durable
+compensation, complete transport parity, and the F2 crash matrix remain open.
 `full_persistence` therefore remains `false`.

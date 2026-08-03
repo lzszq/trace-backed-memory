@@ -144,7 +144,9 @@ contains `outcome-current`, `outcome-attribution`, and `effect-queue`; the
 explicit SQLite/PostgreSQL event-first paths verify RunOutcome,
 OutcomeAttribution, completion delivery history, and dead-letter parity. See
 [Effect Event v1](effect-event-v1.md). MemoryCatalog, activated heads,
-retrieval indexes, audit, metrics, and PR risk are not yet reducer-native.
-Provider receipts, unknown-result reconciliation, durable compensation, and
-the remaining F2 cutover gates also remain open, so these opt-in reducers do
-not change `full_persistence=false`.
+retrieval indexes, audit, metrics, and PR risk are not yet reducer-native. The
+storage-neutral `effect-queue` version 2 now rebuilds provider receipt,
+unknown-result, reconciliation, and explicit retry state. Active provider
+callbacks, provider-specific reconciliation, durable compensation, and the
+remaining F2 cutover gates remain open, so these opt-in reducers do not change
+`full_persistence=false`.

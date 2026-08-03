@@ -66,7 +66,8 @@ closed.
 Parity verification compares the rebuilt projection with the transitional
 GateSession and replay authorities. The generic reducer runtime is still not
 the sole active rebuild path. Outcome/attribution and local completion-effect
-reducers now cover delivery history and dead-letter parity. Provider receipts,
-unknown-result reconciliation, durable compensation, complete transport
-conformance, and the F2 crash matrix remain open; the product therefore keeps
+reducers now cover delivery history and dead-letter parity. The storage-neutral
+provider receipt/reconciliation foundation is delivered; active provider
+integration, durable compensation, complete transport conformance, and the F2
+crash matrix remain open; the product therefore keeps
 `persistence_model="authority_graph"` and `full_persistence=false`.

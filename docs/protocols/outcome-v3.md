@@ -49,9 +49,9 @@ content-ID replay. Typed canonical outcome events plus `outcome-current` and
 The explicit durable execution path authenticates the evaluator on every call
 and atomically publishes the RunOutcome, completed session, completion outbox,
 and initial effect request; its worker persists delivery/dead-letter events.
-Artifact-byte verification, provider receipts and unknown-result
-reconciliation, durable compensation, and default/shared-service cutover
-remain outstanding.
+Artifact-byte verification, active provider receipt/reconciliation integration,
+durable compensation, and default/shared-service cutover remain outstanding;
+the storage-neutral provider event/reducer/ledger foundation is delivered.
 
 Canonical schemas:
 

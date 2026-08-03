@@ -323,9 +323,16 @@ Trace/run ordering, canonical source time, Artifact-only content linkage,
 tool/permission/parent/subagent correlation, and one shared command digest for
 an atomic batch of at most 100 events. The typed helper verifies the complete
 command and trusted ledger context before the generic SQLite/PostgreSQL event
-ledgers provide exact append and replay without another schema. This is not yet
-Codex Hook/App Server ingestion, a Trace reducer/projection, or a
-default Trace-store cutover.
+ledgers provide exact append and replay without another schema. An opt-in Codex
+CLI `0.146.0` App Server v2 recorder now maps the eleven pinned Hook names,
+turn diff updates, and final-answer item completion into that family. Trusted
+constructor state owns identity, scope, authorization, time, classification,
+and ordering; every mapped frame requires one exact pre-persisted JSON Artifact
+descriptor, while unknown methods, requests/responses, realtime transcripts,
+guessed direct-Hook payloads, and unknown item variants fail closed. Exact
+pending resume covers post-commit response loss. The recorder does not persist
+Artifact bytes, build a Trace reducer/projection, enable automatic Hook capture,
+or select a default Trace-store cutover.
 
 The F3 Git increment adds eight registered observation types plus an opt-in
 `GitObservationEventRecorder`. Checkout/ref/commit/worktree/diff/ancestry/

@@ -1042,12 +1042,14 @@ closed。在更大的 F2 gate 完成前，这两项增量都不提升新 atom。
   PostgreSQL crash probe 与完整 crash matrix 仍未完成。
 - **F3 — Trace、Git 与 effect evidence：** 有序 typed Trace event 协议与 ledger-context-
   bound atomic append helper、八种 type 的 Git observation 协议与 capture-compatible Git
-  recorder、conservative default-registry Git graph reducer 已交付，存储中立 external-effect
-  event/reducer/ledger 基础也已交付。Git reducer 会保留 pairwise confidence/conflict、missing
-  object、checkout/ref state 与 provenance，但不会臆造 direct-parent、force-push、semantic-
-  role 或 PR-anchor 事实。可信 Codex Hook/App Server ingestion、自动 Git/diff capture、Trace
-  projection、Git evidence join/consumer、完整 external-effect integration 与受治理 retention/
-  crypto-erasure 仍待完成。
+  recorder、conservative default-registry Git graph reducer、存储中立 external-effect
+  event/reducer/ledger 基础，以及 opt-in 可信 Codex CLI `0.146.0` App Server v2 ingestion
+  adapter 均已交付。Codex adapter 会通过严格 notification overlay 与精确 pending resume，
+  把固定 Hook lifecycle、turn diff 与 final response 映射成仅 Artifact 的 Trace event。Git
+  reducer 会保留 pairwise confidence/conflict、missing object、checkout/ref state 与 provenance，
+  但不会臆造 direct-parent、force-push、semantic-role 或 PR-anchor 事实。自动 Hook wiring、
+  自动 Git/diff capture、Trace projection、Git evidence join/consumer、完整 external-effect
+  integration 与受治理 retention/crypto-erasure 仍待完成。
 - **F4 — 受治理 memory projection：** failure extraction、structured evidence、
   MemoryRevision publication、ActivatedRevision retrieval、policy/index 与其余 Memory
   projection 变为 reducer-native；opt-in outcome/effect reducer 已在 F2 交付。

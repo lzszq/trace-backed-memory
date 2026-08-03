@@ -103,15 +103,17 @@ Stable validation failures use `TBM_TRACE_EVENT_INVALID` with bounded messages.
 
 ## Current boundary
 
-This increment delivers the typed Trace event and atomic batch protocol only.
-It does not yet:
+This increment delivers the typed Trace event and atomic batch protocol. The
+separate opt-in [Codex App Server ingestion adapter](codex-app-server-ingestion-v1.md)
+now maps a pinned v2 notification subset into this family with trusted identity,
+Artifact-only exact frames, and exact pending-append resume. The protocol and
+adapter still do not:
 
-- ingest Codex Hooks or App Server frames;
-- parse unstable transcripts;
+- parse unstable transcripts into final facts;
 - embed Git checkout or ancestry details in the Trace payload (the separate
   Git observation protocol owns those records);
 - build a Trace projection or Git graph reducer;
 - cut over the compatibility Trace aggregate or default Agent/MCP profiles.
 
-Those integrations must use a trusted, versioned adapter and may not weaken the
-canonical event, Artifact, authorization, or ledger contracts.
+Other integrations must use a trusted, versioned adapter and may not weaken
+the canonical event, Artifact, authorization, or ledger contracts.

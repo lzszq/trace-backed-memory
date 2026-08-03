@@ -926,9 +926,17 @@ tool correlation、permission result 与 parent/subagent linkage。有界批次�
 连续 canonical event 共享一个 partition-scoped identity key 与一个 content-bound digest；
 typed append helper 会先复验完整 command 与 ledger access context，再由既有
 SQLite/PostgreSQL event ledger 原子 append。详见
-[有序 Trace Event 协议 v1](protocols/trace-event-v1.zh-CN.md)。该协议增量不代表已经
-交付 Codex Hook/App Server adapter、Trace reducer/projection 或
-compatibility Trace cutover。
+[有序 Trace Event 协议 v1](protocols/trace-event-v1.zh-CN.md)。独立的
+`CodexAppServerTraceRecorder` 现以 opt-in 方式把可信 Trace/run/thread identity 与 trusted
+clock 绑定到 Codex CLI `0.146.0` App Server v2 notification。它映射十一种固定 Hook
+name、turn diff update 与 `final_answer` item completion，要求唯一一个已预先持久化的精确
+frame `application/json` Artifact descriptor，并让 raw path/diff/response 字节远离 event
+payload。未知 method、request/response、realtime transcript、猜测的 direct-Hook payload
+与未知 item variant 都 fail closed；append response 丢失时会保留精确 pending event，并在
+idempotent resume 前阻止新输入。详见
+[Codex App Server 摄取 v1](protocols/codex-app-server-ingestion-v1.zh-CN.md)。adapter 不会
+持久化 Artifact 字节、构建 Trace reducer/projection，也不会选择 compatibility/default Trace
+cutover。
 
 F3 Git observation 增量也已作为 opt-in typed 协议交付。八种注册 observation type 会保留
 checkout、commit、ref、worktree、Artifact-linked diff、ancestry、object availability 与

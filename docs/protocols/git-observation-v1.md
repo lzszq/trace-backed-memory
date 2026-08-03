@@ -133,5 +133,6 @@ default-registry checkpoints require an explicit new rebuild generation rather
 than unsafe resume. The default compatibility Agent/MCP profile still does not
 configure the recorder. Automatic Git-version/remote/diff Artifact capture,
 checkout-binding authority, force-push reconciliation, source/fix/verification
-joins, PR-anchor ingestion, Codex Hook/App Server ingestion, applicability/
-PR-risk consumers, and default cutover remain separate work.
+joins, PR-anchor ingestion, automatic Codex Hook/App Server wiring,
+applicability/PR-risk consumers, and default cutover remain separate work. The
+opt-in pinned Codex ingestion library seam is documented separately.

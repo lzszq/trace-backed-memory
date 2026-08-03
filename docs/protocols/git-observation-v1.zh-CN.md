@@ -116,4 +116,5 @@ summary、current missing-object state 与精确 last-observation provenance。�
 使用显式新 rebuild generation，不能不安全地 resume。默认 compatibility Agent/MCP profile
 仍不配置 recorder。自动 Git-version/remote/diff Artifact capture、checkout-binding authority、
 force-push reconciliation、source/fix/verification join、PR-anchor ingestion、Codex Hook/App
-Server ingestion、applicability/PR-risk consumer 与默认 cutover 仍属于后续工作。
+Server 自动 wiring、applicability/PR-risk consumer 与默认 cutover 仍属于后续工作；固定
+Codex ingestion 的 opt-in library seam 已在独立协议中说明。

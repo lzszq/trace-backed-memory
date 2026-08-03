@@ -2,7 +2,7 @@
 
 **English** | [简体中文](codex.zh-CN.md)
 
-This repository provides five explicit Codex-facing layers:
+This repository provides six explicit Codex-facing layers:
 
 1. Root and nested `AGENTS.md` files map invariants, verification, schemas, and
    adapter boundaries.
@@ -14,6 +14,9 @@ This repository provides five explicit Codex-facing layers:
    long-running local STDIO MCP server.
 5. Explicit `tbm-mcp --profile durable-v3` exposes the restart-resumable
    durable Agent lifecycle while keeping trusted identities outside tool JSON.
+6. Opt-in `CodexAppServerTraceRecorder` converts a pinned App Server v2
+   notification subset into Artifact-linked ordered Trace evidence without
+   changing either MCP profile.
 
 ## Contributor use
 
@@ -21,6 +24,28 @@ Codex should read the root `AGENTS.md`, then select
 `maintain-trace-backed-memory` for repository changes or
 `use-trace-backed-memory` for runtime integration. The skills link only the
 references needed for that task.
+
+## Optional App Server Trace ingestion
+
+Use `CodexAppServerTraceRecorder` only from a trusted host adapter pinned to
+Codex CLI `0.146.0` and App Server wire version `v2`. The constructor, not the
+notification frame, owns ledger access, Trace/run/thread identity, clock,
+classification, retention, and ordering.
+
+Before each mapped call, persist the exact raw notification bytes through an
+authorized Artifact Authority and pass the one matching `application/json`
+`EventArtifactRef`. The recorder maps Hook started/completed for the eleven
+pinned Hook names, turn diff updates, and completed `final_answer` agent
+messages. Raw Hook output, source paths, diffs, and response text remain only in
+the Artifact. It skips validated deltas and non-final items, and rejects unknown
+methods/items, requests/responses, realtime transcripts, direct-Hook stdin
+shapes, duplicate JSON keys, and frames outside fixed byte/node/depth limits.
+
+If append acknowledgement is lost, retain the same recorder and call
+`resume_pending()`; it blocks new input until the exact idempotent event is
+confirmed. The recorder is a library seam, not an App Server process launcher,
+Artifact writer, Trace reducer, or default MCP integration. See
+[Codex App Server Ingestion v1](../protocols/codex-app-server-ingestion-v1.md).
 
 ## Install the local MCP profile
 

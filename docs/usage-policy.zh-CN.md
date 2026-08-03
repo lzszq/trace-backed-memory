@@ -823,9 +823,24 @@ context、连续 sequence/global position，且不得超过 `EVENT_LEDGER_MAX_AP
 Trace-specific 语义校验。恢复时必须用 `verify_trace_event_batch()` 校验完整 retained
 command，逐条 parse 不能代替 batch verification。
 
-该协议不是 Codex Hook/App Server adapter。禁止把不稳定 transcript 当作唯一事实源，
-禁止从 hook payload 接受 repository/authorization identity；在独立 adapter/reducer 落地并
-核验前，也不得声明 Trace projection 或默认 runtime cutover。
+opt-in `CodexAppServerTraceRecorder` 是当前唯一发布的 Codex App Server ingestion
+boundary。wire version、CLI version、ledger context、Trace/run/thread identity、clock、
+classification、retention policy 与 cursor 必须来自 trusted adapter state，绝不能来自
+notification JSON。
+
+映射 notification 前，必须先通过已授权 Artifact Authority 持久化其精确原始字节，再传入
+唯一匹配的 `application/json` descriptor。recorder 会核验 digest、size、classification、
+retention 与 availability；它不写 Artifact 字节，也不提供跨 authority 原子性。Hook output、
+source path、prompt、diff、final response 与 transcript text 只能留在该 Artifact，绝不能进入
+Trace event metadata。
+
+只有固定 App Server v2 overlay 中的 Hook start/completion、turn diff 与 final-answer item
+completion 可以追加 evidence。通过校验的 delta 与非 final item 可以在没有 Artifact linkage
+时跳过。未知 method/item variant、request/response、realtime transcript notification 与
+direct-Hook stdin shape 必须 fail closed。`permissionRequest` completion 保持 `unknown`，
+不得推断 allow 或 deny。append acknowledgement 不确定时，接收下一帧前必须先调用
+`resume_pending()`。不得声明 Trace projection、自动 Hook capture 或默认 runtime cutover；
+详见 [Codex App Server 摄取 v1](protocols/codex-app-server-ingestion-v1.zh-CN.md)。
 
 ## Git observation 策略
 

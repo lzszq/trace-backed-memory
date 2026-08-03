@@ -103,8 +103,11 @@ ledger-compatible partition identity/content digest for atomic batches of at
 most 100 contiguous events. Typed preflight plus SQLite continuation and exact
 append/replay are verified, and an exact SQLite/PostgreSQL receipt/page parity
 test is present, but PostgreSQL executables are not
-available locally. Codex Hook/App Server ingestion, Trace reducers, and default
-Trace persistence cutover remain incomplete. The fixed
+available locally. An opt-in Codex CLI `0.146.0` App Server v2 recorder now
+maps the pinned Hook lifecycle, turn diff, and final response to exact-frame
+Artifact-linked Trace events, rejects unsupported/transcript/request shapes,
+and supports exact pending resume. Automatic Hook wiring, Artifact persistence,
+Trace reducers, and default Trace persistence cutover remain incomplete. The fixed
 progress contract contains no auditable F3 atom-ID-to-plan-line map, so this
 protocol evidence is not assigned an invented atom ID. Formal and candidate
 progress therefore remain 182/490 (37.14%) with `atom_ids=[]`.
@@ -119,7 +122,7 @@ legacy capture compatibility are verified, and PostgreSQL parity coverage is
 present but was skipped locally because PostgreSQL executables are unavailable.
 Raw paths, remote URLs, diff bytes, stdout, and stderr are excluded from event
 payloads. Automatic Git/diff capture, checkout authority, force-push
-reconciliation, Codex Hook/App Server ingestion, and default cutover remain
+reconciliation, automatic Codex Hook wiring, and default cutover remain
 incomplete. No complete fixed-plan atom has a safe
 atom-ID mapping for this increment, so formal and candidate progress remain
 182/490 (37.14%) with `atom_ids=[]`.

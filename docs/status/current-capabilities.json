@@ -165,11 +165,14 @@
       "status": "opt-in",
       "evidence": [
         "src/trace_backed_memory/trace_event_v1.py",
+        "src/trace_backed_memory/codex_app_server_ingestion_v1.py",
         "src/trace_backed_memory/event_registry_v1.py",
         "schemas/event_payload_registry_v1.schema.json",
         "examples/event_type_registry_v1.example.json",
         "tests/test_trace_event_v1.py",
-        "docs/protocols/trace-event-v1.md"
+        "tests/test_codex_app_server_ingestion_v1.py",
+        "docs/protocols/trace-event-v1.md",
+        "docs/protocols/codex-app-server-ingestion-v1.md"
       ]
     },
     {
@@ -355,8 +358,13 @@
     },
     {
       "id": "integration.codex-hooks",
-      "status": "planned",
-      "evidence": ["docs/status/current-capability-matrix.md"]
+      "status": "opt-in",
+      "evidence": [
+        "src/trace_backed_memory/codex_app_server_ingestion_v1.py",
+        "tests/test_codex_app_server_ingestion_v1.py",
+        "docs/protocols/codex-app-server-ingestion-v1.md",
+        "docs/integrations/codex.md"
+      ]
     },
     {
       "id": "integration.github-pr-check",

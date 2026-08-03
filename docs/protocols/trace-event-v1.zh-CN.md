@@ -87,14 +87,16 @@ rollback 与 packaged registry schema parity 都沿用同一条已测试存储�
 
 ## 当前边界
 
-本增量只交付 typed Trace event 与 atomic batch 协议，尚未：
+本增量交付 typed Trace event 与 atomic batch 协议。独立 opt-in
+[Codex App Server 摄取 adapter](codex-app-server-ingestion-v1.zh-CN.md) 现已把固定 v2
+notification 子集映射到该 family，并执行 trusted identity、仅 Artifact 的精确 frame 与
+pending append 精确续接。该协议与 adapter 仍不会：
 
-- 摄取 Codex Hooks 或 App Server frame；
-- 解析不稳定 transcript；
+- 把不稳定 transcript 解析成最终事实；
 - 在 Trace payload 中嵌入 Git checkout/ancestry detail（这些 record 由独立 Git
   observation 协议承载）；
 - 构建 Trace projection 或 Git graph reducer；
 - 切换 compatibility Trace aggregate 或默认 Agent/MCP profile。
 
-后续 integration 必须使用可信、versioned adapter，且不得削弱 canonical event、
+其他 integration 必须使用可信、versioned adapter，且不得削弱 canonical event、
 Artifact、authorization 或 ledger contract。

@@ -2,7 +2,7 @@
 
 [English](codex.md) | **简体中文**
 
-仓库现在提供五层边界清晰的 Codex 接口：
+仓库现在提供六层边界清晰的 Codex 接口：
 
 1. 根目录与嵌套 `AGENTS.md` 映射不变量、验证、Schema 和适配器边界。
 2. 仓库本地技能分别指导维护者与运行时调用方。
@@ -11,12 +11,32 @@
 4. 默认 `tbm-mcp` 以长驻本地 STDIO MCP server 暴露同一套兼容生命周期。
 5. 显式 `tbm-mcp --profile durable-v3` 暴露可跨重启续接的 durable Agent
    生命周期，并把可信 identity 保留在 tool JSON 之外。
+6. opt-in `CodexAppServerTraceRecorder` 会把固定 App Server v2 notification 子集
+   转成 Artifact-linked 有序 Trace evidence，且不改变任一 MCP profile。
 
 ## 贡献者使用
 
 Codex 应先读取根 `AGENTS.md`。修改仓库时选择
 `maintain-trace-backed-memory`，接入运行时则选择
 `use-trace-backed-memory`。技能只按任务加载必要引用。
+
+## 可选 App Server Trace 摄取
+
+`CodexAppServerTraceRecorder` 只能由固定 Codex CLI `0.146.0` 与 App Server wire
+version `v2` 的可信宿主 adapter 使用。ledger access、Trace/run/thread identity、clock、
+classification、retention 与 ordering 都由 constructor 持有，而不是 notification frame。
+
+每次映射前，先通过已授权 Artifact Authority 持久化精确原始 notification 字节，并传入唯一
+匹配的 `application/json` `EventArtifactRef`。recorder 会映射十一种固定 Hook name 的
+started/completed、turn diff update 与 completed `final_answer` agent message。raw Hook
+output、source path、diff 与 response text 只留在 Artifact。通过校验的 delta 与非 final
+item 会被跳过；未知 method/item、request/response、realtime transcript、direct-Hook
+stdin shape、重复 JSON key，以及超过固定 byte/node/depth limit 的 frame 都会被拒绝。
+
+append acknowledgement 丢失时，应保留同一 recorder 并调用 `resume_pending()`；精确
+idempotent event 得到确认前，它会阻止新输入。该 recorder 是 library seam，不负责启动 App
+Server process、写 Artifact、构建 Trace reducer，也不属于默认 MCP integration。详见
+[Codex App Server 摄取 v1](../protocols/codex-app-server-ingestion-v1.zh-CN.md)。
 
 ## 安装本地 MCP profile
 

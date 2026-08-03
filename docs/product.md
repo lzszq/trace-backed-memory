@@ -308,8 +308,13 @@ family 会携带精确 Trace/run ordering、规范 source time、仅 Artifact �
 tool/permission/parent/subagent correlation，以及至多 100 条 event 原子批次共享的 command
 digest。typed helper 会先复验完整 command 与可信 ledger context；generic
 SQLite/PostgreSQL event ledger 随后无需新 schema 即可精确 append/replay。
-这还不是 Codex Hook/App Server ingestion、Trace reducer/projection 或默认
-Trace-store cutover。
+opt-in Codex CLI `0.146.0` App Server v2 recorder 现会把十一种固定 Hook name、turn
+diff update 与 final-answer item completion 映射进该 family。trusted constructor state
+持有 identity、scope、authorization、time、classification 与 ordering；每个映射 frame 都
+要求一个已预先持久化的精确 JSON Artifact descriptor，未知 method、request/response、
+realtime transcript、猜测的 direct-Hook payload 与未知 item variant 都 fail closed。
+post-commit response loss 由精确 pending resume 覆盖。recorder 不会持久化 Artifact 字节、
+构建 Trace reducer/projection、启用自动 Hook capture 或选择默认 Trace-store cutover。
 
 F3 Git 增量新增八种已注册 observation type 与 opt-in
 `GitObservationEventRecorder`。checkout/ref/commit/worktree/diff/ancestry/object-

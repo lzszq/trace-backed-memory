@@ -1748,10 +1748,27 @@ not enforce Trace-specific semantics. On recovery, verify the whole retained
 command with `verify_trace_event_batch()`; parsing individual events does not
 replace batch verification.
 
-The protocol is not a Codex Hook/App Server adapter. Do not parse an unstable
-transcript as the sole fact source, accept repository or authorization identity
-from a hook payload, or claim a Trace projection/default-runtime cutover until
-those separate adapters and reducers are implemented and verified.
+The opt-in `CodexAppServerTraceRecorder` is the only published Codex App Server
+ingestion boundary. Bind its wire version, CLI version, ledger context,
+Trace/run/thread identity, clock, classification, retention policy, and cursor
+from trusted adapter state. Never accept those values from notification JSON.
+
+Before mapping a notification, persist its exact raw bytes through an
+authorized Artifact Authority and pass the single matching `application/json`
+descriptor. The recorder validates the digest, size, classification, retention,
+and availability; it does not write Artifact bytes or provide cross-authority
+atomicity. Hook output, source path, prompt, diff, final response, and transcript
+text remain only in that Artifact and never enter Trace event metadata.
+
+Only the pinned App Server v2 notification overlays for Hook start/completion,
+turn diff, and final-answer item completion may append evidence. Validated
+deltas and non-final items may be skipped without Artifact linkage. Unknown
+methods or item variants, requests/responses, realtime transcript notifications,
+and direct-Hook stdin shapes fail closed. `permissionRequest` completion stays
+`unknown`; do not infer allow or deny. If append acknowledgement is uncertain,
+call `resume_pending()` before accepting another frame. Do not claim a Trace
+projection, automatic Hook capture, or default-runtime cutover; see
+[Codex App Server Ingestion v1](protocols/codex-app-server-ingestion-v1.md).
 
 ## Git observation policy
 

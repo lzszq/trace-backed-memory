@@ -143,6 +143,9 @@ Start with:
 - `trace_event_v1.py`: storage-neutral ordered engineering-observation event
   with exact source time, Artifact-only content linkage, tool/permission/
   parent/subagent correlation, and ledger-compatible atomic batches.
+- `codex_app_server_ingestion_v1.py`: opt-in trusted Codex CLI `0.146.0` App
+  Server v2 notification recorder with strict Hook/diff/final-response mapping,
+  exact-frame Artifact validation, and pending append resume; not default wiring.
 - `git_observation_v1.py`: storage-neutral typed checkout/ref/commit/worktree/
   diff/ancestry/object/shallow evidence, capture-compatible ledger recorder, and
   exact SQLite/PostgreSQL event-ledger replay.

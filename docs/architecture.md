@@ -2185,9 +2185,18 @@ key and one content-bound digest across at most 100 contiguous canonical events.
 The typed append helper verifies that complete command and the ledger access
 context before the existing SQLite/PostgreSQL event ledger appends it atomically.
 See
-[Ordered Trace Event Protocol v1](protocols/trace-event-v1.md). No Codex Hook/
-App Server adapter, Trace reducer/projection, or compatibility
-Trace cutover is implied by this protocol increment.
+[Ordered Trace Event Protocol v1](protocols/trace-event-v1.md). An opt-in
+`CodexAppServerTraceRecorder` now binds trusted Trace/run/thread identity and a
+trusted clock to Codex CLI `0.146.0` App Server v2 notifications. It maps the
+eleven pinned Hook names, turn diff updates, and `final_answer` item completion,
+requires one pre-persisted exact-frame `application/json` Artifact descriptor,
+and keeps raw path/diff/response bytes out of event payloads. Unknown methods,
+requests/responses, realtime transcripts, guessed direct-Hook payloads, and
+unknown item variants fail closed. A response-lost append retains the exact
+pending event and blocks new input until idempotent resume. See
+[Codex App Server Ingestion v1](protocols/codex-app-server-ingestion-v1.md).
+The adapter does not persist Artifact bytes, build a Trace reducer/projection,
+or select compatibility/default Trace cutover.
 
 The F3 Git observation increment is also delivered as an opt-in typed protocol.
 Eight registered observation types retain checkout, commit, ref, worktree,

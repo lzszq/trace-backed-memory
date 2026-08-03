@@ -83,8 +83,10 @@ structured result，同 scope 的新 authorization 可以进行对账，且所�
 source/time/Artifact/tool/permission/parent-subagent linkage，以及与 ledger 兼容、用于至多
 100 条连续 event 原子批次的 partition identity/content digest。typed preflight、SQLite
 续接与精确 append/replay 已核验，精确 SQLite/PostgreSQL receipt/page parity test 也已存在，
-但本机没有 PostgreSQL executable。
-Codex Hook/App Server ingestion、Trace reducer 与默认 Trace persistence cutover 仍未完成。
+但本机没有 PostgreSQL executable。opt-in Codex CLI `0.146.0` App Server v2 recorder
+现已把固定 Hook lifecycle、turn diff 与 final response 映射成 exact-frame Artifact-linked
+Trace event，拒绝 unsupported/transcript/request shape，并支持精确 pending resume。自动
+Hook wiring、Artifact persistence、Trace reducer 与默认 Trace persistence cutover 仍未完成。
 固定进度契约没有可审计的 F3 atom-ID→plan-line 映射，因此
 不会为这些协议证据臆造 atom ID；正式与候选进度继续为 182/490（37.14%），
 `atom_ids=[]`。
@@ -96,8 +98,8 @@ partition 与 checkout identity、仅 Artifact 的精确 diff reference，以及
 ancestry 绑定进 generic ledger。聚焦 SQLite append/replay 与既有 capture 兼容性已核验；
 PostgreSQL parity coverage 已存在，但因本机缺少 PostgreSQL executable 而跳过。event
 payload 排除 raw path、remote URL、diff 字节、stdout 与 stderr。自动 Git/diff capture、
-checkout authority、force-push reconciliation、Codex Hook/App
-Server ingestion 与默认 cutover 仍未完成。本增量没有可安全映射的完整固定计划 atom ID，
+checkout authority、force-push reconciliation、自动 Codex Hook wiring 与默认 cutover 仍未完成。
+本增量没有可安全映射的完整固定计划 atom ID，
 因此正式与候选进度仍为 182/490（37.14%），`atom_ids=[]`。
 
 F3 Git graph reducer 现在会通过 sealed registry 消费全部八种 typed Git observation event，

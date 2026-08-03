@@ -43,6 +43,7 @@
 - [Event type registry 与 upcaster v1](protocols/event-registry-v1.zh-CN.md)
 - [Event ledger 应用端口 v1](protocols/event-ledger-port-v1.zh-CN.md)
 - [有序 Trace event 协议 v1](protocols/trace-event-v1.zh-CN.md)
+- [Codex App Server 摄取 v1](protocols/codex-app-server-ingestion-v1.zh-CN.md)
 - [Git observation 协议 v1](protocols/git-observation-v1.zh-CN.md)
 - [Reducer 与 projection runtime v1](protocols/reducer-v1.zh-CN.md)
 - [Gate evidence canonical event 与 reducer v1](protocols/gate-evidence-event-v1.zh-CN.md)
